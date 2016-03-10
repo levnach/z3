@@ -7,7 +7,6 @@
 
 #pragma once
 #include <vector>
-#include "lean\float.h"
 #include "permutation_matrix.h"
 #include <unordered_map>
 #include "static_matrix.h"

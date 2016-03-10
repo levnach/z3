@@ -34,6 +34,8 @@ public:
     void swap(mpq & other) { m_num.swap(other.m_num); m_den.swap(other.m_den); }
     mpz const & numerator() const { return m_num; }
     mpz const & denominator() const { return m_den; }
+
+    double get_double() const;
 };
 
 inline void swap(mpq & m1, mpq & m2) { m1.swap(m2); }
@@ -837,6 +839,9 @@ public:
     bool is_even(mpq const & a) { return is_int(a) && is_even(a.m_num); }
 
 };
+
+inline double mpq::get_double() const { return 0.0;  } // TBD
+
 
 typedef mpq_manager<true> synch_mpq_manager;
 typedef mpq_manager<false> unsynch_mpq_manager;

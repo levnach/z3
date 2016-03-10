@@ -5,7 +5,6 @@
   Author: Lev Nachmanson
 */
 #pragma once
-#include "lean\float.h"
 #include "lean\double.h"
 #include "mpq.h"
 

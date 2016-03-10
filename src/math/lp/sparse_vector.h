@@ -14,7 +14,6 @@
 #include "mpz.h"
 #include "mpbq.h"
 #include "lean/double.h"
-#include "lean/float.h"
 #include "lean/mpfp.h"
 #include "lp_settings.h"
 namespace lean {

@@ -13,7 +13,6 @@
 #include "mpz.h"
 #include "mpbq.h"
 #include "lean\double.h"
-#include "lean\float.h"
 #include "lean\mpfp.h"
 #include <string>
 #include "sparse_vector.h"
