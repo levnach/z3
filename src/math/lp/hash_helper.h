@@ -10,9 +10,10 @@
 #include "mpq.h"
 namespace std {
 template<>
-struct hash<lean::mpq> {
-    inline size_t operator()(const lean::mpq & v) const {
-        return v.hash();
+struct hash<mpq> {
+    inline size_t operator()(const mpq & v) const {
+        UNREACHABLE();
+        //        return v.hash();
     }
 };
 }

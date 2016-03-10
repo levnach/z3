@@ -27,8 +27,9 @@ class mpq {
     mpz m_den;
     friend class mpq_manager<true>;
     friend class mpq_manager<false>;
-    mpq & operator=(mpq const & other) { UNREACHABLE(); return *this; }
 public:
+    mpq & operator=(mpq const & other) { UNREACHABLE(); return *this; }
+  public:
     mpq(int v):m_num(v), m_den(1) {}
     mpq():m_den(1) {}
     void swap(mpq & other) { m_num.swap(other.m_num); m_den.swap(other.m_den); }
@@ -835,10 +836,16 @@ public:
     }
 
     bool is_even(mpz const & a) { return mpz_manager<SYNCH>::is_even(a); }
-
+public:
     bool is_even(mpq const & a) { return is_int(a) && is_even(a.m_num); }
 
+    friend bool operator==(mpq const & a, mpq const & b) ;
+    friend bool operator>=(mpq const & a, mpq const & b);
 };
+
+bool operator>(mpq const & a, mpq const & b) { UNREACHABLE(); /*return cmp(a, b) > 0;*/ }
+bool operator<(mpq const & a, mpq const & b) { UNREACHABLE(); /*return cmp(a, b) > 0;*/ }
+bool operator==(mpq const & a, mpq const & b) { UNREACHABLE(); /*return cmp(a, b) > 0;*/ }
 
 inline double mpq::get_double() const { return 0.0;  } // TBD
 

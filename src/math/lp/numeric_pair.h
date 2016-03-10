@@ -9,7 +9,7 @@
 #include <cmath>
 #include <algorithm>
 #include "mpq.h"
-// # include "lean\double.h"
+# include "utils.h"
 #include "lp_settings.h"
 
 namespace lean {
@@ -46,7 +46,9 @@ struct numeric_pair {
     }
 
     bool operator>(const numeric_pair& a) const {
-        return x > a.x || (x == a.x && y > a.y);
+        return (x > a.x)
+            ||
+            (x == a.x && y > a.y);
     }
 
     bool operator==(const numeric_pair& a) const  {
@@ -86,8 +88,15 @@ struct numeric_pair {
     numeric_pair operator*(const numeric_pair & /*a*/) const  {
         lean_unreachable();
     }
+    numeric_pair & operator =(const numeric_pair & a ) {
+        x = a.x;
 
-    numeric_pair&  operator+=(const numeric_pair & a) {
+        y = a.y;
+
+        return *this;
+    }
+
+ numeric_pair&  operator+=(const numeric_pair & a) {
         x += a.x;
         y += a.y;
         return *this;
@@ -147,7 +156,7 @@ numeric_pair<T> operator*(const numeric_pair<T> & r, const X & a) {
 // template <numeric_pair, typename T>  bool precise() { return numeric_traits<T>::precise();}
 template <typename T> double get_double(const numeric_pair<T> & ) { lean_unreachable(); }
 template <typename T>
-class numeric_traits<numeric_pair<T> > {
+class numeric_traits {
   public:
     static bool precise() { return numeric_traits<T>::precise();}
     static numeric_pair<T> zero() { return numeric_pair<T>(numeric_traits<T>::zero(), numeric_traits<T>::zero()); }
