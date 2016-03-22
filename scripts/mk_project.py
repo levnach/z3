@@ -11,8 +11,8 @@ from mk_util import *
 def init_project_def():
     set_version(4, 4, 2, 0)
     add_lib('util', [])
-    add_lib('lean', ['util'], 'math/lp/lean')
-    add_lib('lp', ['lean','util'], 'math/lp')
+    add_lib('lean', ['util'], 'util/lp/lean')
+    add_lib('lp', ['lean','util'], 'util/lp')
     add_lib('polynomial', ['util'], 'math/polynomial')
     add_lib('sat', ['util'])
     add_lib('nlsat', ['polynomial', 'sat'])
