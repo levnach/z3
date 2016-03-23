@@ -843,13 +843,6 @@ public:
     friend bool operator>=(mpq const & a, mpq const & b);
 };
 
-bool operator>(mpq const & a, mpq const & b) { UNREACHABLE(); /*return cmp(a, b) > 0;*/ }
-bool operator<(mpq const & a, mpq const & b) { UNREACHABLE(); /*return cmp(a, b) > 0;*/ }
-bool operator==(mpq const & a, mpq const & b) { UNREACHABLE(); /*return cmp(a, b) > 0;*/ }
-
-inline double mpq::get_double() const { return 0.0;  } // TBD
-
-
 typedef mpq_manager<true> synch_mpq_manager;
 typedef mpq_manager<false> unsynch_mpq_manager;
 
