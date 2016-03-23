@@ -289,15 +289,16 @@ endif()
 ################################################################################
 # Tracing
 ################################################################################
-option(ENABLE_TRACING OFF "Enable tracing")
-if (ENABLE_TRACING)
+option(ENABLE_TRACING_FOR_NON_DEBUG "Enable tracing in non-debug builds." OFF)
+if (ENABLE_TRACING_FOR_NON_DEBUG)
   list(APPEND Z3_COMPONENT_CXX_DEFINES "-D_TRACE")
+else()
+  # Tracing is always enabled in debug builds
+  list(APPEND Z3_COMPONENT_CXX_DEFINES $<$<CONFIG:Debug>:_TRACE>)
 endif()
-# Should we always enable tracing when doing a debug build?
-#list(APPEND Z3_COMPONENT_CXX_DEFINES $<$<CONFIG:Debug>:_TRACE>)
 
 ################################################################################
-# Postion indepdent code
+# Postion independent code
 ################################################################################
 # This is required because code built in the components will end up in a shared
 # library. If not building a shared library ``-fPIC`` isn't needed and would add
@@ -334,6 +335,17 @@ message(STATUS "CMAKE_INSTALL_INCLUDEDIR: \"${CMAKE_INSTALL_INCLUDEDIR}\"")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+################################################################################
+# Extra dependencies for build rules that use the Python infrastructure to
+# generate files used for Z3's build. Changes to these files will trigger
+# a rebuild of all the generated files.
+################################################################################
+# Note: ``update_api.py`` is deliberately not here because it not used
+# to generate every generated file. The targets that need it list it explicitly.
+set(Z3_GENERATED_FILE_EXTRA_DEPENDENCIES
+  "${CMAKE_SOURCE_DIR}/scripts/mk_genfile_common.py"
+)
 
 ################################################################################
 # Z3 components, library and executables
