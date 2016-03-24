@@ -178,6 +178,7 @@ else()
 endif()
 
 list(APPEND Z3_COMPONENT_EXTRA_INCLUDE_DIRS "../..")
+list(APPEND Z3_COMPONENT_EXTRA_INCLUDE_DIRS "..")
 
 ################################################################################
 # GNU multiple precision library support
