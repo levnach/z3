@@ -10,8 +10,6 @@
 #include <set>
 #include <unordered_map>
 #include <utility>
-#include "util/numerics/numeric_traits.h"
-#include "util/numerics/mpq.h"
 #include "util/lp/sparse_vector.h"
 #include "util/lp/indexed_vector.h"
 #include "util/lp/permutation_matrix.h"

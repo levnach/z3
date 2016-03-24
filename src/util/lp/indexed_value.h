@@ -5,8 +5,6 @@
   Author: Lev Nachmanson
 */
 #pragma once
-#include "util/numerics/double.h"
-#include "util/numerics/mpq.h"
 
 namespace lp {
 template <typename T>

@@ -8,8 +8,6 @@
 #include <string>
 #include <cmath>
 #include <algorithm>
-#include "util/numerics/mpq.h"
-#include "util/numerics/double.h"
 #include "util/lp/lp_settings.h"
 
 namespace lp {

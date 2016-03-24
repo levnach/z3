@@ -10,7 +10,6 @@
 #include <string>
 #include <algorithm>
 #include <utility>
-#include "util/numerics/mpq.h"
 #include "util/lp/column_info.h"
 namespace lp {
 typedef unsigned var_index;

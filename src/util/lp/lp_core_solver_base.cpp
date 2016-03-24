@@ -357,6 +357,8 @@ column_is_dual_feasible(unsigned j) const {
         std::cout << "unexpected column type = " << column_type_to_string(m_column_type[j]) << std::endl;
         lean_unreachable();
     }
+    lean_unreachable();
+    return false;
 }
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 d_is_not_negative(unsigned j) const {
@@ -694,6 +696,8 @@ get_non_basic_column_value_position(unsigned j) {
     default:
         lean_unreachable();
     }
+    lean_unreachable();
+    return at_low_bound;
 }
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::init_lu() {

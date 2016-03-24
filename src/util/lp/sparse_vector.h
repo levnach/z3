@@ -10,7 +10,6 @@
 #include <utility>
 #include "util/debug.h"
 #include "util/lp/lp_utils.h"
-#include "util/numerics/numeric_traits.h"
 #include "util/lp/lp_settings.h"
 namespace lp {
 

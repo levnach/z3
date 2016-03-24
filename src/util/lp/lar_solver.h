@@ -8,7 +8,6 @@
 #include <vector>
 #include "util/debug.h"
 #include "util/buffer.h"
-#include "util/numerics/numeric_traits.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <string>

@@ -31,9 +31,9 @@ namespace lp {
     public:
         static bool precise() { return false; }
         static double g_zero;
-        static double const & zero() { return g_zero; }
+        static double const &zero() { return g_zero;  }
         static double g_one;
-        static double const & one() { return g_zero; }
+        static double const &one() { return g_one; }
         static bool is_zero(double v) { return v == 0.0; }
         static double const & get_double(double const & d) { return d;}
         static double log(double const & d) { NOT_IMPLEMENTED_YET(); return d;}

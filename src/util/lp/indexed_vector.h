@@ -8,7 +8,6 @@
 #pragma once
 #include <vector>
 #include "util/debug.h"
-#include "util/numerics/numeric_traits.h"
 #include <string>
 #include "util/lp/sparse_vector.h"
 #include <iomanip>

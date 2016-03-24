@@ -16,7 +16,6 @@
 #include <math.h>
 #include <cstdlib>
 #include <algorithm>
-#include "util/numerics/double.h"
 #include "util/lp/lu.h"
 #include "util/lp/lp_solver.h"
 #include "util/lp/static_matrix.h"

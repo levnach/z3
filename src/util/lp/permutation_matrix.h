@@ -8,7 +8,6 @@
 #include <vector>
 #include <algorithm>
 #include "util/debug.h"
-#include "util/numerics/numeric_traits.h"
 #include <string>
 #include "util/lp/sparse_vector.h"
 #include "util/lp/indexed_vector.h"

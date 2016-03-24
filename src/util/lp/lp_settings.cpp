@@ -7,7 +7,6 @@
 #include <cmath>
 #include <string>
 #include <vector>
-#include "util/numerics/double.h"
 #include "util/lp/lp_settings.h"
 namespace lp {
 std::string column_type_to_string(column_type t) {
