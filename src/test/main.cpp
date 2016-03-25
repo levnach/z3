@@ -227,7 +227,7 @@ int main(int argc, char ** argv) {
     TST(pdr);
     TST_ARGV(ddnf);
     TST(model_evaluator);
-    TST(lp);
+    TST_ARGV(lp);
     //TST_ARGV(hs);
 }
 

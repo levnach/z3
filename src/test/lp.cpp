@@ -2434,9 +2434,7 @@ void test_square_dense_submatrix() {
 #endif
 }
 
-void test_lp_local() {
-    int argn = 0;
-    char * const* argv = 0;
+void test_lp_local(int argn, char**argv) {
     // initialize_util_module();
     // initialize_numerics_module();
     int ret;
@@ -2551,6 +2549,6 @@ void test_lp_local() {
     return finalize(0); // has_violations() ? 1 : 0);
 }
 }
-void tst_lp() {
-    lp::test_lp_local();
+void tst_lp(char ** argv, int argc, int& i) {
+    lp::test_lp_local(argc - 1, argv + 1);
 }
