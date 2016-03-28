@@ -22,6 +22,13 @@ struct convert_struct {
     static bool above_bound_numeric(const X &, const X &, const Y &) { lean_unreachable(); return false; }
 };
 
+template <>
+struct convert_struct<mpq, double> {
+	static mpq convert(const double & q) { return mpq(0); } // does not matter
+	static bool is_epsilon_small(const mpq & x, const double & y) { return x == 0; }
+	static bool below_bound_numeric(const mpq &, const mpq &, const double &) { lean_unreachable(); return false; }
+	static bool above_bound_numeric(const mpq &, const mpq &, const double &) { lean_unreachable(); return false; }
+};
 
 template <>
 struct convert_struct<double, mpq> {

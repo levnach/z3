@@ -52,7 +52,7 @@ public:
     lar_constraint(const lar_base_constraint & c);
 
     unsigned size() const {
-        return m_left_side.size();
+        return static_cast<unsigned>(m_left_side.size());
     }
 
     buffer<std::pair<mpq, var_index>> get_left_side_coefficients() const;

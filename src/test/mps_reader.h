@@ -34,7 +34,7 @@ inline size_t number_of_whites(const string & s)  {
 }
 inline size_t number_of_whites_from_end(const string & s)  {
     size_t ret = 0;
-    for(int i = s.size() - 1;i >= 0; i--)
+    for(int i = static_cast<int>(s.size()) - 1;i >= 0; i--)
         if (my_white_space(s[i])) ret++;else break;
     
     return ret;
@@ -241,7 +241,7 @@ class mps_reader {
                 goto fail;
             } else {
                 row * row = t->second;
-                row->m_row_columns[column_name] = atof(column_data.substr(8).c_str());
+                row->m_row_columns[column_name] = numeric_traits<T>::from_string(column_data.substr(8));
                 if (column_data.size() > 24) {
                     column_data = column_data.substr(25);
                     if (column_data.size() >= 22) {
@@ -269,7 +269,7 @@ class mps_reader {
                 return;
             }
             row *r = t->second;
-            r->m_row_columns[column_name] = atof(tokens[i + 1].c_str());
+            r->m_row_columns[column_name] = numeric_traits<T>::from_string(tokens[i + 1]);
         }
     }
 
@@ -328,7 +328,7 @@ class mps_reader {
                 goto fail;
             } else {
                 row * row = t->second;
-                row->m_right_side = atof(rhsides.substr(8).c_str());
+                row->m_right_side = numeric_traits<T>::from_string(rhsides.substr(8));
                 if (rhsides.size() > 24) {
                     rhsides = rhsides.substr(25);
                     if (rhsides.size() >= 22) {
@@ -363,7 +363,7 @@ class mps_reader {
                 return;
             }
             row * row = t->second;
-            row->m_right_side = atof(splitted_line[i + 1].c_str());
+            row->m_right_side = numeric_traits<T>::from_string(splitted_line[i + 1]);
         }
     }
 
@@ -452,19 +452,16 @@ class mps_reader {
                 set_m_ok_to_false();
                 return;
             }
-            double val = atof(bound_string[1].c_str());
-
             b->m_upper_is_set = true;
-            b->m_upper= val;
+            b->m_upper= numeric_traits<T>::from_string(bound_string[1]);
         } else if (bound_type == "LO" || bound_type == "LI") {
             if (bound_string.size() <= 1){
                 set_m_ok_to_false();
                 return;
             }
 
-            double val = atof(bound_string[1].c_str());
             b->m_low_is_set = true;
-            b->m_low = val;
+            b->m_low = numeric_traits<T>::from_string(bound_string[1]);
         } else if (bound_type == "FR") {
             b->m_free = true;
         } else if (bound_type == "FX") {
@@ -473,9 +470,8 @@ class mps_reader {
                 return;
             }
 
-            double val = atof(bound_string[1].c_str());
             b->m_value_is_fixed = true;
-            b->m_fixed_value = val;
+            b->m_fixed_value =  numeric_traits<T>::from_string(bound_string[1]);
         } else if (bound_type == "PL") {
             b->m_low_is_set = true;
             b->m_low = 0;
@@ -535,7 +531,7 @@ class mps_reader {
                 goto fail;
             } else {
                 row * row = t->second;
-                row->m_range = atof(rhsides.substr(8).c_str());
+                row->m_range = numeric_traits<T>::from_string(rhsides.substr(8));
                 maybe_modify_current_row_and_add_row_for_range(row);
                 if (rhsides.size() > 24) {
                     rhsides = rhsides.substr(25);
@@ -562,7 +558,7 @@ class mps_reader {
                 return;
             }
             row * row = it->second;
-            row->m_range = atof(splitted_line[i + 1].c_str());
+            row->m_range = numeric_traits<T>::from_string(splitted_line[i + 1]);
             maybe_modify_current_row_and_add_row_for_range(row);
         }
     }

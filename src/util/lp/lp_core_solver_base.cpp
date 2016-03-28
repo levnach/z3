@@ -111,13 +111,13 @@ fill_cb(std::vector<T> & y){
 template <typename T, typename X> void lp_core_solver_base<T, X>::
 solve_yB(std::vector<T> & y) {
     fill_cb(y); // now y = cB, that is the projection of costs to basis
-    m_factorization->solve_yB(y);
+	m_factorization->solve_yB(y);
 }
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::
 update_index_of_ed() {
     m_index_of_ed.clear();
-    unsigned i = m_ed.size();
+    unsigned i = static_cast<unsigned>(m_ed.size());
     while (i--) {
         if (!is_zero(m_ed[i]))
             m_index_of_ed.push_back(i);
@@ -222,7 +222,7 @@ calculate_pivot_row_of_B_1(unsigned pivot_row) {
         m_pivot_row_of_B_1[i] = numeric_traits<T>::zero();
     }
     m_pivot_row_of_B_1[pivot_row] = numeric_traits<T>::one();
-    m_factorization->solve_yB(m_pivot_row_of_B_1);
+	m_factorization->solve_yB(m_pivot_row_of_B_1);
 }
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::
@@ -249,7 +249,7 @@ calculate_pivot_row_when_pivot_row_of_B1_is_ready() {
         }
     }
 
-    unsigned j = m_pivot_row.size();
+    unsigned j = static_cast<unsigned>(m_pivot_row.size());
     while (j--) {
         if (!is_zero(m_pivot_row[j]))
             m_pivot_row_index.push_back(j);
@@ -275,7 +275,7 @@ print_statistics(X cost) {
 }
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 print_statistics_with_iterations_and_check_that_the_time_is_over(unsigned total_iterations) {
-    if (total_iterations % m_settings.report_frequency == 0) {
+    if (m_settings.print_statistics && total_iterations % m_settings.report_frequency == 0) {
         std::cout << "iterations = " << total_iterations  <<  ", nonzeros = " << m_factorization->get_number_of_nonzeroes() << std::endl;
         if (time_is_over()) {
             return true;

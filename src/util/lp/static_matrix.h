@@ -95,9 +95,9 @@ public:
 
     void init_empty_matrix(unsigned m, unsigned n);
 
-    unsigned row_count() const { return m_rows.size(); }
+    unsigned row_count() const { return static_cast<unsigned>(m_rows.size()); }
 
-    unsigned column_count() const { return m_columns.size(); }
+    unsigned column_count() const { return static_cast<unsigned>(m_columns.size()); }
     template <typename L>
     L dot_product_with_row(unsigned row, const std::vector<L> & w);;
 

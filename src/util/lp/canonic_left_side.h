@@ -46,7 +46,7 @@ public:
         m_column_info.set_name(name);
     }
 
-    unsigned size() const { return m_coeffs.size(); }
+    unsigned size() const { return static_cast<unsigned>(m_coeffs.size()); }
 
     void normalize() {
         if (m_coeffs.size() == 0) return;

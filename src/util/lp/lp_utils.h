@@ -37,6 +37,7 @@ namespace lp {
         static bool is_zero(double v) { return v == 0.0; }
         static double const & get_double(double const & d) { return d;}
         static double log(double const & d) { NOT_IMPLEMENTED_YET(); return d;}
+		static double from_string(std::string const & str) { return atof(str.c_str()); }
     };
     
     template<>
@@ -48,7 +49,8 @@ namespace lp {
         static bool is_zero(const rational & v) { return v.is_zero(); }
         static double const  get_double(const rational  & d) { return d.get_double();}
         static rational log(rational const& r) { UNREACHABLE(); return r; }
- };
+		static rational from_string(std::string const & str) { return rational(str.c_str()); }
+	};
 }
 namespace std {
 template<>
