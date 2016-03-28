@@ -51,7 +51,7 @@ namespace lp {
                     cout << " " << m_head;
                 }
             }
-            unsigned size() const { return m_elems.size(); }
+            unsigned size() const { return static_cast<unsigned>(m_elems.size()); }
             bool is_simple() const { return size() == 0; }
         };
         struct formula_constraint {
@@ -90,9 +90,9 @@ namespace lp {
         }
 
         int first_separator() {
-            unsigned blank_pos = m_line.find(' ');
-            unsigned br_pos = m_line.find('(');
-            unsigned reverse_br_pos = m_line.find(')');
+            int blank_pos = static_cast<int>(m_line.find(' '));
+            int br_pos = static_cast<unsigned>(m_line.find('('));
+            int reverse_br_pos = static_cast<unsigned>(m_line.find(')'));
             return min(blank_pos, min(br_pos, reverse_br_pos));
         }
 
@@ -150,7 +150,7 @@ namespace lp {
 
         void parse_line() {
             if (m_line.find(":formula") == 0) {
-                int first_br = m_line.find('(');
+                int first_br = static_cast<int>(m_line.find('('));
                 if (first_br == -1) {
                     cout << "empty formula" << endl;
                     return;

@@ -197,7 +197,7 @@ protected:
 
     void fill_column_names_for_core_solver();
 
-    unsigned number_of_core_structurals() { return m_external_columns_to_core_solver_columns.size(); }
+    unsigned number_of_core_structurals() { return static_cast<unsigned>(m_external_columns_to_core_solver_columns.size()); }
 
 
     void restore_column_scales_to_one() {

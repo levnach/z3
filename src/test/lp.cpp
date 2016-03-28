@@ -1004,7 +1004,9 @@ void update_settings(argument_parser & args_parser, lp_settings& settings) {
     if (get_int_from_args_parser("--rep_frq", args_parser, n))
         settings.report_frequency = n;
     else
-        settings.report_frequency = 1000;
+        settings.report_frequency = args_parser.option_is_used("--mpq")? 80: 1000;
+
+    settings.print_statistics = true;
 
     if (get_int_from_args_parser("--percent_for_enter", args_parser, n))
         settings.percent_of_entering_to_check = n;
@@ -1026,8 +1028,8 @@ void update_settings(argument_parser & args_parser, lp_settings& settings) {
     }
 }
 
-
-void setup_solver(unsigned max_iterations, unsigned time_limit, bool look_for_min, argument_parser & args_parser, lp_solver<double, double> * solver) {
+template <typename T, typename X>
+void setup_solver(unsigned max_iterations, unsigned time_limit, bool look_for_min, argument_parser & args_parser, lp_solver<T, X> * solver) {
     if (max_iterations > 0)
         solver->set_max_iterations_per_stage(max_iterations);
 
@@ -1117,22 +1119,13 @@ void solve_mps_double(std::string file_name, bool look_for_min, unsigned max_ite
     delete solver;
 }
 
-void solve_mps_rational(std::string file_name, bool look_for_min, unsigned max_iterations, unsigned time_limit, bool dual, argument_parser & /*args_parser*/) {
+void solve_mps_rational(std::string file_name, bool look_for_min, unsigned max_iterations, unsigned time_limit, bool dual, argument_parser & args_parser) {
     mps_reader<lp::mpq, lp::mpq> reader(file_name);
     reader.read();
     if (reader.is_ok()) {
         auto * solver =  reader.create_solver(dual);
-        if (look_for_min) {
-            solver->flip_costs();
-        }
+        setup_solver(max_iterations, time_limit, look_for_min, args_parser, solver);
         int begin = get_millisecond_count();
-        if (max_iterations > 0) {
-            solver->set_max_iterations_per_stage(max_iterations);
-        }
-
-        if (time_limit > 0) {
-            solver->set_time_limit(time_limit);
-        }
         solver->find_maximal_solution();
         std::cout << "Status: " << lp_status_to_string(solver->get_status()) << std::endl;
 
@@ -1146,7 +1139,7 @@ void solve_mps_rational(std::string file_name, bool look_for_min, unsigned max_i
             }
             std::cout << "cost = " << cost.get_double() << std::endl;
         }
-        cout << "processed in " << get_millisecond_span(begin) / 1000.0 << " seconds, running for " << solver->m_total_iterations << " iterations" << std::endl;
+        std::cout << "processed in " << get_millisecond_span(begin) / 1000.0 << " seconds, running for " << solver->m_total_iterations << " iterations" << std::endl;
         delete solver;
     } else {
         std::cout << "cannot process " << file_name << std::endl;

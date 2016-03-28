@@ -131,7 +131,7 @@ bool vectors_are_equal(const std::vector<T> & a, const buffer<T>  &b) {
 
 template <typename T>
 bool vectors_are_equal(const std::vector<T> & a, const std::vector<T>  &b) {
-    unsigned n = a.size();
+    unsigned n = static_cast<unsigned>(a.size());
     if (n != b.size()) return false;
     if (numeric_traits<T>::precise()) {
         for (unsigned i = 0; i < n; i ++){

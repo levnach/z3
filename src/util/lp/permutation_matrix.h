@@ -121,7 +121,7 @@ namespace lp {
 
         bool is_identity() const;
 
-        unsigned size() const { return m_rev.size(); }
+        unsigned size() const { return static_cast<unsigned>(m_rev.size()); }
 
         unsigned * values() const { return m_permutation; }
     }; // end of the permutation class

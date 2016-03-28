@@ -63,7 +63,7 @@ struct lp_settings {
     // a quatation "if some choice of the entering vairable leads to an eta matrix
     // whose diagonal element in the eta column is less than e2 (entering_diag_epsilon) in magnitude, the this choice is rejected ...
     double entering_diag_epsilon = 1e-8;
-    double c_partial_pivoting = 10; // this is the constant c from page 410
+    int c_partial_pivoting = 10; // this is the constant c from page 410
     unsigned depth_of_rook_search = 4;
     bool using_partial_pivoting = true;
     // dissertation of Achim Koberstein
@@ -148,8 +148,9 @@ struct lp_settings {
     // the method of lar solver to use
     bool row_feasibility = true;
     bool use_double_solver_for_lar = true;
-    int report_frequency = 10000000;
-    unsigned column_norms_update_frequency = 1000;
+    int report_frequency = 1000;
+	bool print_statistics = false;
+	unsigned column_norms_update_frequency = 1000;
     bool scale_with_ratio = true;
     double density_threshold = 0.7; // need to tune it up, todo
 #ifdef LEAN_DEBUG

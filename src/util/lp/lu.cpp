@@ -169,9 +169,13 @@ void lu<T, X>::solve_Bd_when_w_is_ready(std::vector<T> & d, indexed_vector<T>& w
 template <typename T, typename X>
 template <typename L>
 void lu<T, X>::solve_By_when_y_is_ready(std::vector<L> & y) {
-    m_U.double_solve_U_y(y);
+	if (numeric_traits<T>::precise()) {
+ 		m_U.solve_U_y(y);
+		m_R.apply_reverse_from_left(y); // see 24.3 from Chvatal
+		return;
+	}
+	m_U.double_solve_U_y(y);
     m_R.apply_reverse_from_left(y); // see 24.3 from Chvatal
-    if (precise<X>()) return;
     unsigned i = m_dim;
     while (i--) {
         if (is_zero(y[i])) continue;
@@ -232,7 +236,7 @@ void lu<T, X>::solve_yB_internal(std::vector<T>& y) {
 }
 template <typename T, typename X>
 void lu<T, X>::add_delta_to_solution(std::vector<T>& yc, std::vector<T>& y){
-    unsigned i = y.size();
+    unsigned i = static_cast<unsigned>(y.size());
     while (i--)
         y[i]+=yc[i];
 }
@@ -249,6 +253,10 @@ void lu<T, X>::find_error_of_yB(std::vector<T>& yc, const std::vector<T>& y) {
 // y is the input
 template <typename T, typename X>
 void lu<T, X>::solve_yB(std::vector<T> & y) {
+	if (numeric_traits<T>::precise()) {
+		solve_yB_internal(y);
+		return;
+    }
     std::vector<T> yc(y); // copy y aside
     solve_yB_internal(y);
     find_error_of_yB(yc, y);
@@ -427,7 +435,7 @@ void lu<T, X>::check_apply_lp_lists_to_w(T * w) {
 template <typename T, typename X>
 void lu<T, X>::process_column(int j) {
     unsigned pi, pj;
-    m_U.get_pivot_for_column(pi, pj, T(m_settings.c_partial_pivoting), j);
+    m_U.get_pivot_for_column(pi, pj, m_settings.c_partial_pivoting, j);
     if (static_cast<int>(pi) == -1) {
         std::cout << "cannot find the pivot for column " << j << std::endl;
         m_failure = true;

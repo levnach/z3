@@ -158,8 +158,8 @@ template <typename T, typename X>    void static_matrix<T, X>::set(unsigned row,
     m_domain.insert(p);
 #endif
     auto & r = m_rows[row];
-    unsigned offs_in_cols = m_columns[col].size();
-    m_columns[col].push_back(make_column_cell(row, r.size(), val));
+    unsigned offs_in_cols = static_cast<unsigned>(m_columns[col].size());
+    m_columns[col].push_back(make_column_cell(row, static_cast<unsigned>(r.size()), val));
     r.push_back(make_row_cell(col, offs_in_cols, val));
 }
 

@@ -74,7 +74,7 @@ void lar_solver::map_left_side_to_column_of_A(canonic_left_side*  left_side, uns
     lean_assert(m_column_indices_to_canonic_left_sides.find(j) == m_column_indices_to_canonic_left_sides.end());
     left_side->m_column_index = j; // assigning this index does not change the hash of canonic_left_side
     if (left_side->size() > 1) { // if size is one we will not create a row for this left side
-        left_side->m_row_index = m_basis.size();
+        left_side->m_row_index = static_cast<int>(m_basis.size());
         m_basis.push_back(j); // j will be a basis column, so we put it into the basis as well
     }
     m_column_indices_to_canonic_left_sides[j++] = left_side; // pointing from the column to the left side
@@ -105,8 +105,8 @@ void lar_solver::add_row_to_A(static_matrix<U, V> & A, unsigned i, canonic_left_
 
 template <typename U, typename V>
 void lar_solver::create_matrix_A(static_matrix<U, V> & A) {
-    unsigned n = m_column_indices_to_canonic_left_sides.size();
-    unsigned m = m_basis.size();
+    unsigned n = static_cast<unsigned>(m_column_indices_to_canonic_left_sides.size());
+    unsigned m = static_cast<unsigned>(m_basis.size());
     A.init_empty_matrix(m, n);
     unsigned i = 0;
     for (auto & t : m_column_indices_to_canonic_left_sides)
@@ -244,7 +244,7 @@ void lar_solver::fill_column_types() {
 
 template <typename V>
 void lar_solver::fill_bounds_for_core_solver(std::vector<V> & lb, std::vector<V> & ub) {
-    unsigned n = m_canonic_left_sides.size(); // this is the number of columns
+    unsigned n = static_cast<unsigned>(m_canonic_left_sides.size()); // this is the number of columns
     lb.resize(n);
     ub.resize(n);
     for (auto t : m_canonic_left_sides) {

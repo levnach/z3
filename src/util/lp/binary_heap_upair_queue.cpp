@@ -50,7 +50,7 @@ template <typename T> void binary_heap_upair_queue<T>::enqueue(unsigned i, unsig
         // it is a new pair, let us find a spot for it
         if (m_available_spots.empty()) {
             // we ran out of empty spots
-            unsigned size_was = m_pairs.size();
+            unsigned size_was = static_cast<unsigned>(m_pairs.size());
             unsigned new_size = size_was << 1;
             for (unsigned i = size_was; i < new_size; i++)
                 m_available_spots.push_back(i);

@@ -189,7 +189,7 @@ template <typename T, typename X>    bool lp_primal_core_solver<T, X>::try_jump_
 }
 
 template <typename T, typename X>    int lp_primal_core_solver<T, X>::find_leaving_and_t(unsigned entering, X & t){
-    if (numeric_traits<T>::precise()) return find_leaving_and_t_precisely(entering, t);
+    // if (numeric_traits<T>::precise()) return find_leaving_and_t_precisely(entering, t);
     X theta = get_harris_theta();
     lean_assert(theta >= zero_of_type<X>());
     if (try_jump_to_another_bound_on_entering(entering, theta, t)) return entering;
@@ -251,7 +251,7 @@ template <typename T, typename X> lp_primal_core_solver<T, X>::lp_primal_core_so
                                                                                      std::vector<X> & upper_bound_values,
                                                                                      lp_settings & settings,
                                                                                      std::unordered_map<unsigned, std::string> const & column_names):
-    lp_core_solver_base<T, X>(A, b,
+lp_core_solver_base<T, X>(A, b,
                               basis,
                               x,
                               costs,
@@ -260,8 +260,13 @@ template <typename T, typename X> lp_primal_core_solver<T, X>::lp_primal_core_so
                               column_type_array,
                               low_bound_values,
                               upper_bound_values),
-    m_beta(A.row_count()),
-    m_converted_harris_eps(convert_struct<T, double>::convert(this->m_settings.harris_feasibility_tolerance)) {
+    m_beta(A.row_count())
+{
+    if (!(numeric_traits<T>::precise())) {
+        m_converted_harris_eps = convert_struct<T, double>::convert(this->m_settings.harris_feasibility_tolerance);
+    } else {
+        m_converted_harris_eps = zero_of_type<T>();
+    }
     this->m_status = UNKNOWN;
     this->m_column_norm_update_counter = settings.column_norms_update_frequency;
 }
@@ -504,7 +509,7 @@ template <typename T, typename X>void lp_primal_core_solver<T, X>::advance_on_en
 //     this->init_reduced_costs_for_one_iteration();
 // }
 
-template <typename T, typename X>    void lp_primal_core_solver<T, X>::advance_on_entering(int entering) {
+template <typename T, typename X> void lp_primal_core_solver<T, X>::advance_on_entering(int entering) {
     lean_assert(entering > -1);
     this->solve_Bd(entering);
     int refresh_result = refresh_reduced_cost_at_entering_and_check_that_it_is_off(entering);
@@ -545,7 +550,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::push_forw
 }
 
 template <typename T, typename X>  unsigned lp_primal_core_solver<T, X>::get_number_of_non_basic_column_to_try_for_enter() {
-    unsigned ret = this->m_non_basic_columns.size();
+    unsigned ret = static_cast<unsigned>(this->m_non_basic_columns.size());
     if (this->m_status == TENTATIVE_UNBOUNDED)
         return ret; // we really need to find entering with a large reduced cost
     if (ret > 300) {
@@ -663,7 +668,11 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::update_or
 // following Swietanowski - A new steepest ...
 template <typename T, typename X>    void lp_primal_core_solver<T, X>::update_column_norms(unsigned entering, unsigned leaving) {
     T pivot = this->m_pivot_row[entering];
-    T g_ent = std::max(calculate_norm_of_entering_exactly() / pivot /pivot, T(0.000001));
+	T g_ent = calculate_norm_of_entering_exactly() / pivot / pivot;
+	if (!numeric_traits<T>::precise()) {
+		if (g_ent < T(0.000001))
+			g_ent = T(0.000001);
+	}
     this->m_column_norms[leaving] = g_ent;
 
     for (unsigned j : this->m_pivot_row_index) {
@@ -733,7 +742,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::add_colum
     }
 }
 
-template <typename T, typename X>    void lp_primal_core_solver<T, X>::one_iteration() {
+template <typename T, typename X> void lp_primal_core_solver<T, X>::one_iteration() {
     this->m_total_iterations++;
     unsigned number_of_benefitial_columns_to_go_over = get_number_of_non_basic_column_to_try_for_enter();
     int entering = choose_entering_column(number_of_benefitial_columns_to_go_over);
@@ -743,7 +752,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::one_itera
         advance_on_entering(entering);
 }
 
-template <typename T, typename X>    void lp_primal_core_solver<T, X>::fill_breakpoints_array(unsigned entering) {
+template <typename T, typename X>  void lp_primal_core_solver<T, X>::fill_breakpoints_array(unsigned entering) {
     clear_breakpoints();
     for (unsigned i = this->m_m; i--;)
         try_add_breakpoint_in_row(i);
