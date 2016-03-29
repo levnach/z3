@@ -37,8 +37,7 @@ namespace lp {
     class smt_reader {
     public:
         struct lisp_elem {
-			int m_id;
-            string m_head;
+			string m_head;
             std::vector<lisp_elem> m_elems;
             void print() {
                 if (m_elems.size()) {
@@ -54,8 +53,6 @@ namespace lp {
             }
             unsigned size() const { return static_cast<unsigned>(m_elems.size()); }
             bool is_simple() const { return size() == 0; }
-			lisp_elem(int id) :m_id(id) {
-			}
         };
         struct formula_constraint {
             lconstraint_kind m_kind;
@@ -74,10 +71,8 @@ namespace lp {
         string m_line;
         bool m_is_OK = true;
         unsigned m_line_number = 0;
-		int m_lisp_elem_id = 0;
-        smt_reader(string file_name): 
-			m_formula_lisp_elem(m_lisp_elem_id++),
-            m_file_name(file_name), m_file_stream(file_name) {
+		smt_reader(string file_name): 
+			m_file_name(file_name), m_file_stream(file_name) {
         }
 
         void set_error() {
@@ -123,7 +118,7 @@ namespace lp {
             eat_blanks();
             while (m_line.size()) {
 				if (m_line[0] == '(') {
-					lisp_elem el(this->m_lisp_elem_id++);
+					lisp_elem el;
                     fill_nested_elem(el);
                     lm.m_elems.push_back(el);
                 } else {
@@ -131,7 +126,7 @@ namespace lp {
                         m_line = m_line.substr(1);
                         break;
                     }
-					lisp_elem el(m_lisp_elem_id++);
+					lisp_elem el;
                     fill_simple_elem(el);
                     lm.m_elems.push_back(el);
                 }
