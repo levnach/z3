@@ -26,7 +26,7 @@ inline std::string lconstraint_kind_string(lconstraint_kind t) {
     case GT: return std::string(">");
     case EQ: return std::string("=");
     }
-    lean_unreachable();
+    lp_unreachable();
     return std::string(); // it is unreachable
 }
 

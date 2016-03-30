@@ -48,11 +48,6 @@ lp_status lp_status_from_string(std::string status);
 enum non_basic_column_value_position { at_low_bound, at_upper_bound, at_fixed, free_of_bounds };
 
 template <typename X> bool is_epsilon_small(const X & v, const double& eps);    // forward definition
-template <typename X> bool precise() { return numeric_traits<X>::precise();}
-template <typename X> X zero_of_type() { return numeric_traits<X>::zero(); }
-template <typename X> X one_of_type() { return numeric_traits<X>::one(); }
-template <typename X> bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
-template <typename X> double  get_double(const X & v) { return numeric_traits<X>::get_double(v); }
 
 struct lp_settings {
     // when the absolute value of an element is less than pivot_epsilon
@@ -149,8 +144,8 @@ struct lp_settings {
     bool row_feasibility = true;
     bool use_double_solver_for_lar = true;
     int report_frequency = 1000;
-	bool print_statistics = false;
-	unsigned column_norms_update_frequency = 1000;
+    bool print_statistics = false;
+    unsigned column_norms_update_frequency = 1000;
     bool scale_with_ratio = true;
     double density_threshold = 0.7; // need to tune it up, todo
 #ifdef LEAN_DEBUG
@@ -208,4 +203,3 @@ inline void print_blanks(int n, std::ostream & out) {
     while (n--) {out << ' '; }
 }
 }
-

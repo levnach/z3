@@ -9,8 +9,8 @@
 #include <vector>
 #include "util/debug.h"
 #include <string>
-#include "util/lp/sparse_vector.h"
 #include <iomanip>
+#include "util/lp/lp_utils.h"
 namespace lp {
 
 template <typename T> void print_vector(const std::vector<T> & t, std::ostream & out);

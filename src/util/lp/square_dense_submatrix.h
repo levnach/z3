@@ -118,7 +118,7 @@ public:
     }
 
     void apply_from_right(indexed_vector<T> & /* w */) {
-        lean_unreachable(); // not implemented
+        lp_unreachable(); // not implemented
     }
     void apply_from_left(std::vector<X> & w, lp_settings & /*settings*/) {
         apply_from_left_to_vector(w);// , settings);

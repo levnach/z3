@@ -386,7 +386,7 @@ public:
 
             break;
         default:
-            lean_unreachable();
+            lp_unreachable();
         }
         if (theta < zero_of_type<X>())
             theta = zero_of_type<X>();

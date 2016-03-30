@@ -45,7 +45,7 @@ class static_matrix
 #endif
 {
 #ifdef LEAN_DEBUG
-    std::set<pair<unsigned, unsigned>> m_domain;
+    std::set<std::pair<unsigned, unsigned>> m_domain;
 #endif
 public:
     typedef std::vector<row_cell<T>> row_strip;
@@ -183,7 +183,7 @@ public:
     virtual void set_number_of_columns(unsigned /*n*/) { }
 #endif
 
-    T get_max_val_in_row(unsigned /* i */) const { lean_unreachable();   }
+    T get_max_val_in_row(unsigned /* i */) const { lp_unreachable();   }
 
     T get_balance() const;
 

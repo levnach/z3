@@ -4,53 +4,26 @@
 
   Author: Lev Nachmanson
   This file should be present in z3 and in Lean.
-  The idea is that it is only one different file in Lean and z3 source inside of LP
 */
 #pragma once
-#define lp_for_z3
 #include <string>
+#include "util/lp/numeric_pair.h"
 #ifdef lp_for_z3
-#include "../rational.h"
-#include "../sstream.h"
-#include "../z3_exception.h"
 namespace lp {
     inline void throw_exception(const std::string & str) {
          throw default_exception(str);
     }
-    template <typename T> class numeric_traits {};
-    typedef rational mpq;
     typedef z3_exception exception;
     #ifdef LEAN_DEBUG
     inline void lean_assert(bool b) {}
     #else
 #define lean_assert(_x_) {}
     #endif
-    inline void lean_unreachable() { lean_assert(false); }
-    template<>
-    class numeric_traits<double> {
-    public:
-        static bool precise() { return false; }
-        static double g_zero;
-        static double const &zero() { return g_zero;  }
-        static double g_one;
-        static double const &one() { return g_one; }
-        static bool is_zero(double v) { return v == 0.0; }
-        static double const & get_double(double const & d) { return d;}
-        static double log(double const & d) { NOT_IMPLEMENTED_YET(); return d;}
-		static double from_string(std::string const & str) { return atof(str.c_str()); }
-    };
-    
-    template<>
-    class numeric_traits<rational> {
-    public:
-        static bool precise() { return true; }
-        static rational const & zero() { return rational::zero(); }
-        static rational const & one() { return rational::one(); }
-        static bool is_zero(const rational & v) { return v.is_zero(); }
-        static double const  get_double(const rational  & d) { return d.get_double();}
-        static rational log(rational const& r) { UNREACHABLE(); return r; }
-		static rational from_string(std::string const & str) { return rational(str.c_str()); }
-	};
+    inline void lp_unreachable() { lean_assert(false); }
+    template <typename X> inline X zero_of_type() { return numeric_traits<X>::zero(); }
+    template <typename X> inline X one_of_type() { return numeric_traits<X>::one(); }
+    template <typename X> inline bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
+    template <typename X> inline bool precise() { return numeric_traits<X>::precise();}
 }
 namespace std {
 template<>
@@ -76,13 +49,13 @@ template<typename S, typename T> struct hash<pair<S, T>> {
     }
 };
 }
-
-
-
-#else // end of lp_for_z3
+#else // else  of #if  lp_for_z3
 #include <utility>
 #include <functional>
 #include "util/numerics/mpq.h"
+#include "util/numerics/numeric_traits.h"
+#include "util/numerics/double.h"
+#include "util/debug.h"
 #ifdef __CLANG__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmismatched-tags"
@@ -95,7 +68,29 @@ struct hash<lean::mpq> {
     }
 };
 }
+namespace lp {
+template <typename X> inline bool  precise() { return numeric_traits<X>::precise();}
+template <typename X> inline X one_of_type() { return numeric_traits<X>::one(); }
+template <typename X> inline bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
+template <typename X> inline double  get_double(const X & v) { return numeric_traits<X>::get_double(v); }
+} // closing lp
 
+namespace lean {
+inline void lp_unreachable___() { lean_unreachable();}
+} // closing namespace lean
+
+namespace lp {
+inline void lp_unreachable() { lean::lp_unreachable___();}
+typedef lean::mpq mpq;
+template <typename T> struct buffer: public lean::buffer<T>{};
+template <typename T> inline T zero_of_type() {return numeric_traits<T>::zero();}
+inline void throw_exception(std::string str) { throw lean::exception(str);}
+template <typename T> inline T from_string(std::string const & str) { lp_unreachable();}
+template <> double inline from_string<double>(std::string const & str) { return atof(str.c_str());}
+template <> mpq inline from_string<mpq>(std::string const & str) {
+    return mpq(atof(str.c_str()));
+}
+} // closing lp
 template <class T>
 inline void hash_combine(std::size_t & seed, const T & v) {
     seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);

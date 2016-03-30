@@ -7,6 +7,7 @@
 #include <vector>
 #include <memory>
 #include <set>
+#include <utility>
 #include "util/lp/static_matrix.cpp"
 #include "util/lp/lp_core_solver_base.h"
 #include "util/lp/lp_dual_core_solver.h"

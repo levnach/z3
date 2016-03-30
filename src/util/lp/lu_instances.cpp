@@ -33,7 +33,6 @@ template void lp::init_factorization<lp::mpq, lp::mpq>(lp::lu<lp::mpq, lp::mpq>*
 template void lp::init_factorization<lp::mpq, lp::numeric_pair<lp::mpq> >(lp::lu<lp::mpq, lp::numeric_pair<lp::mpq> >*&, lp::static_matrix<lp::mpq, lp::numeric_pair<lp::mpq> >&, std::vector<unsigned int, std::allocator<unsigned int> >&, std::vector<int, std::allocator<int> >&, lp::lp_settings&, std::vector<unsigned int, std::allocator<unsigned int> >&);
 #ifdef LEAN_DEBUG
 template void lp::print_matrix<double, double>(lp::sparse_matrix<double, double>&, std::ostream & out);
-template void lp::print_matrix<float, float>(lp::sparse_matrix<float, float>&, std::ostream & out);
 template void lp::print_matrix<double, double>(lp::static_matrix<double, double>&, std::ostream & out);
 template bool lp::lu<double, double>::is_correct();
 template lp::dense_matrix<double, double> lp::get_B<double, double>(lp::lu<double, double>&);

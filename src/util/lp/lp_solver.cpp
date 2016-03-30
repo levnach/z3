@@ -319,7 +319,7 @@ template <typename T, typename X>    bool lp_solver<T, X>::row_is_obsolete(std::
     case lp_relation::Less_or_equal:
         return row_le_is_obsolete(row, row_index);
     }
-    lean_unreachable();
+    lp_unreachable();
     return false; // it is unreachable
 }
 

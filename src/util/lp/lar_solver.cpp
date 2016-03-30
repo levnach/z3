@@ -7,6 +7,7 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include <utility>
 #include "util/lp/lar_solver.h"
 namespace lp {
 double conversion_helper <double>::get_low_bound(const column_info<mpq> & ci) {
@@ -205,7 +206,7 @@ void lar_solver::update_column_info_of_normalized_constraint(lar_normalized_cons
         }
         break;
     default:
-        lean_unreachable();
+        lp_unreachable();
     }
 }
 
@@ -282,7 +283,7 @@ template <typename V> V lar_solver::get_column_val(std::vector<V> & low_bound, s
     case at_upper_bound: return upper_bound[j];
     case free_of_bounds: return zero_of_type<V>();
     default:
-        lean_unreachable();
+        lp_unreachable();
     }
     return zero_of_type<V>(); // it is unreachable
 }
@@ -340,7 +341,7 @@ bool lar_solver::constraint_holds(const lar_constraint & constr, std::unordered_
     case GT: return left_side_val >= constr.m_right_side;
     case EQ: return left_side_val == constr.m_right_side;
     default:
-        lean_unreachable();
+        lp_unreachable();
     }
     return false; // it is unreachable
 }
@@ -501,7 +502,7 @@ void lar_solver::find_solution_signature_with_doubles(lar_solution_signature & s
         A.clear();
         create_matrix_A(A);
         for (auto & s : column_scale_vector)
-            s = one_of_type<double>();
+            s = 1.0;
     }
     std::vector<double> costs(A.column_count());
     auto core_solver = lp_primal_core_solver<double, double>(A,
@@ -727,7 +728,7 @@ mpq lar_solver::get_infeasibility_of_constraint(const lar_normalized_constraint 
         return abs(left_side_val - norm_constr.m_right_side);
 
     default:
-        lean_unreachable();
+        lp_unreachable();
     }
     return mpq(0); // it is unreachable
 }
