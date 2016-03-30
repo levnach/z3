@@ -15,7 +15,7 @@
 #include "util/lp/lp_primal_core_solver.h"
 #include "util/lp/scaler.h"
 #include "util/lp/lar_solver.h"
-namespace lp {
+namespace lean {
 template double static_matrix<double, double>::dot_product_with_row<double>(unsigned int, std::vector<double, std::allocator<double> > const&);
 template mpq static_matrix<mpq, mpq>::dot_product_with_row<mpq>(unsigned int, std::vector<mpq, std::allocator<mpq> > const&);
 template numeric_pair<mpq> static_matrix<mpq, numeric_pair<mpq> >::dot_product_with_row<numeric_pair<mpq> >(unsigned int, std::vector<numeric_pair<mpq>, std::allocator<numeric_pair<mpq> > > const&);

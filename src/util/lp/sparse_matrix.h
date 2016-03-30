@@ -22,7 +22,7 @@
 #include "util/lp/eta_matrix.h"
 #include "util/lp/binary_heap_upair_queue.h"
 #include "util/lp/numeric_pair.h"
-namespace lp {
+namespace lean {
 // it is a square matrix
 template <typename T, typename X>
 class sparse_matrix

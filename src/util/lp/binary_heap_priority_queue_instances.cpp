@@ -6,7 +6,7 @@
 */
 #include "util/lp/numeric_pair.h"
 #include "util/lp/binary_heap_priority_queue.cpp"
-namespace lp {
+namespace lean {
 template binary_heap_priority_queue<int>::binary_heap_priority_queue(unsigned int);
 template unsigned binary_heap_priority_queue<int>::dequeue();
 template void binary_heap_priority_queue<int>::enqueue(unsigned int, int const&);

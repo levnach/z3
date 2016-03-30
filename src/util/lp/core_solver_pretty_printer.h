@@ -11,7 +11,7 @@
 #include <vector>
 #include <ostream>
 #include "util/lp/lp_settings.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X> class lp_core_solver_base; // forward definition
 
 template <typename T, typename X>

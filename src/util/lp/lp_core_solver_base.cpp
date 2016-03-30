@@ -9,7 +9,7 @@
 #include <vector>
 #include "util/lp/lp_utils.h"
 #include "util/lp/lp_core_solver_base.h"
-namespace lp {
+namespace lean {
 void init_basic_part_of_basis_heading(std::vector<unsigned> & basis, unsigned m, std::vector<int> & basis_heading) {
     for (unsigned i = 0; i < m; i++) {
         unsigned column = basis[i];
@@ -355,9 +355,9 @@ column_is_dual_feasible(unsigned j) const {
     default:
         std::cout << "column = " << j << std::endl;
         std::cout << "unexpected column type = " << column_type_to_string(m_column_type[j]) << std::endl;
-        lp_unreachable();
+        lean_unreachable();
     }
-    lp_unreachable();
+    lean_unreachable();
     return false;
 }
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
@@ -694,9 +694,9 @@ get_non_basic_column_value_position(unsigned j) {
     case upper_bound:
         return at_upper_bound;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
-    lp_unreachable();
+    lean_unreachable();
     return at_low_bound;
 }
 

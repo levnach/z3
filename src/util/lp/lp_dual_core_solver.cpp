@@ -9,7 +9,7 @@
 #include <vector>
 #include "util/lp/lp_dual_core_solver.h"
 
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 lp_dual_core_solver<T, X>::lp_dual_core_solver(static_matrix<T, X> & A,
                                                std::vector<bool> & can_enter_basis,
@@ -181,9 +181,9 @@ template <typename T, typename X> T lp_dual_core_solver<T, X>::pricing_for_row(u
         lean_assert(numeric_traits<T>::is_zero(this->m_d[p]));
         return numeric_traits<T>::zero();
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
-    lp_unreachable();
+    lean_unreachable();
     return numeric_traits<T>::zero();
 }
 
@@ -252,7 +252,7 @@ template <typename T, typename X> bool lp_dual_core_solver<T, X>::advance_on_kno
     int pivot_compare_result = this->pivots_in_column_and_row_are_different(m_q, m_p);
     if (!pivot_compare_result){;}
     else if (pivot_compare_result == 2) { // the sign is changed, cannot continue
-        lp_unreachable(); // not implemented yet
+        lean_unreachable(); // not implemented yet
     } else {
         lean_assert(pivot_compare_result == 1);
         this->init_lu();
@@ -271,21 +271,21 @@ template <typename T, typename X> int lp_dual_core_solver<T, X>::define_sign_of_
         if (this->x_above_upper_bound(m_p)) {
             return 1;
         }
-        lp_unreachable();
+        lean_unreachable();
     case low_bound:
         if (this->x_below_low_bound(m_p)) {
             return -1;
         }
-        lp_unreachable();
+        lean_unreachable();
     case upper_bound:
         if (this->x_above_upper_bound(m_p)) {
             return 1;
         }
-        lp_unreachable();
+        lean_unreachable();
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
-    lp_unreachable();
+    lean_unreachable();
     return 0;
 }
 
@@ -335,23 +335,23 @@ template <typename T, typename X> T lp_dual_core_solver<T, X>::get_delta() {
         if (this->x_above_upper_bound(m_p)) {
             return this->m_x[m_p] - this->m_upper_bound_values[m_p];
         }
-        lp_unreachable();
+        lean_unreachable();
     case low_bound:
         if (this->x_below_low_bound(m_p)) {
             return this->m_x[m_p] - this->m_low_bound_values[m_p];
         }
-        lp_unreachable();
+        lean_unreachable();
     case upper_bound:
         if (this->x_above_upper_bound(m_p)) {
             return get_edge_steepness_for_upper_bound(m_p);
         }
-        lp_unreachable();
+        lean_unreachable();
     case fixed:
         return this->m_x[m_p] - this->m_upper_bound_values[m_p];
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
-    lp_unreachable();
+    lean_unreachable();
     return zero_of_type<T>();
 }
 
@@ -428,7 +428,7 @@ template <typename T, typename X> void lp_dual_core_solver<T, X>::snap_xN_column
     case free_column:
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
 }
 
@@ -500,7 +500,7 @@ template <typename T, typename X> void lp_dual_core_solver<T, X>::recover_leavin
     case free_of_bounds:
         this->m_x[m_q] = zero_of_type<X>();
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
 }
 

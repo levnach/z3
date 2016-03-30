@@ -15,7 +15,7 @@ Author: Lev Nachmanson
 #include "util/lp/lp_utils.h"
 #include "util/lp/lp_solver.h"
 
-namespace lp {
+namespace lean {
 using namespace std;
 
 template <typename T>

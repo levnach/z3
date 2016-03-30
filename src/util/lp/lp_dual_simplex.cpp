@@ -5,7 +5,7 @@
   Author: Lev Nachmanson
 */
 #include "util/lp/lp_dual_simplex.h"
-namespace lp {
+namespace lean{
 
 template <typename T, typename X> void lp_dual_simplex<T, X>::decide_on_status_after_stage1() {
     switch (m_core_solver->get_status()) {
@@ -17,7 +17,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::decide_on_status_a
         }
         break;
     case DUAL_UNBOUNDED:
-        lp_unreachable();
+        lean_unreachable();
     case ITERATIONS_EXHAUSTED:
         this->m_status = ITERATIONS_EXHAUSTED;
         break;
@@ -28,7 +28,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::decide_on_status_a
         this->m_status = FLOATING_POINT_ERROR;
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
 }
 
@@ -46,7 +46,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::fix_logical_for_st
         m_can_enter_basis[j] = false;
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
 }
 
@@ -60,7 +60,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::fix_structural_for
         break;
     case fixed:
     case upper_bound:
-        lp_unreachable();
+        lean_unreachable();
     case boxed:
         this->m_upper_bounds[j] = ci->get_adjusted_upper_bound() / this->m_column_scale[j];
         m_low_bounds[j] = numeric_traits<T>::zero();
@@ -72,7 +72,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::fix_structural_for
         m_column_types_of_core_solver[j] = free_column;
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     //    T cost_was = this->m_costs[j];
     this->set_scaled_cost(j);
@@ -117,7 +117,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::solve_for_stage2()
         this->m_status = FLOATING_POINT_ERROR;
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     this->m_second_stage_iterations = m_core_solver->m_total_iterations;
     this->m_total_iterations = this->m_first_stage_iterations + this->m_second_stage_iterations;
@@ -220,7 +220,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::fill_costs_bounds_
         this->m_upper_bounds[j] = this->m_low_bounds[j] =  numeric_traits<T>::zero(); // is it needed?
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     m_column_types_of_core_solver[j] = boxed;
 }

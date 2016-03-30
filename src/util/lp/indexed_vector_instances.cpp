@@ -6,7 +6,7 @@
 */
 
 #include "util/lp/indexed_vector.cpp"
-namespace lp {
+namespace lean {
 template void indexed_vector<double>::clear();
 template void indexed_vector<double>::clear_all();
 template void indexed_vector<double>::erase_from_index(unsigned int);

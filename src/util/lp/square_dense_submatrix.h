@@ -22,7 +22,7 @@
 #include "util/lp/eta_matrix.h"
 #include "util/lp/binary_heap_upair_queue.h"
 #include "util/lp/sparse_matrix.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 class square_dense_submatrix : public tail_matrix<T, X> {
     // the submatrix uses the permutations of the parent matrix to access the elements
@@ -118,7 +118,7 @@ public:
     }
 
     void apply_from_right(indexed_vector<T> & /* w */) {
-        lp_unreachable(); // not implemented
+        lean_unreachable(); // not implemented
     }
     void apply_from_left(std::vector<X> & w, lp_settings & /*settings*/) {
         apply_from_left_to_vector(w);// , settings);

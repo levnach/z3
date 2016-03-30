@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <vector>
 #include "util/lp/lp_solver.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X> column_info<T> * lp_solver<T, X>::get_or_create_column_info(unsigned column) {
     auto it = m_columns.find(column);
     return (it == m_columns.end())? ( m_columns[column] = new column_info<T>) : it->second;
@@ -319,7 +319,7 @@ template <typename T, typename X>    bool lp_solver<T, X>::row_is_obsolete(std::
     case lp_relation::Less_or_equal:
         return row_le_is_obsolete(row, row_index);
     }
-    lp_unreachable();
+    lean_unreachable();
     return false; // it is unreachable
 }
 

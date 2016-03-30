@@ -13,7 +13,7 @@
 #include "util/lp/sparse_vector.h"
 #include "util/lp/indexed_vector.h"
 #include "util/lp/permutation_matrix.h"
-namespace lp {
+namespace lean {
 template <typename T>
 struct column_cell {
     unsigned m_i; // points to the row
@@ -183,7 +183,7 @@ public:
     virtual void set_number_of_columns(unsigned /*n*/) { }
 #endif
 
-    T get_max_val_in_row(unsigned /* i */) const { lp_unreachable();   }
+    T get_max_val_in_row(unsigned /* i */) const { lean_unreachable();   }
 
     T get_balance() const;
 

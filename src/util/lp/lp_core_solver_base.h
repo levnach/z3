@@ -14,7 +14,7 @@
 #include "util/lp/static_matrix.h"
 #include "util/lp/lu.h"
 #include "util/lp/permutation_matrix.h"
-namespace lp {
+namespace lean {
     void init_basic_part_of_basis_heading(std::vector<unsigned> & basis, unsigned m, std::vector<int> & basis_heading);
 
     void init_non_basic_part_of_basis_heading(std::vector<int> & basis_heading, std::vector<unsigned> & non_basic_columns, unsigned n);

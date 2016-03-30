@@ -8,7 +8,7 @@
 #include <utility>
 #include <set>
 #include "util/lp/static_matrix.h"
-namespace lp {
+namespace lean {
 // each assignment for this matrix should be issued only once!!!
 template <typename T, typename X>
 void  static_matrix<T, X>::init_row_columns(unsigned m, unsigned n) {

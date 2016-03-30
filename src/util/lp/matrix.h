@@ -11,7 +11,7 @@
 #include <vector>
 #include <string>
 #include "util/lp/lp_settings.h"
-namespace lp {
+namespace lean {
 // used for debugging purposes only
 template <typename T, typename X>
 class matrix {

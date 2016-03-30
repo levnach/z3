@@ -7,7 +7,7 @@
 #include <algorithm>
 #include "util/lp/scaler.h"
 #include "util/lp/numeric_pair.h"
-namespace lp {
+namespace lean {
 // for scaling an LP
 template <typename T, typename X> T scaler<T, X>::right_side_balance() {
     T ret = zero_of_type<T>();

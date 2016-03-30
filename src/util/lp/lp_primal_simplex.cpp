@@ -8,7 +8,7 @@
 #include <vector>
 #include "util/lp/lp_primal_simplex.h"
 
-namespace lp {
+namespace lean {
 template <typename T, typename X> void lp_primal_simplex<T, X>::fill_costs_and_x_for_first_stage_solver(unsigned original_number_of_columns) {
     unsigned slack_var = original_number_of_columns;
     unsigned artificial = original_number_of_columns + this->m_slacks;
@@ -346,7 +346,7 @@ template <typename T, typename X> bool lp_primal_simplex<T, X>::row_constraint_h
         }
         return true;;
     }
-    lp_unreachable();
+    lean_unreachable();
     return false; // it is unreachable
 }
 

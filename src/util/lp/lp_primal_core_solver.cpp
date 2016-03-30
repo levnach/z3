@@ -11,7 +11,7 @@
 #include <set>
 #include <string>
 #include "util/lp/lp_primal_core_solver.h"
-namespace lp {
+namespace lean {
 
 // This core solver solves (Ax=b, low_bound_values \leq x \leq upper_bound_values, maximize costs*x )
 // The right side b is given implicitly by x and the basis
@@ -75,7 +75,7 @@ int lp_primal_core_solver<T, X>::choose_entering_column(unsigned number_of_benef
             }
             continue;
         default:
-            lp_unreachable();
+            lean_unreachable();
         }
 
         // if we are here then j is a candidate to enter the basis
@@ -824,7 +824,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::change_sl
         slope_at_entering += delta;
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
 }
 
@@ -887,7 +887,7 @@ template <typename T, typename X> bool lp_primal_core_solver<T, X>::column_is_fe
         return true;
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     return false; // it is unreachable
 }
@@ -971,7 +971,7 @@ template <typename T, typename X> void lp_primal_core_solver<T, X>::print_column
     case free_column:
         out << "( _" << this->m_x[j] << "_)" << std::endl;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
 }
 

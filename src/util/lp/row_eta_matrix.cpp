@@ -6,7 +6,7 @@
 */
 #include <vector>
 #include "util/lp/row_eta_matrix.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 void row_eta_matrix<T, X>::apply_from_left(std::vector<X> & w, lp_settings &) {
     // #ifdef LEAN_DEBUG

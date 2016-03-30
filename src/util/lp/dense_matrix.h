@@ -9,7 +9,7 @@
 #include <vector>
 #include "util/numerics/double.h"
 #include "util/lp/matrix.h"
-namespace lp {
+namespace lean {
 // used for debugging purposes only
 template <typename T, typename X>
 class dense_matrix: public matrix<T, X> {

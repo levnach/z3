@@ -12,7 +12,7 @@
 #include "util/lp/lp_settings.h"
 // These matrices appear at the end of the list
 
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 class tail_matrix
 #ifdef LEAN_DEBUG

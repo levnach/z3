@@ -9,7 +9,7 @@
 #include <vector>
 #include "util/debug.h"
 #include "util/lp/lp_utils.h"
-namespace lp {
+namespace lean {
 // the elements with the smallest priority are dequeued first
 template <typename T>
 class binary_heap_priority_queue {

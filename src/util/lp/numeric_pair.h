@@ -19,7 +19,7 @@
 #include "util/numerics/mpq.h"
 #include "util/numerics/numeric_traits.h"
 #endif
-namespace lp {
+namespace lean {
 #ifdef lp_for_z3 // rename rationals
     typedef rational mpq;
 #else
@@ -56,16 +56,14 @@ template <>  class numeric_traits<double> {
         static rational log(rational const& r) { UNREACHABLE(); return r; }
         static rational from_string(std::string const & str) { return rational(str.c_str()); }
     };
-#else
-template <typename T> struct numeric_traits: public lean::numeric_traits<T> {};
 #endif
 
 template <typename X, typename Y>
 struct convert_struct {
     static X convert(const Y & y){ return X(y);}
     static bool is_epsilon_small(const X & x,  const double & y) { return std::abs(numeric_traits<X>::get_double(x)) < y; }
-    static bool below_bound_numeric(const X &, const X &, const Y &) { /*lp_unreachable();*/ return false;}
-    static bool above_bound_numeric(const X &, const X &, const Y &) { /*lp_unreachable();*/ return false; }
+    static bool below_bound_numeric(const X &, const X &, const Y &) { /*lean_unreachable();*/ return false;}
+    static bool above_bound_numeric(const X &, const X &, const Y &) { /*lean_unreachable();*/ return false; }
 };
 
 
@@ -119,7 +117,7 @@ struct numeric_pair {
     }
 
     numeric_pair operator/(const numeric_pair &) const {
-        //        lp_unreachable();
+        //        lean_unreachable();
     }
 
 
@@ -128,7 +126,7 @@ struct numeric_pair {
     }
 
     numeric_pair operator*(const numeric_pair & /*a*/) const  {
-        //        lp_unreachable();
+        //        lean_unreachable();
     }
 
     numeric_pair&  operator+=(const numeric_pair & a) {
@@ -185,23 +183,23 @@ numeric_pair<T> operator*(const numeric_pair<T> & r, const X & a) {
     return numeric_pair<T>(a * r.x, a * r.y);
 }
 
-} // close namespace lp
+} // close namespace lean
 
-namespace lp {
+namespace lean {
 // template <numeric_pair, typename T>  bool precise() { return numeric_traits<T>::precise();}
-template <typename T> double get_double(const lp::numeric_pair<T> & ) { /* lp_unreachable(); */ return 0;}
+template <typename T> double get_double(const lean::numeric_pair<T> & ) { /* lean_unreachable(); */ return 0;}
 template <typename T>
-class numeric_traits<lp::numeric_pair<T>> {
+class numeric_traits<lean::numeric_pair<T>> {
   public:
     static bool precise() { return numeric_traits<T>::precise();}
-    static lp::numeric_pair<T> zero() { return lp::numeric_pair<T>(numeric_traits<T>::zero(), numeric_traits<T>::zero()); }
-    static bool is_zero(const lp::numeric_pair<T> & v) { return numeric_traits<T>::is_zero(v.x) && numeric_traits<T>::is_zero(v.y); }
-    static double get_double(const lp::numeric_pair<T> & v){ return numeric_traits<T>::get_double(v.x); } // just return the double of the first coordinate
-    static double one() { /*lp_unreachable();*/ return 0;}
+    static lean::numeric_pair<T> zero() { return lean::numeric_pair<T>(numeric_traits<T>::zero(), numeric_traits<T>::zero()); }
+    static bool is_zero(const lean::numeric_pair<T> & v) { return numeric_traits<T>::is_zero(v.x) && numeric_traits<T>::is_zero(v.y); }
+    static double get_double(const lean::numeric_pair<T> & v){ return numeric_traits<T>::get_double(v.x); } // just return the double of the first coordinate
+    static double one() { /*lean_unreachable();*/ return 0;}
 };
 } // close namespace lean
 
-namespace lp {
+namespace lean {
 template <>
 struct convert_struct<double, numeric_pair<double>> {
     static double convert(const numeric_pair<double> & q) {return q.x;}
@@ -218,11 +216,11 @@ struct convert_struct<numeric_pair<T>, double> {
         return convert_struct<T, double>::is_epsilon_small(p.x, eps) && convert_struct<T, double>::is_epsilon_small(p.y, eps);
     }
     static bool below_bound_numeric(const numeric_pair<T> &, const numeric_pair<T> &, const double &) {
-        // lp_unreachable();
+        // lean_unreachable();
         return false;
     }
     static bool above_bound_numeric(const numeric_pair<T> &, const numeric_pair<T> &, const double &) {
-        // lp_unreachable();
+        // lean_unreachable();
         return false;
     }
 };

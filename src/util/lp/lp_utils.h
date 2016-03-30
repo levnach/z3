@@ -9,17 +9,17 @@
 #include <string>
 #include "util/lp/numeric_pair.h"
 #ifdef lp_for_z3
-namespace lp {
+namespace lean {
     inline void throw_exception(const std::string & str) {
          throw default_exception(str);
     }
     typedef z3_exception exception;
-    #ifdef LEAN_DEBUG
+#ifdef LEAN_DEBUG
     inline void lean_assert(bool b) {}
-    #else
-#define lean_assert(_x_) {}
-    #endif
-    inline void lp_unreachable() { lean_assert(false); }
+#else
+    #define lean_assert(_x_) {}
+ #endif
+    inline void lean_unreachable() { lean_assert(false); }
     template <typename X> inline X zero_of_type() { return numeric_traits<X>::zero(); }
     template <typename X> inline X one_of_type() { return numeric_traits<X>::one(); }
     template <typename X> inline bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
@@ -68,24 +68,14 @@ struct hash<lean::mpq> {
     }
 };
 }
-namespace lp {
+namespace lean {
 template <typename X> inline bool  precise() { return numeric_traits<X>::precise();}
 template <typename X> inline X one_of_type() { return numeric_traits<X>::one(); }
 template <typename X> inline bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
 template <typename X> inline double  get_double(const X & v) { return numeric_traits<X>::get_double(v); }
-} // closing lp
-
-namespace lean {
-inline void lp_unreachable___() { lean_unreachable();}
-} // closing namespace lean
-
-namespace lp {
-inline void lp_unreachable() { lean::lp_unreachable___();}
-typedef lean::mpq mpq;
-template <typename T> struct buffer: public lean::buffer<T>{};
 template <typename T> inline T zero_of_type() {return numeric_traits<T>::zero();}
 inline void throw_exception(std::string str) { throw lean::exception(str);}
-template <typename T> inline T from_string(std::string const & str) { lp_unreachable();}
+template <typename T> inline T from_string(std::string const & str) { lean_unreachable();}
 template <> double inline from_string<double>(std::string const & str) { return atof(str.c_str());}
 template <> mpq inline from_string<mpq>(std::string const & str) {
     return mpq(atof(str.c_str()));

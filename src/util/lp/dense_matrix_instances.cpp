@@ -7,9 +7,9 @@
 #ifdef LEAN_DEBUG
 #include <vector>
 #include "util/lp/dense_matrix.cpp"
-template lp::dense_matrix<double, double> lp::operator*<double, double>(lp::matrix<double, double>&, lp::matrix<double, double>&);
-template void lp::dense_matrix<double, double>::apply_from_left(std::vector<double> &);
-template lp::dense_matrix<double, double>::dense_matrix(lp::matrix<double, double> const&);
-template lp::dense_matrix<double, double>::dense_matrix(unsigned int, unsigned int);
-template lp::dense_matrix<double, double>& lp::dense_matrix<double, double>::operator=(lp::dense_matrix<double, double> const&);
+template lean::dense_matrix<double, double> lean::operator*<double, double>(lean::matrix<double, double>&, lean::matrix<double, double>&);
+template void lean::dense_matrix<double, double>::apply_from_left(std::vector<double> &);
+template lean::dense_matrix<double, double>::dense_matrix(lean::matrix<double, double> const&);
+template lean::dense_matrix<double, double>::dense_matrix(unsigned int, unsigned int);
+template lean::dense_matrix<double, double>& lean::dense_matrix<double, double>::operator=(lean::dense_matrix<double, double> const&);
 #endif

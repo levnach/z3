@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <vector>
 
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 class lp_dual_core_solver:public lp_core_solver_base<T, X> {
 public:

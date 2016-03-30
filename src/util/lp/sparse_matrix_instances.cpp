@@ -8,7 +8,7 @@
 #include <memory>
 #include "util/lp/lu.h"
 #include "util/lp/sparse_matrix.cpp"
-namespace lp {
+namespace lean {
 template double sparse_matrix<double, double>::dot_product_with_row<double>(unsigned int, std::vector<double> const&) const;
 template void sparse_matrix<double, double>::add_new_element(unsigned int, unsigned int, double);
 template void sparse_matrix<double, double>::divide_row_by_constant(unsigned int, double&, lp_settings&);

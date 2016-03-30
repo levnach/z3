@@ -13,7 +13,7 @@
 #include <sys/timeb.h>
 #include "util/lp/lp_utils.h"
 
-namespace lp {
+namespace lean {
 
 enum column_type  {
     fixed,

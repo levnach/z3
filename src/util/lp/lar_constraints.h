@@ -13,7 +13,7 @@
 #include <algorithm>
 #include "util/lp/lp_utils.h"
 #include "util/lp/canonic_left_side.h"
-namespace lp {
+namespace lean {
 inline lconstraint_kind flip_kind(lconstraint_kind t) {
     return static_cast<lconstraint_kind>( - static_cast<int>(t));
 }
@@ -26,7 +26,7 @@ inline std::string lconstraint_kind_string(lconstraint_kind t) {
     case GT: return std::string(">");
     case EQ: return std::string("=");
     }
-    lp_unreachable();
+    lean_unreachable();
     return std::string(); // it is unreachable
 }
 

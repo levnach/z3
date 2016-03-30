@@ -9,7 +9,7 @@
 #include <vector>
 #include <utility>
 #include "util/lp/lar_solver.h"
-namespace lp {
+namespace lean {
 double conversion_helper <double>::get_low_bound(const column_info<mpq> & ci) {
     if (!ci.low_bound_is_strict())
         return ci.get_low_bound().get_double();
@@ -206,7 +206,7 @@ void lar_solver::update_column_info_of_normalized_constraint(lar_normalized_cons
         }
         break;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
 }
 
@@ -283,7 +283,7 @@ template <typename V> V lar_solver::get_column_val(std::vector<V> & low_bound, s
     case at_upper_bound: return upper_bound[j];
     case free_of_bounds: return zero_of_type<V>();
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     return zero_of_type<V>(); // it is unreachable
 }
@@ -341,7 +341,7 @@ bool lar_solver::constraint_holds(const lar_constraint & constr, std::unordered_
     case GT: return left_side_val >= constr.m_right_side;
     case EQ: return left_side_val == constr.m_right_side;
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     return false; // it is unreachable
 }
@@ -728,7 +728,7 @@ mpq lar_solver::get_infeasibility_of_constraint(const lar_normalized_constraint 
         return abs(left_side_val - norm_constr.m_right_side);
 
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     return mpq(0); // it is unreachable
 }

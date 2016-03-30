@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 #include "util/lp/lp_settings.h"
-namespace lp {
+namespace lean {
 std::string column_type_to_string(column_type t) {
     switch (t) {
     case fixed:
@@ -22,7 +22,7 @@ std::string column_type_to_string(column_type t) {
     case free_column:
         return std::string("free_column");
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     return "unknown"; // it is unreachable
 }
@@ -42,7 +42,7 @@ const char* lp_status_to_string(lp_status status) {
     case EMPTY: return "EMPTY";
     case UNSTABLE: return "UNSTABLE";
     default:
-        lp_unreachable();
+        lean_unreachable();
     }
     return "UNKNOWN";  // it is unreachable
 }
@@ -57,7 +57,7 @@ lp_status lp_status_from_string(std::string status) {
     if (status == "TIME_EXHAUSTED") return lp_status::TIME_EXHAUSTED;
     if (status == "ITERATIONS_EXHAUSTED") return lp_status::ITERATIONS_EXHAUSTED;
     if (status == "EMPTY") return lp_status::EMPTY;
-    lp_unreachable();
+    lean_unreachable();
     return lp_status::UNKNOWN; // it is unreachable
 }
 int get_millisecond_count() {

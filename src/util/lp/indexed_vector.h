@@ -11,7 +11,7 @@
 #include <string>
 #include <iomanip>
 #include "util/lp/lp_utils.h"
-namespace lp {
+namespace lean {
 
 template <typename T> void print_vector(const std::vector<T> & t, std::ostream & out);
 template <typename T> void print_vector(const buffer<T> & t, std::ostream & out);

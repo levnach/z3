@@ -10,7 +10,7 @@
 #include <vector>
 #include <utility>
 #include "util/lp/lu.h"
-namespace lp {
+namespace lean {
 #ifdef LEAN_DEBUG
 template <typename T, typename X> // print the nr x nc submatrix at the top left corner
 void print_submatrix(sparse_matrix<T, X> & m, unsigned mr, unsigned nc, std::ostream & out) {

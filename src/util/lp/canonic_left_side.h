@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <utility>
 #include "util/lp/column_info.h"
-namespace lp {
+namespace lean {
 typedef unsigned var_index;
 typedef unsigned constraint_index;
 enum lconstraint_kind {

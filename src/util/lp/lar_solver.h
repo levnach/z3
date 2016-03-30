@@ -21,7 +21,7 @@
 #include "util/lp/scaler.h"
 #include "util/lp/lp_primal_core_solver.h"
 
-namespace lp {
+namespace lean {
 template <typename V>
 struct conversion_helper {
     static V get_low_bound(const column_info<mpq> & ci) {

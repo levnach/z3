@@ -6,7 +6,7 @@
 */
 #pragma once
 
-namespace lp {
+namespace lean {
 template <typename T>
 class indexed_value {
 public:

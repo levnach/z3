@@ -14,7 +14,7 @@
 #include "util/lp/lp_settings.h"
 #include "util/lp/matrix.h"
 #include "util/lp/tail_matrix.h"
-namespace lp {
+namespace lean {
 #ifdef LEAN_DEBUG
     inline bool is_even(int k) {  return (k/2)*2 == k; }
 #endif

@@ -8,7 +8,7 @@
 #include <set>
 #include "util/lp/lp_utils.h"
 #include "util/lp/binary_heap_upair_queue.h"
-namespace lp {
+namespace lean {
 template <typename T> binary_heap_upair_queue<T>::binary_heap_upair_queue(unsigned size) : m_q(size), m_pairs(size) {
     lean_assert(size > 0);
     for (unsigned i = 0; i < size; i++)
