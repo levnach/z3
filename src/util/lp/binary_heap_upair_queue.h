@@ -17,7 +17,7 @@
 
 typedef std::pair<unsigned, unsigned> upair;
 
-namespace lp {
+namespace lean {
 template <typename  T>
 class binary_heap_upair_queue {
     binary_heap_priority_queue<T> m_q;

@@ -23,7 +23,7 @@
 #include "util/lp/lar_constraints.h"
 #include <sstream>
 #include <cstdlib>
-namespace lp {
+namespace lean {
     using namespace std;
 
     template<typename T>

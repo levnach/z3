@@ -5,5 +5,5 @@
   Author: Lev Nachmanson
 */
 #include "util/lp/scaler.cpp"
-template bool lp::scaler<double, double>::scale();
-template bool lp::scaler<lp::mpq, lp::mpq>::scale();
+template bool lean::scaler<double, double>::scale();
+template bool lean::scaler<lean::mpq, lean::mpq>::scale();

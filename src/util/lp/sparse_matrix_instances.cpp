@@ -8,7 +8,7 @@
 #include <memory>
 #include "util/lp/lu.h"
 #include "util/lp/sparse_matrix.cpp"
-namespace lp {
+namespace lean {
 template double sparse_matrix<double, double>::dot_product_with_row<double>(unsigned int, std::vector<double> const&) const;
 template void sparse_matrix<double, double>::add_new_element(unsigned int, unsigned int, double);
 template void sparse_matrix<double, double>::divide_row_by_constant(unsigned int, double&, lp_settings&);
@@ -30,8 +30,6 @@ template bool sparse_matrix<double, double>::shorten_active_matrix(unsigned int,
 template void sparse_matrix<double, double>::solve_y_U(std::vector<double>&) const;
 template sparse_matrix<double, double>::sparse_matrix(static_matrix<double, double> const&, std::vector<unsigned int>&);
 template sparse_matrix<double, double>::sparse_matrix(unsigned int);
-
-    
 template void     sparse_matrix<mpq, mpq>::add_new_element(unsigned int, unsigned int, mpq);
 template void     sparse_matrix<mpq, mpq>::divide_row_by_constant(unsigned int, mpq&, lp_settings&);
 template void     sparse_matrix<mpq, mpq>::fill_eta_matrix(unsigned int, eta_matrix<mpq, mpq>**);

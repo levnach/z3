@@ -8,7 +8,7 @@
 #pragma once
 #include <vector>
 #include "util/lp/eta_matrix.h"
-namespace lp {
+namespace lean {
 
 // This is the sum of a unit matrix and a one-column matrix
 template <typename T, typename X>

@@ -11,7 +11,7 @@
 #include <set>
 #include <string>
 #include "util/lp/lp_primal_core_solver.h"
-namespace lp {
+namespace lean {
 
 // This core solver solves (Ax=b, low_bound_values \leq x \leq upper_bound_values, maximize costs*x )
 // The right side b is given implicitly by x and the basis
@@ -162,7 +162,8 @@ template <typename T, typename X>    int lp_primal_core_solver<T, X>::find_leavi
         }
         if (++i == this->m_m) i = 0;
     } while ( i != initial_i);
-    restore_harris_eps();
+    if (!precise<T>())
+        restore_harris_eps();
     return leaving;
 }
 
@@ -260,8 +261,7 @@ lp_core_solver_base<T, X>(A, b,
                               column_type_array,
                               low_bound_values,
                               upper_bound_values),
-    m_beta(A.row_count())
-{
+    m_beta(A.row_count()) {
     if (!(numeric_traits<T>::precise())) {
         m_converted_harris_eps = convert_struct<T, double>::convert(this->m_settings.harris_feasibility_tolerance);
     } else {
@@ -668,11 +668,11 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::update_or
 // following Swietanowski - A new steepest ...
 template <typename T, typename X>    void lp_primal_core_solver<T, X>::update_column_norms(unsigned entering, unsigned leaving) {
     T pivot = this->m_pivot_row[entering];
-	T g_ent = calculate_norm_of_entering_exactly() / pivot / pivot;
-	if (!numeric_traits<T>::precise()) {
-		if (g_ent < T(0.000001))
-			g_ent = T(0.000001);
-	}
+    T g_ent = calculate_norm_of_entering_exactly() / pivot / pivot;
+    if (!numeric_traits<T>::precise()) {
+        if (g_ent < T(0.000001))
+            g_ent = T(0.000001);
+    }
     this->m_column_norms[leaving] = g_ent;
 
     for (unsigned j : this->m_pivot_row_index) {

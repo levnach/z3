@@ -28,7 +28,7 @@ Author: Lev Nachmanson
 #include "util/lp/lar_solver.h"
 #include "util/lp/numeric_pair.h"
 #include "util/lp/binary_heap_upair_queue.h"
-namespace lp {
+namespace lean {
 unsigned seed = 1;
 #ifdef LEAN_DEBUG
 unsigned lp_settings::ddd = 0;
@@ -1120,7 +1120,7 @@ void solve_mps_double(std::string file_name, bool look_for_min, unsigned max_ite
 }
 
 void solve_mps_rational(std::string file_name, bool look_for_min, unsigned max_iterations, unsigned time_limit, bool dual, argument_parser & args_parser) {
-    mps_reader<lp::mpq, lp::mpq> reader(file_name);
+    mps_reader<lean::mpq, lean::mpq> reader(file_name);
     reader.read();
     if (reader.is_ok()) {
         auto * solver =  reader.create_solver(dual);
@@ -1133,7 +1133,7 @@ void solve_mps_rational(std::string file_name, bool look_for_min, unsigned max_i
             // for (auto name: reader.column_names()) {
             //  std::cout << name << "=" << solver->get_column_value_by_name(name) << ' ';
             // }
-            lp::mpq cost = solver->get_current_cost();
+            lean::mpq cost = solver->get_current_cost();
             if (look_for_min) {
                 cost = -cost;
             }
@@ -1170,7 +1170,7 @@ void solve_mps(string file_name, argument_parser & args_parser) {
 void solve_mps_in_rational(std::string file_name, bool dual, argument_parser & /*args_parser*/) {
     std::cout << "solving " << file_name << std::endl;
 
-    mps_reader<lp::mpq, lp::mpq> reader(file_name);
+    mps_reader<lean::mpq, lean::mpq> reader(file_name);
     reader.read();
     if (reader.is_ok()) {
         auto * solver =  reader.create_solver(dual);
@@ -1182,7 +1182,7 @@ void solve_mps_in_rational(std::string file_name, bool dual, argument_parser & /
                     std::cout << name << "=" << solver->get_column_value_by_name(name).get_double() << ' ';
                 }
             }
-            std::cout << std::endl << "cost = " << numeric_traits<lp::mpq>::get_double(solver->get_current_cost()) << std::endl;
+            std::cout << std::endl << "cost = " << numeric_traits<lean::mpq>::get_double(solver->get_current_cost()) << std::endl;
         }
         delete solver;
     } else {
@@ -1615,44 +1615,44 @@ void solve_some_mps(argument_parser & args_parser) {
 }
 */
 void solve_rational() {
-    lp_primal_simplex<lp::mpq, lp::mpq> solver;
-    solver.add_constraint(lp_relation::Equal, lp::mpq(7), 0);
-    solver.add_constraint(lp_relation::Equal, lp::mpq(-3), 1);
+    lp_primal_simplex<lean::mpq, lean::mpq> solver;
+    solver.add_constraint(lp_relation::Equal, lean::mpq(7), 0);
+    solver.add_constraint(lp_relation::Equal, lean::mpq(-3), 1);
 
     // setting the cost
     int cost[] = {-3, -1, -1, 2, -1, 1, 1, -4};
     std::string var_names[8] = {"x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8"};
 
     for (unsigned i = 0; i < 8; i++) {
-        solver.set_cost_for_column(i, lp::mpq(cost[i]));
+        solver.set_cost_for_column(i, lean::mpq(cost[i]));
         solver.give_symbolic_name_to_column(var_names[i], i);
     }
 
     int row0[] = {1, 0, 3, 1, -5, -2 , 4, -6};
     for (unsigned i = 0; i < 8; i++) {
-        solver.set_row_column_coefficient(0, i, lp::mpq(row0[i]));
+        solver.set_row_column_coefficient(0, i, lean::mpq(row0[i]));
     }
 
     int row1[] = {0, 1, -2, -1, 4, 1, -3, 5};
     for (unsigned i = 0; i < 8; i++) {
-        solver.set_row_column_coefficient(1, i, lp::mpq(row1[i]));
+        solver.set_row_column_coefficient(1, i, lean::mpq(row1[i]));
     }
 
     int bounds[] = {8, 6, 4, 15, 2, 10, 10, 3};
     for (unsigned i = 0; i < 8; i++) {
-        solver.set_low_bound(i, lp::mpq(0));
-        solver.set_upper_bound(i, lp::mpq(bounds[i]));
+        solver.set_low_bound(i, lean::mpq(0));
+        solver.set_upper_bound(i, lean::mpq(bounds[i]));
     }
 
-    std::unordered_map<std::string, lp::mpq>  expected_sol;
-    expected_sol["x1"] = lp::mpq(0);
-    expected_sol["x2"] = lp::mpq(6);
-    expected_sol["x3"] = lp::mpq(0);
-    expected_sol["x4"] = lp::mpq(15);
-    expected_sol["x5"] = lp::mpq(2);
-    expected_sol["x6"] = lp::mpq(1);
-    expected_sol["x7"] = lp::mpq(1);
-    expected_sol["x8"] = lp::mpq(0);
+    std::unordered_map<std::string, lean::mpq>  expected_sol;
+    expected_sol["x1"] = lean::mpq(0);
+    expected_sol["x2"] = lean::mpq(6);
+    expected_sol["x3"] = lean::mpq(0);
+    expected_sol["x4"] = lean::mpq(15);
+    expected_sol["x5"] = lean::mpq(2);
+    expected_sol["x6"] = lean::mpq(1);
+    expected_sol["x7"] = lean::mpq(1);
+    expected_sol["x8"] = lean::mpq(0);
     solver.find_maximal_solution();
     lean_assert(solver.get_status() == OPTIMAL);
     for (auto it : expected_sol) {
@@ -2160,15 +2160,15 @@ void test_files_from_directory(std::string test_file_dir, argument_parser & args
 }
 
 
-unordered_map<std::string, lp::mpq> get_solution_map(lp_solver<lp::mpq, lp::mpq> * lps, mps_reader<lp::mpq, lp::mpq> & reader) {
-    unordered_map<std::string, lp::mpq> ret;
+unordered_map<std::string, lean::mpq> get_solution_map(lp_solver<lean::mpq, lean::mpq> * lps, mps_reader<lean::mpq, lean::mpq> & reader) {
+    unordered_map<std::string, lean::mpq> ret;
     for (auto it : reader.column_names()) {
         ret[it] = lps->get_column_value_by_name(it);
     }
     return ret;
 }
 
-void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_reader<lp::mpq, lp::mpq> * reader) {
+void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_reader<lean::mpq, lean::mpq> * reader) {
     std::string maxng = args_parser.get_option_value("--maxng");
     if (maxng.size() > 0) {
         solver->settings().max_number_of_iterations_with_no_improvements = atoi(maxng.c_str());
@@ -2190,8 +2190,8 @@ void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_read
         }
         auto * lps = reader->create_solver(false);
         lps->find_maximal_solution();
-        unordered_map<std::string, lp::mpq> sol = get_solution_map(lps, *reader);
-        lp::mpq inf = solver->get_infeasibility_of_solution(sol);
+        unordered_map<std::string, lean::mpq> sol = get_solution_map(lps, *reader);
+        lean::mpq inf = solver->get_infeasibility_of_solution(sol);
         std::cout << "inf with primal = " << inf <<  std::endl;
         return;
     }
@@ -2199,7 +2199,7 @@ void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_read
     lp_status status = solver->check();
     std::cout << "status is " <<  lp_status_to_string(status) << ", processed for " << get_millisecond_span(begin) / 1000.0 <<" seconds, and " << solver->get_total_iterations() << " iterations" << std::endl;
     if (solver->get_status() == INFEASIBLE) {
-        buffer<std::pair<lp::mpq, constraint_index>> evidence;
+        buffer<std::pair<lean::mpq, constraint_index>> evidence;
         solver->get_infeasibility_evidence(evidence);
     }
 }
@@ -2219,7 +2219,7 @@ void test_lar_on_file(std::string file_name, argument_parser & args_parser) {
         delete solver;
         return;
     }
-    mps_reader<lp::mpq, lp::mpq> reader(file_name);
+    mps_reader<lean::mpq, lean::mpq> reader(file_name);
     reader.read();
     if (!reader.is_ok()) {
         std::cout << "cannot process " << file_name << std::endl;
@@ -2265,14 +2265,14 @@ void test_lar_solver(argument_parser & args_parser) {
 }
 
 void test_numeric_pair() {
-    numeric_pair<lp::mpq> a;
-    numeric_pair<lp::mpq> b(2, lp::mpq(6, 2));
+    numeric_pair<lean::mpq> a;
+    numeric_pair<lean::mpq> b(2, lean::mpq(6, 2));
     a = b;
-    numeric_pair<lp::mpq> c(0.1, 0.5);
+    numeric_pair<lean::mpq> c(0.1, 0.5);
     a += 2*c;
     a -= c;
     lean_assert (a == b + c);
-    numeric_pair<lp::mpq> d = a * 2;
+    numeric_pair<lean::mpq> d = a * 2;
     std::cout << a  << std::endl;
     lean_assert(b == b);
     lean_assert(b < a);
@@ -2283,10 +2283,10 @@ void test_numeric_pair() {
     lean_assert(-a < b);
     lean_assert(a < 2 * b);
     lean_assert(b + b > a);
-    lean_assert(lp::mpq(2.1) * b + b > a);
-    lean_assert(-b * lp::mpq(2.1) - b < lp::mpq(0.99)  * a);
-    std::cout << - b * lp::mpq(2.1) - b << std::endl;
-    lean_assert(-b *(lp::mpq(2.1) + 1) == - b * lp::mpq(2.1) - b);
+    lean_assert(lean::mpq(2.1) * b + b > a);
+    lean_assert(-b * lean::mpq(2.1) - b < lean::mpq(0.99)  * a);
+    std::cout << - b * lean::mpq(2.1) - b << std::endl;
+    lean_assert(-b *(lean::mpq(2.1) + 1) == - b * lean::mpq(2.1) - b);
 }
 
 void get_matrix_dimensions(ifstream & f, unsigned & m, unsigned & n) {
@@ -2543,5 +2543,5 @@ void test_lp_local(int argn, char**argv) {
 }
 }
 void tst_lp(char ** argv, int argc, int& i) {
-    lp::test_lp_local(argc - 1, argv + 1);
+    lean::test_lp_local(argc - 1, argv + 1);
 }

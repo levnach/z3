@@ -14,7 +14,7 @@
 #include "util/lp/lp_primal_core_solver.h"
 #include "util/lp/lp_solver.h"
 
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 class lp_primal_simplex: public lp_solver<T, X> {
     lp_primal_core_solver<T, X> * m_core_solver = nullptr;

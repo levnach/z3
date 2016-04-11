@@ -6,7 +6,7 @@
 */
 #include <vector>
 #include "util/lp/square_dense_submatrix.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 square_dense_submatrix<T, X>::square_dense_submatrix (sparse_matrix<T, X> *parent_matrix, unsigned index_start) :
     m_index_start(index_start),

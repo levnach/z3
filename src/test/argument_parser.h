@@ -12,7 +12,7 @@ Author: Lev Nachmanson
 #include <iostream>
 
 using namespace std;
-namespace lp {
+namespace lean {
 class argument_parser {
     unordered_map<string, string> m_options;
     unordered_map<string, string> m_options_with_after_string;

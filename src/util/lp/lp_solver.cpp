@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <vector>
 #include "util/lp/lp_solver.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X> column_info<T> * lp_solver<T, X>::get_or_create_column_info(unsigned column) {
     auto it = m_columns.find(column);
     return (it == m_columns.end())? ( m_columns[column] = new column_info<T>) : it->second;

@@ -6,7 +6,7 @@
 */
 #include <vector>
 #include "util/lp/binary_heap_priority_queue.h"
-namespace lp {
+namespace lean {
 // is is the child place in heap
 template <typename T> void binary_heap_priority_queue<T>::swap_with_parent(unsigned i) {
     unsigned parent = m_heap[i >> 1];

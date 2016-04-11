@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 #include "util/lp/lar_core_solver.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 lar_core_solver<T, X>::lar_core_solver(std::vector<X> & x, std::vector<column_type> & column_types,
                                        std::vector<X> & low_bounds, std::vector<X> & upper_bounds,

@@ -7,7 +7,7 @@
 #ifdef LEAN_DEBUG
 #include <vector>
 #include "util/lp/dense_matrix.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X> dense_matrix<T, X>::dense_matrix(unsigned m, unsigned n) : m_m(m), m_n(n) {
     m_values = new T[m * n];
     for (unsigned i = 0; i < m * n; i ++)

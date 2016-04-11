@@ -20,7 +20,7 @@
 #include "util/lp/row_eta_matrix.h"
 #include "util/lp/square_dense_submatrix.h"
 #include "util/lp/dense_matrix.h"
-namespace lp {
+namespace lean {
 #ifdef LEAN_DEBUG
 template <typename T, typename X> // print the nr x nc submatrix at the top left corner
 void print_submatrix(sparse_matrix<T, X> & m, unsigned mr, unsigned nc);

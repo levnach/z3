@@ -21,7 +21,7 @@
 #include "util/lp/lar_solver.h"
 #include "util/lp/lp_utils.h"
 #include "util/lp/lp_solver.h"
-namespace lp {
+namespace lean {
 using namespace std;
 inline bool my_white_space(const char & a) {
     return a == ' ' || a == '\t';

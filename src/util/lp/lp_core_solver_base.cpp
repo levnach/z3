@@ -9,7 +9,7 @@
 #include <vector>
 #include "util/lp/lp_utils.h"
 #include "util/lp/lp_core_solver_base.h"
-namespace lp {
+namespace lean {
 void init_basic_part_of_basis_heading(std::vector<unsigned> & basis, unsigned m, std::vector<int> & basis_heading) {
     for (unsigned i = 0; i < m; i++) {
         unsigned column = basis[i];
@@ -111,7 +111,7 @@ fill_cb(std::vector<T> & y){
 template <typename T, typename X> void lp_core_solver_base<T, X>::
 solve_yB(std::vector<T> & y) {
     fill_cb(y); // now y = cB, that is the projection of costs to basis
-	m_factorization->solve_yB(y);
+    m_factorization->solve_yB(y);
 }
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::
@@ -222,7 +222,7 @@ calculate_pivot_row_of_B_1(unsigned pivot_row) {
         m_pivot_row_of_B_1[i] = numeric_traits<T>::zero();
     }
     m_pivot_row_of_B_1[pivot_row] = numeric_traits<T>::one();
-	m_factorization->solve_yB(m_pivot_row_of_B_1);
+    m_factorization->solve_yB(m_pivot_row_of_B_1);
 }
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::
@@ -422,7 +422,7 @@ update_basis_and_x(int entering, int leaving, X const & tt) {
                 m_refactor_counter = 0;
                 m_iters_with_no_cost_growing++;
                 if (m_factorization->get_status() != LU_status::OK) {
-                    std::stringstream s; 
+                    std::stringstream s;
                     s << "failing refactor on off_result for entering = " << entering << ", leaving = " << leaving << " total_iterations = " << m_total_iterations;
                     throw_exception(s.str());
                 }

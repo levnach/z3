@@ -13,7 +13,7 @@
 #include "util/lp/sparse_vector.h"
 #include "util/lp/indexed_vector.h"
 #include "util/lp/permutation_matrix.h"
-namespace lp {
+namespace lean {
 template <typename T>
 struct column_cell {
     unsigned m_i; // points to the row
@@ -45,7 +45,7 @@ class static_matrix
 #endif
 {
 #ifdef LEAN_DEBUG
-    std::set<pair<unsigned, unsigned>> m_domain;
+    std::set<std::pair<unsigned, unsigned>> m_domain;
 #endif
 public:
     typedef std::vector<row_cell<T>> row_strip;

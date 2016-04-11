@@ -11,7 +11,7 @@
 #include <string>
 #include <algorithm>
 #include "util/lp/lp_settings.h"
-namespace lp {
+namespace lean {
 template <typename T>
 class column_info {
     std::string m_name;

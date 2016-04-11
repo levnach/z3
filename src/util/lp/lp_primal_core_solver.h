@@ -23,7 +23,7 @@
 #include "util/lp/lp_core_solver_base.h"
 #include "util/lp/breakpoint.h"
 #include "util/lp/binary_heap_priority_queue.h"
-namespace lp {
+namespace lean {
 
 // This core solver solves (Ax=b, low_bound_values \leq x \leq upper_bound_values, maximize costs*x )
 // The right side b is given implicitly by x and the basis

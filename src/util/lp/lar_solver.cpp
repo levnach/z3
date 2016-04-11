@@ -7,8 +7,9 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include <utility>
 #include "util/lp/lar_solver.h"
-namespace lp {
+namespace lean {
 double conversion_helper <double>::get_low_bound(const column_info<mpq> & ci) {
     if (!ci.low_bound_is_strict())
         return ci.get_low_bound().get_double();
@@ -501,7 +502,7 @@ void lar_solver::find_solution_signature_with_doubles(lar_solution_signature & s
         A.clear();
         create_matrix_A(A);
         for (auto & s : column_scale_vector)
-            s = one_of_type<double>();
+            s = 1.0;
     }
     std::vector<double> costs(A.column_count());
     auto core_solver = lp_primal_core_solver<double, double>(A,

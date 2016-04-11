@@ -6,7 +6,7 @@
 */
 #include <vector>
 #include "util/lp/permutation_matrix.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X> permutation_matrix<T, X>::permutation_matrix(unsigned length): m_permutation(length), m_rev(length) {
     lean_assert(length > 0);
     for (unsigned i = 0; i < length; i++) { // do not change the direction of the loop because of the vectorization bug in clang3.3

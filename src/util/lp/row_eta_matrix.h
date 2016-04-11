@@ -12,7 +12,7 @@
 #include "util/lp/sparse_vector.h"
 #include "util/lp/indexed_vector.h"
 #include "util/lp/permutation_matrix.h"
-namespace lp {
+namespace lean {
     // This is the sum of a unit matrix and a lower triangular matrix
     // with non-zero elements only in one column
 template <typename T, typename X>

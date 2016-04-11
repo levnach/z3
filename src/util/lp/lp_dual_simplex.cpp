@@ -5,7 +5,7 @@
   Author: Lev Nachmanson
 */
 #include "util/lp/lp_dual_simplex.h"
-namespace lp {
+namespace lean{
 
 template <typename T, typename X> void lp_dual_simplex<T, X>::decide_on_status_after_stage1() {
     switch (m_core_solver->get_status()) {
@@ -197,7 +197,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::fill_costs_bounds_
         std::stringstream s;
         s << "unexpected bound type " << j << " "
           << column_type_to_string(get_column_type(j));
-        throw_exception(s.str() );        
+        throw_exception(s.str());
         break;
     }
     case low_bound: {

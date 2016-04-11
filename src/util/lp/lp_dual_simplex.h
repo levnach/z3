@@ -9,7 +9,7 @@
 #include "util/lp/lp_utils.h"
 #include "util/lp/lp_solver.h"
 #include "util/lp/lp_dual_core_solver.h"
-namespace lp {
+namespace lean {
 
 template <typename T, typename X>
 class lp_dual_simplex: public lp_solver<T, X> {

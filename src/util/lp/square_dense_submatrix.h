@@ -22,7 +22,7 @@
 #include "util/lp/eta_matrix.h"
 #include "util/lp/binary_heap_upair_queue.h"
 #include "util/lp/sparse_matrix.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 class square_dense_submatrix : public tail_matrix<T, X> {
     // the submatrix uses the permutations of the parent matrix to access the elements

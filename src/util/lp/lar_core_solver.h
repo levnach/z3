@@ -7,12 +7,13 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <utility>
 #include "util/lp/lp_core_solver_base.h"
 #include <algorithm>
 #include "util/lp/indexed_vector.h"
 #include "util/lp/binary_heap_priority_queue.h"
 #include "util/lp/breakpoint.h"
-namespace lp {
+namespace lean {
 
 template <typename T, typename X>
 class lar_core_solver : public lp_core_solver_base<T, X> {

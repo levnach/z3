@@ -11,7 +11,7 @@
 #include "util/debug.h"
 #include "util/lp/lp_utils.h"
 #include "util/lp/lp_settings.h"
-namespace lp {
+namespace lean {
 
 template <typename T>
 class sparse_vector {

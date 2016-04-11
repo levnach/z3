@@ -7,7 +7,7 @@
 
 #include <vector>
 #include "util/lp/sparse_matrix.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 void sparse_matrix<T, X>::copy_column_from_static_matrix(unsigned col, static_matrix<T, X> const &A, unsigned col_index_in_the_new_matrix) {
     std::vector<column_cell<T>> const & A_col_vector = A.m_columns[col];

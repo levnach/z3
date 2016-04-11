@@ -9,7 +9,7 @@
 #include <vector>
 #include <string>
 #include "util/lp/matrix.h"
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 bool matrix<T, X>::is_equal(const matrix<T, X>& other) {
     if (other.row_count() != row_count() || other.column_count() != column_count())

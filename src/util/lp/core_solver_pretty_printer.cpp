@@ -10,7 +10,8 @@
 #include "util/lp/lp_utils.h"
 #include "util/lp/lp_core_solver_base.h"
 #include "util/lp/core_solver_pretty_printer.h"
-namespace lp {
+#include "util/lp/numeric_pair.h"
+namespace lean {
 
 
 template <typename T, typename X>

@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 #include "util/lp/lp_settings.h"
-namespace lp {
+namespace lean {
 std::string column_type_to_string(column_type t) {
     switch (t) {
     case fixed:

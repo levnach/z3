@@ -6,7 +6,7 @@
 */
 #include <vector>
 #include "util/lp/indexed_vector.h"
-namespace lp {
+namespace lean {
 
 template <typename T>
 void print_vector(const std::vector<T> & t, std::ostream & out) {

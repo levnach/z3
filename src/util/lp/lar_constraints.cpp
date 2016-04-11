@@ -6,7 +6,7 @@
 */
 #include <utility>
 #include "util/lp/lar_constraints.h"
-namespace lp {
+namespace lean {
 
 lar_constraint::lar_constraint(const buffer<std::pair<mpq, var_index>> & left_side, lconstraint_kind kind, mpq right_side, constraint_index index) :  lar_base_constraint(kind, right_side, index) {
     for (auto & it : left_side) {

@@ -9,7 +9,7 @@
 #include <vector>
 #include "util/lp/lp_dual_core_solver.h"
 
-namespace lp {
+namespace lean {
 template <typename T, typename X>
 lp_dual_core_solver<T, X>::lp_dual_core_solver(static_matrix<T, X> & A,
                                                std::vector<bool> & can_enter_basis,
@@ -352,7 +352,7 @@ template <typename T, typename X> T lp_dual_core_solver<T, X>::get_delta() {
         lean_unreachable();
     }
     lean_unreachable();
-    return 0;
+    return zero_of_type<T>();
 }
 
 template <typename T, typename X> void lp_dual_core_solver<T, X>::restore_d() {

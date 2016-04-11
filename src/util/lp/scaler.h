@@ -13,7 +13,7 @@
 #include <stdlib.h>     /* exit, EXIT_FAILURE */
 #include "util/lp/lp_utils.h"
 #include "util/lp/static_matrix.h"
-namespace lp {
+namespace lean {
 // for scaling an LP
 template <typename T, typename X>
 class scaler {
