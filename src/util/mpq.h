@@ -27,13 +27,16 @@ class mpq {
     mpz m_den;
     friend class mpq_manager<true>;
     friend class mpq_manager<false>;
-    mpq & operator=(mpq const & other) { UNREACHABLE(); return *this; }
 public:
+    mpq & operator=(mpq const & other) { UNREACHABLE(); return *this; }
+  public:
     mpq(int v):m_num(v), m_den(1) {}
     mpq():m_den(1) {}
     void swap(mpq & other) { m_num.swap(other.m_num); m_den.swap(other.m_den); }
     mpz const & numerator() const { return m_num; }
     mpz const & denominator() const { return m_den; }
+
+    double get_double() const;
 };
 
 inline void swap(mpq & m1, mpq & m2) { m1.swap(m2); }
@@ -833,9 +836,11 @@ public:
     }
 
     bool is_even(mpz const & a) { return mpz_manager<SYNCH>::is_even(a); }
-
+public:
     bool is_even(mpq const & a) { return is_int(a) && is_even(a.m_num); }
 
+    friend bool operator==(mpq const & a, mpq const & b) ;
+    friend bool operator>=(mpq const & a, mpq const & b);
 };
 
 typedef mpq_manager<true> synch_mpq_manager;
