@@ -74,7 +74,7 @@ template <typename X> inline X one_of_type() { return numeric_traits<X>::one(); 
 template <typename X> inline bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
 template <typename X> inline double  get_double(const X & v) { return numeric_traits<X>::get_double(v); }
 template <typename T> inline T zero_of_type() {return numeric_traits<T>::zero();}
-inline void throw_exception(std::string str) { throw lean::exception(str);}
+inline void throw_exception(std::string str) { throw exception(str); }
 template <typename T> inline T from_string(std::string const & str) { lean_unreachable();}
 template <> double inline from_string<double>(std::string const & str) { return atof(str.c_str());}
 template <> mpq inline from_string<mpq>(std::string const & str) {
