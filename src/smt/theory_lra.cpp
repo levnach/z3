@@ -133,7 +133,7 @@ namespace smt {
         svector<scope>         m_scopes;
         lp::stats              m_stats;
 
-        scoped_ptr<lean::lp_solver<lp::inf_numeral, rational> > m_solver;
+        scoped_ptr<lean::lar_solver> m_solver;
 
 
         void found_non_arith(expr* n) {
@@ -207,7 +207,7 @@ namespace smt {
         }
 
         void internalize() {
-            unsigned row = m_solver->row_count();
+            unsigned row = 0; // TBD m_solver->row_count();
             for (unsigned i = 0; i < m_vars.size(); ++i) {
                 theory_var column = m_vars[i];
                 rational const& coeff = m_coeffs[i];
@@ -217,10 +217,10 @@ namespace smt {
                 else {
                     m_columns[column] += coeff;
                 }
-                m_solver->set_row_column_coefficient(row, column, m_columns[column]);
+                // TBD: m_solver->set_row_column_coefficient(row, column, m_columns[column]);
             }
             
-            m_solver->add_constraint(lean::Equal, rational::zero(), row);
+            // TBD: m_solver->add_constraint(lean::Equal, rational::zero(), row);
 
             // reset the coefficients after they have been used.
             for (unsigned i = 0; i < m_vars.size(); ++i) {
@@ -248,7 +248,7 @@ namespace smt {
 
     public:
         imp(theory_lra& th, ast_manager& m): th(th), m(m), a(m), m_terms(m) {
-            m_solver = alloc(dual_simplex);
+            m_solver = alloc(lean::lar_solver); // dual_simplex;
         }
 
         ~imp() {
@@ -357,16 +357,16 @@ namespace smt {
                     switch (r.m_bound_kind) {
                     case lp::lower_t:
                         m_lower[r.m_v] = r.m_bound;
-                        m_solver->unset_low_bound(r.m_v);
+                        // TBD: m_solver->unset_low_bound(r.m_v);
                         if (r.m_bound) {
-                            m_solver->set_low_bound(r.m_v, *r.m_bound);
+                            // TBD: m_solver->set_low_bound(r.m_v, *r.m_bound);
                         }
                         break;
                     case lp::upper_t:
                         m_upper[r.m_v] = r.m_bound;
-                        m_solver->unset_upper_bound(r.m_v);
+                        // TBD: m_solver->unset_upper_bound(r.m_v);
                         if (r.m_bound) {
-                            m_solver->set_upper_bound(r.m_v, *r.m_bound);
+                            // TBD: m_solver->set_upper_bound(r.m_v, *r.m_bound);
                         }
                         break;
                     }
@@ -422,13 +422,13 @@ namespace smt {
             switch (k) {
             case lp::lower_t:
                 m_replay_bounds.push_back(lp::replay_bound(v, m_lower[v], k));
-                m_solver->set_low_bound(v, val);
+                // TBD: m_solver->set_low_bound(v, val);
                 m_lower[v] = val;
                 ++m_stats.m_assert_lower;
                 break;
             case lp::upper_t:
                 m_replay_bounds.push_back(lp::replay_bound(v, m_upper[v], k));
-                m_solver->set_upper_bound(v, val);
+                // TBD: m_solver->set_upper_bound(v, val);
                 m_upper[v] = val;
                 ++m_stats.m_assert_upper;
                 break;
@@ -437,8 +437,7 @@ namespace smt {
         }
 
         lbool make_feasible() {
-            m_solver->find_maximal_solution();
-            lean::lp_status status = m_solver->get_status();
+            lean::lp_status status = m_solver->check();
             switch (status) {
             case lean::lp_status::INFEASIBLE:
                 return l_false;
@@ -452,6 +451,8 @@ namespace smt {
         }
 
         void failed() {
+            // TBD: extract core as a conflict clause.
+            // m_solver->get_infeasible_evidence(evidence);
             // restore_assignment();
         }
 
@@ -462,7 +463,8 @@ namespace smt {
 
         }
         void init_model(model_generator & m) {
-
+            // 
+            // TBD: m_solver->get_model(variable_values);
         }
         model_value_proc * mk_value(enode * n, model_generator & mg) {
             return 0;
