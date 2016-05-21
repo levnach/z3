@@ -69,6 +69,7 @@ IS_LINUX=False
 IS_OSX=False
 IS_FREEBSD=False
 IS_OPENBSD=False
+IS_CYGWIN=False
 VERBOSE=True
 DEBUG_MODE=False
 SHOW_CPPS = True
@@ -138,6 +139,9 @@ def is_openbsd():
 
 def is_osx():
     return IS_OSX
+
+def is_cygwin():
+    return IS_CYGWIN
 
 def norm_path(p):
     # We use '/' on mk_project for convenience
@@ -591,6 +595,8 @@ elif os.name == 'posix':
         IS_FREEBSD=True
     elif os.uname()[0] == 'OpenBSD':
         IS_OPENBSD=True
+    elif os.uname()[0][:6] == 'CYGWIN':
+        IS_CYGWIN=True
 
 def display_help(exit_code):
     print("mk_make.py: Z3 Makefile generator\n")
@@ -1697,6 +1703,8 @@ class JavaDLLComponent(Component):
                 t = t.replace('PLATFORM', 'freebsd')
             elif IS_OPENBSD:
                 t = t.replace('PLATFORM', 'openbsd')
+            elif IS_CYGWIN:
+                t = t.replace('PLATFORM', 'cygwin')
             else:
                 t = t.replace('PLATFORM', 'win32')
             out.write(t)
@@ -1814,6 +1822,16 @@ class MLComponent(Component):
 
     def mk_makefile(self, out):
         if is_ml_enabled():
+            CP_CMD = 'cp'
+            if IS_WINDOWS:
+                CP_CMD='copy'
+
+            OCAML_FLAGS = ''
+            if DEBUG_MODE:             
+                OCAML_FLAGS += '-g'
+            OCAMLCF = OCAMLC + ' ' + OCAML_FLAGS
+            OCAMLOPTF = OCAMLOPT + ' ' + OCAML_FLAGS
+
             src_dir = self.to_src_dir
             mk_dir(os.path.join(BUILD_DIR, self.sub_dir))
             api_src = get_component(API_COMPONENT).to_src_dir
@@ -1830,51 +1848,52 @@ class MLComponent(Component):
                            os.path.join(BUILD_DIR, self.sub_dir, 'META'),
                            substitutions)
 
-            mlis = ''
-            for m in self.modules:
-                mlis = os.path.join(src_dir, m) + '.mli ' + mlis
-
             stubsc = os.path.join(src_dir, self.stubs + '.c')
             stubso = os.path.join(self.sub_dir, self.stubs) + '$(OBJ_EXT)'
             z3dllso = get_component(Z3_DLL_COMPONENT).dll_name + '$(SO_EXT)'
             out.write('%s: %s %s\n' % (stubso, stubsc, z3dllso))
             out.write('\t%s -ccopt "$(CXXFLAGS_OCAML) -I %s -I %s -I %s $(CXX_OUT_FLAG)%s" -c %s\n' %
-                      (OCAMLC, OCAML_LIB, api_src, src_dir, stubso, stubsc))
-
-            cmis = ''
-            for m in self.modules:
-                ff = os.path.join(src_dir, m + '.mli')
-                ft = os.path.join(self.sub_dir, m + '.cmi')
-                out.write('%s: %s\n' % (ft, cmis))
-                out.write('\t%s -I %s -o %s -c %s\n' % (OCAMLC, self.sub_dir, ft, ff))
-                cmis = cmis + ' ' + ft
+                      (OCAMLCF, OCAML_LIB, api_src, src_dir, stubso, stubsc))
 
             cmos = ''
             for m in self.modules:
-                ff = os.path.join(src_dir, m + '.ml')
-                ft = os.path.join(self.sub_dir, m + '.cmo')
-                fd = os.path.join(self.sub_dir, m + '.cmi')
-                out.write('%s: %s %s\n' % (ft, ff, fd))
-                out.write('\t%s -I %s -o %s -c %s\n' % (OCAMLC, self.sub_dir, ft, ff))
-                cmos = cmos + ' ' + ft
+                ml = os.path.join(src_dir, m + '.ml')
+                cmo = os.path.join(self.sub_dir, m + '.cmo')
+                existing_mli = os.path.join(src_dir, m + '.mli')
+                mli = os.path.join(self.sub_dir, m + '.mli')
+                cmi = os.path.join(self.sub_dir, m + '.cmi')
+                out.write('%s: %s %s\n' % (cmo, ml, cmos))
+                if (os.path.exists(existing_mli[3:])):
+                    out.write('\t%s %s %s\n' % (CP_CMD, existing_mli, mli))
+                else:
+                    out.write('\t%s -i -I %s -c %s > %s\n' % (OCAMLCF, self.sub_dir, ml, mli))
+                out.write('\t%s -I %s -o %s -c %s\n' % (OCAMLCF, self.sub_dir, cmi, mli))
+                out.write('\t%s -I %s -o %s -c %s\n' % (OCAMLCF, self.sub_dir, cmo, ml))
+                cmos = cmos + cmo + ' '
 
             cmxs = ''
             for m in self.modules:
                 ff = os.path.join(src_dir, m + '.ml')
                 ft = os.path.join(self.sub_dir, m + '.cmx')
-                fd = os.path.join(self.sub_dir, m + '.cmi')
-                out.write('%s: %s %s\n' % (ft, ff, fd))
-                out.write('\t%s -I %s -o %s -c %s\n' % (OCAMLOPT, self.sub_dir, ft, ff))
+                out.write('%s: %s %s\n' % (ft, ff, cmos))
+                out.write('\t%s -I %s -o %s -c %s\n' % (OCAMLOPTF, self.sub_dir, ft, ff))
                 cmxs = cmxs + ' ' + ft
 
 
+            OCAMLMKLIB = 'ocamlmklib'
+            LIBZ3 = '-L. -lz3'
+            if is_cygwin():
+                # Some ocamlmklib's don't like -g; observed on cygwin, but may be others as well.
+                LIBZ3 = 'libz3.dll'
+            elif DEBUG_MODE:
+                OCAMLMKLIB += ' -g'
             z3mls = os.path.join(self.sub_dir, 'z3ml')
             out.write('%s.cma: %s %s %s\n' % (z3mls, cmos, stubso, z3dllso))
-            out.write('\tocamlmklib -o %s -I %s %s %s -L. -lz3\n' % (z3mls, self.sub_dir, stubso, cmos))
+            out.write('\t%s -o %s -I %s %s %s %s\n' % (OCAMLMKLIB, z3mls, self.sub_dir, stubso, cmos, LIBZ3))
             out.write('%s.cmxa: %s %s %s\n' % (z3mls, cmxs, stubso, z3dllso))
-            out.write('\tocamlmklib -o %s -I %s %s %s -L. -lz3\n' % (z3mls, self.sub_dir, stubso, cmxs))
+            out.write('\t%s -o %s -I %s %s %s %s\n' % (OCAMLMKLIB, z3mls, self.sub_dir, stubso, cmxs, LIBZ3))
             out.write('%s.cmxs: %s.cmxa\n' % (z3mls, z3mls))
-            out.write('\t%s -shared -o %s.cmxs -I %s %s.cmxa\n' % (OCAMLOPT, z3mls, self.sub_dir, z3mls))
+            out.write('\t%s -shared -o %s.cmxs -I %s %s.cmxa\n' % (OCAMLOPTF, z3mls, self.sub_dir, z3mls))
 
             out.write('\n')
             out.write('ml: %s.cma %s.cmxa %s.cmxs\n' % (z3mls, z3mls, z3mls))
@@ -1917,8 +1936,13 @@ class MLComponent(Component):
                 metafile=os.path.join(self.sub_dir, 'META')))
 
             for m in self.modules:
-                out.write(' ' + os.path.join(self.to_src_dir, m) + '.mli')
+                mli = os.path.join(self.src_dir, m) + '.mli'
+                if os.path.exists(mli):
+                    out.write(' ' + os.path.join(self.to_src_dir, m) + '.mli')
+                else:
+                    out.write(' ' + os.path.join(self.sub_dir, m) + '.mli')
                 out.write(' ' + os.path.join(self.sub_dir, m) + '.cmi')
+                out.write(' ' + os.path.join(self.sub_dir, m) + '.cmx')
             out.write(' %s' % ((os.path.join(self.sub_dir, 'libz3ml$(LIB_EXT)'))))
             out.write(' %s' % ((os.path.join(self.sub_dir, 'z3ml$(LIB_EXT)'))))
             out.write(' %s' % ((os.path.join(self.sub_dir, 'z3ml.cma'))))
@@ -2019,7 +2043,7 @@ class DotNetExampleComponent(ExampleComponent):
             if VS_X64:
                 out.write(' /platform:x64')
             elif VS_ARM:
-                out.write(' /platform:arm')                
+                out.write(' /platform:arm')
             else:
                 out.write(' /platform:x86')
             for csfile in get_cs_files(self.ex_dir):
@@ -2212,7 +2236,7 @@ def mk_config():
             static_opt = static_opt + 'd'
             config.write(
                 'AR_FLAGS=/nologo\n'
-                'LINK_FLAGS=/nologo %s\n' 
+                'LINK_FLAGS=/nologo %s\n'
                 'SLINK_FLAGS=/nologo /LDd\n' % static_opt)
             if VS_X64:
                 config.write(
@@ -2255,7 +2279,7 @@ def mk_config():
                     'LINK_EXTRA_FLAGS=/link%s /DEBUG /MACHINE:X86 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE /NXCOMPAT\n'
                     'SLINK_EXTRA_FLAGS=/link%s /DEBUG /MACHINE:X86 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE:NO\n' % (LTCG, LTCG))
 
-                
+
 
         # End of Windows VS config.mk
         if is_verbose():
@@ -2489,7 +2513,7 @@ def mk_makefile():
                 print("To build Z3, open a [Visual Studio x64 Command Prompt], then")
             elif VS_ARM:
                 print("  platform: ARM\n")
-                print("To build Z3, open a [Visual Studio ARM Command Prompt], then")                
+                print("To build Z3, open a [Visual Studio ARM Command Prompt], then")
             else:
                 print("  platform: x86")
                 print("To build Z3, open a [Visual Studio Command Prompt], then")
@@ -2744,202 +2768,33 @@ def mk_z3consts_py(api_files):
     if VERBOSE:
         print("Generated '{}".format(generated_file))
 
-
 # Extract enumeration types from z3_api.h, and add .Net definitions
 def mk_z3consts_dotnet(api_files):
-    blank_pat      = re.compile("^ *\r?$")
-    comment_pat    = re.compile("^ *//.*$")
-    typedef_pat    = re.compile("typedef enum *")
-    typedef2_pat   = re.compile("typedef enum { *")
-    openbrace_pat  = re.compile("{ *")
-    closebrace_pat = re.compile("}.*;")
-
     dotnet = get_component(DOTNET_COMPONENT)
-
-    DeprecatedEnums = [ 'Z3_search_failure' ]
-    z3consts  = open(os.path.join(dotnet.src_dir, 'Enumerations.cs'), 'w')
-    z3consts.write('// Automatically generated file\n\n')
-    z3consts.write('using System;\n\n'
-                   '#pragma warning disable 1591\n\n'
-                   'namespace Microsoft.Z3\n'
-                   '{\n')
-
+    full_path_api_files = []
     for api_file in api_files:
         api_file_c = dotnet.find_file(api_file, dotnet.name)
         api_file   = os.path.join(api_file_c.src_dir, api_file)
-
-        api = open(api_file, 'r')
-
-        SEARCHING  = 0
-        FOUND_ENUM = 1
-        IN_ENUM    = 2
-
-        mode    = SEARCHING
-        decls   = {}
-        idx     = 0
-
-        linenum = 1
-        for line in api:
-            m1 = blank_pat.match(line)
-            m2 = comment_pat.match(line)
-            if m1 or m2:
-                # skip blank lines and comments
-                linenum = linenum + 1
-            elif mode == SEARCHING:
-                m = typedef_pat.match(line)
-                if m:
-                    mode = FOUND_ENUM
-                m = typedef2_pat.match(line)
-                if m:
-                    mode = IN_ENUM
-                    decls = {}
-                    idx   = 0
-            elif mode == FOUND_ENUM:
-                m = openbrace_pat.match(line)
-                if m:
-                    mode  = IN_ENUM
-                    decls = {}
-                    idx   = 0
-                else:
-                    assert False, "Invalid %s, line: %s" % (api_file, linenum)
-            else:
-                assert mode == IN_ENUM
-                words = re.split('[^\-a-zA-Z0-9_]+', line)
-                m = closebrace_pat.match(line)
-                if m:
-                    name = words[1]
-                    if name not in DeprecatedEnums:
-                        z3consts.write('  /// <summary>%s</summary>\n' % name)
-                        z3consts.write('  public enum %s {\n' % name)
-                        z3consts.write
-                        for k in decls:
-                            i = decls[k]
-                            z3consts.write('  %s = %s,\n' % (k, i))
-                        z3consts.write('  }\n\n')
-                    mode = SEARCHING
-                elif len(words) <= 2:
-                    assert False, "Invalid %s, line: %s" % (api_file, linenum)
-                else:
-                    if words[2] != '':
-                        if len(words[2]) > 1 and words[2][1] == 'x':
-                            idx = int(words[2], 16)
-                        else:
-                            idx = int(words[2])
-                    decls[words[1]] = idx
-                    idx = idx + 1
-            linenum = linenum + 1
-        api.close()
-    z3consts.write('}\n');
-    z3consts.close()
+        full_path_api_files.append(api_file)
+    generated_file = mk_genfile_common.mk_z3consts_dotnet_internal(full_path_api_files, dotnet.src_dir)
     if VERBOSE:
-        print("Generated '%s'" % os.path.join(dotnet.src_dir, 'Enumerations.cs'))
-
+        print("Generated '{}".format(generated_file))
 
 # Extract enumeration types from z3_api.h, and add Java definitions
 def mk_z3consts_java(api_files):
-    blank_pat      = re.compile("^ *$")
-    comment_pat    = re.compile("^ *//.*$")
-    typedef_pat    = re.compile("typedef enum *")
-    typedef2_pat   = re.compile("typedef enum { *")
-    openbrace_pat  = re.compile("{ *")
-    closebrace_pat = re.compile("}.*;")
-
     java = get_component(JAVA_COMPONENT)
-
-    DeprecatedEnums = [ 'Z3_search_failure' ]
-    gendir = os.path.join(java.src_dir, "enumerations")
-    if not os.path.exists(gendir):
-        os.mkdir(gendir)
-
+    full_path_api_files = []
     for api_file in api_files:
         api_file_c = java.find_file(api_file, java.name)
         api_file   = os.path.join(api_file_c.src_dir, api_file)
-
-        api = open(api_file, 'r')
-
-        SEARCHING  = 0
-        FOUND_ENUM = 1
-        IN_ENUM    = 2
-
-        mode    = SEARCHING
-        decls   = {}
-        idx     = 0
-
-        linenum = 1
-        for line in api:
-            m1 = blank_pat.match(line)
-            m2 = comment_pat.match(line)
-            if m1 or m2:
-                # skip blank lines and comments
-                linenum = linenum + 1
-            elif mode == SEARCHING:
-                m = typedef_pat.match(line)
-                if m:
-                    mode = FOUND_ENUM
-                m = typedef2_pat.match(line)
-                if m:
-                    mode = IN_ENUM
-                    decls = {}
-                    idx   = 0
-            elif mode == FOUND_ENUM:
-                m = openbrace_pat.match(line)
-                if m:
-                    mode  = IN_ENUM
-                    decls = {}
-                    idx   = 0
-                else:
-                    assert False, "Invalid %s, line: %s" % (api_file, linenum)
-            else:
-                assert mode == IN_ENUM
-                words = re.split('[^\-a-zA-Z0-9_]+', line)
-                m = closebrace_pat.match(line)
-                if m:
-                    name = words[1]
-                    if name not in DeprecatedEnums:
-                        efile  = open('%s.java' % os.path.join(gendir, name), 'w')
-                        efile.write('/**\n *  Automatically generated file\n **/\n\n')
-                        efile.write('package %s.enumerations;\n\n' % java.package_name)
-
-                        efile.write('/**\n')
-                        efile.write(' * %s\n' % name)
-                        efile.write(' **/\n')
-                        efile.write('public enum %s {\n' % name)
-                        efile.write
-                        first = True
-                        for k in decls:
-                            i = decls[k]
-                            if first:
-                                first = False
-                            else:
-                                efile.write(',\n')
-                            efile.write('    %s (%s)' % (k, i))
-                        efile.write(";\n")
-                        efile.write('\n    private final int intValue;\n\n')
-                        efile.write('    %s(int v) {\n' % name)
-                        efile.write('        this.intValue = v;\n')
-                        efile.write('    }\n\n')
-                        efile.write('    public static final %s fromInt(int v) {\n' % name)
-                        efile.write('        for (%s k: values()) \n' % name)
-                        efile.write('            if (k.intValue == v) return k;\n')
-                        efile.write('        return values()[0];\n')
-                        efile.write('    }\n\n')
-                        efile.write('    public final int toInt() { return this.intValue; }\n')
-                        #  efile.write(';\n  %s(int v) {}\n' % name)
-                        efile.write('}\n\n')
-                        efile.close()
-                    mode = SEARCHING
-                else:
-                    if words[2] != '':
-                        if len(words[2]) > 1 and words[2][1] == 'x':
-                            idx = int(words[2], 16)
-                        else:
-                            idx = int(words[2])
-                    decls[words[1]] = idx
-                    idx = idx + 1
-            linenum = linenum + 1
-        api.close()
+        full_path_api_files.append(api_file)
+    generated_files = mk_genfile_common.mk_z3consts_java_internal(
+        full_path_api_files,
+        java.package_name,
+        java.src_dir)
     if VERBOSE:
-        print("Generated '%s'" % ('%s' % gendir))
+        for generated_file in generated_files:
+            print("Generated '{}'".format(generated_file))
 
 # Extract enumeration types from z3_api.h, and add ML definitions
 def mk_z3consts_ml(api_files):
@@ -3037,78 +2892,78 @@ def mk_z3consts_ml(api_files):
     efile.close()
     if VERBOSE:
         print ('Generated "%s/z3enums.ml"' % ('%s' % gendir))
-    efile  = open('%s.mli' % os.path.join(gendir, "z3enums"), 'w')
-    efile.write('(* Automatically generated file *)\n\n')
-    efile.write('(** The enumeration types of Z3. *)\n\n')
-    for api_file in api_files:
-        api_file_c = ml.find_file(api_file, ml.name)
-        api_file   = os.path.join(api_file_c.src_dir, api_file)
+    # efile  = open('%s.mli' % os.path.join(gendir, "z3enums"), 'w')
+    # efile.write('(* Automatically generated file *)\n\n')
+    # efile.write('(** The enumeration types of Z3. *)\n\n')
+    # for api_file in api_files:
+    #     api_file_c = ml.find_file(api_file, ml.name)
+    #     api_file   = os.path.join(api_file_c.src_dir, api_file)
 
-        api = open(api_file, 'r')
+    #     api = open(api_file, 'r')
 
-        SEARCHING  = 0
-        FOUND_ENUM = 1
-        IN_ENUM    = 2
+    #     SEARCHING  = 0
+    #     FOUND_ENUM = 1
+    #     IN_ENUM    = 2
 
-        mode    = SEARCHING
-        decls   = {}
-        idx     = 0
+    #     mode    = SEARCHING
+    #     decls   = {}
+    #     idx     = 0
 
-        linenum = 1
-        for line in api:
-            m1 = blank_pat.match(line)
-            m2 = comment_pat.match(line)
-            if m1 or m2:
-                # skip blank lines and comments
-                linenum = linenum + 1
-            elif mode == SEARCHING:
-                m = typedef_pat.match(line)
-                if m:
-                    mode = FOUND_ENUM
-                m = typedef2_pat.match(line)
-                if m:
-                    mode = IN_ENUM
-                    decls = {}
-                    idx   = 0
-            elif mode == FOUND_ENUM:
-                m = openbrace_pat.match(line)
-                if m:
-                    mode  = IN_ENUM
-                    decls = {}
-                    idx   = 0
-                else:
-                    assert False, "Invalid %s, line: %s" % (api_file, linenum)
-            else:
-                assert mode == IN_ENUM
-                words = re.split('[^\-a-zA-Z0-9_]+', line)
-                m = closebrace_pat.match(line)
-                if m:
-                    name = words[1]
-                    if name not in DeprecatedEnums:
-                        efile.write('(** %s *)\n' % name[3:])
-                        efile.write('type %s =\n' % name[3:]) # strip Z3_
-                        for k, i in decls.items():
-                            efile.write('  | %s \n' % k[3:]) # strip Z3_
-                        efile.write('\n')
-                        efile.write('(** Convert %s to int*)\n' % name[3:])
-                        efile.write('val int_of_%s : %s -> int\n' % (name[3:], name[3:])) # strip Z3_
-                        efile.write('(** Convert int to %s*)\n' % name[3:])
-                        efile.write('val %s_of_int : int -> %s\n' % (name[3:],name[3:])) # strip Z3_
-                        efile.write('\n')
-                    mode = SEARCHING
-                else:
-                    if words[2] != '':
-                        if len(words[2]) > 1 and words[2][1] == 'x':
-                            idx = int(words[2], 16)
-                        else:
-                            idx = int(words[2])
-                    decls[words[1]] = idx
-                    idx = idx + 1
-            linenum = linenum + 1
-        api.close()
-    efile.close()
-    if VERBOSE:
-        print ('Generated "%s/z3enums.mli"' % ('%s' % gendir))
+    #     linenum = 1
+    #     for line in api:
+    #         m1 = blank_pat.match(line)
+    #         m2 = comment_pat.match(line)
+    #         if m1 or m2:
+    #             # skip blank lines and comments
+    #             linenum = linenum + 1
+    #         elif mode == SEARCHING:
+    #             m = typedef_pat.match(line)
+    #             if m:
+    #                 mode = FOUND_ENUM
+    #             m = typedef2_pat.match(line)
+    #             if m:
+    #                 mode = IN_ENUM
+    #                 decls = {}
+    #                 idx   = 0
+    #         elif mode == FOUND_ENUM:
+    #             m = openbrace_pat.match(line)
+    #             if m:
+    #                 mode  = IN_ENUM
+    #                 decls = {}
+    #                 idx   = 0
+    #             else:
+    #                 assert False, "Invalid %s, line: %s" % (api_file, linenum)
+    #         else:
+    #             assert mode == IN_ENUM
+    #             words = re.split('[^\-a-zA-Z0-9_]+', line)
+    #             m = closebrace_pat.match(line)
+    #             if m:
+    #                 name = words[1]
+    #                 if name not in DeprecatedEnums:
+    #                     efile.write('(** %s *)\n' % name[3:])
+    #                     efile.write('type %s =\n' % name[3:]) # strip Z3_
+    #                     for k, i in decls.items():
+    #                         efile.write('  | %s \n' % k[3:]) # strip Z3_
+    #                     efile.write('\n')
+    #                     efile.write('(** Convert %s to int*)\n' % name[3:])
+    #                     efile.write('val int_of_%s : %s -> int\n' % (name[3:], name[3:])) # strip Z3_
+    #                     efile.write('(** Convert int to %s*)\n' % name[3:])
+    #                     efile.write('val %s_of_int : int -> %s\n' % (name[3:],name[3:])) # strip Z3_
+    #                     efile.write('\n')
+    #                 mode = SEARCHING
+    #             else:
+    #                 if words[2] != '':
+    #                     if len(words[2]) > 1 and words[2][1] == 'x':
+    #                         idx = int(words[2], 16)
+    #                     else:
+    #                         idx = int(words[2])
+    #                 decls[words[1]] = idx
+    #                 idx = idx + 1
+    #         linenum = linenum + 1
+    #     api.close()
+    # efile.close()
+    # if VERBOSE:
+    #     print ('Generated "%s/z3enums.mli"' % ('%s' % gendir))
 
 def mk_gui_str(id):
     return '4D2F40D8-E5F9-473B-B548-%012d' % id
@@ -3394,7 +3249,7 @@ class MakeRuleCmd(object):
             cls.write_cmd(out, "mkdir -p {install_root}{dir}".format(
                 install_root=install_root,
                 dir=dir))
-            
+
     @classmethod
     def _is_path_prefix_of(cls, temp_path, target_as_abs):
         """
@@ -3523,4 +3378,3 @@ def configure_file(template_file_path, output_file_path, substitutions):
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
-

@@ -42,6 +42,7 @@ Notes:
 #include "filter_model_converter.h"
 #include "ast_pp_util.h"
 #include "inc_sat_solver.h"
+#include "qsat.h"
 
 namespace opt {
 
@@ -193,6 +194,8 @@ namespace opt {
         return m_scoped_state.add(t, is_max);
     }
 
+
+
     void context::import_scoped_state() {
         m_optsmt.reset();        
         reset_maxsmts();
@@ -209,6 +212,20 @@ namespace opt {
         m_hard_constraints.append(s.m_hard);
     }
 
+    lbool context::min_max(app* t, app_ref_vector const& vars, svector<bool> const& is_max) {
+        clear_state();
+        init_solver(); 
+        import_scoped_state(); 
+        normalize();
+        internalize();
+        update_solver();
+        solver& s = get_solver();
+        s.assert_expr(m_hard_constraints);
+        std::cout << "min-max is TBD\n";
+        return l_undef;
+    }
+
+
     lbool context::optimize() {
         if (m_pareto) {
             return execute_pareto();
@@ -221,12 +238,14 @@ namespace opt {
         import_scoped_state(); 
         normalize();
         internalize();
+#if 0
+        if (is_qsat_opt()) {
+            return run_qsat_opt();
+        }
+#endif
         update_solver();
         solver& s = get_solver();
-        for (unsigned i = 0; i < m_hard_constraints.size(); ++i) {
-            TRACE("opt", tout << "Hard constraint: " << mk_ismt2_pp(m_hard_constraints[i].get(), m) << std::endl;);
-            s.assert_expr(m_hard_constraints[i].get());
-        }
+        s.assert_expr(m_hard_constraints);
         display_benchmark();
         IF_VERBOSE(1, verbose_stream() << "(optimize:check-sat)\n";);
         lbool is_sat = s.check_sat(0,0);
@@ -1192,7 +1211,7 @@ namespace opt {
     }
 
     inf_eps context::get_lower_as_num(unsigned idx) {
-        if (idx > m_objectives.size()) {
+        if (idx >= m_objectives.size()) {
             throw default_exception("index out of bounds"); 
         }
         objective const& obj = m_objectives[idx];
@@ -1210,7 +1229,7 @@ namespace opt {
     }
 
     inf_eps context::get_upper_as_num(unsigned idx) {
-        if (idx > m_objectives.size()) {
+        if (idx >= m_objectives.size()) {
             throw default_exception("index out of bounds"); 
         }
         objective const& obj = m_objectives[idx];
@@ -1425,5 +1444,40 @@ namespace opt {
             }
             }       
         } 
+    }
+
+    bool context::is_qsat_opt() {
+        if (m_objectives.size() != 1) {
+            return false;
+        }
+        if (m_objectives[0].m_type != O_MAXIMIZE && 
+            m_objectives[0].m_type != O_MINIMIZE) {
+            return false;
+        }
+        for (unsigned i = 0; i < m_hard_constraints.size(); ++i) {
+            if (has_quantifiers(m_hard_constraints[i].get())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    lbool context::run_qsat_opt() {
+        SASSERT(is_qsat_opt());
+        objective const& obj = m_objectives[0];
+        app_ref term(obj.m_term);
+        if (obj.m_type == O_MINIMIZE) {
+            term = m_arith.mk_uminus(term);
+        }
+        inf_eps value;
+        lbool result = qe::maximize(m_hard_constraints, term, value, m_model, m_params);
+        if (result != l_undef && obj.m_type == O_MINIMIZE) {
+            value.neg();
+        }
+        if (result != l_undef) {
+            m_optsmt.update_lower(obj.m_index, value);
+            m_optsmt.update_upper(obj.m_index, value);
+        }
+        return result;
     }
 }

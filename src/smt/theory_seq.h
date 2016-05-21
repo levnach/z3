@@ -287,7 +287,10 @@ namespace smt {
             unsigned m_extensionality;
             unsigned m_fixed_length;
             unsigned m_propagate_contains;
+            unsigned m_int_string;
         };
+        typedef hashtable<rational, rational::hash_proc, rational::eq_proc> rational_set;
+
         ast_manager&               m;
         dependency_manager         m_dm;
         solution_map               m_rep;        // unification representative.
@@ -303,6 +306,8 @@ namespace smt {
         obj_hashtable<expr>        m_axiom_set;
         unsigned                   m_axioms_head; // index of first axiom to add.
         bool            m_incomplete;             // is the solver (clearly) incomplete for the fragment.
+        expr_ref_vector     m_int_string;
+        rational_set        m_itos_axioms;
         obj_hashtable<expr> m_length;             // is length applied
         scoped_ptr_vector<apply> m_replay;        // set of actions to replay
         model_generator* m_mg;
@@ -358,6 +363,10 @@ namespace smt {
         void init_model(expr_ref_vector const& es);
         // final check 
         bool simplify_and_solve_eqs();   // solve unitary equalities
+        bool reduce_length_eq();
+        bool branch_unit_variable();     // branch on XYZ = abcdef
+        bool branch_binary_variable();   // branch on abcX = Ydefg 
+        bool branch_variable_mb();       // branch on a variable, model based on length
         bool branch_variable();          // branch on a variable
         bool split_variable();           // split a variable
         bool is_solved(); 
@@ -366,7 +375,16 @@ namespace smt {
         bool check_length_coherence(expr* e);
         bool fixed_length();
         bool fixed_length(expr* e);
+        void branch_unit_variable(dependency* dep, expr* X, expr_ref_vector const& units);
+        bool branch_variable(eq const& e);
+        bool branch_binary_variable(eq const& e);
+        bool is_unit_eq(expr_ref_vector const& ls, expr_ref_vector const& rs);
         bool propagate_length_coherence(expr* e);  
+        bool split_lengths(dependency* dep,
+                           expr_ref_vector const& ls, expr_ref_vector const& rs, 
+                           vector<rational> const& ll, vector<rational> const& rl);
+        bool set_empty(expr* x);
+        bool is_complex(eq const& e);
 
         bool check_extensionality();
         bool check_contains();
@@ -465,11 +483,17 @@ namespace smt {
         bool has_length(expr *e) const { return m_length.contains(e); }
         void add_length(expr* e);
         void enforce_length(enode* n);
+        bool enforce_length(expr_ref_vector const& es, vector<rational>& len);
         void enforce_length_coherence(enode* n1, enode* n2);
+
+        // model-check the functions that convert integers to strings and the other way.
+        void add_int_string(expr* e);
+        bool check_int_string();
 
         void add_elim_string_axiom(expr* n);
         void add_at_axiom(expr* n);
         void add_in_re_axiom(expr* n);
+        bool add_itos_axiom(expr* n);
         literal mk_literal(expr* n);
         literal mk_eq_empty(expr* n, bool phase = true);
         literal mk_seq_eq(expr* a, expr* b);
@@ -482,6 +506,7 @@ namespace smt {
 
 
         // arithmetic integration
+        bool get_value(expr* s, rational& val) const;
         bool lower_bound(expr* s, rational& lo) const;
         bool upper_bound(expr* s, rational& hi) const;
         bool get_length(expr* s, rational& val) const;
@@ -532,6 +557,7 @@ namespace smt {
 
         // diagnostics
         void display_equations(std::ostream& out) const;
+        void display_equation(std::ostream& out, eq const& e) const;
         void display_disequations(std::ostream& out) const;
         void display_disequation(std::ostream& out, ne const& e) const;
         void display_deps(std::ostream& out, dependency* deps) const;

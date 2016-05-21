@@ -172,6 +172,7 @@ namespace opt {
         virtual ~context();
         unsigned add_soft_constraint(expr* f, rational const& w, symbol const& id);
         unsigned add_objective(app* t, bool is_max);
+        lbool min_max(app* t, app_ref_vector const& vars, svector<bool> const& is_max);
         void add_hard_constraint(expr* f);
         
 
@@ -288,12 +289,15 @@ namespace opt {
 
         void display_benchmark();
 
-
         // pareto
         void yield();
         expr_ref mk_ge(expr* t, expr* s);
         expr_ref mk_cmp(bool is_ge, model_ref& mdl, objective const& obj);
 
+
+        // quantifiers
+        bool is_qsat_opt();
+        lbool run_qsat_opt();
     };
 
 }
