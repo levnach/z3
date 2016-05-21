@@ -245,14 +245,15 @@ namespace smt {
         void init_left_side() {
             SASSERT(all_zeros(m_columns));
             for (unsigned i = 0; i < m_vars.size(); ++i) {
-                theory_var column = m_vars[i];
+                theory_var var = m_vars[i];
                 rational const& coeff = m_coeffs[i];
-                if (m_columns.size() <= static_cast<unsigned>(column)) {
-                    m_columns.setx(column, coeff, rational::zero());
+                if (m_columns.size() <= static_cast<unsigned>(var)) {
+                    m_columns.setx(var, coeff, rational::zero());
                 }
                 else {
-                    m_columns[column] += coeff;
+                    m_columns[var] += coeff;
                 }                
+                TRACE("arith", tout << var << ":" << coeff << "\n";);
             }
             m_left_side.reset();
             // reset the coefficients after they have been used.
@@ -288,6 +289,7 @@ namespace smt {
                 k = is_true ? lean::LE : lean::GT;
             }
             else if (a.is_ge(atom, n1, n2) && a.is_numeral(n2, right_side)) {
+                m_terms.push_back(n1);
                 k = is_true ? lean::GE : lean::LT;
             }
             else {
@@ -297,9 +299,11 @@ namespace smt {
 
             init_left_side();
             
-            lean::constraint_index index = m_solver->add_constraint(m_left_side, k, right_side);
-            
-            m_inequalities.setx(index, literal(bv, !is_true), null_literal);
+            if (m_left_side.size() > 0) {
+                lean::constraint_index index = m_solver->add_constraint(m_left_side, k, right_side);
+                
+                m_inequalities.setx(index, literal(bv, !is_true), null_literal);
+            }
         }
 
         void internalize() {
@@ -516,6 +520,9 @@ namespace smt {
             return m_asserted_bounds.size() > m_asserted_qhead;
         }
         void propagate() {
+            if (!can_propagate()) {
+                return;
+            }
             while (m_asserted_qhead < m_asserted_bounds.size()) {
                 lp::bound* b = m_asserted_bounds[m_asserted_qhead];
                 if (!assert_bound(*b)) {
