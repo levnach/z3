@@ -645,12 +645,19 @@ std::string lar_solver::get_variable_name(var_index vi) const {
 // ********** print region start
 void lar_solver::print_constraint(constraint_index ci, std::ostream & out) {
     if (m_normalized_constraints.size() <= ci) {
-        std::string s = "constraint " + T_to_string(ci) + " is not found";
-        out << s << std::endl;
+        out << "constraint " << T_to_string(ci) << " is not found";
+        out << std::endl;
         return;
     }
 
-    print_constraint(&m_normalized_constraints[ci], out);
+    print_constraint(&m_normalized_constraints[ci], out); // REVIEW: this one does not produce a newline.
+}
+
+void lar_solver::print_constraints(std::ostream& out) {
+    for (size_t i = 0; i < m_normalized_constraints.size(); ++i) {
+        print_constraint(&m_normalized_constraints[i], out);
+        out << std::endl;
+    }
 }
 
 void lar_solver::print_canonic_left_side(const canonic_left_side & c, std::ostream & out) {

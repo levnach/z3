@@ -206,6 +206,8 @@ public:
 
     std::string get_variable_name(var_index vi) const;
 
+    void print_constraints(std::ostream & out);
+
     void print_constraint(constraint_index ci, std::ostream & out);
 
     void print_canonic_left_side(const canonic_left_side & c, std::ostream & out);

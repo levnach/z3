@@ -400,8 +400,8 @@ void sparse_matrix<T, X>::solve_y_U(std::vector<T> & y) const { // works by rows
 #ifdef LEAN_DEBUG
     // T * rs = clone_vector<T>(y, dimension());
 #endif
-    unsigned end = dimension() - 1;
-    for (unsigned i = 0; i < end; i++) {
+    unsigned end = dimension();
+    for (unsigned i = 0; i + 1 < end; i++) {
         // all y[i] has correct values already
         const T & yv = y[i];
         if (numeric_traits<T>::is_zero(yv)) continue;

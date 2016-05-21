@@ -8,18 +8,19 @@
 #pragma once
 #include <string>
 #include "util/lp/numeric_pair.h"
+#include "util/debug.h"
+
 #ifdef lp_for_z3
 namespace lean {
     inline void throw_exception(const std::string & str) {
          throw default_exception(str);
     }
     typedef z3_exception exception;
-#ifdef LEAN_DEBUG
-    inline void lean_assert(bool b) {}
-#else
-    #define lean_assert(_x_) {}
-#endif
-    inline void lean_unreachable() { lean_assert(false); }
+
+#define lean_assert(_x_) { SASSERT(_x_); }
+
+    
+    inline void lean_unreachable() { } // TBD:
     template <typename X> inline X zero_of_type() { return numeric_traits<X>::zero(); }
     template <typename X> inline X one_of_type() { return numeric_traits<X>::one(); }
     template <typename X> inline bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
@@ -55,7 +56,7 @@ template<typename S, typename T> struct hash<pair<S, T>> {
 #include "util/numerics/mpq.h"
 #include "util/numerics/numeric_traits.h"
 #include "util/numerics/double.h"
-#include "util/debug.h"
+
 #ifdef __CLANG__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmismatched-tags"

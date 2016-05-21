@@ -44,7 +44,7 @@ void row_eta_matrix<T, X>::apply_from_left_local_to_T(indexed_vector<T> & w, lp_
         auto it = std::find(w.m_index.begin(), w.m_index.end(), m_row);
         w.m_index.erase(it);
     }
-    lean_assert(check_vector_for_small_values(w, settings));
+    // TBD: lean_assert(check_vector_for_small_values(w, settings));
 }
 
 template <typename T, typename X>
@@ -66,7 +66,7 @@ void row_eta_matrix<T, X>::apply_from_left_local_to_X(indexed_vector<X> & w, lp_
         auto it = std::find(w.m_index.begin(), w.m_index.end(), m_row);
         w.m_index.erase(it);
     }
-    lean_assert(check_vector_for_small_values(w, settings));
+    // TBD: does not compile lean_assert(check_vector_for_small_values(w, settings));
 }
 
 template <typename T, typename X>

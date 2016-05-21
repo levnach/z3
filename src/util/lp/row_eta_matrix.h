@@ -35,7 +35,7 @@ public:
     m_dimension(dim),
 #endif
     m_row_start(row_start), m_row(row) {
-        lean_assert(dim > 0);
+        // TBD does not compile: lean_assert(dim > 0);
     }
 
     void print(std::ostream & out) {

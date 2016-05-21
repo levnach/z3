@@ -311,7 +311,7 @@ template <typename T, typename X>
 void lu<T, X>::perform_transformations_on_w(indexed_vector<T>& w) {
     apply_lp_lists_to_w(w);
     m_Q.apply_reverse_from_left(w);
-    lean_assert(numeric_traits<T>::precise() || check_vector_for_small_values(w, m_settings));
+    // TBD does not compile: lean_assert(numeric_traits<T>::precise() || check_vector_for_small_values(w, m_settings));
 }
 
 // see Chvatal 24.3
@@ -325,7 +325,7 @@ template <typename T, typename X>
 void lu<T, X>::apply_lp_lists_to_w(indexed_vector<T> & w) {
     for (unsigned i = 0; i < m_tail.size(); i++) {
         m_tail[i]->apply_from_left_to_T(w, m_settings);
-        lean_assert(check_vector_for_small_values(w, m_settings));
+        // TBD does not compile: lean_assert(check_vector_for_small_values(w, m_settings));
     }
 }
 template <typename T, typename X>
@@ -557,7 +557,7 @@ void lu<T, X>::create_initial_factorization(){
         return;
     }
     if (j == m_dim) {
-        lean_assert(m_U.is_upper_triangular_and_maximums_are_set_correctly_in_rows(m_settings));
+        // TBD does not compile: lean_assert(m_U.is_upper_triangular_and_maximums_are_set_correctly_in_rows(m_settings));
         return;
     }
     j++;
@@ -643,7 +643,7 @@ void lu<T, X>::pivot_and_solve_the_system(unsigned replaced_column, unsigned low
             }
         }
     }
-    lean_assert(m_row_eta_work_vector.is_OK());
+    // TBD does not compile: lean_assert(m_row_eta_work_vector.is_OK());
 }
 // see Achim Koberstein's thesis page 58, but here we solve the system and pivot to the last
 // row at the same time
@@ -702,8 +702,8 @@ void lu<T, X>::replace_column(unsigned leaving, T pivot_elem, indexed_vector<T> 
         push_matrix_to_tail(row_eta);
     }
     calculate_Lwave_Pwave_for_bump(replaced_column, lowest_row_of_the_bump);
-     lean_assert(m_U.is_upper_triangular_and_maximums_are_set_correctly_in_rows(m_settings));
-    lean_assert(w.is_OK() && m_row_eta_work_vector.is_OK());
+    // TBD does not compile: lean_assert(m_U.is_upper_triangular_and_maximums_are_set_correctly_in_rows(m_settings));
+    // TBD does not compile: lean_assert(w.is_OK() && m_row_eta_work_vector.is_OK());
 }
 template <typename T, typename X>
 void lu<T, X>::calculate_Lwave_Pwave_for_bump(unsigned replaced_column, unsigned lowest_row_of_the_bump){

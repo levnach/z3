@@ -556,6 +556,9 @@ template <typename T, typename X>  unsigned lp_primal_core_solver<T, X>::get_num
     if (ret > 300) {
         ret = (unsigned)(ret * this->m_settings.percent_of_entering_to_check / 100);
     }
+	if (ret == 0) {
+		return 0;
+	}
     return std::max(static_cast<unsigned>(my_random() % ret), 1u);
 }
 

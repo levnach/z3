@@ -189,6 +189,6 @@ public:
 
     T get_row_balance(unsigned row) const;
 
-    bool col_val_equal_to_row_val() const;
+    bool col_val_equal_to_row_val() const { return true; } // TBD: has no definition.
 };
 }
