@@ -1773,6 +1773,7 @@ void test_replace_column() {
 
 
 void setup_args_parser(argument_parser & parser) {
+	parser.add_option_with_help_string("-xyz_sample", "run a small interactive scenario");
     parser.add_option_with_after_string_with_help("--density", "the percentage of non-zeroes in the matrix below which it is not dense");
     parser.add_option_with_after_string_with_help("--harris_toler", "harris tolerance");
     parser.add_option_with_help_string("--test_swaps", "test row swaps with a permutation");
@@ -2427,6 +2428,10 @@ void test_square_dense_submatrix() {
 #endif
 }
 
+void run_xyz_sample() {
+    
+}
+    
 void test_lp_local(int argn, char**argv) {
     // initialize_util_module();
     // initialize_numerics_module();
@@ -2439,8 +2444,17 @@ void test_lp_local(int argn, char**argv) {
         ret = 1;
         return finalize(ret);
     }
-    std::cout << "the options are " << std::endl;
-    args_parser.print();
+    if (argn == 0) {
+		std::cout << "there are no options" << std::endl;
+    } else {
+		std::cout << "the options are " << std::endl;
+		args_parser.print();
+    }
+
+    if (args_parser.option_is_used("--xyz_sample")) {
+        run_xyz_sample();
+    }
+    
     std::string lufile = args_parser.get_option_value("--checklu");
     if (lufile.size()) {
         check_lu_from_file(lufile);
@@ -2518,7 +2532,7 @@ void test_lp_local(int argn, char**argv) {
         ret = 0;
         return finalize(ret);
     }
-
+    
     if (args_parser.option_is_used("--solve_some_mps")) {
         
         // solve_some_mps(args_parser);
