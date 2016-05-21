@@ -81,6 +81,9 @@ public:
      }
 
     std::vector<unsigned> & non_basis() {
+        if (m_factorization == nullptr) {
+            init_factorization(m_factorization, m_A, m_basis, m_basis_heading, m_settings, m_non_basic_columns);
+        }
         return m_factorization->m_non_basic_columns;
     }
 
