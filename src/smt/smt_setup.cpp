@@ -535,7 +535,7 @@ namespace smt {
         m_params.m_relevancy_lvl       = 0;
         m_params.m_arith_reflect       = false; 
         m_params.m_nnf_cnf             = false;
-        setup_mi_arith();
+        setup_r_arith();
     }
 
     void setup::setup_QF_BV() {
@@ -710,7 +710,7 @@ namespace smt {
     }
 
     void setup::setup_r_arith() {
-        m_context.register_plugin(alloc(smt::theory_lra, m_manager));
+        m_context.register_plugin(alloc(smt::theory_lra, m_manager, m_params));
     }
 
     void setup::setup_mi_arith() {
