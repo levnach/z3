@@ -74,10 +74,7 @@ namespace smt {
         
         virtual model_value_proc * mk_value(enode * n, model_generator & mg);
 
-        virtual bool get_value(enode* n, expr_ref& r) {
-            UNREACHABLE();
-            return false;
-        }
+        virtual bool get_value(enode* n, expr_ref& r);
 
         virtual bool validate_eq_in_model(theory_var v1, theory_var v2, bool is_true) const;
                 
