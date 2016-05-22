@@ -191,6 +191,7 @@ public:
 
     lp_status check();
     void get_infeasibility_evidence(buffer<std::pair<mpq, constraint_index>> & evidence);
+	void fill_evidence_from_canonic_left_side(buffer<std::pair<mpq, constraint_index>> & evidence);
 
     void get_infeasibility_evidence_for_inf_sign(buffer<std::pair<mpq, constraint_index>> & evidence,
                                                  const std::vector<std::pair<mpq, unsigned>> & inf_row,

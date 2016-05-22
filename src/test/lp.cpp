@@ -163,7 +163,7 @@ std::vector<int> allocate_basis_heading(unsigned count) { // the rest of initili
     return basis_heading;
 }
 
-
+#ifdef LEAN_DEBUG
 void test_small_lu(lp_settings & settings) {
     std::cout << " test_small_lu" << std::endl;
     static_matrix<double, double> m(3, 6);
@@ -224,7 +224,7 @@ void test_small_lu(lp_settings & settings) {
     lean_assert(l.is_correct());
 }
 
-
+#endif
 
 void fill_long_row(sparse_matrix<double, double> &m, int i) {
     int n = m.dimension();
@@ -1247,13 +1247,12 @@ void test_binary_priority_queue() {
     q.enqueue(0, 0);
 #ifdef LEAN_DEBUG
     unsigned t = 0;
-#endif
     while (q.size() > 0) {
         unsigned d =q.dequeue();
         lean_assert(t++ == d);
         cout << d << std::endl;
     }
-
+#endif
     test_upair_queue();
     cout << " done" << std::endl;
 }
