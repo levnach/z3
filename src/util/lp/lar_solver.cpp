@@ -116,18 +116,13 @@ void lar_solver::create_matrix_A(static_matrix<U, V> & A) {
 }
 
 void lar_solver::set_upper_bound_for_column_info(lar_normalized_constraint * norm_constr) {
-	const mpq & v = norm_constr->m_right_side;
+    const mpq & v = norm_constr->m_right_side;
     canonic_left_side * ls = norm_constr->m_canonic_left_side;
     var_index additional_var_index = ls->m_additional_var_index;
     lean_assert(is_valid(additional_var_index));
     column_info<mpq> & ci = get_column_info_from_var_index(additional_var_index);
     lean_assert(norm_constr->m_kind == LE || norm_constr->m_kind == LT || norm_constr->m_kind == EQ);
     bool strict = norm_constr->m_kind == LT;
-	if (ci.get_name() == "_s40") {
-		std::cout << "setting upper bound of " << T_to_string(v) << std::endl;
-		print_canonic_left_side(*ls, std::cout);
-		std::cout << std::endl;
-	}
     if (!ci.upper_bound_is_set()) {
         ls->m_upper_bound_witness = norm_constr;
         ci.set_upper_bound(v);
@@ -159,11 +154,6 @@ void lar_solver::set_low_bound_for_column_info(lar_normalized_constraint * norm_
     column_info<mpq> & ci = get_column_info_from_var_index(ls->m_additional_var_index);
     lean_assert(norm_constr->m_kind == GE || norm_constr->m_kind == GT || norm_constr->m_kind == EQ);
     bool strict = norm_constr->m_kind == GT;
-	if (ci.get_name() == "_s40") {
-		std::cout << "setting low bound of " << T_to_string(v) << std::endl;
-		print_canonic_left_side(*ls, std::cout);
-		std::cout << std::endl;
-	}
     if (!ci.low_bound_is_set()) {
         ci.set_low_bound(v);
         ls->m_low_bound_witness = norm_constr;
@@ -433,11 +423,11 @@ bool lar_solver::the_evidence_is_correct() {
 }
 #endif
 void lar_solver::update_column_info_of_normalized_constraints() {
-	for (auto & it : m_normalized_constraints) {
-		update_column_info_of_normalized_constraint(it.second);
-		if (m_status == INFEASIBLE) 
-			break;
-	}
+    for (auto & it : m_normalized_constraints) {
+        update_column_info_of_normalized_constraint(it.second);
+        if (m_status == INFEASIBLE) 
+            break;
+    }
 }
 
 mpq lar_solver::sum_of_right_sides_of_evidence(const buffer<std::pair<mpq, unsigned>> & evidence) {
@@ -464,8 +454,8 @@ void lar_solver::map_var_indices_to_columns_of_A() {
 void lar_solver::prepare_independently_of_numeric_type() {
     update_column_info_of_normalized_constraints();
     map_var_indices_to_columns_of_A();
-	if (m_status == INFEASIBLE)
-		return;
+    if (m_status == INFEASIBLE)
+        return;
     map_left_sides_to_A_of_core_solver();
     fill_column_names();
     fill_column_types();
@@ -478,8 +468,8 @@ void lar_solver::prepare_core_solver_fields(static_matrix<U, V> & A, std::vector
     create_matrix_A(A);
     fill_bounds_for_core_solver(low_bound, upper_bound);
     if (m_status == INFEASIBLE) {
-		lean_assert(m_infeasible_canonic_left_side)
-		return;
+        lean_assert(m_infeasible_canonic_left_side);
+        return;
     }
     resize_and_init_x_with_zeros(x, A.column_count());
     lean_assert(m_lar_core_solver_params.m_basis.size() == A.row_count());
@@ -545,8 +535,8 @@ void lar_solver::solve_on_signature(const lar_solution_signature & signature) {
 
 void lar_solver::solve() {
     prepare_independently_of_numeric_type();
-	if (m_status == INFEASIBLE)
-		return;
+    if (m_status == INFEASIBLE)
+        return;
     if (m_lar_core_solver_params.m_settings.use_double_solver_for_lar) {
         lar_solution_signature solution_signature;
         find_solution_signature_with_doubles(solution_signature);
@@ -565,19 +555,19 @@ lp_status lar_solver::check() {
 }
 
 void lar_solver::fill_evidence_from_canonic_left_side(buffer<std::pair<mpq, constraint_index>> & evidence) {
-	// this is the case when the lower bound is in conflict with the upper one
-	auto ls = m_infeasible_canonic_left_side;
-	lar_normalized_constraint * bound_constr = ls->m_upper_bound_witness;
-	evidence.push_back(std::make_pair(numeric_traits<mpq>::one() / bound_constr->m_ratio_to_original, bound_constr->m_index));
-	bound_constr = ls->m_low_bound_witness;
-	evidence.push_back(std::make_pair(-numeric_traits<mpq>::one() / bound_constr->m_ratio_to_original, bound_constr->m_index));
+    // this is the case when the lower bound is in conflict with the upper one
+    auto ls = m_infeasible_canonic_left_side;
+    lar_normalized_constraint * bound_constr = ls->m_upper_bound_witness;
+    evidence.push_back(std::make_pair(numeric_traits<mpq>::one() / bound_constr->m_ratio_to_original, bound_constr->m_index));
+    bound_constr = ls->m_low_bound_witness;
+    evidence.push_back(std::make_pair(-numeric_traits<mpq>::one() / bound_constr->m_ratio_to_original, bound_constr->m_index));
 }
-
+    
 void lar_solver::get_infeasibility_evidence(buffer<std::pair<mpq, constraint_index>> & evidence){
-	if (m_infeasible_canonic_left_side != nullptr) {
-		fill_evidence_from_canonic_left_side(evidence);
-		return;
-	}
+    if (m_infeasible_canonic_left_side != nullptr) {
+        fill_evidence_from_canonic_left_side(evidence);
+        return;
+    }
     if (!m_mpq_lar_core_solver.get_infeasible_row_sign()) {
         return;
     }
