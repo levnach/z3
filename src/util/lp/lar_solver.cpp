@@ -697,7 +697,7 @@ void lar_solver::print_left_side_of_constraint(const lar_base_constraint * c, st
         }
 
         if (val != numeric_traits<mpq>::one())
-            out << val;
+            out << val << " ";
         out << get_variable_name(it.second);
     }
 }
