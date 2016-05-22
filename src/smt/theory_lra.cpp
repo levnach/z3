@@ -763,6 +763,27 @@ namespace smt {
             m_core.reset();
             m_evidence.reset();
             m_solver->get_infeasibility_evidence(m_evidence);
+            TRACE("arith",
+            for (unsigned i = 0; i < m_evidence.size(); ++i) {                
+                expr_ref e(m);
+                if (m_evidence[i].first.is_zero()) { 
+                    continue;
+                }
+                unsigned idx = m_evidence[i].second;
+                switch (m_constraint_sources[idx]) {
+                case inequality_source: 
+                    ctx().literal2expr(m_inequalities[idx], e);
+                    tout << e << "\n";
+                    break;
+                case equality_source: 
+                    tout << mk_pp(m_equalities[idx].first->get_owner(), m) << " = " 
+                         << mk_pp(m_equalities[idx].second->get_owner(), m) << "\n"; 
+                    break;
+                case definition_source:
+                    tout << "def: " << m_definitions[idx] << ": " << mk_pp(th.get_enode(m_definitions[idx])->get_owner(), m) << "\n";
+                    break;
+                }
+            });
             for (unsigned i = 0; i < m_evidence.size(); ++i) {                
                 if (m_evidence[i].first.is_zero()) { 
                     continue;
