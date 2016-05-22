@@ -358,7 +358,7 @@ namespace smt {
             }
             if (result == UINT_MAX) {
                 std::ostringstream s;
-                s << v;
+                s << "v" << v;
                 result = m_solver->add_var(s.str());
                 m_theory_var2var_index.setx(v, result, UINT_MAX);
             }
@@ -464,6 +464,7 @@ namespace smt {
         }
         
 
+        // term - v = 0
         theory_var internalize_def(app* term) {
             scoped_internalize_state st(*this);
             theory_var v = internalize_term_core(term, st);
@@ -474,13 +475,11 @@ namespace smt {
         
         theory_var internalize_term_core(app* term, scoped_internalize_state& st) {
             linearize(term, st);
-            if (st.vars().size() == 1 && st.coeff().is_zero() && st.coeffs()[0].is_one()) {
-                return st.vars()[0];
-            }
             theory_var v = mk_var(term);
             SASSERT(null_theory_var != v);
+            st.coeffs().resize(st.vars().size() + 1);
+            st.coeffs()[st.vars().size()] = rational::minus_one();
             st.vars().push_back(v);
-            st.coeffs().push_back(rational::minus_one());
             return v;
         }
 
@@ -535,7 +534,7 @@ namespace smt {
         bool internalize_term(app * term) {
             if (m_delay_atoms) {
                 scoped_internalize_state st(*this);
-                internalize_term_core(term, st);  // ensure that a theory_var was created.
+                linearize(term, st);  // ensure that a theory_var was created.
                 m_internalized_terms.push_back(term);                
             }
             else {
@@ -763,27 +762,7 @@ namespace smt {
             m_core.reset();
             m_evidence.reset();
             m_solver->get_infeasibility_evidence(m_evidence);
-            TRACE("arith",
-            for (unsigned i = 0; i < m_evidence.size(); ++i) {                
-                expr_ref e(m);
-                if (m_evidence[i].first.is_zero()) { 
-                    continue;
-                }
-                unsigned idx = m_evidence[i].second;
-                switch (m_constraint_sources[idx]) {
-                case inequality_source: 
-                    ctx().literal2expr(m_inequalities[idx], e);
-                    tout << e << "\n";
-                    break;
-                case equality_source: 
-                    tout << mk_pp(m_equalities[idx].first->get_owner(), m) << " = " 
-                         << mk_pp(m_equalities[idx].second->get_owner(), m) << "\n"; 
-                    break;
-                case definition_source:
-                    tout << "def: " << m_definitions[idx] << ": " << mk_pp(th.get_enode(m_definitions[idx])->get_owner(), m) << "\n";
-                    break;
-                }
-            });
+            TRACE("arith", display_evidence(tout, m_evidence); );
             for (unsigned i = 0; i < m_evidence.size(); ++i) {                
                 if (m_evidence[i].first.is_zero()) { 
                     continue;
@@ -867,6 +846,35 @@ namespace smt {
         void display(std::ostream & out) const {
             if (m_solver) {
                 m_solver->print_constraints(out);
+            }
+        }
+
+        void display_evidence(std::ostream& out, buffer<std::pair<rational, lean::constraint_index>> const& ev) {
+            for (unsigned i = 0; i < ev.size(); ++i) {                
+                expr_ref e(m);
+                SASSERT(!ev[i].first.is_zero()); 
+                if (ev[i].first.is_zero()) { 
+                    continue;
+                }
+                unsigned idx = ev[i].second;
+                switch (m_constraint_sources[idx]) {
+                case inequality_source: 
+                    ctx().literal2expr(m_inequalities[idx], e);
+                    out << e << "\n";
+                    break;
+                case equality_source: 
+                    out << mk_pp(m_equalities[idx].first->get_owner(), m) << " = " 
+                         << mk_pp(m_equalities[idx].second->get_owner(), m) << "\n"; 
+                    break;
+                case definition_source: {
+                    theory_var v = m_definitions[idx];
+                    out << "def: v" << v << " := " << mk_pp(th.get_enode(v)->get_owner(), m) << "\n";
+                    break;
+                      }
+                }
+            }
+            for (unsigned i = 0; i < ev.size(); ++i) {
+                m_solver->print_constraint(ev[i].second, out << ev[i].first << ": "); out << "\n";
             }
         }
 
