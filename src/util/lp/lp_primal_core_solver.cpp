@@ -424,7 +424,6 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::normalize
 }
 
 template <typename T, typename X>    void lp_primal_core_solver<T, X>::init_run() {
-    this->m_start_time = get_millisecond_count();
     this->m_total_iterations = 0;
     this->m_iters_with_no_cost_growing = 0;
     normalize_costs_and_backup_costs();

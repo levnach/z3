@@ -379,11 +379,7 @@ d_is_not_positive(unsigned j) const {
 
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 time_is_over() {
-    int span_in_mills = get_millisecond_span(m_start_time);
-    if (span_in_mills / 1000.0  > m_settings.time_limit) {
-        return true;
-    }
-    return false;
+    return m_settings.get_cancel_flag();
 }
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::

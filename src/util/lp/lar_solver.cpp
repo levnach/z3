@@ -297,14 +297,14 @@ var_index lar_solver::add_var(std::string s) {
 }
 
 bool lar_solver::all_constrained_variables_are_registered(const buffer<std::pair<mpq, var_index>>& left_side) {
-	for (auto it : left_side) {
-		var_index vj = it.second;
-		if (m_map_from_var_index_to_column_info_with_cls.find(vj) == m_map_from_var_index_to_column_info_with_cls.end()) {
-			std::cout << "the variable " << vj << " is not registered in its constraint" << std::endl;
-			return false;
-		}
-		return true;
-	}
+    for (auto it : left_side) {
+        var_index vj = it.second;
+        if (m_map_from_var_index_to_column_info_with_cls.find(vj) == m_map_from_var_index_to_column_info_with_cls.end()) {
+            std::cout << "the variable " << vj << " is not registered in its constraint" << std::endl;
+            return false;
+        }
+    }
+    return true;
 }
 
 constraint_index lar_solver::add_constraint(const buffer<std::pair<mpq, var_index>>& left_side, lconstraint_kind kind_par, mpq right_side_par) {

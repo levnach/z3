@@ -53,7 +53,36 @@ enum non_basic_column_value_position { at_low_bound, at_upper_bound, at_fixed, f
 
 template <typename X> bool is_epsilon_small(const X & v, const double& eps);    // forward definition
 
+
+int get_millisecond_count();
+int get_millisecond_span(int start_time);
+void my_random_init(unsigned * seed);
+unsigned my_random();
+
+
+class lp_resource_limit {
+public:
+    virtual bool get_cancel_flag() = 0;
+};
+
+
 struct lp_settings {
+private:
+    class default_lp_resource_limit : public lp_resource_limit {
+        lp_settings& m_settings;
+        int m_start_time;
+    public:
+        default_lp_resource_limit(lp_settings& s): m_settings(s), m_start_time(get_millisecond_count()) {}
+        virtual bool get_cancel_flag() {
+            int span_in_mills = get_millisecond_span(m_start_time);
+            return (span_in_mills / 1000.0  > m_settings.time_limit);
+        }
+    };
+
+    default_lp_resource_limit m_default_resource_limit;
+    lp_resource_limit* m_resource_limit;
+
+public:
     // when the absolute value of an element is less than pivot_epsilon
     // in pivoting, we treat it as a zero
     double pivot_epsilon = 0.00000001;
@@ -88,6 +117,10 @@ struct lp_settings {
     double primal_feasibility_tolerance = 1e-7; // page 71 of the PhD thesis of Achim Koberstein
     double relative_primal_feasibility_tolerance = 1e-9; // page 71 of the PhD thesis of Achim Koberstein
 
+    lp_settings() : m_default_resource_limit(*this), m_resource_limit(&m_default_resource_limit) {}
+
+    void set_resource_limit(lp_resource_limit& lim) { m_resource_limit = &lim; }
+    bool get_cancel_flag() const { return m_resource_limit->get_cancel_flag(); }
 
     template <typename T> static bool is_eps_small_general(const T & t, const double & eps) {
         return (!numeric_traits<T>::precise())? is_epsilon_small<T>(t, eps) : numeric_traits<T>::is_zero(t);
@@ -158,10 +191,6 @@ struct lp_settings {
 #endif
 }; // end of lp_settings class
 
-int get_millisecond_count();
-int get_millisecond_span(int start_time);
-void my_random_init(unsigned * seed);
-unsigned my_random();
 
 template <typename T>
 std::string T_to_string(const T & t) {

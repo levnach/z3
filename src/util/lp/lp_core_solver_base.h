@@ -49,7 +49,6 @@ public:
     std::vector<T> m_ed; // the solution of B*m_ed = a
     std::vector<unsigned>  m_index_of_ed;
     unsigned m_total_iterations = 0;
-    int m_start_time;
     unsigned m_iters_with_no_cost_growing = 0;
     std::vector<unsigned> m_non_basic_columns;
     std::vector<column_type> & m_column_type;
