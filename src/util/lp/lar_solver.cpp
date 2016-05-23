@@ -617,22 +617,23 @@ mpq lar_solver::find_delta_for_strict_bounds() {
         auto & ci = get_column_info_from_var_index(t->m_additional_var_index);
         unsigned j = ci.get_column_index();
         lean_assert (is_valid(j));
-        if (ci.low_bound_is_set())
+        if (ci.low_bound_is_set() && ci.low_bound_is_strict())
             restrict_delta_on_low_bound_column(delta, j);
-        if (ci.upper_bound_is_set())
+        if (ci.upper_bound_is_set() && ci.upper_bound_is_strict())
             restrict_delta_on_upper_bound(delta, j);
     }
     return delta;
 }
 
 void lar_solver::restrict_delta_on_low_bound_column(mpq& delta, unsigned j) {
+	lean_assert(delta > numeric_traits<mpq>::zero());
     numeric_pair<mpq> & x = m_lar_core_solver_params.m_x[j];
     numeric_pair<mpq> & l = m_lar_core_solver_params.m_low_bounds[j];
     mpq & xx = x.x;
     mpq & xy = x.y;
     mpq & lx = l.x;
     if (xx == lx) {
-        lean_assert(xy >= numeric_traits<mpq>::zero());
+        lean_assert(xy > numeric_traits<mpq>::zero());
     } else {
         lean_assert(xx >= lx); // we need lx <= xx + delta*xy, or delta*xy >= lx - xx, or - delta*xy <= xx - ls.
         // The right part is not negative. The delta is positive. If xy >= 0 we have the ineqality
