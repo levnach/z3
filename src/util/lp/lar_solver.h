@@ -144,6 +144,7 @@ public:
                                      m_lar_core_solver_params.m_column_names) {
     }
 
+	bool all_constrained_variables_are_registered(const buffer<std::pair<mpq, var_index>>& left_side);
 
     var_index add_var(std::string s);
 
