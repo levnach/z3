@@ -183,7 +183,7 @@ namespace smt {
         svector<lean::var_index> m_theory_var2var_index;                         // translate from theory variables to lar vars
         buffer<std::pair<rational, lean::var_index>>  m_left_side;               // constraint left side
         mutable std::unordered_map<lean::var_index, rational> m_variable_values; // current model
-
+        
         enum constraint_source {
             inequality_source,
             equality_source,
@@ -379,7 +379,7 @@ namespace smt {
                 else {
                     m_columns[var] += coeff;
                 }                
-                TRACE("arith", tout << var << ":" << coeff << "\n";);
+                TRACE("arith", tout << "v" << var << ":" << coeff << "\n";);
             }
             m_left_side.reset();
             // reset the coefficients after they have been used.
@@ -652,6 +652,7 @@ namespace smt {
                 return FC_DONE;
             }
             m_solver = alloc(lean::lar_solver); 
+            m_theory_var2var_index.reset();
             for (unsigned i = 0; i < m_delayed_atoms.size(); ++i) {
                 bool_var bv = m_delayed_atoms[i].m_bv;
                 expr* atom = ctx().bool_var2expr(bv);
