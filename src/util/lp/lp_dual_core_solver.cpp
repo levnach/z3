@@ -770,7 +770,6 @@ template <typename T, typename X> void lp_dual_core_solver<T, X>::one_iteration(
 template <typename T, typename X> void lp_dual_core_solver<T, X>::solve() { // see the page 35
     lean_assert(d_is_correct());
     lean_assert(problem_is_dual_feasible());
-    this->m_start_time = get_millisecond_count();
     lean_assert(this->basis_heading_is_correct());
     this->m_total_iterations = 0;
     this->m_iters_with_no_cost_growing = 0;

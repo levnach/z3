@@ -181,7 +181,6 @@ namespace smt {
         };
        
         svector<lean::var_index> m_theory_var2var_index;                         // translate from theory variables to lar vars
-        svector<theory_var>      m_var_index2theory_var; 
         buffer<std::pair<rational, lean::var_index>>  m_left_side;               // constraint left side
         mutable std::unordered_map<lean::var_index, rational> m_variable_values; // current model
         
@@ -210,6 +209,18 @@ namespace smt {
         vector<lp::replay_bound>   m_replay_bounds;
         vector<lp::opt_inf_numeral> m_lower, m_upper;
 
+        struct var_value_eq {
+            imp & m_th;
+            var_value_eq(imp & th):m_th(th) {}
+            bool operator()(theory_var v1, theory_var v2) const { return m_th.get_value(v1) == m_th.get_value(v2) && m_th.is_int(v1) == m_th.is_int(v2); }
+        };
+        struct var_value_hash {
+            imp & m_th;
+            var_value_hash(imp & th):m_th(th) {}
+            unsigned operator()(theory_var v) const { return m_th.get_value(v).hash(); }
+        };
+        int_hashtable<var_value_hash, var_value_eq>   m_model_eqs;
+
 
         svector<scope>         m_scopes;
         lp::stats              m_stats;
@@ -217,7 +228,7 @@ namespace smt {
         scoped_ptr<lean::lar_solver> m_solver;
 
 
-        context& ctx() { return th.get_context(); }
+        context& ctx() const { return th.get_context(); }
 
         void found_not_handled(expr* n) {
             m_not_handled = n;
@@ -363,7 +374,6 @@ namespace smt {
                 s << "v" << v;
                 result = m_solver->add_var(s.str());
                 m_theory_var2var_index.setx(v, result, UINT_MAX);
-                m_var_index2theory_var.setx(result, v, null_theory_var);
             }
             return result;
         }
@@ -495,7 +505,8 @@ namespace smt {
             m_asserted_qhead(0), 
             m_delay_constraints(true), 
             m_delayed_terms(m),
-            m_not_handled(0) {
+            m_not_handled(0),
+            m_model_eqs(DEFAULT_HASHTABLE_INITIAL_CAPACITY, var_value_hash(*this), var_value_eq(*this)) {
             m_solver = alloc(lean::lar_solver); 
         }
         
@@ -649,26 +660,51 @@ namespace smt {
             m_arith_eq_adapter.init_search_eh();
         }
 
-        map<rational, enode*, rational::hash_proc, rational::eq_proc> m_model_eqs;
-        bool assume_eqs() {
+        bool is_int(theory_var v) const {
+            return is_int(th.get_enode(v));
+        }
+
+        bool is_int(enode* n) const {
+            return a.is_int(n->get_owner());
+        }
+
+        bool can_get_value(theory_var v) const {
+            return 
+                (v != null_theory_var) &&
+                (v < static_cast<theory_var>(m_theory_var2var_index.size())) && 
+                (UINT_MAX != m_theory_var2var_index[v]);
+        }
+
+        rational const& get_value(theory_var v) const {
+            SASSERT(can_get_value(v));
+            lean::var_index vi = m_theory_var2var_index[v];
+            return m_variable_values[vi];        
+        }
+
+        bool assume_eqs() {            
             m_variable_values.clear();
             m_solver->get_model(m_variable_values);
             m_model_eqs.reset();
-            enode* n1, *n2;
-            for (unsigned i = 0; i < m_theory_var2var_index.size(); ++i) {
-                lean::var_index vi = m_theory_var2var_index[i];
-                rational r = m_variable_values[vi];
-                n1 = th.get_enode(i);
-                if (m_model_eqs.find(r, n2)) {
-                    if (n1->get_root() != n2->get_root()) {
-                        th.assume_eq(n1, n2);
-                        return false;
-                    }
+            int start = ctx().get_random_value();
+            theory_var sz = static_cast<theory_var>(m_theory_var2var_index.size());
+            for (theory_var i = 0; i < sz; ++i) {
+                theory_var v = (i + start) % sz;
+                if (!is_relevant_and_shared(v)) {
                     continue;
                 }
-                m_model_eqs.insert(r, n1);
+                enode* n1 = th.get_enode(v);
+                theory_var other = m_model_eqs.insert_if_not_there(v);
+                if (other == v) {
+                    continue;
+                }
+                enode* n2 = th.get_enode(other);
+                if (n1->get_root() != n2->get_root()) {
+                    TRACE("arith", tout << mk_pp(n1->get_owner(), m) << " = " << mk_pp(n2->get_owner(), m) << "\n";);
+                    th.assume_eq(n1, n2);
+                    return true;
+                }
             }
-            return true;
+            return false;
         }
 
         final_check_status final_check_eh() {
@@ -677,7 +713,6 @@ namespace smt {
             }
             m_solver = alloc(lean::lar_solver); 
             m_theory_var2var_index.reset();
-            m_var_index2theory_var.reset();
             for (unsigned i = 0; i < m_delayed_atoms.size(); ++i) {
                 bool_var bv = m_delayed_atoms[i].m_bv;
                 expr* atom = ctx().bool_var2expr(bv);
@@ -693,7 +728,7 @@ namespace smt {
             lbool is_sat = make_feasible();
             switch (is_sat) {
             case l_true:
-                if (!assume_eqs()) {
+                if (assume_eqs()) {
                     return FC_CONTINUE;
                 }
                 if (m_not_handled != 0) {                    
@@ -714,7 +749,11 @@ namespace smt {
 
         bool is_shared(theory_var v) const {
             // TBD
-            return false;
+            return true;
+        }
+
+        bool is_relevant_and_shared(theory_var v) const {
+            return is_shared(v) && ctx().is_relevant(th.get_enode(v));
         }
 
         bool can_propagate() {
@@ -791,11 +830,11 @@ namespace smt {
             m_evidence.reset();
             m_solver->get_infeasibility_evidence(m_evidence);
             TRACE("arith", display_evidence(tout, m_evidence); );
-            for (unsigned i = 0; i < m_evidence.size(); ++i) {                
-                if (m_evidence[i].first.is_zero()) { 
+            for (auto const& ev : m_evidence) {
+                if (ev.first.is_zero()) { 
                     continue;
                 }
-                unsigned idx = m_evidence[i].second;
+                unsigned idx = ev.second;
                 switch (m_constraint_sources[idx]) {
                 case inequality_source: {
                     literal lit = m_inequalities[idx];
@@ -851,31 +890,25 @@ namespace smt {
         }
 
         model_value_proc * mk_value(enode * n, model_generator & mg) {
-            bool is_int = a.is_int(n->get_owner());
             theory_var v = n->get_th_var(th.get_id());
-            SASSERT(v != null_theory_var);
-            SASSERT(v < static_cast<theory_var>(m_theory_var2var_index.size()));
-            SASSERT(UINT_MAX != m_theory_var2var_index[v]);
-            rational num = m_variable_values[m_theory_var2var_index[v]];
-            return alloc(expr_wrapper_proc, m_factory->mk_value(num, is_int));
+            return alloc(expr_wrapper_proc, m_factory->mk_value(get_value(v), is_int(n)));
         }
 
         bool get_value(enode* n, expr_ref& r) {
             theory_var v = n->get_th_var(th.get_id());            
-            if (null_theory_var == v) return false;
-            if (v >= static_cast<theory_var>(m_theory_var2var_index.size())) return false;
-            rational num = m_variable_values[m_theory_var2var_index[v]];
-            bool is_int = a.is_int(n->get_owner()); 
-            r = a.mk_numeral(num, is_int);
-            return true;
+            if (can_get_value(v)) {
+                r = a.mk_numeral(get_value(v), is_int(n));
+                return true;
+            }
+            else {
+                return false;
+            }
         }    
 
         bool validate_eq_in_model(theory_var v1, theory_var v2, bool is_true) const {
             SASSERT(v1 != null_theory_var);
             SASSERT(v2 != null_theory_var);
-            rational num1 = m_variable_values[m_theory_var2var_index[v1]];
-            rational num2 = m_variable_values[m_theory_var2var_index[v2]];
-            return (num1 == num2) == is_true;
+            return (get_value(v1) == get_value(v2)) == is_true;
         }
 
         void display(std::ostream & out) const {
@@ -884,14 +917,14 @@ namespace smt {
             }
         }
 
-        void display_evidence(std::ostream& out, buffer<std::pair<rational, lean::constraint_index>> const& ev) {
-            for (unsigned i = 0; i < ev.size(); ++i) {                
+        void display_evidence(std::ostream& out, buffer<std::pair<rational, lean::constraint_index>> const& evidence) {
+            for (auto const& ev : evidence) {
                 expr_ref e(m);
-                SASSERT(!ev[i].first.is_zero()); 
-                if (ev[i].first.is_zero()) { 
+                SASSERT(!ev.first.is_zero()); 
+                if (ev.first.is_zero()) { 
                     continue;
                 }
-                unsigned idx = ev[i].second;
+                unsigned idx = ev.second;
                 switch (m_constraint_sources[idx]) {
                 case inequality_source: 
                     ctx().literal2expr(m_inequalities[idx], e);
@@ -899,7 +932,7 @@ namespace smt {
                     break;
                 case equality_source: 
                     out << mk_pp(m_equalities[idx].first->get_owner(), m) << " = " 
-                         << mk_pp(m_equalities[idx].second->get_owner(), m) << "\n"; 
+                        << mk_pp(m_equalities[idx].second->get_owner(), m) << "\n"; 
                     break;
                 case definition_source: {
                     theory_var v = m_definitions[idx];
@@ -908,8 +941,8 @@ namespace smt {
                       }
                 }
             }
-            for (unsigned i = 0; i < ev.size(); ++i) {
-                m_solver->print_constraint(ev[i].second, out << ev[i].first << ": "); out << "\n";
+            for (auto const& ev : evidence) {
+                m_solver->print_constraint(ev.second, out << ev.first << ": "); out << "\n";
             }
         }
 
