@@ -181,6 +181,7 @@ namespace smt {
         };
        
         svector<lean::var_index> m_theory_var2var_index;                         // translate from theory variables to lar vars
+        svector<theory_var>      m_var_index2theory_var; 
         buffer<std::pair<rational, lean::var_index>>  m_left_side;               // constraint left side
         mutable std::unordered_map<lean::var_index, rational> m_variable_values; // current model
         
@@ -362,6 +363,7 @@ namespace smt {
                 s << "v" << v;
                 result = m_solver->add_var(s.str());
                 m_theory_var2var_index.setx(v, result, UINT_MAX);
+                m_var_index2theory_var.setx(result, v, null_theory_var);
             }
             return result;
         }
@@ -647,12 +649,35 @@ namespace smt {
             m_arith_eq_adapter.init_search_eh();
         }
 
+        map<rational, enode*, rational::hash_proc, rational::eq_proc> m_model_eqs;
+        bool assume_eqs() {
+            m_variable_values.clear();
+            m_solver->get_model(m_variable_values);
+            m_model_eqs.reset();
+            enode* n1, *n2;
+            for (unsigned i = 0; i < m_theory_var2var_index.size(); ++i) {
+                lean::var_index vi = m_theory_var2var_index[i];
+                rational r = m_variable_values[vi];
+                n1 = th.get_enode(i);
+                if (m_model_eqs.find(r, n2)) {
+                    if (n1->get_root() != n2->get_root()) {
+                        th.assume_eq(n1, n2);
+                        return false;
+                    }
+                    continue;
+                }
+                m_model_eqs.insert(r, n1);
+            }
+            return true;
+        }
+
         final_check_status final_check_eh() {
             if (m_delayed_atoms.empty()) {
-                return FC_DONE;
+                return assume_eqs()? FC_DONE : FC_CONTINUE;
             }
             m_solver = alloc(lean::lar_solver); 
             m_theory_var2var_index.reset();
+            m_var_index2theory_var.reset();
             for (unsigned i = 0; i < m_delayed_atoms.size(); ++i) {
                 bool_var bv = m_delayed_atoms[i].m_bv;
                 expr* atom = ctx().bool_var2expr(bv);
@@ -668,6 +693,9 @@ namespace smt {
             lbool is_sat = make_feasible();
             switch (is_sat) {
             case l_true:
+                if (!assume_eqs()) {
+                    return FC_CONTINUE;
+                }
                 if (m_not_handled != 0) {                    
                     return FC_GIVEUP;
                 }
