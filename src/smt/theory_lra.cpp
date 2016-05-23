@@ -672,8 +672,8 @@ namespace smt {
         }
 
         final_check_status final_check_eh() {
-            if (m_delayed_atoms.empty()) {
-                return assume_eqs()? FC_DONE : FC_CONTINUE;
+            if (m_delayed_atoms.empty() && m_delayed_terms.empty() && m_delayed_equalities.empty()) {
+                return FC_DONE;
             }
             m_solver = alloc(lean::lar_solver); 
             m_theory_var2var_index.reset();
