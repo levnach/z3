@@ -298,9 +298,9 @@ bool lar_solver::all_constrained_variables_are_registered(const buffer<std::pair
 	for (auto it : left_side) {
 		var_index vj = it.second;
 		if (m_map_from_var_index_to_column_info_with_cls.find(vj) == m_map_from_var_index_to_column_info_with_cls.end()) {
-			std::cout << "the variable " << vj << " is not registered in its constraint" << std::endl;
+			OUT(settings(), "the variable " << vj << " is not registered in its constraint" << std::endl);
 			return false;
-		}		
+		}
 	}
 	return true;
 }
@@ -309,7 +309,7 @@ constraint_index lar_solver::add_constraint(const buffer<std::pair<mpq, var_inde
     lean_assert(left_side.size() > 0);
     constraint_index i = m_available_constr_index++;
     lean_assert(m_normalized_constraints.find(i) == m_normalized_constraints.end());
-	lean_assert(all_constrained_variables_are_registered(left_side));
+    lean_assert(all_constrained_variables_are_registered(left_side));
     lar_constraint original_constr(left_side, kind_par, right_side_par, i);
     canonic_left_side * ls = create_or_fetch_existing_left_side(left_side);
     mpq ratio = find_ratio_of_original_constraint_to_normalized(ls, original_constr);

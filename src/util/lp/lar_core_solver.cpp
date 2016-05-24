@@ -98,7 +98,6 @@ template <typename T, typename X>    void lar_core_solver<T, X>::init_cost_for_c
 }
 
 template <typename T, typename X>    void lar_core_solver<T, X>::init_local() {
-    this->m_start_time = get_millisecond_count();
     this->m_m = this->m_A.row_count();
     this->m_n = this->m_A.column_count();
     this->m_pivot_row_of_B_1.resize(this->m_m);
