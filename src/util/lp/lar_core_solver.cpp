@@ -780,8 +780,6 @@ template <typename T, typename X> void lar_core_solver<T, X>::solve() {
     } else {
         feasibility_loop();
     }
-	lean_assert(this->A_mult_x_is_off() == false);
-	lean_assert(this->calc_current_x_is_feasible_include_non_basis());
 }
 
 template <typename T, typename X> void lar_core_solver<T, X>::print_column_info(unsigned j, std::ostream & out) {
