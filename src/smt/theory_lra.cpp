@@ -120,6 +120,13 @@ namespace smt {
             delayed_atom(unsigned b, bool t): m_bv(b), m_is_true(t) {}
         };
 
+        class resource_limit : public lean::lp_resource_limit {
+            imp& m_imp;
+        public:
+            resource_limit(imp& i): m_imp(i) { }
+            virtual bool get_cancel_flag() { return m_imp.m.canceled(); }
+        };
+
 
         theory_lra&          th;
         ast_manager&         m;
@@ -226,9 +233,17 @@ namespace smt {
         lp::stats              m_stats;
         arith_factory*         m_factory;       
         scoped_ptr<lean::lar_solver> m_solver;
+        resource_limit         m_resource_limit;
 
 
         context& ctx() const { return th.get_context(); }
+
+        void init_solver() {
+            m_solver = alloc(lean::lar_solver); 
+            m_theory_var2var_index.reset();
+            m_solver->settings().set_resource_limit(m_resource_limit);
+            m_solver->settings().set_ostream(0);
+        }
 
         void found_not_handled(expr* n) {
             m_not_handled = n;
@@ -506,8 +521,9 @@ namespace smt {
             m_delay_constraints(true), 
             m_delayed_terms(m),
             m_not_handled(0),
-            m_model_eqs(DEFAULT_HASHTABLE_INITIAL_CAPACITY, var_value_hash(*this), var_value_eq(*this)) {
-            m_solver = alloc(lean::lar_solver); 
+            m_model_eqs(DEFAULT_HASHTABLE_INITIAL_CAPACITY, var_value_hash(*this), var_value_eq(*this)),
+            m_resource_limit(*this) {
+            init_solver();
         }
         
         ~imp() {
@@ -711,8 +727,7 @@ namespace smt {
             if (m_delayed_atoms.empty() && m_delayed_terms.empty() && m_delayed_equalities.empty()) {
                 return FC_DONE;
             }
-            m_solver = alloc(lean::lar_solver); 
-            m_theory_var2var_index.reset();
+            init_solver();
             for (unsigned i = 0; i < m_delayed_atoms.size(); ++i) {
                 bool_var bv = m_delayed_atoms[i].m_bv;
                 expr* atom = ctx().bool_var2expr(bv);

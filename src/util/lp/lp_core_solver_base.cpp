@@ -204,11 +204,13 @@ A_mult_x_is_off() {
         X eps = feps * (one + T(0.1) * abs(m_b[i]));
 
         if (delta > eps) {
-            // std::cout << "x is off (";
-            // std::cout << "m_b[" << i  << "] = " << m_b[i] << " ";
-            // std::cout << "left side = " << m_A.dot_product_with_row(i, m_x) << ' ';
-            // std::cout << "delta = " << delta << ' ';
-            // std::cout << "iters = " << m_total_iterations << ")" << std::endl;
+#if 0
+            OUT(m_settings, "x is off ("
+                << "m_b[" << i  << "] = " << m_b[i] << " "
+                << "left side = " << m_A.dot_product_with_row(i, m_x) << ' '
+                << "delta = " << delta << ' '
+                << "iters = " << m_total_iterations << ")" << std::endl);
+#endif
             return true;
         }
     }
@@ -270,13 +272,13 @@ update_x(unsigned entering, X delta) {
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::
 print_statistics(X cost) {
-    std::cout << "cost = " << T_to_string(cost) <<
-        ", nonzeros = " << m_factorization->get_number_of_nonzeroes() << std::endl;
+    OUT(m_settings, "cost = " << T_to_string(cost) <<
+        ", nonzeros = " << m_factorization->get_number_of_nonzeroes() << std::endl);
 }
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 print_statistics_with_iterations_and_check_that_the_time_is_over(unsigned total_iterations) {
     if (m_settings.print_statistics && total_iterations % m_settings.report_frequency == 0) {
-        std::cout << "iterations = " << total_iterations  <<  ", nonzeros = " << m_factorization->get_number_of_nonzeroes() << std::endl;
+        OUT(m_settings, "iterations = " << total_iterations  <<  ", nonzeros = " << m_factorization->get_number_of_nonzeroes() << std::endl);
         if (time_is_over()) {
             return true;
         }
@@ -287,7 +289,7 @@ print_statistics_with_iterations_and_check_that_the_time_is_over(unsigned total_
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(std::string str, unsigned total_iterations) {
     if (total_iterations % m_settings.report_frequency == 0) {
-        std::cout << str << " iterations = " << total_iterations  <<  " cost = " << T_to_string(get_cost()) <<", nonzeros = " << m_factorization->get_number_of_nonzeroes() << std::endl;
+        OUT(m_settings, str << " iterations = " << total_iterations  <<  " cost = " << T_to_string(get_cost()) <<", nonzeros = " << m_factorization->get_number_of_nonzeroes() << std::endl);
         if (time_is_over()) {
             return true;
         }
@@ -298,7 +300,7 @@ print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 print_statistics_with_cost_and_check_that_the_time_is_over(unsigned total_iterations, X cost) {
     if (total_iterations % m_settings.report_frequency == 0) {
-        std::cout << "iterations = " << total_iterations  <<  ", ";
+        OUT(m_settings,  "iterations = " << total_iterations  <<  ", ");
         print_statistics(cost);
         if (time_is_over()) {
             return true;
@@ -310,7 +312,7 @@ print_statistics_with_cost_and_check_that_the_time_is_over(unsigned total_iterat
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 print_statistics_and_check_that_the_time_is_over(unsigned total_iterations) {
     if (total_iterations % (numeric_traits<T>::precise()? static_cast<unsigned>(m_settings.report_frequency/10) : m_settings.report_frequency) == 0) {
-        std::cout << "iterations = " << total_iterations  <<  ", ";
+        OUT(m_settings,  "iterations = " << total_iterations  <<  ", ");
         if (time_is_over()) {
             return true;
         }
@@ -348,13 +350,13 @@ column_is_dual_feasible(unsigned j) const {
     case low_bound:
         return x_is_at_low_bound(j) && d_is_not_negative(j);
     case upper_bound:
-        std::cout << "upper_bound type should be switched to low_bound" << std::endl;
+        OUT(m_settings,  "upper_bound type should be switched to low_bound" << std::endl);
         lean_assert(false); // impossible case
     case free_column:
         return numeric_traits<X>::is_zero(m_d[j]);
     default:
-        std::cout << "column = " << j << std::endl;
-        std::cout << "unexpected column type = " << column_type_to_string(m_column_type[j]) << std::endl;
+        OUT(m_settings,  "column = " << j << std::endl);
+        OUT(m_settings,  "unexpected column type = " << column_type_to_string(m_column_type[j]) << std::endl);
         lean_unreachable();
     }
     lean_unreachable();
@@ -441,11 +443,11 @@ update_basis_and_x(int entering, int leaving, X const & tt) {
     m_factorization->change_basis(entering, leaving);
     init_factorization(m_factorization, m_A, m_basis, m_basis_heading, m_settings, m_non_basic_columns);
     if (m_factorization->get_status() != LU_status::OK || A_mult_x_is_off()) {
-        std::cout << "failing refactor for entering = " << entering << ", leaving = " << leaving << " total_iterations = " << m_total_iterations << std::endl;
+        OUT(m_settings, "failing refactor for entering = " << entering << ", leaving = " << leaving << " total_iterations = " << m_total_iterations << std::endl);
         restore_x_and_refactor(entering, leaving, tt);
         lean_assert(!A_mult_x_is_off());
         m_iters_with_no_cost_growing++;
-        std::cout << "rolled back after failing of init_factorization()" << std::endl;
+        OUT(m_settings, "rolled back after failing of init_factorization()" << std::endl);
         m_status = UNSTABLE;
         return false;
     }
@@ -510,12 +512,12 @@ restore_x_and_refactor(int entering, int leaving, X const & t) {
     restore_x(entering, t);
     init_factorization(m_factorization, m_A, m_basis, m_basis_heading, m_settings, m_non_basic_columns);
     if (m_factorization->get_status() == LU_status::Degenerated) {
-        std::cout << "cannot refactor" << std::endl;
+        OUT(m_settings,  "cannot refactor" << std::endl);
         m_status = lp_status::FLOATING_POINT_ERROR;
     }
     //   solve_Ax_eq_b();
     if (A_mult_x_is_off()) {
-        std::cout << "cannot restore solution" << std::endl;
+        OUT(m_settings, "cannot restore solution" << std::endl);
         m_status = lp_status::FLOATING_POINT_ERROR;
         return;
     }

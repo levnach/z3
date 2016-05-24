@@ -11,18 +11,12 @@
 namespace lean {
 std::string column_type_to_string(column_type t) {
     switch (t) {
-    case fixed:
-        return std::string("fixed");
-    case boxed:
-        return std::string("boxed");
-    case low_bound:
-        return std::string("low_bound");
-    case upper_bound:
-        return std::string("upper_bound");
-    case free_column:
-        return std::string("free_column");
-    default:
-        lean_unreachable();
+    case fixed:       return "fixed";
+    case boxed:       return "boxed";
+    case low_bound:   return "low_bound";
+    case upper_bound: return "upper_bound";
+    case free_column: return "free_column";
+    default:  lean_unreachable();
     }
     return "unknown"; // it is unreachable
 }
