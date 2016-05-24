@@ -523,7 +523,7 @@ template <typename T, typename X>    void lar_core_solver<T, X>::move_as_many_as
     }
 }
 
-template <typename T, typename X>    bool lar_core_solver<T, X>::non_basis_columns_are_set_correctly() {
+template <typename T, typename X> bool lar_core_solver<T, X>::non_basis_columns_are_set_correctly() {
     for (unsigned j : this->m_non_basic_columns) {
         if (!this->x_is_at_bound(j))
             return false;
@@ -531,13 +531,13 @@ template <typename T, typename X>    bool lar_core_solver<T, X>::non_basis_colum
     return true;
 }
 
-template <typename T, typename X>    void lar_core_solver<T, X>::prefix() {
+template <typename T, typename X> void lar_core_solver<T, X>::prefix() {
     init_local();
     this->init();
     this->init_basis_heading();
 }
 
-template <typename T, typename X>    void lar_core_solver<T, X>::feasibility_loop() {
+template <typename T, typename X> void lar_core_solver<T, X>::feasibility_loop() {
     while (true) {
         init_costs();
         this->init_reduced_costs_for_one_iteration();
@@ -766,20 +766,22 @@ template <typename T, typename X>    void lar_core_solver<T, X>::advance_on_infe
     advance_on_infeasible_row_and_entering(i, entering, inf_sign);
 }
 
-template <typename T, typename X>    void lar_core_solver<T, X>::solve() {
-    prefix();
-    if (is_empty()) {
+template <typename T, typename X> void lar_core_solver<T, X>::solve() {
+	prefix();
+	if (is_empty()) {
         this->m_status = OPTIMAL;
         return;
     }
-    this->snap_xN_to_bounds(); // we start with non-basic variables at their bounds
-    lean_assert(non_basis_columns_are_set_correctly());
-
-    if (this->m_settings.row_feasibility) {
+    this->solve_Ax_eq_b();
+	lean_assert(this->A_mult_x_is_off() == false);
+	lean_assert(non_basis_columns_are_set_correctly());
+	if (this->m_settings.row_feasibility) {
         row_feasibility_loop();
     } else {
         feasibility_loop();
     }
+	lean_assert(this->A_mult_x_is_off() == false);
+	lean_assert(this->calc_current_x_is_feasible_include_non_basis());
 }
 
 template <typename T, typename X> void lar_core_solver<T, X>::print_column_info(unsigned j, std::ostream & out) {

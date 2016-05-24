@@ -45,14 +45,14 @@ public:
 
 class lar_constraint : public lar_base_constraint {
 public:
-    std::unordered_map<var_index, mpq> m_left_side;
+    std::unordered_map<var_index, mpq> m_left_side_map_from_index_to_coefficient;
     lar_constraint() {}
     lar_constraint(const buffer<std::pair<mpq, var_index>> & left_side, lconstraint_kind kind, mpq right_side, constraint_index index);
 
     lar_constraint(const lar_base_constraint & c);
 
     unsigned size() const {
-        return static_cast<unsigned>(m_left_side.size());
+        return static_cast<unsigned>(m_left_side_map_from_index_to_coefficient.size());
     }
 
     buffer<std::pair<mpq, var_index>> get_left_side_coefficients() const;
