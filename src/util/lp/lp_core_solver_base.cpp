@@ -194,6 +194,17 @@ restore_m_ed(T * buffer) {
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 A_mult_x_is_off() {
     if (precise<T>()) {
+		for (unsigned i = 0; i < m_m; i++) {
+			X delta = m_b[i] - m_A.dot_product_with_row(i, m_x);
+			if (delta != numeric_traits<X>::zero()) {
+				// std::cout << "x is off (";
+				// std::cout << "m_b[" << i  << "] = " << m_b[i] << " ";
+				// std::cout << "left side = " << m_A.dot_product_with_row(i, m_x) << ' ';
+				// std::cout << "delta = " << delta << ' ';
+				// std::cout << "iters = " << m_total_iterations << ")" << std::endl;
+				return true;
+			}
+		}
         return false;
     }
 
@@ -407,6 +418,56 @@ find_x_by_solving() {
     return ret;
 }
 
+template <typename T, typename X> bool lp_core_solver_base<T, X>::column_is_feasible(unsigned j) const {
+	const X& x = this->m_x[j];
+	switch (this->m_column_type[j]) {
+	case fixed:
+	case boxed:
+		if (this->above_bound(x, this->m_upper_bound_values[j])) {
+			return false;
+		}
+		else if (this->below_bound(x, this->m_low_bound_values[j])) {
+			return false;
+		}
+		else {
+			return true;
+		}
+		break;
+	case low_bound:
+		if (this->below_bound(x, this->m_low_bound_values[j])) {
+			return false;
+		}
+		else {
+			return true;
+		}
+		break;
+	case upper_bound:
+		if (this->above_bound(x, this->m_upper_bound_values[j])) {
+			return false;
+		}
+		else {
+			return true;
+		}
+		break;
+	case free_column:
+		return true;
+		break;
+	default:
+		lean_unreachable();
+	}
+	return false; // it is unreachable
+}
+
+template <typename T, typename X> bool lp_core_solver_base<T, X>::calc_current_x_is_feasible_include_non_basis() const {
+	unsigned j = this->m_n;
+	while (j--) {
+		if (!column_is_feasible(j))
+			return false;
+	}
+	return true;
+}
+
+
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 update_basis_and_x(int entering, int leaving, X const & tt) {
     if (!is_zero(tt)) {
@@ -613,6 +674,7 @@ solve_Ax_eq_b() {
     std::vector<X> rrs = rs; // another copy of rs
     m_factorization->solve_By(rs);
     copy_rs_to_xB(rs);
+	if (numeric_traits<T>::precise()) return;
     find_error_in_BxB(rrs);
     m_factorization->solve_By(rrs);
     add_delta_to_xB(rrs);
@@ -663,7 +725,7 @@ snap_non_basic_x_to_bound_and_free_to_zeroes() {
     }
 }
 template <typename T, typename X> void lp_core_solver_base<T, X>::
-snap_xN_to_bounds() {
+snap_xN_to_bounds_and_fill_xB() {
     snap_non_basic_x_to_bound();
     solve_Ax_eq_b();
 }

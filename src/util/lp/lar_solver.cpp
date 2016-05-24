@@ -54,8 +54,8 @@ mpq lar_solver::find_ratio_of_original_constraint_to_normalized(canonic_left_sid
     auto first_pair = ls->m_coeffs[0];
     lean_assert(first_pair.first == numeric_traits<mpq>::one());
     var_index i = first_pair.second;
-    auto it = constraint.m_left_side.find(i);
-    lean_assert(it != constraint.m_left_side.end());
+    auto it = constraint.m_left_side_map_from_index_to_coefficient.find(i);
+    lean_assert(it != constraint.m_left_side_map_from_index_to_coefficient.end());
     return it->second;
 }
 
@@ -67,7 +67,6 @@ void lar_solver::map_left_side_to_A_of_core_solver(canonic_left_side*  left_side
     column_info<mpq> & ci = it->second.m_column_info;
     lean_assert(!is_valid(ci.get_column_index()));
     lean_assert(left_side->size() > 0); // if size is zero we have an empty row
-    left_side->m_row_index = m_lar_core_solver_params.m_basis.size();
     m_lar_core_solver_params.m_basis.push_back(j); // j will be a basis column, so we put it into the basis as well
     lean_assert(m_map_from_column_indices_to_var_index.find(j) == m_map_from_column_indices_to_var_index.end());
     ci.set_column_index(j);
@@ -87,11 +86,9 @@ void lar_solver::fill_row_of_A(static_matrix<U, V> & A, unsigned i, canonic_left
     for (auto & t : ls->m_coeffs) {
         var_index vi = t.second;
         unsigned column = get_column_index_from_var_index(vi);
-        lean_assert(is_valid(column));
-        A.set(i, column, convert_struct<U, mpq>::convert(t.first));
+		A.set(i, column, convert_struct<U, mpq>::convert(t.first));
     }
     unsigned additional_column = get_column_index_from_var_index(ls->m_additional_var_index);
-    lean_assert(is_valid(additional_column));
     A.set(i, additional_column, - one_of_type<U>());
 }
 
@@ -110,8 +107,7 @@ void lar_solver::create_matrix_A(static_matrix<U, V> & A) {
     unsigned i = 0;
     for (auto t : m_set_of_canonic_left_sides) {
         lean_assert(t->size() > 0);
-        if (is_valid(t->m_row_index))
-            fill_row_of_A(A, i++, t);
+        fill_row_of_A(A, i++, t);
     }
 }
 
@@ -221,11 +217,11 @@ void lar_solver::fill_column_names() {
 void lar_solver::fill_column_types() {
     m_lar_core_solver_params.m_column_types.clear();
     m_lar_core_solver_params.m_column_types.resize(m_map_from_var_index_to_column_info_with_cls.size(), free_column);
-    for (auto t : m_set_of_canonic_left_sides) {
-        var_index additional_vj = t->m_additional_var_index;
-        unsigned j = get_column_index_from_var_index(additional_vj);
+    for (auto it : m_map_from_var_index_to_column_info_with_cls) {
+		column_info<mpq> & ci = it.second.m_column_info;;
+		unsigned j = ci.get_column_index();
         lean_assert(is_valid(j));
-        m_lar_core_solver_params.m_column_types[j] = get_column_type(get_column_info_from_var_index(additional_vj));
+        m_lar_core_solver_params.m_column_types[j] = get_column_type(ci);
     }
 }
 
@@ -234,15 +230,17 @@ void lar_solver::fill_bounds_for_core_solver(std::vector<V> & lb, std::vector<V>
     unsigned n = static_cast<unsigned>(m_map_from_var_index_to_column_info_with_cls.size()); // this is the number of columns
     lb.resize(n);
     ub.resize(n);
-    for (auto t : m_set_of_canonic_left_sides) {
-        auto & ci = get_column_info_from_var_index(t->m_additional_var_index);
+    for (auto t : m_map_from_var_index_to_column_info_with_cls) {
+		auto & ci = t.second.m_column_info;
         unsigned j = ci.get_column_index();
-        lean_assert(is_valid(j));
         lean_assert(j < n);
-        if (ci.low_bound_is_set())
-            lb[j] = conversion_helper<V>::get_low_bound(ci);
-        if (ci.upper_bound_is_set())
-            ub[j] = conversion_helper<V>::get_upper_bound(ci);
+		if (ci.upper_bound_is_set()) {
+			ub[j] = conversion_helper<V>::get_upper_bound(ci);
+		}
+		if (ci.low_bound_is_set()) {
+			lb[j] = conversion_helper<V>::get_low_bound(ci);
+		}
+		
     }
 }
 
@@ -302,9 +300,9 @@ bool lar_solver::all_constrained_variables_are_registered(const buffer<std::pair
 		if (m_map_from_var_index_to_column_info_with_cls.find(vj) == m_map_from_var_index_to_column_info_with_cls.end()) {
 			std::cout << "the variable " << vj << " is not registered in its constraint" << std::endl;
 			return false;
-		}
-		return true;
+		}		
 	}
+	return true;
 }
 
 constraint_index lar_solver::add_constraint(const buffer<std::pair<mpq, var_index>>& left_side, lconstraint_kind kind_par, mpq right_side_par) {
@@ -319,26 +317,25 @@ constraint_index lar_solver::add_constraint(const buffer<std::pair<mpq, var_inde
     mpq right_side = right_side_par / ratio;
     lar_normalized_constraint normalized_constraint(ls, ratio, kind, right_side, original_constr);
     m_normalized_constraints[i] = normalized_constraint;
-    return i;
+	return i;
 }
 
 bool lar_solver::all_constraints_hold() {
     std::unordered_map<var_index, mpq> var_map;
     get_model(var_map);
-    for ( auto & it : m_normalized_constraints )
-        if (!constraint_holds(it.second.m_origin_constraint, var_map)) {
-            return false;
-        }
+    for (auto & it : m_normalized_constraints)
+        if (!constraint_holds(it.second.m_origin_constraint, var_map))
+	        return false;
     return true;
 }
 
 bool lar_solver::constraint_holds(const lar_constraint & constr, std::unordered_map<var_index, mpq> & var_map) {
     mpq left_side_val = get_left_side_val(constr, var_map);
-    switch (constr.m_kind) {
+	switch (constr.m_kind) {
     case LE: return left_side_val <= constr.m_right_side;
-    case LT: return left_side_val <= constr.m_right_side;
+    case LT: return left_side_val <= constr.m_right_side; // need to use non-strict because of the pair usage
     case GE: return left_side_val >= constr.m_right_side;
-    case GT: return left_side_val >= constr.m_right_side;
+    case GT: return left_side_val >= constr.m_right_side; // need to use non-strict because of the pair usage
     case EQ: return left_side_val == constr.m_right_side;
     default:
         lean_unreachable();
@@ -377,7 +374,7 @@ bool lar_solver::the_relations_are_of_same_type(const buffer<std::pair<mpq, unsi
 }
 
 void lar_solver::register_in_map(std::unordered_map<var_index, mpq> & coeffs, lar_constraint & cn, const mpq & a) {
-    for (auto & it : cn.m_left_side) {
+    for (auto & it : cn.m_left_side_map_from_index_to_coefficient) {
         unsigned j = it.first;
         auto p = coeffs.find(j);
         if (p == coeffs.end()) coeffs[j] = it.second * a;
@@ -541,8 +538,8 @@ void lar_solver::extract_signature_from_lp_core_solver(lp_primal_core_solver<U, 
 }
 
 void lar_solver::solve_on_signature(const lar_solution_signature & signature) {
-    prepare_core_solver_fields_with_signature(m_lar_core_solver_params.m_A, m_lar_core_solver_params.m_x, m_lar_core_solver_params.m_low_bounds, m_lar_core_solver_params.m_upper_bounds, signature);
-    solve_with_core_solver();
+	prepare_core_solver_fields_with_signature(m_lar_core_solver_params.m_A, m_lar_core_solver_params.m_x, m_lar_core_solver_params.m_low_bounds, m_lar_core_solver_params.m_upper_bounds, signature);
+	solve_with_core_solver();
 }
 
 void lar_solver::solve() {
@@ -617,9 +614,9 @@ mpq lar_solver::find_delta_for_strict_bounds() {
         auto & ci = get_column_info_from_var_index(t->m_additional_var_index);
         unsigned j = ci.get_column_index();
         lean_assert (is_valid(j));
-        if (ci.low_bound_is_set() && ci.low_bound_is_strict())
+        if (ci.low_bound_is_set())
             restrict_delta_on_low_bound_column(delta, j);
-        if (ci.upper_bound_is_set() && ci.upper_bound_is_strict())
+        if (ci.upper_bound_is_set())
             restrict_delta_on_upper_bound(delta, j);
     }
     return delta;
@@ -627,36 +624,29 @@ mpq lar_solver::find_delta_for_strict_bounds() {
 
 void lar_solver::restrict_delta_on_low_bound_column(mpq& delta, unsigned j) {
 	lean_assert(delta > numeric_traits<mpq>::zero());
-    numeric_pair<mpq> & x = m_lar_core_solver_params.m_x[j];
-    numeric_pair<mpq> & l = m_lar_core_solver_params.m_low_bounds[j];
-    mpq & xx = x.x;
-    mpq & xy = x.y;
-    mpq & lx = l.x;
-    if (xx == lx) {
-        lean_assert(xy > numeric_traits<mpq>::zero());
-    } else {
-        lean_assert(xx >= lx); // we need lx <= xx + delta*xy, or delta*xy >= lx - xx, or - delta*xy <= xx - ls.
-        // The right part is not negative. The delta is positive. If xy >= 0 we have the ineqality
-        // otherwise we need to have delta not greater than - (xx - lx)/xy. We use the 2 coefficient to handle the strict case
-        if (xy >= zero_of_type<mpq>()) return;
-        delta = std::min(delta, (lx - xx)/ (2 * xy)); // we need to have delta * xy < xx - lx for the strict case
-    }
+	numeric_pair<mpq> & x = m_lar_core_solver_params.m_x[j];
+	numeric_pair<mpq> & l = m_lar_core_solver_params.m_low_bounds[j];
+	mpq & xx = x.x;
+	mpq & xy = x.y;
+	if (!xy.is_neg()) return;
+	mpq & lx = l.x;
+	lean_assert(xx > lx); 
+	// we need lx <= xx + delta*xy, or delta*xy >= lx - xx, or - delta*xy <= xx - ls.
+	// The right part is not negative. The delta is positive. If xy >= 0 we have the ineqality
+	// otherwise we need to have delta not greater than - (xx - lx)/xy. We use the 2 coefficient to handle the strict case
+	if (xy >= zero_of_type<mpq>()) return;
+	delta = std::min(delta, (lx - xx) / (2 * xy)); // we need to have delta * xy < xx - lx for the strict case
 }
 void lar_solver::restrict_delta_on_upper_bound(mpq& delta, unsigned j) {
-    numeric_pair<mpq> & x = m_lar_core_solver_params.m_x[j];
-    numeric_pair<mpq> & u = m_lar_core_solver_params.m_upper_bounds[j];
-    mpq & xx = x.x;
-    mpq & xy = x.y;
-    mpq & ux = u.x;
-    if (xx == ux) {
-        lean_assert(xy <= numeric_traits<mpq>::zero());
-    } else {
-        lean_assert(xx < ux);
-        if (xy <= zero_of_type<mpq>()) return;
-        delta = std::min(delta, (ux - xx)/ (2 * xy)); // we need to have delta * xy < ux - xx, for the strict case
-    }
+	numeric_pair<mpq> & x = m_lar_core_solver_params.m_x[j];
+	numeric_pair<mpq> & u = m_lar_core_solver_params.m_upper_bounds[j];
+	mpq & xx = x.x;
+	mpq & xy = x.y;
+	mpq & ux = u.x;
+	if (!xy.is_pos()) return;
+	lean_assert(xx < ux);
+	delta = std::min(delta, (ux - xx) / (2 * xy)); // we need to have delta * xy < ux - xx, for the strict case
 }
-
 void lar_solver::get_model(std::unordered_map<var_index, mpq> & variable_values){
     lean_assert(m_status == OPTIMAL);
     mpq delta = find_delta_for_strict_bounds();
@@ -794,7 +784,7 @@ mpq lar_solver::get_canonic_left_side_val(canonic_left_side * ls, std::unordered
 
 mpq lar_solver::get_left_side_val(const lar_constraint &  cns, const std::unordered_map<var_index, mpq> & var_map) {
     mpq ret = numeric_traits<mpq>::zero();
-    for (auto & it : cns.m_left_side) {
+    for (auto & it : cns.m_left_side_map_from_index_to_coefficient) {
         var_index j = it.first;
         auto vi = var_map.find(j);
         lean_assert(vi != var_map.end());

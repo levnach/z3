@@ -631,6 +631,7 @@ template <typename T, typename X> unsigned lp_primal_core_solver<T, X>::solve() 
              this->m_total_iterations <= this->m_settings.max_total_number_of_iterations
              &&
              !(m_current_x_is_feasible && m_exit_on_feasible_solution));
+	lean_assert(m_current_x_is_feasible == false || calc_current_x_is_feasible_include_non_basis());
     return this->m_total_iterations;
 }
 
@@ -859,41 +860,9 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::update_ba
         this->update_x(entering, delta);
 }
 
-template <typename T, typename X> bool lp_primal_core_solver<T, X>::column_is_feasible(unsigned j) const {
-    const X& x = this->m_x[j];
-    switch (this->m_column_type[j]) {
-    case fixed:
-    case boxed:
-        if (this->above_bound(x, this->m_upper_bound_values[j])) {
-            return false;
-        } else if (this->below_bound(x, this->m_low_bound_values[j])) {
-            return false;
-        } else {
-            return true;
-        }
-        break;
-    case low_bound:
-        if (this->below_bound(x, this->m_low_bound_values[j])) {
-            return false;
-        } else {
-            return true;
-        }
-        break;
-    case upper_bound:
-        if (this->above_bound(x, this->m_upper_bound_values[j])) {
-            return false;
-        } else {
-            return true;
-        }
-        break;
-    case free_column:
-        return true;
-        break;
-    default:
-        lean_unreachable();
-    }
-    return false; // it is unreachable
-}
+
+
+
 
 template <typename T, typename X> bool lp_primal_core_solver<T, X>::calc_current_x_is_feasible() const {
     unsigned i = this->m_m;

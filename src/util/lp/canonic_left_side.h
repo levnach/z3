@@ -24,8 +24,6 @@ inline   bool compare(const std::pair<mpq, var_index> & a, const std::pair<mpq, 
 
 class canonic_left_side {
 public:
-    // this index is exposed to the user, this is not the index that points to the row
-    unsigned m_row_index = static_cast<unsigned>(-1);
     var_index m_additional_var_index = static_cast<var_index>(-1); // this is the index of the additional variable created for this constraint
     std::vector<std::pair<mpq, var_index>> m_coeffs;
     lar_normalized_constraint * m_low_bound_witness = nullptr;

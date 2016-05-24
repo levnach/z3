@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <limits>
 #include <sys/timeb.h>
+#include <iomanip> 
 #include "util/lp/lp_utils.h"
 
 namespace lean {
@@ -172,7 +173,7 @@ std::string T_to_string(const T & t) {
 
 inline std::string T_to_string(const mpq & t) {
     std::ostringstream strs;
-    strs << t.get_double();
+	strs << t;
     return strs.str();
 }
 
