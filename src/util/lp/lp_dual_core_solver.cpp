@@ -87,7 +87,7 @@ template <typename T, typename X> bool lp_dual_core_solver<T, X>::update_basis(i
     init_factorization(this->m_factorization, this->m_A, this->m_basis, this->m_basis_heading, this->m_settings, this->m_non_basic_columns);
     this->m_refactor_counter = 0;
     if (this->m_factorization->get_status() != LU_status::OK) {
-        std::cout << "failing refactor for entering = " << entering << ", leaving = " << leaving << " total_iterations = " << this->m_total_iterations << std::endl;
+        OUT(m_settings, "failing refactor for entering = " << entering << ", leaving = " << leaving << " total_iterations = " << this->m_total_iterations << std::endl);
         this->m_iters_with_no_cost_growing++;
         return false;
     }
@@ -367,8 +367,8 @@ template <typename T, typename X> bool lp_dual_core_solver<T, X>::d_is_correct()
     for  (auto j : non_basis()) {
         T d = this->m_costs[j] -  this->m_A.dot_product_with_column(this->m_y, j);
         if (numeric_traits<T>::get_double(abs(d - this->m_d[j])) >= 0.001) {
-            std::cout << "m_total_iterations = " << this->m_total_iterations << std::endl;
-            std::cout << "d[" << j << "] = " << this->m_d[j] << " but should be " << d << std::endl;
+            OUT(m_settings, "m_total_iterations = " << this->m_total_iterations << std::endl
+                << "d[" << j << "] = " << this->m_d[j] << " but should be " << d << std::endl);
             return false;
         }
     }

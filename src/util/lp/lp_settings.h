@@ -54,7 +54,6 @@ enum non_basic_column_value_position { at_low_bound, at_upper_bound, at_fixed, f
 
 template <typename X> bool is_epsilon_small(const X & v, const double& eps);    // forward definition
 
-
 int get_millisecond_count();
 int get_millisecond_span(int start_time);
 void my_random_init(unsigned * seed);
@@ -82,7 +81,7 @@ private:
 
     default_lp_resource_limit m_default_resource_limit;
     lp_resource_limit* m_resource_limit;
-    std::ostream* m_out;
+    std::ostream* m_out = &std::cout;
 
 public:
     // when the absolute value of an element is less than pivot_epsilon
@@ -120,13 +119,13 @@ public:
     double relative_primal_feasibility_tolerance = 1e-9; // page 71 of the PhD thesis of Achim Koberstein
 
 
-    lp_settings() : m_default_resource_limit(*this), m_resource_limit(&m_default_resource_limit), m_out(&std::cout) {}
+    lp_settings() : m_default_resource_limit(*this), m_resource_limit(&m_default_resource_limit) {}
 
     void set_resource_limit(lp_resource_limit& lim) { m_resource_limit = &lim; }
     bool get_cancel_flag() const { return m_resource_limit->get_cancel_flag(); }
 
     void set_ostream(std::ostream* out) { m_out = out; }
-    std::ostream* out() const { return m_out; }
+    std::ostream* out() { return m_out; }
 
     template <typename T> static bool is_eps_small_general(const T & t, const double & eps) {
         return (!numeric_traits<T>::precise())? is_epsilon_small<T>(t, eps) : numeric_traits<T>::is_zero(t);
