@@ -78,6 +78,7 @@ namespace lp {
     struct stats {
         unsigned m_assert_lower;
         unsigned m_assert_upper;
+        unsigned m_add_rows;
         stats() { reset(); }
         void reset() {
             memset(this, 0, sizeof(*this));
@@ -237,12 +238,18 @@ namespace smt {
 
 
         context& ctx() const { return th.get_context(); }
+        theory_id get_id() const { return th.get_id(); }
+        bool is_int(theory_var v) const {  return is_int(get_enode(v));  }
+        bool is_int(enode* n) const { return a.is_int(n->get_owner()); }
+        enode* get_enode(theory_var v) const { return th.get_enode(v); }
+        enode* get_enode(expr* e) const { return ctx().get_enode(e); }
 
         void init_solver() {
             m_solver = alloc(lean::lar_solver); 
             m_theory_var2var_index.reset();
             m_solver->settings().set_resource_limit(m_resource_limit);
-            m_solver->settings().set_ostream(0);
+            reset_variable_values();
+            //m_solver->settings().set_ostream(0);
         }
 
         void found_not_handled(expr* n) {
@@ -251,11 +258,23 @@ namespace smt {
         }
 
         bool is_numeral(expr* term, rational& r) {
-            if (a.is_uminus(term, term) && is_numeral(term, r)) {
-                r.neg();
-                return true;
+            rational mul(1);
+            do {
+                if (a.is_numeral(term, r)) {
+                    r *= mul;
+                    return true;
+                }
+                if (a.is_uminus(term, term)) {
+                    mul.neg();
+                    continue;
+                }
+                if (a.is_to_real(term, term)) {
+                    continue;
+                }                
+                return false;
             }
-            return a.is_numeral(term, r);
+            while (false);
+            return false;
         }
 
         void linearize(expr* term, scoped_internalize_state& st) { 
@@ -346,7 +365,7 @@ namespace smt {
 
         enode * mk_enode(app * n) {
             if (ctx().e_internalized(n)) {
-                return ctx().get_enode(n);
+                return get_enode(n);
             }
             else {
                 return ctx().mk_enode(n, !reflect(n), false, enable_cgc_for(n));       
@@ -355,25 +374,48 @@ namespace smt {
 
         bool enable_cgc_for(app * n) const {
             // Congruence closure is not enabled for (+ ...) and (* ...) applications.
-            return !(n->get_family_id() == th.get_id() && (n->get_decl_kind() == OP_ADD || n->get_decl_kind() == OP_MUL));
+            return !(n->get_family_id() == get_id() && (n->get_decl_kind() == OP_ADD || n->get_decl_kind() == OP_MUL));
         }
 
+
+        void mk_clause(literal l1, literal l2, unsigned num_params, parameter * params) {
+            ctx().mk_th_axiom(get_id(), l1, l2, num_params, params);
+    }
+
+        void mk_clause(literal l1, literal l2, literal l3, unsigned num_params, parameter * params) {
+            ctx().mk_th_axiom(get_id(), l1, l2, l3, num_params, params);
+        }
+
+
         bool reflect(app* n) const {
-            return true;
+            if (m_params.m_arith_reflect) return true;
+            
+            if (n->get_family_id() == get_id()) {
+                switch (n->get_decl_kind()) {
+                case OP_DIV:
+                case OP_IDIV:
+                case OP_REM:
+                case OP_MOD:
+                    return true;
+                default:
+                    break;
+                }
+            }
+            return false;
         }
 
         theory_var mk_var(expr* n, bool internalize = true) {
             if (!ctx().e_internalized(n)) {
                 ctx().internalize(n, false);                
             }
-            enode* e = ctx().get_enode(n);
+            enode* e = get_enode(n);
             theory_var v;
             if (!th.is_attached_to_var(e)) {
                 v = th.mk_var(e);                        
                 ctx().attach_th_var(e, &th, v);
             }
             else {
-                v = e->get_th_var(th.get_id());                
+                v = e->get_th_var(get_id());                
             }
             SASSERT(null_theory_var != v);
             return v;
@@ -406,7 +448,6 @@ namespace smt {
                 else {
                     m_columns[var] += coeff;
                 }                
-                TRACE("arith", tout << "v" << var << ":" << coeff << "\n";);
             }
             m_left_side.reset();
             // reset the coefficients after they have been used.
@@ -433,21 +474,24 @@ namespace smt {
         void add_eq_constraint(lean::constraint_index index, enode* n1, enode* n2) {
             m_constraint_sources.setx(index, equality_source, null_source);
             m_equalities.setx(index, enode_pair(n1, n2), enode_pair(0, 0));
+            ++m_stats.m_add_rows;
         }
         
         void add_ineq_constraint(lean::constraint_index index, literal lit) {
             m_constraint_sources.setx(index, inequality_source, null_source);
             m_inequalities.setx(index, lit, null_literal);
+            ++m_stats.m_add_rows;
         }
         
         void add_def_constraint(lean::constraint_index index, theory_var v) {
             m_constraint_sources.setx(index, definition_source, null_source);
             m_definitions.setx(index, v, null_theory_var);
+            ++m_stats.m_add_rows;
         }
         
         void internalize_eq(theory_var v1, theory_var v2) {
-            enode* n1 = th.get_enode(v1);
-            enode* n2 = th.get_enode(v2);
+            enode* n1 = get_enode(v1);
+            enode* n2 = get_enode(v2);
             scoped_internalize_state st(*this);
             st.vars().push_back(v1);
             st.vars().push_back(v2);
@@ -533,7 +577,7 @@ namespace smt {
         
         bool internalize_atom(app * atom, bool gate_ctx) {
             bool_var bv = ctx().mk_bool_var(atom);
-            ctx().set_var_theory(bv, th.get_id());
+            ctx().set_var_theory(bv, get_id());
             if (m_delay_constraints) {
                 return true;
             }
@@ -576,10 +620,10 @@ namespace smt {
         void internalize_eq_eh(app * atom, bool_var) {
             expr* lhs, *rhs;
             VERIFY(m.is_eq(atom, lhs, rhs));
-            enode * n1 = ctx().get_enode(lhs);
-            enode * n2 = ctx().get_enode(rhs);
-            if (n1->get_th_var(th.get_id()) != null_theory_var &&
-                n2->get_th_var(th.get_id()) != null_theory_var &&
+            enode * n1 = get_enode(lhs);
+            enode * n2 = get_enode(rhs);
+            if (n1->get_th_var(get_id()) != null_theory_var &&
+                n2->get_th_var(get_id()) != null_theory_var &&
                 n1 != n2) {
                 TRACE("arith", tout << mk_pp(atom, m) << "\n";);
                 m_arith_eq_adapter.mk_axioms(n1, n2);
@@ -676,19 +720,13 @@ namespace smt {
             m_arith_eq_adapter.init_search_eh();
         }
 
-        bool is_int(theory_var v) const {
-            return is_int(th.get_enode(v));
-        }
-
-        bool is_int(enode* n) const {
-            return a.is_int(n->get_owner());
-        }
 
         bool can_get_value(theory_var v) const {
             return 
                 (v != null_theory_var) &&
                 (v < static_cast<theory_var>(m_theory_var2var_index.size())) && 
-                (UINT_MAX != m_theory_var2var_index[v]);
+                (UINT_MAX != m_theory_var2var_index[v]) && 
+                m_variable_values.size() > 0;
         }
 
         rational const& get_value(theory_var v) const {
@@ -697,23 +735,32 @@ namespace smt {
             return m_variable_values[vi];        
         }
 
-        bool assume_eqs() {            
+        void init_variable_values() {
+            if (m_variable_values.size() == 0 && m_solver.get()) {
+                m_solver->get_model(m_variable_values);
+            }
+        }
+
+        void reset_variable_values() {
             m_variable_values.clear();
-            m_solver->get_model(m_variable_values);
+        }
+
+        bool assume_eqs() {            
+            init_variable_values();
             m_model_eqs.reset();
             int start = ctx().get_random_value();
             theory_var sz = static_cast<theory_var>(m_theory_var2var_index.size());
             for (theory_var i = 0; i < sz; ++i) {
                 theory_var v = (i + start) % sz;
-                if (!is_relevant_and_shared(v)) {
+                enode* n1 = get_enode(v);
+                if (!th.is_relevant_and_shared(n1)) {                    
                     continue;
                 }
-                enode* n1 = th.get_enode(v);
                 theory_var other = m_model_eqs.insert_if_not_there(v);
                 if (other == v) {
                     continue;
                 }
-                enode* n2 = th.get_enode(other);
+                enode* n2 = get_enode(other);
                 if (n1->get_root() != n2->get_root()) {
                     TRACE("arith", tout << mk_pp(n1->get_owner(), m) << " = " << mk_pp(n2->get_owner(), m) << "\n";);
                     th.assume_eq(n1, n2);
@@ -762,14 +809,40 @@ namespace smt {
             return FC_GIVEUP;
         }
 
-        bool is_shared(theory_var v) const {
-            // TBD
-            return true;
-        }
 
-        bool is_relevant_and_shared(theory_var v) const {
-            return is_shared(v) && ctx().is_relevant(th.get_enode(v));
+        /**
+           \brief We must redefine this method, because theory of arithmetic contains
+           underspecified operators such as division by 0.
+           (/ a b) is essentially an uninterpreted function when b = 0.
+           Thus, 'a' must be considered a shared var if it is the child of an underspecified operator.
+        */
+        bool is_shared(theory_var v) const {
+            if (m_not_handled == nullptr) {
+                return false;
+            }
+            enode * n      = get_enode(v);
+            enode * r      = n->get_root();
+            enode_vector::const_iterator it  = r->begin_parents();
+            enode_vector::const_iterator end = r->end_parents();
+            TRACE("shared", tout << ctx().get_scope_level() << " " <<  v << " " << r->get_num_parents() << "\n";);
+            for (; it != end; ++it) {
+                enode * parent = *it;
+                app *   o = parent->get_owner();
+                if (o->get_family_id() == get_id()) {
+                    switch (o->get_decl_kind()) {
+                    case OP_DIV:
+                    case OP_IDIV:
+                    case OP_REM:
+                    case OP_MOD:
+                        return true;
+                    default:
+                        break;
+                    }
+                }
+            }
+            return false;
         }
+       
 
         bool can_propagate() {
             return m_asserted_bounds.size() > m_asserted_qhead;
@@ -820,6 +893,7 @@ namespace smt {
         }
 
         lbool make_feasible() {
+            reset_variable_values();
             lean::lp_status status = m_solver->check();
             switch (status) {
             case lean::lp_status::INFEASIBLE:
@@ -874,7 +948,7 @@ namespace smt {
             ctx().set_conflict(
                 ctx().mk_justification(
                     ext_theory_conflict_justification(
-                        th.get_id(), ctx().get_region(), 
+                        get_id(), ctx().get_region(), 
                         m_core.size(), m_core.c_ptr(), 
                         m_eqs.size(), m_eqs.c_ptr(), 0, 0)));
         }
@@ -886,7 +960,7 @@ namespace smt {
         void reset_eh() {
             m_arith_eq_adapter.reset_eh();
             m_solver = 0;
-            m_not_handled = 0;
+            m_not_handled = nullptr;
             del_bounds(0);
             m_asserted_bounds.reset();
             m_asserted_qhead  = 0;
@@ -898,19 +972,19 @@ namespace smt {
         }
 
         void init_model(model_generator & mg) {
-            m_variable_values.clear();
-            m_solver->get_model(m_variable_values);
+            init_variable_values();
             m_factory = alloc(arith_factory, m);
             mg.register_factory(m_factory);
+            TRACE("arith", display(tout););
         }
 
         model_value_proc * mk_value(enode * n, model_generator & mg) {
-            theory_var v = n->get_th_var(th.get_id());
+            theory_var v = n->get_th_var(get_id());
             return alloc(expr_wrapper_proc, m_factory->mk_value(get_value(v), is_int(n)));
         }
 
         bool get_value(enode* n, expr_ref& r) {
-            theory_var v = n->get_th_var(th.get_id());            
+            theory_var v = n->get_th_var(get_id());            
             if (can_get_value(v)) {
                 r = a.mk_numeral(get_value(v), is_int(n));
                 return true;
@@ -929,6 +1003,14 @@ namespace smt {
         void display(std::ostream & out) const {
             if (m_solver) {
                 m_solver->print_constraints(out);
+            }
+            unsigned nv = th.get_num_vars();
+            for (unsigned v = 0; v < nv; ++v) {
+                out << "v" << v;
+                if (can_get_value(v)) out << ", value: " << get_value(v);                
+                out << ", shared: " << ctx().is_shared(get_enode(v)) 
+                    << ", rel: " << ctx().is_relevant(get_enode(v)) 
+                    << ", def: "; th.display_var_flat_def(out, v) << "\n";
             }
         }
 
@@ -963,6 +1045,9 @@ namespace smt {
 
         void collect_statistics(::statistics & st) const {
             m_arith_eq_adapter.collect_statistics(st);
+            st.update("assert-lower", m_stats.m_assert_lower);
+            st.update("assert-upper", m_stats.m_assert_upper);
+            st.update("add-rows", m_stats.m_add_rows);
             // TBD: 
         }        
     };
