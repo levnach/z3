@@ -157,35 +157,53 @@ void lu<T, X>::debug_test_of_basis(static_matrix<T, X> const & A, std::vector<un
 template <typename T, typename X>
 void lu<T, X>::solve_By(std::vector<X> & y) {
     init_vector_y(y);
-    solve_By_when_y_is_ready(y);
+    solve_By_when_y_is_ready_for_X(y);
 }
 template <typename T, typename X>
 void lu<T, X>::solve_Bd_when_w_is_ready(std::vector<T> & d, indexed_vector<T>& w ) { // w -  the vector featuring in 24.3
     for (int i = m_dim - 1; i >= 0; i--) {  // index ? todo
         d[i] = w[i];
     }
-    solve_By_when_y_is_ready(d);
+    solve_By_when_y_is_ready_for_T(d);
 }
 
 template <typename T, typename X>
-template <typename L>
-void lu<T, X>::solve_By_when_y_is_ready(std::vector<L> & y) {
+void lu<T, X>::solve_By_when_y_is_ready_for_X(std::vector<X> & y) {
     if (numeric_traits<T>::precise()) {
         m_U.solve_U_y(y);
-        m_R.apply_reverse_from_left(y); // see 24.3 from Chvatal
+        m_R.apply_reverse_from_left_to_X(y); // see 24.3 from Chvatal
         return;
     }
     m_U.double_solve_U_y(y);
-    m_R.apply_reverse_from_left(y); // see 24.3 from Chvatal
+    m_R.apply_reverse_from_left_to_X(y); // see 24.3 from Chvatal
     unsigned i = m_dim;
     while (i--) {
         if (is_zero(y[i])) continue;
         if (m_settings.abs_val_is_smaller_than_drop_tolerance(y[i])){
-            y[i] = zero_of_type<L>();
+            y[i] = zero_of_type<X>();
         }
     }
 }
 
+template <typename T, typename X>
+void lu<T, X>::solve_By_when_y_is_ready_for_T(std::vector<T> & y) {
+    if (numeric_traits<T>::precise()) {
+        m_U.solve_U_y(y);
+        m_R.apply_reverse_from_left_to_T(y); // see 24.3 from Chvatal
+        return;
+    }
+    m_U.double_solve_U_y(y);
+    m_R.apply_reverse_from_left_to_T(y); // see 24.3 from Chvatal
+    unsigned i = m_dim;
+    while (i--) {
+        if (is_zero(y[i])) continue;
+        if (m_settings.abs_val_is_smaller_than_drop_tolerance(y[i])){
+            y[i] = zero_of_type<T>();
+        }
+    }
+}
+
+    
 template <typename T, typename X>
 void lu<T, X>::print_matrix_compact(std::ostream & f) {
     f << "matrix_start" << std::endl;
@@ -225,9 +243,9 @@ void lu<T, X>::solve_Bd(unsigned a_column, std::vector<T> & d, indexed_vector<T>
 template <typename T, typename X>
 void lu<T, X>::solve_yB_internal(std::vector<T>& y) {
     // first solve yU = cb*R(-1)
-    m_R.apply_reverse_from_right(y); // got y = cb*R(-1)
+    m_R.apply_reverse_from_right_to_T(y); // got y = cb*R(-1)
     m_U.solve_y_U(y); // got y*U=cb*R(-1)
-    m_Q.apply_reverse_from_right(y); //
+    m_Q.apply_reverse_from_right_to_T(y); //
     for (auto e = m_tail.rbegin(); e != m_tail.rend(); ++e) {
 #ifdef LEAN_DEBUG
         (*e)->set_number_of_columns(m_dim);
@@ -304,7 +322,7 @@ lu<T, X>::~lu(){
 template <typename T, typename X>
 void lu<T, X>::init_vector_y(std::vector<X> & y) {
     apply_lp_lists_to_y(y);
-    m_Q.apply_reverse_from_left(y);
+    m_Q.apply_reverse_from_left_to_X(y);
 }
 
 template <typename T, typename X>

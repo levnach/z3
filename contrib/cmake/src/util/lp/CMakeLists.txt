@@ -25,7 +25,7 @@ scaler_instances.cpp
 sparse_matrix_instances.cpp
 square_dense_submatrix_instances.cpp
 static_matrix_instances.cpp
-      
+random_updater_instances.cpp      
    COMPONENT_DEPENDENCIES
       util
       )

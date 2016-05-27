@@ -15,6 +15,8 @@
 #include "util/lp/lp_utils.h"
 
 namespace lean {
+typedef unsigned var_index;
+typedef unsigned constraint_index;
 
 enum column_type  {
     fixed,

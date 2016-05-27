@@ -127,8 +127,8 @@ public:
 
     void solve_Bd_when_w_is_ready(std::vector<T> & d, indexed_vector<T>& w );
 
-    template <typename L>
-    void solve_By_when_y_is_ready(std::vector<L> & y);
+    void solve_By_when_y_is_ready_for_X(std::vector<X> & y);
+    void solve_By_when_y_is_ready_for_T(std::vector<T> & y);
     void print_indexed_vector(indexed_vector<T> & w, std::ofstream & f);
 
     void print_basis(std::ostream & f);
