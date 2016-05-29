@@ -277,13 +277,22 @@ namespace smt {
             return false;
         }
 
-        void linearize(expr* term, scoped_internalize_state& st) { 
+        void linearize_term(expr* term, scoped_internalize_state& st) {
+            st.push(term, rational::one());
+            linearize(st);
+        } 
+        
+        void linearize_ineq(expr* lhs, expr* rhs, scoped_internalize_state& st) {
+            st.push(lhs, rational::one());
+            st.push(rhs, rational::minus_one());
+            linearize(st);
+        }
+        
+        void linearize(scoped_internalize_state& st) { 
             expr_ref_vector & terms = st.terms();
             svector<theory_var>& vars = st.vars();
             vector<rational>& coeffs = st.coeffs();
             rational& coeff = st.coeff();
-            st.push(term, rational::one());
-
             rational r;
             expr* n1, *n2;
             unsigned index = 0;
@@ -316,7 +325,7 @@ namespace smt {
                     st.terms_to_internalize().push_back(n2);
                 }
                 else if (a.is_numeral(n, r)) {
-                    coeff += r;
+                    coeff += coeffs[index]*r;
                     ++index;
                 }
                 else if (a.is_uminus(n, n1)) {
@@ -353,6 +362,7 @@ namespace smt {
                     mk_enode(to_app(n));
                 }
             }
+            st.terms_to_internalize().reset();
         }
 
         void internalize_args(app* t) {
@@ -481,6 +491,7 @@ namespace smt {
             m_constraint_sources.setx(index, inequality_source, null_source);
             m_inequalities.setx(index, lit, null_literal);
             ++m_stats.m_add_rows;
+            TRACE("arith", m_solver->print_constraint(index, tout); tout << "\n";);
         }
         
         void add_def_constraint(lean::constraint_index index, theory_var v) {
@@ -490,6 +501,7 @@ namespace smt {
         }
         
         void internalize_eq(theory_var v1, theory_var v2) {
+                  
             enode* n1 = get_enode(v1);
             enode* n2 = get_enode(v2);
             scoped_internalize_state st(*this);
@@ -499,30 +511,41 @@ namespace smt {
             st.coeffs().push_back(rational::minus_one());
             init_left_side(st);
             add_eq_constraint(m_solver->add_constraint(m_left_side, lean::EQ, rational::zero()), n1, n2);
+            TRACE("arith", 
+                  tout << "v" << v1 << " = " << "v" << v2 << ": "
+                  << mk_pp(n1->get_owner(), m) << " = " << mk_pp(n2->get_owner(), m) << "\n";);
         }
 
-        void internalize_ineq(expr* atom, bool_var bv, bool is_true) {
+        void internalize_atom(expr* atom, bool_var bv, bool is_true) {
             TRACE("arith", tout << mk_pp(atom, m) << " " << is_true << "\n";);
             expr* n1, *n2;
-            rational right_side;
             lean::lconstraint_kind k = lean::EQ;
-            if (a.is_le(atom, n1, n2) && a.is_numeral(n2, right_side)) {
+            if (a.is_le(atom, n1, n2)){
                 k = is_true ? lean::LE : lean::GT;
             }
-            else if (a.is_ge(atom, n1, n2) && a.is_numeral(n2, right_side)) {
+            else if (a.is_ge(atom, n1, n2)) {
                 k = is_true ? lean::GE : lean::LT;
+            }
+            else if (a.is_is_int(atom)) {
+                found_not_handled(atom);
+                return;
             }
             else {
                 UNREACHABLE();
             }
             scoped_internalize_state st(*this);
-            linearize(n1, st);
+            linearize_ineq(n1, n2, st);
             init_left_side(st);
-            right_side -= st.coeff();
+            rational right_side = -st.coeff();
 
             SASSERT(m_left_side.size() > 0);
             if (m_left_side.size() > 0) {
                 add_ineq_constraint(m_solver->add_constraint(m_left_side, k, right_side), literal(bv, !is_true));
+            }
+            else {
+                // really should check if equality is true or false. 
+                // if equality is false, then we have contradiction here.
+                TRACE("arith", tout << "Ignoring inequality\n";);                
             }
         }
 
@@ -541,12 +564,13 @@ namespace smt {
             scoped_internalize_state st(*this);
             theory_var v = internalize_term_core(term, st);
             init_left_side(st);
+            TRACE("arith", tout << "v" << v << " := " << mk_pp(term, m) << "\n";);
             add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
             return v;
         }
         
         theory_var internalize_term_core(app* term, scoped_internalize_state& st) {
-            linearize(term, st);
+            linearize_term(term, st);
             theory_var v = mk_var(term);
             SASSERT(null_theory_var != v);
             st.coeffs().resize(st.vars().size() + 1);
@@ -576,6 +600,8 @@ namespace smt {
         }
         
         bool internalize_atom(app * atom, bool gate_ctx) {
+            SASSERT(!ctx().b_internalized(atom));
+
             bool_var bv = ctx().mk_bool_var(atom);
             ctx().set_var_theory(bv, get_id());
             if (m_delay_constraints) {
@@ -606,10 +632,14 @@ namespace smt {
         }
         
         bool internalize_term(app * term) {
-            if (m_delay_constraints) {
+            if (ctx().e_internalized(term) && th.is_attached_to_var(ctx().get_enode(term))) {
+                // 
+            }
+            else if (m_delay_constraints) {
                 scoped_internalize_state st(*this);
-                linearize(term, st);  // ensure that a theory_var was created.
+                linearize_term(term, st);  // ensure that a theory_var was created.
                 m_delayed_terms.push_back(term);                
+                SASSERT(ctx().e_internalized(term));
             }
             else {
                 internalize_def(term);
@@ -632,6 +662,7 @@ namespace smt {
 
         void assign_eh(bool_var v, bool is_true) {
             if (m_delay_constraints) {
+                TRACE("arith", tout << mk_pp(ctx().bool_var2expr(v), m) << "\n";);
                 m_delayed_atoms.push_back(delayed_atom(v, is_true));
             }
             else {
@@ -647,16 +678,17 @@ namespace smt {
                 m_delayed_equalities.push_back(std::make_pair(v1, v2));
             }
             else {
-                m_arith_eq_adapter.new_eq_eh(v1, v2);
                 // or internalize_eq(v1, v2);
+                m_arith_eq_adapter.new_eq_eh(v1, v2);
             }
         }
 
         bool use_diseqs() const {
-            return false;
+            return true;
         }
 
         void new_diseq_eh(theory_var v1, theory_var v2) {
+            TRACE("arith", tout << "v" << v1 << " != " << "v" << v2 << "\n";);
             m_arith_eq_adapter.new_diseq_eh(v1, v2);
         }
 
@@ -713,7 +745,7 @@ namespace smt {
         }
 
         void relevant_eh(app* e) {
-
+            TRACE("arith", tout << mk_pp(e, m) << "\n";);
         }
 
         void init_search_eh() {
@@ -770,15 +802,35 @@ namespace smt {
             return false;
         }
 
+        void profile_solver() {
+            for (unsigned i = 0; i < 100; ++i) {
+                init_solver();
+                for (unsigned i = 0; i < m_delayed_atoms.size(); ++i) {
+                    bool_var bv = m_delayed_atoms[i].m_bv;
+                    expr* atom = ctx().bool_var2expr(bv);
+                    internalize_atom(atom, bv, m_delayed_atoms[i].m_is_true);
+                }
+                for (unsigned i = 0; i < m_delayed_terms.size(); ++i) {
+                    internalize_def(m_delayed_terms[i].get());
+                }
+                for (unsigned i = 0; i < m_delayed_equalities.size(); ++i) {
+                    std::pair<theory_var, theory_var> const& eq = m_delayed_equalities[i];
+                    internalize_eq(eq.first, eq.second);
+                }
+                make_feasible();
+            }
+        }
+
         final_check_status final_check_eh() {
             if (m_delayed_atoms.empty() && m_delayed_terms.empty() && m_delayed_equalities.empty()) {
                 return FC_DONE;
             }
+            //profile_solver();
             init_solver();
             for (unsigned i = 0; i < m_delayed_atoms.size(); ++i) {
                 bool_var bv = m_delayed_atoms[i].m_bv;
                 expr* atom = ctx().bool_var2expr(bv);
-                internalize_ineq(atom, bv, m_delayed_atoms[i].m_is_true);
+                internalize_atom(atom, bv, m_delayed_atoms[i].m_is_true);
             }
             for (unsigned i = 0; i < m_delayed_terms.size(); ++i) {
                 internalize_def(m_delayed_terms[i].get());
@@ -842,7 +894,7 @@ namespace smt {
             }
             return false;
         }
-       
+        
 
         bool can_propagate() {
             return m_asserted_bounds.size() > m_asserted_qhead;
@@ -1035,7 +1087,7 @@ namespace smt {
                     theory_var v = m_definitions[idx];
                     out << "def: v" << v << " := " << mk_pp(th.get_enode(v)->get_owner(), m) << "\n";
                     break;
-                      }
+                }
                 }
             }
             for (auto const& ev : evidence) {

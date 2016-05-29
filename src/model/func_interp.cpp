@@ -188,6 +188,9 @@ func_entry * func_interp::get_entry(expr * const * args) const {
 }
 
 void func_interp::insert_entry(expr * const * args, expr * r) {
+    if (r == m_else) {
+        return;
+    }
     reset_interp_cache();
     func_entry * entry = get_entry(args);
     if (entry != 0) {
@@ -297,6 +300,9 @@ expr * func_interp::get_interp_core() const {
             for (unsigned i = 0; i < m_arity; i++) {
                 vars.push_back(m_manager.mk_var(i, m_manager.get_sort(curr->get_arg(i))));
             }
+        }
+        if (r == curr->get_result()) {
+            continue;
         }
         ptr_buffer<expr> eqs;
         for (unsigned i = 0; i < m_arity; i++) {

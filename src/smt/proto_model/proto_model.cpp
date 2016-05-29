@@ -386,10 +386,12 @@ void proto_model::complete_partial_func(func_decl * f) {
         }
 #else
         else_value = fi->get_max_occ_result();
-        if (else_value == 0)
+        if (else_value == 0) {
             else_value = get_some_value(f->get_range());
+        }
 #endif
         fi->set_else(else_value);
+        fi->compress();
     }
 }
 
