@@ -562,23 +562,22 @@ namespace smt {
         // term - v = 0
         theory_var internalize_def(app* term) {
             scoped_internalize_state st(*this);
-            theory_var v = internalize_term_core(term, st);
-            init_left_side(st);
-            TRACE("arith", tout << "v" << v << " := " << mk_pp(term, m) << "\n";);
-            add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
-            return v;
-        }
-        
-        theory_var internalize_term_core(app* term, scoped_internalize_state& st) {
             linearize_term(term, st);
+            if (st.coeff().is_zero() && st.vars().size() == 1 && st.coeffs()[0].is_one()) {
+                return st.vars()[0];
+            }
             theory_var v = mk_var(term);
             SASSERT(null_theory_var != v);
             st.coeffs().resize(st.vars().size() + 1);
             st.coeffs()[st.vars().size()] = rational::minus_one();
             st.vars().push_back(v);
+            TRACE("arith", tout << "v" << v << " := " << mk_pp(term, m) << "\n";);
+            init_left_side(st);
+
+            add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
             return v;
         }
-
+        
 
     public:
         imp(theory_lra& th, ast_manager& m, theory_arith_params& p): 
@@ -611,17 +610,18 @@ namespace smt {
             rational r;
             lp::bound_kind k;
             theory_var v = null_theory_var;
-            if (a.is_le(atom, n1, n2) && a.is_numeral(n2, r) && is_app(n1)) {
+            if (a.is_le(atom, n1, n2) && is_numeral(n2, r) && is_app(n1)) {
                 v = internalize_def(to_app(n1));
                 k = lp::upper_t;
             }
-            else if (a.is_ge(atom, n1, n2) && a.is_numeral(n2, r) && is_app(n1)) {
+            else if (a.is_ge(atom, n1, n2) && is_numeral(n2, r) && is_app(n1)) {
                 v = internalize_def(to_app(n1));
                 k = lp::lower_t;
             }    
             else {
                 TRACE("arith", tout << "Could not internalize " << mk_pp(atom, m) << "\n";);
-                return false;
+                found_not_handled(atom);
+                return true;
             }
             lp::inf_numeral _r(r);
             lp::bound* b = alloc(lp::bound, v, _r, k);
@@ -633,13 +633,16 @@ namespace smt {
         
         bool internalize_term(app * term) {
             if (ctx().e_internalized(term) && th.is_attached_to_var(ctx().get_enode(term))) {
-                // 
+                // skip
             }
             else if (m_delay_constraints) {
                 scoped_internalize_state st(*this);
                 linearize_term(term, st);  // ensure that a theory_var was created.
                 m_delayed_terms.push_back(term);                
                 SASSERT(ctx().e_internalized(term));
+                if(!th.is_attached_to_var(ctx().get_enode(term))) {
+                    mk_var(term);
+                }
             }
             else {
                 internalize_def(term);
@@ -821,8 +824,12 @@ namespace smt {
             }
         }
 
+        bool has_delayed_constraints() const {
+            return !(m_delayed_atoms.empty() && m_delayed_terms.empty() && m_delayed_equalities.empty());
+        }
+
         final_check_status final_check_eh() {
-            if (m_delayed_atoms.empty() && m_delayed_terms.empty() && m_delayed_equalities.empty()) {
+            if (!has_delayed_constraints()) {
                 return FC_DONE;
             }
             //profile_solver();
@@ -867,6 +874,10 @@ namespace smt {
            underspecified operators such as division by 0.
            (/ a b) is essentially an uninterpreted function when b = 0.
            Thus, 'a' must be considered a shared var if it is the child of an underspecified operator.
+
+           if merge(a / b, x + y) and a / b is root, then x + y become shared and all z + u in equivalence class of x + y.
+                      
+
         */
         bool is_shared(theory_var v) const {
             if (m_not_handled == nullptr) {
@@ -897,6 +908,9 @@ namespace smt {
         
 
         bool can_propagate() {
+            if (ctx().at_base_level() && has_delayed_constraints()) {
+                // we could add the delayed constraints here directly to the tableau instead of using bounds variables.
+            }
             return m_asserted_bounds.size() > m_asserted_qhead;
         }
 
@@ -952,6 +966,7 @@ namespace smt {
                 return l_false;
             case lean::lp_status::FEASIBLE:
             case lean::lp_status::OPTIMAL:
+                SASSERT(m_solver->all_constraints_hold());
                 return l_true;
             default:
                 TRACE("arith", tout << "status treated as inconclusive: " << status << "\n";);
