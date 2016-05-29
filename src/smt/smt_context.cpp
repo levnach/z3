@@ -3083,6 +3083,20 @@ namespace smt {
     lbool context::check_finalize(lbool r) {
         TRACE("after_search", display(tout << "result: " << r << "\n"););
         display_profile(verbose_stream());
+
+        CTRACE("after_search", m_model.get(), 
+               literal_vector::const_iterator it  = m_assigned_literals.begin();
+               literal_vector::const_iterator end = m_assigned_literals.end();
+               for (; it != end; ++it) {
+                   literal lit = *it;
+                   if (!is_relevant(lit)) continue;
+                   expr_ref e(m_bool_var2expr[lit.var()], m_manager);
+                   if (lit.sign()) e = m_manager.mk_not(e);
+                   expr_ref val(m_manager);
+                   if (m_model->eval(e, val) && m_manager.is_false(val)) {
+                       tout << e << " evaluates to false\n";
+                   }
+               });
         if (r == l_true && get_cancel_flag()) {
             r = l_undef;
         }
@@ -4138,8 +4152,9 @@ namespace smt {
     void context::get_model(model_ref & m) const { 
         if (inconsistent())
             m = 0;
-        else
+        else {
             m = const_cast<model*>(m_model.get()); 
+        }
     }
 
     void context::get_proto_model(proto_model_ref & m) const {
