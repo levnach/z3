@@ -799,5 +799,8 @@ template <typename T, typename X> void lar_core_solver<T, X>::print_column_info(
         lean_unreachable();
     }
 }
+template <typename T, typename X> void lar_core_solver<T, X>::pivot_fixed_vars_from_basis() {
+    
+}
 }
 

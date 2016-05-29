@@ -79,3 +79,4 @@ template int lean::lp_core_solver_base<lean::mpq, lean::mpq>::pivots_in_column_a
 template bool lean::lp_core_solver_base<double, double>::calc_current_x_is_feasible_include_non_basis(void)const;
 template bool lean::lp_core_solver_base<lean::mpq, lean::mpq>::calc_current_x_is_feasible_include_non_basis(void)const;
 template bool lean::lp_core_solver_base<lean::mpq, lean::numeric_pair<lean::mpq> >::calc_current_x_is_feasible_include_non_basis() const;
+template void  lean::lp_core_solver_base<lean::mpq, lean::numeric_pair<lean::mpq> >::pivot_fixed_vars_from_basis();

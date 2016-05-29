@@ -218,8 +218,6 @@ public:
 
     void print_left_side_of_constraint(const lar_base_constraint * c, std::ostream & out);
 
-    numeric_pair<mpq> get_infeasibility_from_core_solver(std::unordered_map<std::string, mpq> & solution);
-
     //    void print_info_on_column(unsigned j, std::ostream & out);
 
     mpq get_infeasibility_of_solution(std::unordered_map<std::string, mpq> & solution);
@@ -237,5 +235,6 @@ public:
 	// Attention, after a call to this method the non-basic variables don't necesserarly stick to their bounds anymore
 	void random_update(unsigned sz, var_index const* vars);
 	void random_update(var_index v);
+	void pivot_fixed_vars_from_basis();
 };
 }

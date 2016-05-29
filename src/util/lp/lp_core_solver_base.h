@@ -56,7 +56,6 @@ public:
     std::vector<X> & m_upper_bound_values;
     std::vector<T> m_column_norms; // the approximate squares of column norms that help choosing a profitable column
     std::vector<X> m_copy_of_xB;
-    unsigned m_refactor_counter = 200;
     unsigned m_sort_counter = 0;
     std::vector<T> m_steepest_edge_coefficients;
 
@@ -263,5 +262,6 @@ public:
 
     void init_lu();
     int pivots_in_column_and_row_are_different(int entering, int leaving) const;
+    void pivot_fixed_vars_from_basis();
 };
 }

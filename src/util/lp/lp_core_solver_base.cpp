@@ -88,7 +88,6 @@ init() {
     lean_assert(m_b.size() == m_m);
     allocate_basis_heading();
     init_factorization(m_factorization, m_A, m_basis, m_basis_heading, m_settings, m_non_basic_columns);
-    m_refactor_counter = 0;
     unsigned seed = 1;
     my_random_init(&seed);
 }
@@ -472,13 +471,10 @@ update_basis_and_x(int entering, int leaving, X const & tt) {
         update_x(entering, tt);
         if (A_mult_x_is_off() && !find_x_by_solving()) {
             init_factorization(m_factorization, m_A, m_basis, m_basis_heading, m_settings, m_non_basic_columns);
-            m_refactor_counter = 0;
-
             if (!find_x_by_solving()) {
                 restore_x(entering, tt);
                 lean_assert(!A_mult_x_is_off());
                 init_factorization(m_factorization, m_A, m_basis, m_basis_heading, m_settings, m_non_basic_columns);
-                m_refactor_counter = 0;
                 m_iters_with_no_cost_growing++;
                 if (m_factorization->get_status() != LU_status::OK) {
                     std::stringstream s;
@@ -490,7 +486,7 @@ update_basis_and_x(int entering, int leaving, X const & tt) {
         }
     }
 
-    bool refactor = m_refactor_counter++ >= 200;
+    bool refactor = m_factorization->need_to_refactor();
     if (!refactor) {
         const T &  pivot = this->m_pivot_row[entering]; // m_ed[m_factorization->basis_heading(leaving)] is the same but the one that we are using is more precise
         m_factorization->replace_column(leaving, pivot, m_w);
@@ -499,8 +495,7 @@ update_basis_and_x(int entering, int leaving, X const & tt) {
             return true;
         }
     }
-    // need to refactor
-    m_refactor_counter = 0;
+    // need to refactor == true
     m_factorization->change_basis(entering, leaving);
     init_factorization(m_factorization, m_A, m_basis, m_basis_heading, m_settings, m_non_basic_columns);
     if (m_factorization->get_status() != LU_status::OK || A_mult_x_is_off()) {
@@ -762,7 +757,6 @@ get_non_basic_column_value_position(unsigned j) {
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::init_lu() {
     init_factorization(this->m_factorization, this->m_A, this->m_basis, this->m_basis_heading, this->m_settings, this->m_non_basic_columns);
-    this->m_refactor_counter = 0;
 }
 
 template <typename T, typename X> int lp_core_solver_base<T, X>::pivots_in_column_and_row_are_different(int entering, int leaving) const {
@@ -782,5 +776,8 @@ template <typename T, typename X> int lp_core_solver_base<T, X>::pivots_in_colum
         return 1;
     return 0;
 }
-
+template <typename T, typename X>  void lp_core_solver_base<T, X>::pivot_fixed_vars_from_basis() {
+    // run over basis and non-basis at the same time
+    // todddd start here , introduce pivot(k, j) method, look at lp.cpp how to implement it by using m_factorization
+}
 }
