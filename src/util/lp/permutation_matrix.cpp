@@ -7,14 +7,14 @@
 #include <vector>
 #include "util/lp/permutation_matrix.h"
 namespace lean {
-template <typename T, typename X> permutation_matrix<T, X>::permutation_matrix(unsigned length): m_permutation(length), m_rev(length) {
+    template <typename T, typename X> permutation_matrix<T, X>::permutation_matrix(unsigned length): m_permutation(length), m_rev(length), m_T_buffer(length), m_X_buffer(length)  {
     lean_assert(length > 0);
     for (unsigned i = 0; i < length; i++) { // do not change the direction of the loop because of the vectorization bug in clang3.3
         m_permutation[i] = m_rev[i] = i;
     }
 }
 
-template <typename T, typename X> permutation_matrix<T, X>::permutation_matrix(unsigned length, std::vector<unsigned> const & values): m_permutation(length), m_rev(length) {
+    template <typename T, typename X> permutation_matrix<T, X>::permutation_matrix(unsigned length, std::vector<unsigned> const & values): m_permutation(length), m_rev(length) , m_T_buffer(length), m_X_buffer(length) {
     for (unsigned i = 0; i < length; i++) {
         set_val(i, values[i]);
     }
@@ -23,6 +23,8 @@ template <typename T, typename X> permutation_matrix<T, X>::permutation_matrix(u
 template <typename T, typename X> void permutation_matrix<T, X>::init(unsigned length) {
     m_permutation.resize(length);
     m_rev.resize(length);
+    m_T_buffer.resize(length);
+    m_X_buffer.resize(length);
     for (unsigned i = 0; i < length; i++) {
         m_permutation[i] = m_rev[i] = i;
     }
@@ -42,22 +44,23 @@ template <typename T, typename X> void permutation_matrix<T, X>::print(std::ostr
     out << std::endl;
 }
 #endif
-
-template <typename T, typename X>template <typename L>
-void permutation_matrix<T, X>::apply_from_left_perm(std::vector<L> & w) {
+    
+template <typename T, typename X> 
+void permutation_matrix<T, X>::apply_from_left(std::vector<X> & w, lp_settings & ) {
 #ifdef LEAN_DEBUG
     // dense_matrix<L, X> deb(*this);
     // L * deb_w = clone_vector<L>(w, row_count());
     // deb.apply_from_left(deb_w);
 #endif
-    std::vector<L> t(size());
+    std::cout << " apply_from_left " << std::endl; 
+    lean_assert(m_X_buffer.size() == w.size());
     unsigned i = size();
     while (i-- > 0) {
-        t[i] = w[m_permutation[i]];
+        m_X_buffer[i] = w[m_permutation[i]];
     }
     i = size();
     while (i-- > 0) {
-        w[i] = t[i];
+        w[i] = m_X_buffer[i];
     }
 #ifdef LEAN_DEBUG
     // lean_assert(vectors_are_equal<L>(deb_w, w, row_count()));
@@ -65,14 +68,9 @@ void permutation_matrix<T, X>::apply_from_left_perm(std::vector<L> & w) {
 #endif
 }
 
-template <typename T, typename X>template <typename L>
-void permutation_matrix<T, X>::apply_from_left_perm(indexed_vector<L> & w, lp_settings &) {
-#ifdef LEAN_DEBUG
-    // dense_matrix<T, L> deb(*this);
-    // T * deb_w = clone_vector<T>(w.m_data, row_count());
-    // deb.apply_from_right(deb_w);
-#endif
-    std::vector<L> t(w.m_index.size());
+template <typename T, typename X> 
+void permutation_matrix<T, X>::apply_from_left_to_T(indexed_vector<T> & w, lp_settings & ) {
+    std::vector<T> t(w.m_index.size());
     std::vector<unsigned> tmp_index(w.m_index.size());
     copy_aside(t, tmp_index, w);
     clear_data(w);
@@ -83,12 +81,7 @@ void permutation_matrix<T, X>::apply_from_left_perm(indexed_vector<L> & w, lp_se
         w[j] = t[i];
         w.m_index[i] = j;
     }
-#ifdef LEAN_DEBUG
-    // lean_assert(vectors_are_equal<T>(deb_w, w.m_data, row_count()));
-    // delete [] deb_w;
-#endif
 }
-
 
 template <typename T, typename X> void permutation_matrix<T, X>::apply_from_right(std::vector<T> & w) {
 #ifdef LEAN_DEBUG
@@ -96,13 +89,13 @@ template <typename T, typename X> void permutation_matrix<T, X>::apply_from_righ
     // T * deb_w = clone_vector<T>(w, row_count());
     // deb.apply_from_right(deb_w);
 #endif
-    std::vector<T> t(size());
+    lean_assert(m_T_buffer.size() == w.size());
     for (unsigned i = 0; i < size(); i++) {
-        t[i] = w[m_rev[i]];
+        m_T_buffer[i] = w[m_rev[i]];
     }
 
     for (unsigned i = 0; i < size(); i++) {
-        w[i] = t[i];
+        w[i] = m_T_buffer[i];
     }
 #ifdef LEAN_DEBUG
     // lean_assert(vectors_are_equal<T>(deb_w, w, row_count()));
@@ -157,49 +150,60 @@ void permutation_matrix<T, X>::apply_reverse_from_left(indexed_vector<L> & w) {
 #endif
 }
 
-template <typename T, typename X>template <typename L>
-void permutation_matrix<T, X>::apply_reverse_from_left(std::vector<L> & w) {
+template <typename T, typename X> 
+void permutation_matrix<T, X>::apply_reverse_from_left_to_T(std::vector<T> & w) {
     // the result will be w = p(-1) * w
-#ifdef LEAN_DEBUG
-    // dense_matrix<T, X> deb(get_reverse());
-    // T * deb_w = clone_vector<T>(w, row_count());
-    // deb.apply_from_left(deb_w);
-#endif
-    std::vector<L> t(size());
+    lean_assert(m_T_buffer.size() == w.size());
     unsigned i = size();
     while (i-- > 0) {
-        t[m_permutation[i]] = w[i];
+        m_T_buffer[m_permutation[i]] = w[i];
     }
     i = size();
     while (i-- > 0) {
-        w[i] = t[i];
+        w[i] = m_T_buffer[i];
     }
-#ifdef LEAN_DEBUG
-    // lean_assert(vectors_are_equal<T>(deb_w, w, row_count()));
-    // delete [] deb_w;
-#endif
 }
-template <typename T, typename X>template <typename L>
-void permutation_matrix<T, X>::apply_reverse_from_right(std::vector<L> & w) {
-    // the result will be w = w * p(-1)
-#ifdef LEAN_DEBUG
-    // dense_matrix<T, X> deb(get_reverse());
-    // T * deb_w = clone_vector<T>(w, row_count());
-    // deb.apply_from_right(deb_w);
-#endif
-    std::vector<L>  t(size());
+template <typename T, typename X> 
+void permutation_matrix<T, X>::apply_reverse_from_left_to_X(std::vector<X> & w) {
+    // the result will be w = p(-1) * w
+    lean_assert(m_X_buffer.size() == w.size());
     unsigned i = size();
     while (i-- > 0) {
-        t[i] = w[m_permutation[i]];
+        m_X_buffer[m_permutation[i]] = w[i];
     }
     i = size();
     while (i-- > 0) {
-        w[i] = t[i];
+        w[i] = m_X_buffer[i];
     }
-#ifdef LEAN_DEBUG
-    // lean_assert(vectors_are_equal<T>(deb_w, w, row_count()));
-    // delete deb_w;
-#endif
+}
+
+template <typename T, typename X>
+void permutation_matrix<T, X>::apply_reverse_from_right_to_T(std::vector<T> & w) {
+    // the result will be w = w * p(-1)
+    lean_assert(m_T_buffer.size() == w.size());
+    unsigned i = size();
+    while (i-- > 0) {
+        m_T_buffer[i] = w[m_permutation[i]];
+    }
+    i = size();
+    while (i-- > 0) {
+        w[i] = m_T_buffer[i];
+    }
+}
+
+
+template <typename T, typename X>
+void permutation_matrix<T, X>::apply_reverse_from_right_to_X(std::vector<X> & w) {
+    // the result will be w = w * p(-1)
+    lean_assert(m_X_buffer.size() == w.size());
+    unsigned i = size();
+    while (i-- > 0) {
+        m_X_buffer[i] = w[m_permutation[i]];
+    }
+    i = size();
+    while (i-- > 0) {
+        w[i] = m_X_buffer[i];
+    }
 }
 
 template <typename T, typename X> void permutation_matrix<T, X>::transpose_from_left(unsigned i, unsigned j) {

@@ -13,8 +13,6 @@
 #include "util/lp/lp_settings.h"
 namespace lean {
 inline bool is_valid(unsigned j) { return static_cast<int>(j) >= 0;}
-typedef unsigned var_index;
-typedef unsigned constraint_index;
 
 template <typename T>
 class column_info {

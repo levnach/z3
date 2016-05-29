@@ -21,6 +21,7 @@
 #include "util/lp/scaler.h"
 #include "util/lp/lp_primal_core_solver.h"
 #include "util/lp/lar_core_solver_parameter_struct.h"
+#include "util/lp/random_updater.h"
 namespace lean {
 template <typename V>
 struct conversion_helper {
@@ -48,6 +49,7 @@ struct conversion_helper <double> {
 };
 
 class lar_solver {
+
     unsigned m_available_var_index = 0;
     unsigned m_available_constr_index = 0;
     lp_status m_status = UNKNOWN;
@@ -61,7 +63,7 @@ class lar_solver {
     lar_core_solver<mpq, numeric_pair<mpq>> m_mpq_lar_core_solver;
     canonic_left_side * m_infeasible_canonic_left_side = nullptr; // such can be found at the initialization step
     canonic_left_side * create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par);
-
+	random_updater * m_random_updater = nullptr;
     mpq find_ratio_of_original_constraint_to_normalized(canonic_left_side * ls, const lar_constraint & constraint);
 
     void add_canonic_left_side_for_var(var_index i, std::string var_name);
@@ -230,5 +232,10 @@ public:
 
     void print_constraint(const lar_base_constraint * c, std::ostream & out);
     unsigned get_total_iterations() const { return m_mpq_lar_core_solver.m_total_iterations; }
+	// see http://research.microsoft.com/projects/z3/smt07.pdf
+	// This method searches for a feasible solution with as many different values of variables, reverenced in vars, as it can find
+	// Attention, after a call to this method the non-basic variables don't necesserarly stick to their bounds anymore
+	void random_update(unsigned sz, var_index const* vars);
+	void random_update(var_index v);
 };
 }
