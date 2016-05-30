@@ -561,7 +561,7 @@ void lu<T, X>::pivot_in_dense_mode(unsigned i) {
     m_dense_LU->pivot(i, m_settings);
 }
 template <typename T, typename X>
-void lu<T, X>::create_initial_factorization(){
+void lu<T, X>::create_initial_factorization(){    
     m_U.prepare_for_factorization();
     unsigned j;
     for (j = 0; j < m_dim; j++) {
@@ -591,6 +591,7 @@ void lu<T, X>::create_initial_factorization(){
     lean_assert(m_dense_LU->is_L_matrix());
     m_dense_LU->conjugate_by_permutation(m_Q);
     push_matrix_to_tail(m_dense_LU);
+    m_refactor_counter = 0;
     // lean_assert(is_correct());
     // lean_assert(m_U.is_upper_triangular_and_maximums_are_set_correctly_in_rows(m_settings));
 }
@@ -702,13 +703,14 @@ row_eta_matrix<T, X> *lu<T, X>::get_row_eta_matrix_and_set_row_vector(unsigned r
 
 // This method does not update the basis: is_correct() should not be called since it works with the basis.
 template <typename T, typename X>
-void lu<T, X>::replace_column(unsigned leaving, T pivot_elem, indexed_vector<T> & w){
+void lu<T, X>::replace_column(unsigned leaving, T pivot_elem_for_checking, indexed_vector<T> & w){
     lean_assert(m_basis_heading[leaving] >= 0);
+    m_refactor_counter++;
     unsigned replaced_column =  transform_U_to_V_by_replacing_column(leaving, w);
     unsigned lowest_row_of_the_bump = m_U.lowest_row_in_column(replaced_column);
     permutation_matrix<T, X> r_wave(m_dim);
     calculate_r_wave_and_update_U(replaced_column, lowest_row_of_the_bump, r_wave);
-    auto row_eta = get_row_eta_matrix_and_set_row_vector(replaced_column, lowest_row_of_the_bump, pivot_elem);
+    auto row_eta = get_row_eta_matrix_and_set_row_vector(replaced_column, lowest_row_of_the_bump, pivot_elem_for_checking);
     if (get_status() == LU_status::Degenerated) {
         m_row_eta_work_vector.clear_all();
         return;

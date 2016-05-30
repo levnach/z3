@@ -129,8 +129,12 @@ void lar_solver::set_upper_bound_for_column_info(lar_normalized_constraint * nor
     else if (ci.get_upper_bound() > v) {
         ci.set_upper_bound(v);
         ls->m_upper_bound_witness = norm_constr;
-        ci.set_upper_bound_strict(strict);
-    }
+        ci.set_upper_bound_strict(strict || ci.upper_bound_is_strict());
+	}
+	else if (ci.get_upper_bound() == v && strict && ci.upper_bound_is_strict() == false) {
+		ls->m_upper_bound_witness = norm_constr;
+		ci.set_upper_bound_strict(strict);
+	}
     if (ci.is_infeasible()) {
         m_status = INFEASIBLE;
         m_infeasible_canonic_left_side = ls;
@@ -161,8 +165,13 @@ void lar_solver::set_low_bound_for_column_info(lar_normalized_constraint * norm_
     else if (ci.get_low_bound() < v) {
         ci.set_low_bound(v);
         ls->m_low_bound_witness = norm_constr;
-        ci.set_low_bound_strict(strict);
+        ci.set_low_bound_strict(strict || ci.low_bound_is_strict());
     }
+	else if (ci.get_low_bound() == v && strict && ci.low_bound_is_strict() == false) {
+		ls->m_low_bound_witness = norm_constr;
+		ci.set_low_bound_strict(strict);
+	}
+
 
     if (ci.is_infeasible()) {
         m_status = INFEASIBLE;
@@ -329,9 +338,10 @@ constraint_index lar_solver::add_constraint(const buffer<std::pair<mpq, var_inde
 bool lar_solver::all_constraints_hold() {
     std::unordered_map<var_index, mpq> var_map;
     get_model(var_map);
-    for (auto & it : m_normalized_constraints)
-        if (!constraint_holds(it.second.m_origin_constraint, var_map))
-            return false;
+	for (auto & it : m_normalized_constraints) {
+		if (!constraint_holds(it.second.m_origin_constraint, var_map))
+			return false;
+	}
     return true;
 }
 
@@ -339,9 +349,9 @@ bool lar_solver::constraint_holds(const lar_constraint & constr, std::unordered_
     mpq left_side_val = get_left_side_val(constr, var_map);
     switch (constr.m_kind) {
     case LE: return left_side_val <= constr.m_right_side;
-    case LT: return left_side_val <= constr.m_right_side; // need to use non-strict because of the pair usage
+    case LT: return left_side_val < constr.m_right_side;
     case GE: return left_side_val >= constr.m_right_side;
-    case GT: return left_side_val >= constr.m_right_side; // need to use non-strict because of the pair usage
+    case GT: return left_side_val > constr.m_right_side;
     case EQ: return left_side_val == constr.m_right_side;
     default:
         lean_unreachable();
@@ -564,7 +574,7 @@ void lar_solver::solve() {
 }
 
 lp_status lar_solver::check() {
-    // for the time being just call solve()
+	// for the time being just call solve()
     solve();
     return m_status;
 }
@@ -832,6 +842,9 @@ column_info<mpq> & lar_solver::get_column_info_from_var_index(var_index vi) {
         throw 0;
     }
     return it->second.m_column_info;
+}
+void lar_solver::pivot_fixed_vars_from_basis() {
+	m_mpq_lar_core_solver.pivot_fixed_vars_from_basis();
 }
 }
 

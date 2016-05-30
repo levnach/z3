@@ -110,6 +110,7 @@ public:
     bool m_failure = false;
     std::vector<unsigned> & m_non_basic_columns;
     indexed_vector<T>  m_row_eta_work_vector;
+    unsigned m_refactor_counter;
     // constructor
     // if A is an m by n matrix then basis has length m and values in [0,n); the values are all different
     // they represent the set of m columns
@@ -272,6 +273,7 @@ public:
     void prepare_entering(unsigned entering, indexed_vector<T> & w) {
         init_vector_w(entering, w);
     }
+    bool need_to_refactor() { return m_refactor_counter >= 200; }
 }; // end of lu
 
 template <typename T, typename X>

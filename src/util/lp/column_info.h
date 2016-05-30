@@ -197,7 +197,9 @@ public:
     bool is_infeasible() {
 		if ((!upper_bound_is_set()) || (!low_bound_is_set())) 
 			return false;
-		if (!upper_bound_is_strict() && (!low_bound_is_strict()))
+		// ok, both bounds are set
+		bool at_least_one_is_strict = upper_bound_is_strict() || low_bound_is_strict();
+		if (!at_least_one_is_strict)
 			return get_upper_bound() < get_low_bound();
 		// at least on bound is strict
 		return get_upper_bound() <= get_low_bound(); // the equality is impossible
