@@ -129,7 +129,7 @@ void lar_solver::set_upper_bound_for_column_info(lar_normalized_constraint * nor
     else if (ci.get_upper_bound() > v) {
         ci.set_upper_bound(v);
         ls->m_upper_bound_witness = norm_constr;
-        ci.set_upper_bound_strict(strict || ci.upper_bound_is_strict());
+        ci.set_upper_bound_strict(strict);
 	}
 	else if (ci.get_upper_bound() == v && strict && ci.upper_bound_is_strict() == false) {
 		ls->m_upper_bound_witness = norm_constr;
@@ -165,7 +165,7 @@ void lar_solver::set_low_bound_for_column_info(lar_normalized_constraint * norm_
     else if (ci.get_low_bound() < v) {
         ci.set_low_bound(v);
         ls->m_low_bound_witness = norm_constr;
-        ci.set_low_bound_strict(strict || ci.low_bound_is_strict());
+        ci.set_low_bound_strict(strict);
     }
 	else if (ci.get_low_bound() == v && strict && ci.low_bound_is_strict() == false) {
 		ls->m_low_bound_witness = norm_constr;
