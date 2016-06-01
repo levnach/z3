@@ -982,8 +982,6 @@ namespace smt {
             SASSERT(!bounds.empty());
             if (bounds.size() == 1) return;
 
-            inf_rational glb, lub;
-            lp::bound* lb = 0, *ub = 0;
             literal lit1(bv, !is_true);
             literal lit2 = null_literal;
             bool find_glb = (is_true == (k == lp::lower_t));
@@ -999,10 +997,9 @@ namespace smt {
                         glb = val2;
                     }
                 }
-                if (lb) {
-                    bool sign = lb->get_bound_kind() != lp::lower_t;
-                    lit2 = literal(lb->get_bv(), sign);                    
-                }
+                if (!lb) return;
+                bool sign = lb->get_bound_kind() != lp::lower_t;
+                lit2 = literal(lb->get_bv(), sign);                    
             }
             else {
                 rational lub;
@@ -1016,17 +1013,13 @@ namespace smt {
                         lub = val2;
                     }
                 }
-                if (ub) {
-                    bool sign = ub->get_bound_kind() != lp::upper_t;
-                    lit2 = literal(ub->get_bv(), sign);
-                }
-            }
-            if (lit2 == null_literal) {
-                return;
+                if (!ub) return;
+                bool sign = ub->get_bound_kind() != lp::upper_t;
+                lit2 = literal(ub->get_bv(), sign);
             }
             TRACE("arith", 
                   ctx().display_literal_verbose(tout, lit1);
-                  ctx().display_literal_verbose(tout << " ", lit2);
+                  ctx().display_literal_verbose(tout << " => ", lit2);
                   tout << "\n";);
             parameter coeffs[3] = { parameter(symbol("farkas")), parameter(rational(1)), parameter(rational(1)) };
             ctx().assign(lit2, ctx().mk_justification(theory_propagation_justification(get_id(), ctx().get_region(), 1, &lit1, lit2, 3, coeffs)));
