@@ -80,6 +80,7 @@ namespace lp {
         unsigned m_assert_lower;
         unsigned m_assert_upper;
         unsigned m_add_rows;
+        unsigned m_bounds_propagations;
         stats() { reset(); }
         void reset() {
             memset(this, 0, sizeof(*this));
@@ -897,6 +898,9 @@ namespace smt {
            if merge(a / b, x + y) and a / b is root, then x + y become shared and all z + u in equivalence class of x + y.
                       
 
+           TBD: when the set of underspecified subterms is small, compute the shared variables below it.
+                Recompute the set if there are merges that invalidate it.
+                Use the set to determine if a variable is shared.
         */
         bool is_shared(theory_var v) const {
             if (m_not_handled == nullptr) {
@@ -937,21 +941,17 @@ namespace smt {
             if (!can_propagate()) {
                 return;
             }
-            while (m_asserted_qhead < m_asserted_atoms.size()) {
+            while (m_asserted_qhead < m_asserted_atoms.size() && !ctx().inconsistent()) {
                 bool_var bv  = m_asserted_atoms[m_asserted_qhead].m_bv;
                 bool is_true = m_asserted_atoms[m_asserted_qhead].m_is_true;
                 lp::bound& b = *m_bool_var2bound.find(bv);
                 
-                propagate_bounds(bv, is_true, b);
-
+                propagate_bound(bv, is_true, b);
                 
-                //if (!assert_bound(*b, is_true)) {
-                //    set_conflict();
-                //    return;
-                //}
+                // assert_bound(bv, is_true, b);
+
                 ++m_asserted_qhead;
             }
-            return;
 #if 0
             switch (make_feasible()) {
             case l_false:
@@ -962,8 +962,7 @@ namespace smt {
             case l_undef:
                 break;
             }
-#endif
-            
+#endif            
         }
 
 
@@ -974,7 +973,7 @@ namespace smt {
         //   x <= hi -> x <= hi'
         //   x <= hi -> ~(x >= hi')
 
-        void propagate_bounds(bool_var bv, bool is_true, lp::bound& b) {
+        void propagate_bound(bool_var bv, bool is_true, lp::bound& b) {
             lp::bound_kind k = b.get_bound_kind();
             theory_var v = b.get_var();
             rational val = b.get_value();
@@ -991,7 +990,7 @@ namespace smt {
                 for (unsigned i = 0; i < bounds.size(); ++i) {
                     lp::bound* b2 = bounds[i];
                     if (b2 == &b) continue;
-                    rational val2 = b2->get_value();
+                    rational const& val2 = b2->get_value();
                     if (val2 < val && (!lb || glb < val2)) {
                         lb = b2;
                         glb = val2;
@@ -1007,7 +1006,7 @@ namespace smt {
                 for (unsigned i = 0; i < bounds.size(); ++i) {
                     lp::bound* b2 = bounds[i];
                     if (b2 == &b) continue;
-                    rational val2 = b2->get_value();
+                    rational const& val2 = b2->get_value();
                     if (val < val2 && (!ub || val2 < lub)) {
                         ub = b2;
                         lub = val2;
@@ -1022,10 +1021,14 @@ namespace smt {
                   ctx().display_literal_verbose(tout << " => ", lit2);
                   tout << "\n";);
             parameter coeffs[3] = { parameter(symbol("farkas")), parameter(rational(1)), parameter(rational(1)) };
-            ctx().assign(lit2, ctx().mk_justification(theory_propagation_justification(get_id(), ctx().get_region(), 1, &lit1, lit2, 3, coeffs)));
+            ctx().assign(
+                lit2, ctx().mk_justification(
+                    theory_propagation_justification(
+                        get_id(), ctx().get_region(), 1, &lit1, lit2, 3, coeffs)));
+            ++m_stats.m_bounds_propagations;
         }
-                      
-        bool assert_bound(lp::bound& b, bool is_true) {
+
+        void assert_bound(bool_var bv, bool is_true, lp::bound& b) {
             lp::bound_kind k = b.get_bound_kind();
             theory_var v = b.get_var();
             inf_rational val = b.get_value(is_true);
@@ -1043,7 +1046,6 @@ namespace smt {
                 ++m_stats.m_assert_upper;
                 break;
             }
-            return true;
         }
 
         lbool make_feasible() {
@@ -1199,10 +1201,10 @@ namespace smt {
 
         void collect_statistics(::statistics & st) const {
             m_arith_eq_adapter.collect_statistics(st);
-            st.update("assert-lower", m_stats.m_assert_lower);
-            st.update("assert-upper", m_stats.m_assert_upper);
-            st.update("add-rows", m_stats.m_add_rows);
-            // TBD: 
+            st.update("arith-lower", m_stats.m_assert_lower);
+            st.update("arith-upper", m_stats.m_assert_upper);
+            st.update("arith-rows", m_stats.m_add_rows);
+            st.update("arith-propagations", m_stats.m_bounds_propagations);
         }        
     };
     
