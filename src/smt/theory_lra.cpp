@@ -398,10 +398,7 @@ namespace smt {
             ctx().mk_th_axiom(get_id(), l1, l2, l3, num_params, params);
         }
 
-
-        bool reflect(app* n) const {
-            if (m_params.m_arith_reflect) return true;
-            
+        bool is_underspecified(app* n) const {
             if (n->get_family_id() == get_id()) {
                 switch (n->get_decl_kind()) {
                 case OP_DIV:
@@ -414,6 +411,10 @@ namespace smt {
                 }
             }
             return false;
+        }
+
+        bool reflect(app* n) const {
+            return m_params.m_arith_reflect || is_underspecified(n);          
         }
 
         theory_var mk_var(expr* n, bool internalize = true) {
@@ -767,9 +768,148 @@ namespace smt {
             m_arith_eq_adapter.restart_eh();
         }
 
-        void relevant_eh(app* e) {
-            TRACE("arith", tout << mk_pp(e, m) << "\n";);
+        void relevant_eh(app* n) {
+            TRACE("arith", tout << mk_pp(n, m) << "\n";);
+            expr* n1, *n2;
+            if (a.is_mod(n, n1, n2)) 
+                mk_idiv_mod_axioms(n1, n2);
+            else if (a.is_rem(n, n1, n2))
+                mk_rem_axiom(n1, n2);
+            else if (a.is_div(n, n1, n2)) 
+                mk_div_axiom(n1, n2);
+            else if (a.is_to_int(n)) 
+                mk_to_int_axiom(n);
+            else if (a.is_is_int(n))
+                mk_is_int_axiom(n);            
         }
+
+        //  n < 0 || rem(a, n) =  mod(a, n)
+        // !n < 0 || rem(a, n) = -mod(a, n)
+        void mk_rem_axiom(expr* dividend, expr* divisor) {
+            expr_ref zero(a.mk_int(0), m);
+            expr_ref rem(a.mk_rem(dividend, divisor), m);
+            expr_ref mod(a.mk_mod(dividend, divisor), m);
+            expr_ref mmod(a.mk_uminus(mod), m);
+            literal dgez = mk_literal(a.mk_ge(divisor, zero));
+            mk_axiom(~dgez, th.mk_eq(rem, mod,  false));
+            mk_axiom( dgez, th.mk_eq(rem, mmod, false));                    
+        }
+
+        // q = 0 or q * (p div q) = p
+        void mk_div_axiom(expr* p, expr* q) {
+            if (a.is_zero(q)) return;
+            literal eqz = th.mk_eq(q, a.mk_real(0), false);
+            literal eq  = th.mk_eq(a.mk_mul(q, a.mk_div(p, q)), p, false);
+            mk_axiom(eqz, eq);
+        }
+
+        // to_int (to_real x) = x
+        // to_real(to_int(x)) <= x < to_real(to_int(x)) + 1
+        void mk_to_int_axiom(app* n) {
+            expr* x, *y;
+            VERIFY (a.is_to_int(n, x));            
+            if (a.is_to_real(x, y)) {
+                mk_axiom(th.mk_eq(y, n, false));
+            }
+            else {
+                expr_ref to_r(a.mk_to_real(n), m);
+                expr_ref lo(a.mk_le(a.mk_sub(to_r, x), a.mk_real(0)), m);
+                expr_ref hi(a.mk_ge(a.mk_sub(x, to_r), a.mk_real(1)), m);
+                mk_axiom(mk_literal(lo));
+                mk_axiom(~mk_literal(hi));
+            }
+        }
+
+        // is_int(x) <=> to_real(to_int(x)) = x
+        void mk_is_int_axiom(app* n) {
+            expr* x;
+            VERIFY(a.is_is_int(n, x));
+            literal eq = th.mk_eq(a.mk_to_real(a.mk_to_int(x)), x, false);
+            literal is_int = ctx().get_literal(n);
+            mk_axiom(~is_int, eq);
+            mk_axiom(is_int, ~eq);
+        }
+
+        void mk_idiv_mod_axioms(expr * p, expr * q) {
+            if (a.is_zero(q)) {
+                return;
+            }
+            // if q is zero, then idiv and mod are uninterpreted functions.
+            expr_ref div(a.mk_idiv(p, q), m);
+            expr_ref mod(a.mk_mod(p, q), m);
+            expr_ref zero(a.mk_int(0), m);
+            literal q_ge_0     = mk_literal(a.mk_ge(q, zero));
+            literal q_le_0     = mk_literal(a.mk_le(q, zero));
+            literal eqz        = th.mk_eq(q, zero, false);
+            literal eq         = th.mk_eq(a.mk_add(a.mk_mul(q, div), mod), p, false);
+            literal mod_ge_0   = mk_literal(a.mk_ge(mod, zero));
+            // q >= 0 or p = (p mod q) + q * (p div q)
+            // q <= 0 or p = (p mod q) + q * (p div q)
+            // q >= 0 or (p mod q) >= 0
+            // q <= 0 or (p mod q) >= 0
+            // q <= 0 or (p mod q) <  q
+            // q >= 0 or (p mod q) < -q
+            mk_axiom(q_ge_0, eq);
+            mk_axiom(q_le_0, eq);
+            mk_axiom(q_ge_0, mod_ge_0);
+            mk_axiom(q_le_0, mod_ge_0);
+            mk_axiom(q_le_0, ~mk_literal(a.mk_ge(a.mk_sub(mod, q), zero)));
+            mk_axiom(q_ge_0, ~mk_literal(a.mk_ge(a.mk_add(mod, q), zero)));
+            rational k;
+            if (m_params.m_arith_enum_const_mod && a.is_numeral(q, k) && 
+                k.is_pos() && k < rational(8)) {
+                unsigned _k = k.get_unsigned();
+                literal_buffer lits;
+                for (unsigned j = 0; j < _k; ++j) {
+                    literal mod_j = th.mk_eq(mod, a.mk_int(j), false);
+                    lits.push_back(mod_j);
+                    ctx().mark_as_relevant(mod_j);
+                }
+                ctx().mk_th_axiom(get_id(), lits.size(), lits.begin());                
+            }            
+        }
+
+        void mk_axiom(literal l) {
+            ctx().mk_th_axiom(get_id(), false_literal, l);
+            if (ctx().relevancy()) {
+                ctx().mark_as_relevant(l);
+            }
+        }
+
+        void mk_axiom(literal l1, literal l2) {
+            if (l1 == false_literal) {
+                mk_axiom(l2);
+                return;
+            }
+            ctx().mk_th_axiom(get_id(), l1, l2);
+            if (ctx().relevancy()) {
+                ctx().mark_as_relevant(l1);
+                expr_ref e(m);
+                ctx().literal2expr(l2, e);
+                ctx().add_rel_watch(~l1, e);
+            }
+        }
+
+        void mk_axiom(literal l1, literal l2, literal l3) {
+            ctx().mk_th_axiom(get_id(), l1, l2, l3);
+            if (ctx().relevancy()) {
+                expr_ref e(m);
+                ctx().mark_as_relevant(l1);
+                ctx().literal2expr(l2, e);
+                ctx().add_rel_watch(~l1, e);
+                ctx().literal2expr(l3, e);
+                ctx().add_rel_watch(~l2, e);
+            }
+        }
+
+        literal mk_literal(expr* e) {
+            expr_ref pinned(e, m);
+            if (!ctx().e_internalized(e)) {
+                ctx().internalize(e, false);
+            }
+            return ctx().get_literal(e);
+        }
+
 
         void init_search_eh() {
             m_arith_eq_adapter.init_search_eh();
@@ -913,17 +1053,8 @@ namespace smt {
             TRACE("shared", tout << ctx().get_scope_level() << " " <<  v << " " << r->get_num_parents() << "\n";);
             for (; it != end; ++it) {
                 enode * parent = *it;
-                app *   o = parent->get_owner();
-                if (o->get_family_id() == get_id()) {
-                    switch (o->get_decl_kind()) {
-                    case OP_DIV:
-                    case OP_IDIV:
-                    case OP_REM:
-                    case OP_MOD:
-                        return true;
-                    default:
-                        break;
-                    }
+                if (is_underspecified(parent->get_owner())) {
+                    return true;
                 }
             }
             return false;
