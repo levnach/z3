@@ -25,6 +25,7 @@ Revision History:
 #include "util/lp/lar_solver.h"
 #include "util/nat_set.h"
 #include "util/optional.h"
+#include "util/inf_rational.h"
 #include "smt/smt_theory.h"
 #include "smt/smt_context.h"
 #include "smt/theory_lra.h"
@@ -35,9 +36,6 @@ Revision History:
 namespace lp {
     enum bound_kind { lower_t, upper_t };
 
-    //typedef std::pair<rational, rational> inf_numeral;
-    typedef rational inf_numeral;
-
     std::ostream& operator<<(std::ostream& out, bound_kind const& k) {
         switch (k) {
         case lower_t: return out << "<=";
@@ -47,27 +45,30 @@ namespace lp {
     }
 
     class bound { 
-    protected:
+        smt::bool_var     m_bv;
         smt::theory_var  m_var;
-        inf_numeral      m_value; // tbd: inf_numeral
+        rational         m_value;
         bound_kind       m_bound_kind;
-        bool             m_true;
 
     public:
-        bound(smt::theory_var v, inf_numeral const & val, bound_kind k):
+        bound(smt::bool_var bv, smt::theory_var v, rational const & val, bound_kind k):
+            m_bv(bv),
             m_var(v),
             m_value(val),
-            m_bound_kind(k), 
-            m_true(false) {
+            m_bound_kind(k) {
         }
         virtual ~bound() {}
         smt::theory_var get_var() const { return m_var; }
-        bound_kind get_bound_kind() const { return m_true?m_bound_kind:static_cast<bound_kind>(1-m_bound_kind); }
-        bool get_phase() const { return m_true; }
-        void set_phase(bool t) { m_true = t; }
-        inf_numeral const & get_value() const { return m_value; } // tbd: adjust with infinitesimals if negated.
+        smt::bool_var get_bv() const { return m_bv; }
+        bound_kind get_bound_kind() const { return m_bound_kind; }
+        rational const& get_value() const { return m_value; }
+        inf_rational get_value(bool is_true) const { 
+            if (is_true) return inf_rational(m_value);                         // v >= value or v <= value
+            if (m_bound_kind == lower_t) return inf_rational(m_value, false);  // v <= value - epsilon
+            return inf_rational(m_value, true);                                // v >= value + epsilon
+        } 
         virtual std::ostream& display(std::ostream& out) const {
-            return out << "v" << get_var() << "  " << get_bound_kind() << " " << get_value();
+            return out << "v" << get_var() << "  " << get_bound_kind() << " " << m_value;
         }
     };
 
@@ -79,20 +80,21 @@ namespace lp {
         unsigned m_assert_lower;
         unsigned m_assert_upper;
         unsigned m_add_rows;
+        unsigned m_bounds_propagations;
         stats() { reset(); }
         void reset() {
             memset(this, 0, sizeof(*this));
         }
     };
 
-    typedef optional<inf_numeral> opt_inf_numeral;
+    typedef optional<inf_rational> opt_inf_rational;
 
     struct replay_bound {
         smt::theory_var   m_v;
-        opt_inf_numeral   m_bound;
+        opt_inf_rational  m_bound;
         bound_kind        m_bound_kind;
         
-        replay_bound(smt::theory_var v, opt_inf_numeral const& n, bound_kind k):
+        replay_bound(smt::theory_var v, opt_inf_rational const& n, bound_kind k):
             m_v(v), m_bound(n), m_bound_kind(k)
         {}
     };
@@ -109,7 +111,7 @@ namespace smt {
             unsigned m_bounds_lim;
             unsigned m_asserted_qhead;            
             unsigned m_replay_lim;
-            unsigned m_delayed_atoms_lim;
+            unsigned m_asserted_atoms_lim;
             unsigned m_delayed_terms_lim;
             unsigned m_delayed_equalities_lim;
             expr*    m_not_handled;
@@ -204,18 +206,18 @@ namespace smt {
         svector<theory_var>                           m_definitions;     // asserted rows corresponding to definitions
 
         bool                   m_delay_constraints;    // configuration
-        svector<delayed_atom>  m_delayed_atoms;        
+        svector<delayed_atom>  m_asserted_atoms;        
         app_ref_vector         m_delayed_terms;        
         svector<std::pair<theory_var, theory_var>> m_delayed_equalities;
         expr*                  m_not_handled;
 
         // attributes for incremental version:
         u_map<lp::bound*>      m_bool_var2bound;
-        ptr_vector<lp::bound>  m_bounds;
-        ptr_vector<lp::bound>  m_asserted_bounds;
+        vector<ptr_vector<lp::bound> > m_bounds;
+        unsigned_vector        m_bounds_trail;
         unsigned               m_asserted_qhead;
         vector<lp::replay_bound>   m_replay_bounds;
-        vector<lp::opt_inf_numeral> m_lower, m_upper;
+        vector<lp::opt_inf_rational> m_lower, m_upper;
 
         struct var_value_eq {
             imp & m_th;
@@ -421,7 +423,11 @@ namespace smt {
             enode* e = get_enode(n);
             theory_var v;
             if (!th.is_attached_to_var(e)) {
-                v = th.mk_var(e);                        
+                v = th.mk_var(e);
+                SASSERT(m_bounds.size() <= static_cast<unsigned>(v) || m_bounds[v].empty());
+                if (m_bounds.size() <= static_cast<unsigned>(v)) {
+                    m_bounds.push_back(ptr_vector<lp::bound>());
+                }
                 ctx().attach_th_var(e, &th, v);
             }
             else {
@@ -551,34 +557,50 @@ namespace smt {
 
 
         void del_bounds(unsigned old_size) {
-            for (unsigned i = m_bounds.size(); i > old_size; ) {
+            for (unsigned i = m_bounds_trail.size(); i > old_size; ) {
                 --i;
-                dealloc(m_bounds[i]);
+                unsigned v = m_bounds_trail[i];
+                dealloc(m_bounds[v].back());
+                m_bounds[v].pop_back();
+                        
             }
-            m_bounds.shrink(old_size);
+            m_bounds_trail.shrink(old_size);
         }
-        
+       
+        bool is_unit_var(scoped_internalize_state& st) {
+            return st.coeff().is_zero() && st.vars().size() == 1 && st.coeffs()[0].is_one();
+        }
+
+        theory_var internalize_def(app* term, scoped_internalize_state& st) {
+            linearize_term(term, st);
+            if (is_unit_var(st)) {
+                return st.vars()[0];
+            }
+            else {
+                theory_var v = mk_var(term);
+                SASSERT(null_theory_var != v);
+                st.coeffs().resize(st.vars().size() + 1);
+                st.coeffs()[st.vars().size()] = rational::minus_one();
+                st.vars().push_back(v);
+                return v;
+            }
+        }
 
         // term - v = 0
         theory_var internalize_def(app* term) {
             scoped_internalize_state st(*this);
-            theory_var v = internalize_term_core(term, st);
-            init_left_side(st);
-            TRACE("arith", tout << "v" << v << " := " << mk_pp(term, m) << "\n";);
-            add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
-            return v;
+            theory_var v = internalize_def(term, st);
+            if (is_unit_var(st)) {
+                return st.vars()[0];
+            }
+            else {
+                TRACE("arith", tout << "v" << v << " := " << mk_pp(term, m) << "\n";);
+                init_left_side(st);
+                add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
+                return v;
+            }
         }
         
-        theory_var internalize_term_core(app* term, scoped_internalize_state& st) {
-            linearize_term(term, st);
-            theory_var v = mk_var(term);
-            SASSERT(null_theory_var != v);
-            st.coeffs().resize(st.vars().size() + 1);
-            st.coeffs()[st.vars().size()] = rational::minus_one();
-            st.vars().push_back(v);
-            return v;
-        }
-
 
     public:
         imp(theory_lra& th, ast_manager& m, theory_arith_params& p): 
@@ -604,42 +626,51 @@ namespace smt {
 
             bool_var bv = ctx().mk_bool_var(atom);
             ctx().set_var_theory(bv, get_id());
-            if (m_delay_constraints) {
+            if (false && m_delay_constraints) {
                 return true;
             }
             expr* n1, *n2;
             rational r;
             lp::bound_kind k;
             theory_var v = null_theory_var;
-            if (a.is_le(atom, n1, n2) && a.is_numeral(n2, r) && is_app(n1)) {
-                v = internalize_def(to_app(n1));
+            scoped_internalize_state st(*this);
+            if (a.is_le(atom, n1, n2) && is_numeral(n2, r) && is_app(n1)) {
+                v = internalize_def(to_app(n1), st);
                 k = lp::upper_t;
             }
-            else if (a.is_ge(atom, n1, n2) && a.is_numeral(n2, r) && is_app(n1)) {
-                v = internalize_def(to_app(n1));
+            else if (a.is_ge(atom, n1, n2) && is_numeral(n2, r) && is_app(n1)) {
+                v = internalize_def(to_app(n1), st);
                 k = lp::lower_t;
             }    
             else {
                 TRACE("arith", tout << "Could not internalize " << mk_pp(atom, m) << "\n";);
-                return false;
+                found_not_handled(atom);
+                return true;
             }
-            lp::inf_numeral _r(r);
-            lp::bound* b = alloc(lp::bound, v, _r, k);
-            m_bounds.push_back(b);
+            lp::bound* b = alloc(lp::bound, bv, v, r, k);
+            m_bounds[v].push_back(b);
+            m_bounds_trail.push_back(v);
             m_bool_var2bound.insert(bv, b);
-            TRACE("arith", tout << "Internalized " << mk_pp(atom, m) << " " << b << "\n";);
+            TRACE("arith", tout << "Internalized " << mk_pp(atom, m) << "\n";);
+            if (!m_delay_constraints && !is_unit_var(st)) {
+                init_left_side(st);
+                add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
+            }
             return true;
         }
         
         bool internalize_term(app * term) {
             if (ctx().e_internalized(term) && th.is_attached_to_var(ctx().get_enode(term))) {
-                // 
+                // skip
             }
             else if (m_delay_constraints) {
                 scoped_internalize_state st(*this);
                 linearize_term(term, st);  // ensure that a theory_var was created.
-                m_delayed_terms.push_back(term);                
                 SASSERT(ctx().e_internalized(term));
+                if(!th.is_attached_to_var(ctx().get_enode(term))) {
+                    mk_var(term);
+                }
+                m_delayed_terms.push_back(term);
             }
             else {
                 internalize_def(term);
@@ -661,16 +692,8 @@ namespace smt {
         }
 
         void assign_eh(bool_var v, bool is_true) {
-            if (m_delay_constraints) {
-                TRACE("arith", tout << mk_pp(ctx().bool_var2expr(v), m) << "\n";);
-                m_delayed_atoms.push_back(delayed_atom(v, is_true));
-            }
-            else {
-                lp::bound* b = m_bool_var2bound[v];
-                SASSERT(b);
-                b->set_phase(is_true);
-                m_asserted_bounds.push_back(b);
-            }
+            TRACE("arith", tout << mk_pp(ctx().bool_var2expr(v), m) << "\n";);
+            m_asserted_atoms.push_back(delayed_atom(v, is_true));
         }
 
         void new_eq_eh(theory_var v1, theory_var v2) {
@@ -695,10 +718,10 @@ namespace smt {
         void push_scope_eh() {
             m_scopes.push_back(scope());
             scope& s = m_scopes.back();
-            s.m_bounds_lim = m_bounds.size();
+            s.m_bounds_lim = m_bounds_trail.size();
             s.m_asserted_qhead = m_asserted_qhead;
             s.m_replay_lim = m_replay_bounds.size();
-            s.m_delayed_atoms_lim = m_delayed_atoms.size();
+            s.m_asserted_atoms_lim = m_asserted_atoms.size();
             s.m_delayed_terms_lim = m_delayed_terms.size();
             s.m_delayed_equalities_lim = m_delayed_equalities.size();
             s.m_not_handled = m_not_handled;
@@ -710,7 +733,7 @@ namespace smt {
             }
             unsigned old_size = m_scopes.size() - num_scopes;
             del_bounds(m_scopes[old_size].m_bounds_lim);
-            m_delayed_atoms.shrink(m_scopes[old_size].m_delayed_atoms_lim);
+            m_asserted_atoms.shrink(m_scopes[old_size].m_asserted_atoms_lim);
             m_delayed_terms.shrink(m_scopes[old_size].m_delayed_terms_lim);
             m_delayed_equalities.shrink(m_scopes[old_size].m_delayed_equalities_lim);
             m_asserted_qhead = m_scopes[old_size].m_asserted_qhead;
@@ -805,10 +828,10 @@ namespace smt {
         void profile_solver() {
             for (unsigned i = 0; i < 100; ++i) {
                 init_solver();
-                for (unsigned i = 0; i < m_delayed_atoms.size(); ++i) {
-                    bool_var bv = m_delayed_atoms[i].m_bv;
+                for (unsigned i = 0; i < m_asserted_atoms.size(); ++i) {
+                    bool_var bv = m_asserted_atoms[i].m_bv;
                     expr* atom = ctx().bool_var2expr(bv);
-                    internalize_atom(atom, bv, m_delayed_atoms[i].m_is_true);
+                    internalize_atom(atom, bv, m_asserted_atoms[i].m_is_true);
                 }
                 for (unsigned i = 0; i < m_delayed_terms.size(); ++i) {
                     internalize_def(m_delayed_terms[i].get());
@@ -821,16 +844,20 @@ namespace smt {
             }
         }
 
+        bool has_delayed_constraints() const {
+            return !(m_asserted_atoms.empty() && m_delayed_terms.empty() && m_delayed_equalities.empty());
+        }
+
         final_check_status final_check_eh() {
-            if (m_delayed_atoms.empty() && m_delayed_terms.empty() && m_delayed_equalities.empty()) {
+            if (!has_delayed_constraints()) {
                 return FC_DONE;
             }
             //profile_solver();
             init_solver();
-            for (unsigned i = 0; i < m_delayed_atoms.size(); ++i) {
-                bool_var bv = m_delayed_atoms[i].m_bv;
+            for (unsigned i = 0; i < m_asserted_atoms.size(); ++i) {
+                bool_var bv = m_asserted_atoms[i].m_bv;
                 expr* atom = ctx().bool_var2expr(bv);
-                internalize_atom(atom, bv, m_delayed_atoms[i].m_is_true);
+                internalize_atom(atom, bv, m_asserted_atoms[i].m_is_true);
             }
             for (unsigned i = 0; i < m_delayed_terms.size(); ++i) {
                 internalize_def(m_delayed_terms[i].get());
@@ -867,6 +894,13 @@ namespace smt {
            underspecified operators such as division by 0.
            (/ a b) is essentially an uninterpreted function when b = 0.
            Thus, 'a' must be considered a shared var if it is the child of an underspecified operator.
+
+           if merge(a / b, x + y) and a / b is root, then x + y become shared and all z + u in equivalence class of x + y.
+                      
+
+           TBD: when the set of underspecified subterms is small, compute the shared variables below it.
+                Recompute the set if there are merges that invalidate it.
+                Use the set to determine if a variable is shared.
         */
         bool is_shared(theory_var v) const {
             if (m_not_handled == nullptr) {
@@ -894,24 +928,31 @@ namespace smt {
             }
             return false;
         }
-        
+
 
         bool can_propagate() {
-            return m_asserted_bounds.size() > m_asserted_qhead;
+            if (ctx().at_base_level() && has_delayed_constraints()) {
+                // we could add the delayed constraints here directly to the tableau instead of using bounds variables.
+            }
+            return m_asserted_atoms.size() > m_asserted_qhead;
         }
 
         void propagate() {
             if (!can_propagate()) {
                 return;
             }
-            while (m_asserted_qhead < m_asserted_bounds.size()) {
-                lp::bound* b = m_asserted_bounds[m_asserted_qhead];
-                if (!assert_bound(*b)) {
-                    set_conflict();
-                    return;
-                }
+            while (m_asserted_qhead < m_asserted_atoms.size() && !ctx().inconsistent()) {
+                bool_var bv  = m_asserted_atoms[m_asserted_qhead].m_bv;
+                bool is_true = m_asserted_atoms[m_asserted_qhead].m_is_true;
+                lp::bound& b = *m_bool_var2bound.find(bv);
+                
+                propagate_bound(bv, is_true, b);
+                
+                // assert_bound(bv, is_true, b);
+
                 ++m_asserted_qhead;
             }
+#if 0
             switch (make_feasible()) {
             case l_false:
                 set_conflict();
@@ -921,12 +962,76 @@ namespace smt {
             case l_undef:
                 break;
             }
+#endif            
         }
 
-        bool assert_bound(lp::bound& b) {
+
+        // for glb lo': lo' < lo:
+        //   lo <= x -> lo' <= x 
+        //   lo <= x -> ~(x <= lo')
+        // for lub hi': hi' > hi
+        //   x <= hi -> x <= hi'
+        //   x <= hi -> ~(x >= hi')
+
+        void propagate_bound(bool_var bv, bool is_true, lp::bound& b) {
             lp::bound_kind k = b.get_bound_kind();
             theory_var v = b.get_var();
-            lp::inf_numeral const& val = b.get_value();
+            rational val = b.get_value();
+            ptr_vector<lp::bound> const& bounds = m_bounds[v];
+            SASSERT(!bounds.empty());
+            if (bounds.size() == 1) return;
+
+            literal lit1(bv, !is_true);
+            literal lit2 = null_literal;
+            bool find_glb = (is_true == (k == lp::lower_t));
+            if (find_glb) {
+                rational glb;
+                lp::bound* lb = 0;
+                for (unsigned i = 0; i < bounds.size(); ++i) {
+                    lp::bound* b2 = bounds[i];
+                    if (b2 == &b) continue;
+                    rational const& val2 = b2->get_value();
+                    if (val2 < val && (!lb || glb < val2)) {
+                        lb = b2;
+                        glb = val2;
+                    }
+                }
+                if (!lb) return;
+                bool sign = lb->get_bound_kind() != lp::lower_t;
+                lit2 = literal(lb->get_bv(), sign);                    
+            }
+            else {
+                rational lub;
+                lp::bound* ub = 0;
+                for (unsigned i = 0; i < bounds.size(); ++i) {
+                    lp::bound* b2 = bounds[i];
+                    if (b2 == &b) continue;
+                    rational const& val2 = b2->get_value();
+                    if (val < val2 && (!ub || val2 < lub)) {
+                        ub = b2;
+                        lub = val2;
+                    }
+                }
+                if (!ub) return;
+                bool sign = ub->get_bound_kind() != lp::upper_t;
+                lit2 = literal(ub->get_bv(), sign);
+            }
+            TRACE("arith", 
+                  ctx().display_literal_verbose(tout, lit1);
+                  ctx().display_literal_verbose(tout << " => ", lit2);
+                  tout << "\n";);
+            parameter coeffs[3] = { parameter(symbol("farkas")), parameter(rational(1)), parameter(rational(1)) };
+            ctx().assign(
+                lit2, ctx().mk_justification(
+                    theory_propagation_justification(
+                        get_id(), ctx().get_region(), 1, &lit1, lit2, 3, coeffs)));
+            ++m_stats.m_bounds_propagations;
+        }
+
+        void assert_bound(bool_var bv, bool is_true, lp::bound& b) {
+            lp::bound_kind k = b.get_bound_kind();
+            theory_var v = b.get_var();
+            inf_rational val = b.get_value(is_true);
             switch (k) {
             case lp::lower_t:
                 m_replay_bounds.push_back(lp::replay_bound(v, m_lower[v], k));
@@ -941,7 +1046,6 @@ namespace smt {
                 ++m_stats.m_assert_upper;
                 break;
             }
-            return true;
         }
 
         lbool make_feasible() {
@@ -952,6 +1056,7 @@ namespace smt {
                 return l_false;
             case lean::lp_status::FEASIBLE:
             case lean::lp_status::OPTIMAL:
+                SASSERT(m_solver->all_constraints_hold());
                 return l_true;
             default:
                 TRACE("arith", tout << "status treated as inconclusive: " << status << "\n";);
@@ -1014,7 +1119,6 @@ namespace smt {
             m_solver = 0;
             m_not_handled = nullptr;
             del_bounds(0);
-            m_asserted_bounds.reset();
             m_asserted_qhead  = 0;
             m_replay_bounds.reset();
             m_lower.reset();
@@ -1097,10 +1201,10 @@ namespace smt {
 
         void collect_statistics(::statistics & st) const {
             m_arith_eq_adapter.collect_statistics(st);
-            st.update("assert-lower", m_stats.m_assert_lower);
-            st.update("assert-upper", m_stats.m_assert_upper);
-            st.update("add-rows", m_stats.m_add_rows);
-            // TBD: 
+            st.update("arith-lower", m_stats.m_assert_lower);
+            st.update("arith-upper", m_stats.m_assert_upper);
+            st.update("arith-rows", m_stats.m_add_rows);
+            st.update("arith-propagations", m_stats.m_bounds_propagations);
         }        
     };
     
