@@ -177,8 +177,7 @@ else()
   message(FATAL_ERROR "Platform \"${CMAKE_SYSTEM_NAME}\" not recognised")
 endif()
 
-list(APPEND Z3_COMPONENT_EXTRA_INCLUDE_DIRS "../..")
-list(APPEND Z3_COMPONENT_EXTRA_INCLUDE_DIRS "..")
+list(APPEND Z3_COMPONENT_EXTRA_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/src")
 
 ################################################################################
 # GNU multiple precision library support
@@ -222,6 +221,7 @@ if (USE_OPENMP)
     message(WARNING "OpenMP support was requested but your compiler doesn't support it")
   endif()
 endif()
+
 if (OPENMP_FOUND)
     list(APPEND Z3_COMPONENT_CXX_FLAGS ${OpenMP_CXX_FLAGS})
     # GCC and Clang need to have additional flags passed to the linker.
@@ -250,7 +250,7 @@ endif()
 # FIXME: Support ARM "-mfpu=vfp -mfloat-abi=hard"
 if ("${TARGET_ARCHITECTURE}" STREQUAL "x86_64")
   if (("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
-    set(SSE_FLAGS "-mfpmath=sse" "-msse" "-msse2")
+    set(SSE_FLAGS "-mfpmath=sse" "-msse" "-msse2" "-std=c++0x")
     # FIXME: Remove "x.." when CMP0054 is set to NEW
   elseif ("x${CMAKE_CXX_COMPILER_ID}" STREQUAL "xMSVC")
     set(SSE_FLAGS "/arch:SSE2")
