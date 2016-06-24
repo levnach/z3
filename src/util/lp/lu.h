@@ -110,7 +110,7 @@ public:
     bool m_failure = false;
     std::vector<unsigned> & m_non_basic_columns;
     indexed_vector<T>  m_row_eta_work_vector;
-    unsigned m_refactor_counter;
+    unsigned m_refactor_counter = 0;
     // constructor
     // if A is an m by n matrix then basis has length m and values in [0,n); the values are all different
     // they represent the set of m columns

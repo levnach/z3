@@ -6,7 +6,7 @@
 */
 #ifdef LEAN_DEBUG
 #pragma once
-#include "util/numerics/numeric_traits.h"
+#include "util/lp/numeric_pair.h"
 // #include "util/numerics/double.h"
 #include <vector>
 #include <string>
@@ -41,7 +41,7 @@ void print_matrix_with_widths(std::vector<std::vector<std::string>> & A, std::ve
 void print_string_matrix(std::vector<std::vector<std::string>> & A);
 
 template <typename T, typename X>
-void print_matrix(matrix<T, X> const & m, std::ostream & out);
+void print_matrix(matrix<T, X> const * m, std::ostream & out);
 
 }
 #endif

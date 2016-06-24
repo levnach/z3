@@ -20,7 +20,7 @@ namespace lean {
 #define lean_assert(_x_) { SASSERT(_x_); }
 
     
-    inline void lean_unreachable() { } // TBD:
+    inline void lean_unreachable() { } // TODO
     template <typename X> inline X zero_of_type() { return numeric_traits<X>::zero(); }
     template <typename X> inline X one_of_type() { return numeric_traits<X>::one(); }
     template <typename X> inline bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
@@ -49,6 +49,17 @@ template<typename S, typename T> struct hash<pair<S, T>> {
         return seed;
     }
 };
+
+template<>
+struct hash<lean::numeric_pair<lean::mpq>> {
+    inline size_t operator()(const lean::numeric_pair<lean::mpq> & v) const {
+        size_t seed = 0;
+        hash_combine(seed, v.x);
+        hash_combine(seed, v.y);
+        return seed;
+    }
+};
+
 }
 #else // else  of #if  lp_for_z3
 #include <utility>

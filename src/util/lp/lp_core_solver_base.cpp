@@ -778,6 +778,39 @@ template <typename T, typename X> int lp_core_solver_base<T, X>::pivots_in_colum
 }
 template <typename T, typename X>  void lp_core_solver_base<T, X>::pivot_fixed_vars_from_basis() {
     // run over basis and non-basis at the same time
-    // todddd start here , introduce pivot(k, j) method, look at lp.cpp how to implement it by using m_factorization
+    indexed_vector<T> w(m_basis.size()); // the buffer
+    unsigned i = 0; // points to basis
+    unsigned j = 0; // points to nonbasis
+    for (;i < m_basis.size() && j < m_non_basic_columns.size(); i++) {
+        unsigned ii = m_basis[i];
+        unsigned jj;
+        
+        if (get_column_type(ii) != fixed) continue;
+        while (j < m_non_basic_columns.size()) {
+			for (; j < m_non_basic_columns.size(); j++) {
+				jj = m_non_basic_columns[j];
+				if (get_column_type(jj) != fixed)
+					break;
+			}
+			if (j >= m_non_basic_columns.size())
+				break;
+			j++;
+			if (m_factorization->need_to_refactor()) {
+				m_factorization->change_basis(jj, ii);
+				init_lu();
+			}
+			else {
+				m_factorization->prepare_entering(jj, w); // to init vector w
+				m_factorization->replace_column(ii, zero_of_type<T>(), w);
+				m_factorization->change_basis(jj, ii);
+			}
+			if (m_factorization->get_status() != LU_status::OK) {
+				m_factorization->change_basis(ii, jj);
+				init_lu();
+			}
+			else break;
+		}
+		lean_assert(m_factorization->get_status()== LU_status::OK)
+    }
 }
 }

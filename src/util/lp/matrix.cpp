@@ -89,11 +89,11 @@ void print_string_matrix(std::vector<std::vector<std::string>> & A, std::ostream
 }
 
 template <typename T, typename X>
-void print_matrix(matrix<T, X> const & m, std::ostream & out) {
-    std::vector<std::vector<std::string>> A(m.row_count());
-    for (unsigned i = 0; i < m.row_count(); i++) {
-        for (unsigned j = 0; j < m.column_count(); j++) {
-            A[i].push_back(T_to_string(m.get_elem(i, j)));
+void print_matrix(matrix<T, X> const * m, std::ostream & out) {
+    std::vector<std::vector<std::string>> A(m->row_count());
+    for (unsigned i = 0; i < m->row_count(); i++) {
+        for (unsigned j = 0; j < m->column_count(); j++) {
+            A[i].push_back(T_to_string(m->get_elem(i, j)));
         }
     }
 

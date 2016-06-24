@@ -63,7 +63,6 @@ class lar_solver {
     lar_core_solver<mpq, numeric_pair<mpq>> m_mpq_lar_core_solver;
     canonic_left_side * m_infeasible_canonic_left_side = nullptr; // such can be found at the initialization step
     canonic_left_side * create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par);
-	random_updater * m_random_updater = nullptr;
     mpq find_ratio_of_original_constraint_to_normalized(canonic_left_side * ls, const lar_constraint & constraint);
 
     void add_canonic_left_side_for_var(var_index i, std::string var_name);
@@ -230,11 +229,18 @@ public:
 
     void print_constraint(const lar_base_constraint * c, std::ostream & out);
     unsigned get_total_iterations() const { return m_mpq_lar_core_solver.m_total_iterations; }
-	// see http://research.microsoft.com/projects/z3/smt07.pdf
-	// This method searches for a feasible solution with as many different values of variables, reverenced in vars, as it can find
-	// Attention, after a call to this method the non-basic variables don't necesserarly stick to their bounds anymore
-	void random_update(unsigned sz, var_index const* vars);
-	void random_update(var_index v);
-	void pivot_fixed_vars_from_basis();
+// see http://research.microsoft.com/projects/z3/smt07.pdf
+// This method searches for a feasible solution with as many different values of variables, reverenced in vars, as it can find
+// Attention, after a call to this method the non-basic variables don't necesserarly stick to their bounds anymore
+    void random_update(unsigned sz, var_index const* vars);
+    void random_update(var_index v);
+    void try_pivot_fixed_vars_from_basis();
+    void fill_var_set_for_random_update(unsigned sz, var_index const * vars, std::vector<unsigned>& column_list);
+    std::vector<unsigned> get_list_of_all_var_indices() const {
+        std::vector<unsigned> ret;
+        for( auto t :m_map_from_var_index_to_column_info_with_cls)
+            ret.push_back(t.first);
+        return ret;
+    }
 };
 }

@@ -292,8 +292,6 @@ lar_solver::~lar_solver() {
         to_delete.push_back(it);
     for (auto t : to_delete)
         delete t;
-    if (m_random_updater != nullptr)
-        delete m_random_updater;
 }
 
 var_index lar_solver::add_var(std::string s) {
@@ -817,11 +815,22 @@ void lar_solver::print_constraint(const lar_base_constraint * c, std::ostream & 
     print_left_side_of_constraint(c, out);
     out << " " << lconstraint_kind_string(c->m_kind) << " " << c->m_right_side;
 }
-
+    
+void lar_solver::fill_var_set_for_random_update(unsigned sz, var_index const * vars, std::vector<unsigned>& column_list) {
+        for(unsigned i = 0; i < sz; i++) {
+            var_index var = vars[i];
+            auto it = m_map_from_var_index_to_column_info_with_cls.find(var);
+            lean_assert(it != m_map_from_var_index_to_column_info_with_cls.end());
+            unsigned var_column_index = it->second.m_column_info.get_column_index();
+            column_list.push_back(var_column_index);
+        }
+}
+    
 void lar_solver::random_update(unsigned sz, var_index const * vars) {
-    if (m_random_updater == nullptr)
-        m_random_updater = new random_updater(this);
-    m_random_updater->init(sz, vars);
+    std::vector<unsigned> column_list;
+    fill_var_set_for_random_update(sz, vars, column_list);
+    random_updater ru(m_mpq_lar_core_solver, column_list);
+    ru.update();
 }
 
 void lar_solver::random_update(var_index v) {
@@ -843,7 +852,7 @@ column_info<mpq> & lar_solver::get_column_info_from_var_index(var_index vi) {
     }
     return it->second.m_column_info;
 }
-void lar_solver::pivot_fixed_vars_from_basis() {
+void lar_solver::try_pivot_fixed_vars_from_basis() {
 	m_mpq_lar_core_solver.pivot_fixed_vars_from_basis();
 }
 }

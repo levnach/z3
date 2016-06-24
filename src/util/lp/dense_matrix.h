@@ -7,7 +7,6 @@
 #pragma once
 #ifdef LEAN_DEBUG
 #include <vector>
-#include "util/numerics/double.h"
 #include "util/lp/matrix.h"
 namespace lean {
 // used for debugging purposes only
