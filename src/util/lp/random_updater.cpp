@@ -109,7 +109,7 @@ random_updater::interval random_updater::find_shift_interval(unsigned j) {
 }
 
 void random_updater::shift_var(unsigned j, interval & r) {
-    lean_assert(m_core_solver.A_mult_x_is_off() == false);
+    //    lean_assert(m_core_solver.A_mult_x_is_off() == false);
     lean_assert(r.contains(m_core_solver.m_x[j]));
     lean_assert(m_core_solver.column_is_feasible(j));
     auto old_x = m_core_solver.m_x[j];
@@ -126,7 +126,7 @@ void random_updater::shift_var(unsigned j, interval & r) {
         m_core_solver.m_x[bj] -= m_core_solver.m_ed[i] * delta;
         lean_assert(m_core_solver.column_is_feasible(bj));
     }
-    lean_assert(m_core_solver.A_mult_x_is_off() == false);
+    //    lean_assert(m_core_solver.A_mult_x_is_off() == false);
 
 }
 
