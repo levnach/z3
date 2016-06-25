@@ -2207,6 +2207,9 @@ void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_read
         cout << "checking randomize" << endl;
         std::vector<var_index> all_vars = solver->get_list_of_all_var_indices();
         unsigned m = all_vars.size();
+        if (m > 20)
+            m = 20;
+        
         var_index *vars = new var_index[m];
         for (unsigned i = 0; i < m; i++)
             vars[i]=all_vars[i];

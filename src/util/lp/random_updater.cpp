@@ -31,11 +31,12 @@ random_updater::interval random_updater::get_interval_of_non_basic_var(unsigned 
         ret.set_upper_bound(m_core_solver.m_upper_bound_values[j]);
         break;
     case boxed:
+    case fixed:
         ret.set_low_bound(m_core_solver.m_low_bound_values[j]);
         ret.set_upper_bound(m_core_solver.m_upper_bound_values[j]);
         break;
     default:
-        lean_unreachable();
+        lean_assert(false);
     }
     return ret;
 }
@@ -83,8 +84,12 @@ void random_updater::diminish_interval_for_basic_var(numeric_pair<mpq>& nb_x, un
             r.set_low_bound(nb_x + delta / a);
         }
         break;
+    case fixed:
+          r.set_low_bound(nb_x);
+          r.set_upper_bound(nb_x);
+          break;
     default:
-        lean_unreachable();
+        lean_assert(false);
     }
 }
 
@@ -106,6 +111,7 @@ random_updater::interval random_updater::find_shift_interval(unsigned j) {
 void random_updater::shift_var(unsigned j, interval & r) {
     lean_assert(m_core_solver.A_mult_x_is_off() == false);
     lean_assert(r.contains(m_core_solver.m_x[j]));
+    lean_assert(m_core_solver.column_is_feasible(j));
     auto old_x = m_core_solver.m_x[j];
     remove_value(old_x);
     auto new_val = m_core_solver.m_x[j] = get_random_from_interval(r);
@@ -147,12 +153,16 @@ void random_updater::random_shift_var(unsigned j) {
 }
    
 void random_updater::update() {
+    std::cout << "we have " << m_var_set.size() << " variables, and " << m_values.size() << " different values" << std::endl;
     for (auto j : m_var_set) {
         if(m_var_set.size() <= m_values.size()) {
             break; // we are done
         }
         random_shift_var(j);
     }
+    std::cout << "after run : we have " << m_var_set.size() << " variables, and " << m_values.size() << " different values" << std::endl;
+
+    
 }
 
 void random_updater::add_value(numeric_pair<mpq>& v) {

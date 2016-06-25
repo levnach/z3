@@ -53,7 +53,6 @@ class lar_solver {
     unsigned m_available_var_index = 0;
     unsigned m_available_constr_index = 0;
     lp_status m_status = UNKNOWN;
-    std::unordered_set<var_index> m_set_of_active_var_indices; // a variable is active if it is referenced in a left side
     std::unordered_map<std::string, var_index> m_var_names_to_var_index;
     std::unordered_set<canonic_left_side*, hash_and_equal_of_canonic_left_side_struct, hash_and_equal_of_canonic_left_side_struct> m_set_of_canonic_left_sides;
     std::unordered_map<unsigned, var_index> m_map_from_column_indices_to_var_index;
@@ -125,7 +124,6 @@ class lar_solver {
     void register_in_map(std::unordered_map<var_index, mpq> & coeffs, lar_constraint & cn, const mpq & a);
     unsigned get_column_index_from_var_index(var_index vi) const;
     column_info<mpq> & get_column_info_from_var_index(var_index vi);
-    void fill_set_of_active_var_indices();
 
 public:
     ~lar_solver();

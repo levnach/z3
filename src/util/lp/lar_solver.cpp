@@ -94,17 +94,10 @@ void lar_solver::fill_row_of_A(static_matrix<U, V> & A, unsigned i, canonic_left
     A.set(i, additional_column, -one_of_type<U>());
 }
 
-void lar_solver::fill_set_of_active_var_indices() {
-    for (auto & t : m_set_of_canonic_left_sides)
-        for (auto & a : t->m_coeffs)
-            m_set_of_active_var_indices.insert(a.second);
-}
-
 template <typename U, typename V>
 void lar_solver::create_matrix_A(static_matrix<U, V> & A) {
     unsigned m = m_set_of_canonic_left_sides.size();
-    fill_set_of_active_var_indices();
-    unsigned n = m_set_of_active_var_indices.size() + m;
+    unsigned n = m_map_from_var_index_to_column_info_with_cls.size();
     A.init_empty_matrix(m, n);
     unsigned i = 0;
     for (auto t : m_set_of_canonic_left_sides) {

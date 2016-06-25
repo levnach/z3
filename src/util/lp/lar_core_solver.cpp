@@ -42,7 +42,7 @@ template <typename T, typename X> void lar_core_solver<T, X>::init_costs() {
         init_cost_for_column(j);
     if (!(this->m_total_iterations ==0 || inf >= m_infeasibility)) {
         std::cout << "inf was " << T_to_string(inf) << " and now " << T_to_string(m_infeasibility) << std::endl;
-        lean_unreachable();
+        lean_assert(false);
     }
     if (inf == m_infeasibility)
         this->m_iters_with_no_cost_growing++;
@@ -449,7 +449,7 @@ template <typename T, typename X>    void lar_core_solver<T, X>::change_slope_on
         slope_at_entering += delta;
         break;
     default:
-        lean_unreachable();
+        lean_assert(false);
     }
 }
 
@@ -642,7 +642,7 @@ template <typename T, typename X>    bool lar_core_solver<T, X>::improves_pivot_
         return numeric_traits<T>::is_zero(this->m_pivot_row[j]) == false;
     }
     default:
-        lean_unreachable();
+        lean_assert(false);
     }
     return false; // it is unreachable
 }
@@ -796,7 +796,7 @@ template <typename T, typename X> void lar_core_solver<T, X>::print_column_info(
         out << this->m_upper_bound_values[j] << std::endl;
         break;
     default:
-        lean_unreachable();
+        lean_assert(false);
     }
 }
 }
