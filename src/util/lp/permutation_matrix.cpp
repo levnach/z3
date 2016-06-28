@@ -44,15 +44,15 @@ template <typename T, typename X> void permutation_matrix<T, X>::print(std::ostr
     out << std::endl;
 }
 #endif
-    
-template <typename T, typename X> 
+
+template <typename T, typename X>
 void permutation_matrix<T, X>::apply_from_left(std::vector<X> & w, lp_settings & ) {
 #ifdef LEAN_DEBUG
     // dense_matrix<L, X> deb(*this);
     // L * deb_w = clone_vector<L>(w, row_count());
     // deb.apply_from_left(deb_w);
 #endif
-    std::cout << " apply_from_left " << std::endl; 
+    std::cout << " apply_from_left " << std::endl;
     lean_assert(m_X_buffer.size() == w.size());
     unsigned i = size();
     while (i-- > 0) {
@@ -68,7 +68,7 @@ void permutation_matrix<T, X>::apply_from_left(std::vector<X> & w, lp_settings &
 #endif
 }
 
-template <typename T, typename X> 
+template <typename T, typename X>
 void permutation_matrix<T, X>::apply_from_left_to_T(indexed_vector<T> & w, lp_settings & ) {
     std::vector<T> t(w.m_index.size());
     std::vector<unsigned> tmp_index(w.m_index.size());
@@ -150,7 +150,7 @@ void permutation_matrix<T, X>::apply_reverse_from_left(indexed_vector<L> & w) {
 #endif
 }
 
-template <typename T, typename X> 
+template <typename T, typename X>
 void permutation_matrix<T, X>::apply_reverse_from_left_to_T(std::vector<T> & w) {
     // the result will be w = p(-1) * w
     lean_assert(m_T_buffer.size() == w.size());
@@ -163,7 +163,7 @@ void permutation_matrix<T, X>::apply_reverse_from_left_to_T(std::vector<T> & w) 
         w[i] = m_T_buffer[i];
     }
 }
-template <typename T, typename X> 
+template <typename T, typename X>
 void permutation_matrix<T, X>::apply_reverse_from_left_to_X(std::vector<X> & w) {
     // the result will be w = p(-1) * w
     lean_assert(m_X_buffer.size() == w.size());

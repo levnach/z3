@@ -18,9 +18,7 @@ namespace lean {
     typedef z3_exception exception;
 
 #define lean_assert(_x_) { SASSERT(_x_); }
-
-    
-    inline void lean_unreachable() { } // TODO
+    inline void lean_unreachable() { } // TODO(levnach)
     template <typename X> inline X zero_of_type() { return numeric_traits<X>::zero(); }
     template <typename X> inline X one_of_type() { return numeric_traits<X>::one(); }
     template <typename X> inline bool is_zero(const X & v) { return numeric_traits<X>::is_zero(v); }
@@ -92,7 +90,8 @@ template <> double inline from_string<double>(std::string const & str) { return 
 template <> mpq inline from_string<mpq>(std::string const & str) {
     return mpq(atof(str.c_str()));
 }
-} // closing lp
+
+} // closing lean
 template <class T>
 inline void hash_combine(std::size_t & seed, const T & v) {
     seed ^= std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
@@ -107,7 +106,16 @@ template<typename S, typename T> struct hash<pair<S, T>> {
         return seed;
     }
 };
-}
+template<>
+struct hash<lean::numeric_pair<lean::mpq>> {
+    inline size_t operator()(const lean::numeric_pair<lean::mpq> & v) const {
+        size_t seed = 0;
+        hash_combine(seed, v.x);
+        hash_combine(seed, v.y);
+        return seed;
+    }
+};
+} // std
 #ifdef __CLANG__
 #pragma clang diagnostic pop
 #endif

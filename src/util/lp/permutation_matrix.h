@@ -24,9 +24,9 @@ namespace lean {
         : public tail_matrix<T, X> {
         std::vector<unsigned> m_permutation;
         std::vector<unsigned> m_rev;
-	  std::vector<T> m_T_buffer;
-	  std::vector<X> m_X_buffer;
-        
+      std::vector<T> m_T_buffer;
+      std::vector<X> m_X_buffer;
+
 
         class ref {
             permutation_matrix & m_p;
@@ -64,7 +64,7 @@ namespace lean {
 
         unsigned operator[](unsigned i) const { return m_permutation[i]; }
 
-        void apply_from_left(std::vector<X> & w, lp_settings &); 
+        void apply_from_left(std::vector<X> & w, lp_settings &);
 
         void apply_from_left_to_T(indexed_vector<T> & w, lp_settings & settings);
 
@@ -81,9 +81,9 @@ namespace lean {
 
         void apply_reverse_from_left_to_T(std::vector<T> & w);
         void apply_reverse_from_left_to_X(std::vector<X> & w);
-        
-	void apply_reverse_from_right_to_T(std::vector<T> & w);
-	void apply_reverse_from_right_to_X(std::vector<X> & w);
+
+    void apply_reverse_from_right_to_T(std::vector<T> & w);
+    void apply_reverse_from_right_to_X(std::vector<X> & w);
 
         void set_val(unsigned i, unsigned pi) {
             lean_assert(i < size() && pi < size());  m_permutation[i] = pi;  m_rev[pi] = i;  }

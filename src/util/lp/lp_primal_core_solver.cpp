@@ -630,7 +630,7 @@ template <typename T, typename X> unsigned lp_primal_core_solver<T, X>::solve() 
              this->m_total_iterations <= this->m_settings.max_total_number_of_iterations
              &&
              !(m_current_x_is_feasible && m_exit_on_feasible_solution));
-	lean_assert(m_current_x_is_feasible == false || this->calc_current_x_is_feasible_include_non_basis());
+    lean_assert(m_current_x_is_feasible == false || this->calc_current_x_is_feasible_include_non_basis());
     return this->m_total_iterations;
 }
 

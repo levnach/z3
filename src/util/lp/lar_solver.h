@@ -49,7 +49,6 @@ struct conversion_helper <double> {
 };
 
 class lar_solver {
-
     unsigned m_available_var_index = 0;
     unsigned m_available_constr_index = 0;
     lp_status m_status = UNKNOWN;
@@ -236,7 +235,7 @@ public:
     void fill_var_set_for_random_update(unsigned sz, var_index const * vars, std::vector<unsigned>& column_list);
     std::vector<unsigned> get_list_of_all_var_indices() const {
         std::vector<unsigned> ret;
-        for( auto t :m_map_from_var_index_to_column_info_with_cls)
+        for (auto t : m_map_from_var_index_to_column_info_with_cls)
             ret.push_back(t.first);
         return ret;
     }

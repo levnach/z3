@@ -9,6 +9,8 @@ Author: Lev Nachmanson
 #include <vector>
 #include "util/lp/lp_settings.h"
 #include <unordered_map>
+#include <string>
+#include <algorithm>
 // see http://research.microsoft.com/projects/z3/smt07.pdf
 // The class searches for a feasible solution with as many different values of variables as it can find
 namespace lean {
@@ -47,7 +49,7 @@ class random_updater {
         bool upper_bound_holds(const numeric_pair<mpq> & a) const {
             return upper_bound_is_set == false || a <= upper_bound;
         }
-        
+
         bool contains(const numeric_pair<mpq> & a) const {
             return low_bound_holds(a) && upper_bound_holds(a);
         }
@@ -59,18 +61,18 @@ class random_updater {
     interval get_interval_of_non_basic_var(unsigned j);
     void add_column_to_sets(unsigned j);
     void random_shift_var(unsigned j);
-	std::unordered_map<numeric_pair<mpq>, unsigned> m_values; // it maps a value to the number of time it occurs
-	std::set<var_index> m_var_set;
-	lar_core_solver<mpq, numeric_pair<mpq>> & m_core_solver;
+    std::unordered_map<numeric_pair<mpq>, unsigned> m_values; // it maps a value to the number of time it occurs
+    std::set<var_index> m_var_set;
+    lar_core_solver<mpq, numeric_pair<mpq>> & m_core_solver;
     void fill_set_of_values_and_set_of_vars(std::vector<unsigned> & column_indices);
-    void diminish_interval_to_leave_basic_vars_feasible(numeric_pair<mpq> &nb_x,interval & inter);
+    void diminish_interval_to_leave_basic_vars_feasible(numeric_pair<mpq> &nb_x, interval & inter);
     void shift_var(unsigned j, interval & r);
-    void diminish_interval_for_basic_var(numeric_pair<mpq> &nb_x,unsigned i, unsigned j, interval & r);
+    void diminish_interval_for_basic_var(numeric_pair<mpq> &nb_x, unsigned i, unsigned j, interval & r);
     numeric_pair<mpq> get_random_from_interval(interval & r);
     void add_value(numeric_pair<mpq>& v);
     void remove_value(numeric_pair<mpq> & v);
   public:
     random_updater(lar_core_solver<mpq, numeric_pair<mpq>> & lar_solver, std::vector<unsigned> & column_indeces);
-    void update();    
+    void update();
 };
 }

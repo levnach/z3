@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <limits>
 #include <sys/timeb.h>
-#include <iomanip> 
+#include <iomanip>
 #include "util/lp/lp_utils.h"
 
 namespace lean {
@@ -199,7 +199,7 @@ public:
 }; // end of lp_settings class
 
 
-#define OUT(_settings_,_msg_) { if (_settings_.out()) { *_settings_.out() << _msg_; } }
+#define OUT(_settings_, _msg_) { if (_settings_.out()) { *_settings_.out() << _msg_; } }
 
 template <typename T>
 std::string T_to_string(const T & t) {
@@ -210,7 +210,7 @@ std::string T_to_string(const T & t) {
 
 inline std::string T_to_string(const mpq & t) {
     std::ostringstream strs;
-	strs << t;
+    strs << t;
     return strs.str();
 }
 

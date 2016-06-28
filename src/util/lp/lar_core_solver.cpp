@@ -767,15 +767,15 @@ template <typename T, typename X>    void lar_core_solver<T, X>::advance_on_infe
 }
 
 template <typename T, typename X> void lar_core_solver<T, X>::solve() {
-	prefix();
-	if (is_empty()) {
+    prefix();
+    if (is_empty()) {
         this->m_status = OPTIMAL;
         return;
     }
     this->solve_Ax_eq_b();
-	lean_assert(this->A_mult_x_is_off() == false);
-	lean_assert(non_basis_columns_are_set_correctly());
-	if (this->m_settings.row_feasibility) {
+    lean_assert(this->A_mult_x_is_off() == false);
+    lean_assert(non_basis_columns_are_set_correctly());
+    if (this->m_settings.row_feasibility) {
         row_feasibility_loop();
     } else {
         feasibility_loop();

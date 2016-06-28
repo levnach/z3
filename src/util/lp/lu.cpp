@@ -203,7 +203,7 @@ void lu<T, X>::solve_By_when_y_is_ready_for_T(std::vector<T> & y) {
     }
 }
 
-    
+
 template <typename T, typename X>
 void lu<T, X>::print_matrix_compact(std::ostream & f) {
     f << "matrix_start" << std::endl;
@@ -561,7 +561,7 @@ void lu<T, X>::pivot_in_dense_mode(unsigned i) {
     m_dense_LU->pivot(i, m_settings);
 }
 template <typename T, typename X>
-void lu<T, X>::create_initial_factorization(){    
+void lu<T, X>::create_initial_factorization(){
     m_U.prepare_for_factorization();
     unsigned j;
     for (j = 0; j < m_dim; j++) {

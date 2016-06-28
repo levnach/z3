@@ -164,7 +164,7 @@ struct numeric_pair {
     static bool precize() { return lean::numeric_traits<T>::precize();}
 
     std::string to_string() const {
-        return std::string("(") + T_to_string(x) + ", "  + T_to_string(y) + ")"; 
+        return std::string("(") + T_to_string(x) + ", "  + T_to_string(y) + ")";
     }
 };
 
