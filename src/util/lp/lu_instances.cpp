@@ -49,3 +49,5 @@ template void lean::lu<double, double>::init_vector_w(unsigned int, lean::indexe
 template lean::numeric_pair<lean::mpq> lean::dot_product<lean::mpq, lean::numeric_pair<lean::mpq> >(std::vector<lean::mpq, std::allocator<lean::mpq> > const&, std::vector<lean::numeric_pair<lean::mpq>, std::allocator<lean::numeric_pair<lean::mpq> > > const&, unsigned int);
 template bool lean::lu<double, double>::pivot_the_row(int); // NOLINT
 template void lean::lu<lean::mpq, lean::numeric_pair<lean::mpq> >::init_vector_w(unsigned int, lean::indexed_vector<lean::mpq>&);
+template void lean::lu<lean::mpq, lean::numeric_pair<lean::mpq> >::solve_Bd_faster(unsigned int, lean::indexed_vector<lean::mpq>&);
+

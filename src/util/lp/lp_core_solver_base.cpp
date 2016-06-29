@@ -122,6 +122,10 @@ update_index_of_ed() {
             m_index_of_ed.push_back(i);
     }
 }
+template <typename T, typename X> void lp_core_solver_base<T, X>::solve_Bd(unsigned entering, indexed_vector<T> & column) {
+    m_factorization->solve_Bd_faster(entering, column);
+}
+
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::
 solve_Bd(unsigned entering) {

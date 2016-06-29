@@ -8,3 +8,4 @@
 #include <memory>
 #include "util/lp/lp_settings.cpp"
 template bool lean::vectors_are_equal<double>(std::vector<double, std::allocator<double> > const&, std::vector<double, std::allocator<double> > const&);
+template bool lean::vectors_are_equal<lean::mpq>(std::vector<lean::mpq, std::allocator<lean::mpq> > const&, std::vector<lean::mpq, std::allocator<lean::mpq> > const&);

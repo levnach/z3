@@ -54,20 +54,13 @@ dense_matrix<T, X>::operator=(dense_matrix const & other){
     return *this;
 }
 
-template <typename T, typename X> dense_matrix<T, X>::dense_matrix(dense_matrix<T, X> const & other) : m_m(other.row_count()), m_n(other.column_count()) {
-    m_values = new T[m_m * m_n];
-    for (unsigned i = 0; i < m_m; i ++)
-        for (unsigned j = 0; j < m_n; j++)
-            m_values[i * m_n + j] = other.get_elem(i, j);
-}
-
-template <typename T, typename X> dense_matrix<T, X>::dense_matrix(matrix<T, X> const & other) :
-    m_m(other.row_count()),
-    m_n(other.column_count()) {
+template <typename T, typename X> dense_matrix<T, X>::dense_matrix(matrix<T, X> const * other) :
+    m_m(other->row_count()),
+    m_n(other->column_count()) {
     m_values = new T[m_m * m_n];
     for (unsigned i = 0; i < m_m; i++)
         for (unsigned j = 0; j < m_n; j++)
-            m_values[i * m_n + j] = other.get_elem(i, j);
+            m_values[i * m_n + j] = other->get_elem(i, j);
 }
 
 template <typename T, typename X> void dense_matrix<T, X>::apply_from_right(T * w) {

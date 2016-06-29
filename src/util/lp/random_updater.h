@@ -7,10 +7,11 @@ Author: Lev Nachmanson
 #pragma once
 #include <set>
 #include <vector>
-#include "util/lp/lp_settings.h"
 #include <unordered_map>
 #include <string>
 #include <algorithm>
+#include "util/lp/lp_settings.h"
+#include "util/lp/indexed_vector.h"
 // see http://research.microsoft.com/projects/z3/smt07.pdf
 // The class searches for a feasible solution with as many different values of variables as it can find
 namespace lean {
@@ -57,17 +58,18 @@ class random_updater {
         std::string rbs() { return upper_bound_is_set? T_to_string(upper_bound):std::string("inf");}
         std::string to_str() { return std::string("[")+ lbs() + ", " + rbs() + "]";}
     };
+    std::set<var_index> m_var_set;
+    lar_core_solver<mpq, numeric_pair<mpq>> & m_core_solver;
+    indexed_vector<mpq> m_column_j; // the actual column
     interval find_shift_interval(unsigned j);
     interval get_interval_of_non_basic_var(unsigned j);
     void add_column_to_sets(unsigned j);
     void random_shift_var(unsigned j);
     std::unordered_map<numeric_pair<mpq>, unsigned> m_values; // it maps a value to the number of time it occurs
-    std::set<var_index> m_var_set;
-    lar_core_solver<mpq, numeric_pair<mpq>> & m_core_solver;
     void fill_set_of_values_and_set_of_vars(std::vector<unsigned> & column_indices);
     void diminish_interval_to_leave_basic_vars_feasible(numeric_pair<mpq> &nb_x, interval & inter);
     void shift_var(unsigned j, interval & r);
-    void diminish_interval_for_basic_var(numeric_pair<mpq> &nb_x, unsigned i, unsigned j, interval & r);
+    void diminish_interval_for_basic_var(numeric_pair<mpq> &nb_x, unsigned i, unsigned j, mpq & a, interval & r);
     numeric_pair<mpq> get_random_from_interval(interval & r);
     void add_value(numeric_pair<mpq>& v);
     void remove_value(numeric_pair<mpq> & v);

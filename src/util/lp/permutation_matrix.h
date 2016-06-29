@@ -20,12 +20,11 @@ namespace lean {
 #endif
 
     template <typename T, typename X>
-    class permutation_matrix
-        : public tail_matrix<T, X> {
+class permutation_matrix : public tail_matrix<T, X> {
         std::vector<unsigned> m_permutation;
         std::vector<unsigned> m_rev;
-      std::vector<T> m_T_buffer;
-      std::vector<X> m_X_buffer;
+        std::vector<T> m_T_buffer;
+        std::vector<X> m_X_buffer;
 
 
         class ref {
@@ -82,8 +81,8 @@ namespace lean {
         void apply_reverse_from_left_to_T(std::vector<T> & w);
         void apply_reverse_from_left_to_X(std::vector<X> & w);
 
-    void apply_reverse_from_right_to_T(std::vector<T> & w);
-    void apply_reverse_from_right_to_X(std::vector<X> & w);
+        void apply_reverse_from_right_to_T(std::vector<T> & w);
+        void apply_reverse_from_right_to_X(std::vector<X> & w);
 
         void set_val(unsigned i, unsigned pi) {
             lean_assert(i < size() && pi < size());  m_permutation[i] = pi;  m_rev[pi] = i;  }
@@ -123,41 +122,41 @@ namespace lean {
     }; // end of the permutation class
 
 #ifdef LEAN_DEBUG
-        template <typename T, typename X>
-        class permutation_generator {
-        unsigned m_n;
-        permutation_generator* m_lower;
-        bool m_done = false;
-        permutation_matrix<T, X> m_current;
-        unsigned m_last;
-    public:
-        permutation_generator(unsigned n);
-        permutation_generator(const permutation_generator & o);
-        bool move_next();
+template <typename T, typename X>
+class permutation_generator {
+    unsigned m_n;
+    permutation_generator* m_lower;
+    bool m_done = false;
+    permutation_matrix<T, X> m_current;
+    unsigned m_last;
+public:
+    permutation_generator(unsigned n);
+    permutation_generator(const permutation_generator & o);
+    bool move_next();
 
-        ~permutation_generator() {
+    ~permutation_generator() {
         if (m_lower != nullptr) {
-        delete m_lower;
-    }
+            delete m_lower;
+        }
     }
 
     permutation_matrix<T, X> *current() {
         return &m_current;
     }
-    };
+};
 
-        template <typename T, typename X>
-        inline unsigned number_of_inversions(permutation_matrix<T, X> & p);
+template <typename T, typename X>
+inline unsigned number_of_inversions(permutation_matrix<T, X> & p);
 
-        template <typename T, typename X>
-        int sign(permutation_matrix<T, X> & p) {
-        return is_even(number_of_inversions(p))? 1: -1;
-    }
+template <typename T, typename X>
+int sign(permutation_matrix<T, X> & p) {
+    return is_even(number_of_inversions(p))? 1: -1;
+}
 
-        template <typename T, typename X>
-        T det_val_on_perm(permutation_matrix<T, X>* u, const matrix<T, X>& m);
+template <typename T, typename X>
+T det_val_on_perm(permutation_matrix<T, X>* u, const matrix<T, X>& m);
 
-        template <typename T, typename X>
-        T determinant(const matrix<T, X>& m);
+template <typename T, typename X>
+T determinant(const matrix<T, X>& m);
 #endif
-    }
+}

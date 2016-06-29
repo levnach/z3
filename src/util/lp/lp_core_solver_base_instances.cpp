@@ -27,6 +27,7 @@ template void lean::lp_core_solver_base<double, double>::set_non_basic_x_to_corr
 template void lean::lp_core_solver_base<double, double>::snap_xN_to_bounds_and_free_columns_to_zeroes();
 template void lean::lp_core_solver_base<double, double>::solve_Ax_eq_b();
 template void lean::lp_core_solver_base<double, double>::solve_Bd(unsigned int);
+template void lean::lp_core_solver_base<lean::mpq, lean::numeric_pair<lean::mpq>>::solve_Bd(unsigned int, indexed_vector<lean::mpq>&);
 template void lean::lp_core_solver_base<double, double>::solve_yB(std::vector<double, std::allocator<double> >&);
 template bool lean::lp_core_solver_base<double, double>::update_basis_and_x(int, int, double const&);
 template void lean::lp_core_solver_base<double, double>::update_x(unsigned int, double);
@@ -81,4 +82,4 @@ template bool lean::lp_core_solver_base<lean::mpq, lean::mpq>::calc_current_x_is
 template bool lean::lp_core_solver_base<lean::mpq, lean::numeric_pair<lean::mpq> >::calc_current_x_is_feasible_include_non_basis() const;
 template void  lean::lp_core_solver_base<lean::mpq, lean::numeric_pair<lean::mpq> >::pivot_fixed_vars_from_basis();
 template bool lean::lp_core_solver_base<double, double>::column_is_feasible(unsigned int) const;
-template bool lean::lp_core_solver_base<rational, rational>::column_is_feasible(unsigned int) const;
+template bool lean::lp_core_solver_base<lean::mpq, lean::mpq>::column_is_feasible(unsigned int) const;

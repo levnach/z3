@@ -22,7 +22,7 @@ template <typename T>
 class indexed_vector {
 public:
     // m_index points to non-zero elements of m_data
-    buffer<T> m_data;
+    std::vector<T> m_data;
     std::vector<unsigned> m_index;
     indexed_vector(unsigned data_size) {
         m_data.resize(data_size, numeric_traits<T>::zero());

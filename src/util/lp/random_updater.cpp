@@ -11,12 +11,12 @@
 namespace lean {
 
 
-void random_updater:: fill_set_of_values_and_set_of_vars(std::vector<unsigned> & column_indices) {
+void random_updater::fill_set_of_values_and_set_of_vars(std::vector<unsigned> & column_indices) {
     for (unsigned j : column_indices)
         add_column_to_sets(j);
 }
 
-random_updater::random_updater(lar_core_solver<mpq, numeric_pair<mpq>> & lar_core_solver,  std::vector<unsigned> & column_indices) : m_core_solver(lar_core_solver)  {
+random_updater::random_updater(lar_core_solver<mpq, numeric_pair<mpq>> & lar_core_solver,  std::vector<unsigned> & column_indices) : m_core_solver(lar_core_solver), m_column_j(m_core_solver.m_m)  {
     fill_set_of_values_and_set_of_vars(column_indices);
 }
 
@@ -42,9 +42,10 @@ random_updater::interval random_updater::get_interval_of_non_basic_var(unsigned 
     return ret;
 }
 
-void random_updater::diminish_interval_for_basic_var(numeric_pair<mpq>& nb_x, unsigned i, unsigned j, interval & r) {
+void random_updater::diminish_interval_for_basic_var(numeric_pair<mpq>& nb_x, unsigned i, unsigned j,
+                                                     mpq & a,
+                                                     interval & r) {
     lean_assert(m_core_solver.m_basis_heading[j] >= 0);
-    auto & a = m_core_solver.m_ed[i];
     numeric_pair<mpq> delta;
     lean_assert(a != zero_of_type<mpq>());
     switch (m_core_solver.get_column_type(j)) {
@@ -96,8 +97,8 @@ void random_updater::diminish_interval_for_basic_var(numeric_pair<mpq>& nb_x, un
 
 
 void random_updater::diminish_interval_to_leave_basic_vars_feasible(numeric_pair<mpq> &nb_x, interval & r) {
-    for (unsigned i : m_core_solver.m_index_of_ed) {
-        diminish_interval_for_basic_var(nb_x, i, m_core_solver.m_basis[i], r);
+    for (unsigned i : m_column_j.m_index) {
+        diminish_interval_for_basic_var(nb_x, i, m_core_solver.m_basis[i], m_column_j.m_data[i], r);
         if (r.is_empty())
             break;
     }
@@ -110,7 +111,6 @@ random_updater::interval random_updater::find_shift_interval(unsigned j) {
 }
 
 void random_updater::shift_var(unsigned j, interval & r) {
-    //    lean_assert(m_core_solver.A_mult_x_is_off() == false);
     lean_assert(r.contains(m_core_solver.m_x[j]));
     lean_assert(m_core_solver.column_is_feasible(j));
     auto old_x = m_core_solver.m_x[j];
@@ -122,11 +122,12 @@ void random_updater::shift_var(unsigned j, interval & r) {
     lean_assert(m_core_solver.column_is_feasible(j));
     auto delta = m_core_solver.m_x[j] - old_x;
 
-    for (unsigned i : m_core_solver.m_index_of_ed) {
+    for (unsigned i : m_column_j.m_index) {
         unsigned bj = m_core_solver.m_basis[i];
-        m_core_solver.m_x[bj] -= m_core_solver.m_ed[i] * delta;
+        m_core_solver.m_x[bj] -= m_column_j[i] * delta;
         lean_assert(m_core_solver.column_is_feasible(bj));
     }
+    lean_assert(m_core_solver.A_mult_x_is_off() == false);
 }
 
 numeric_pair<mpq> random_updater::get_random_from_interval(interval & r) {
@@ -142,7 +143,7 @@ numeric_pair<mpq> random_updater::get_random_from_interval(interval & r) {
 }
 
 void random_updater::random_shift_var(unsigned j) {
-    m_core_solver.solve_Bd(j); // puts the result into m_core_solver.m_ed - DO WE NEED to restore m_w of m_core_solver?
+    m_core_solver.solve_Bd(j, m_column_j); 
 
     interval interv = find_shift_interval(j);
     if (interv.is_empty()) {
@@ -152,14 +153,14 @@ void random_updater::random_shift_var(unsigned j) {
 }
 
 void random_updater::update() {
-    //    std::cout << "we have " << m_var_set.size() << " variables, and " << m_values.size() << " different values" << std::endl;
+    std::cout << "we have " << m_var_set.size() << " variables, and " << m_values.size() << " different values" << std::endl;
     for (auto j : m_var_set) {
         if (m_var_set.size() <= m_values.size()) {
             break; // we are done
         }
         random_shift_var(j);
     }
-    // std::cout << "after run : we have " << m_var_set.size() << " variables, and " << m_values.size() << " different values" << std::endl;
+    std::cout << "after run : we have " << m_var_set.size() << " variables, and " << m_values.size() << " different values" << std::endl;
 }
 
 void random_updater::add_value(numeric_pair<mpq>& v) {

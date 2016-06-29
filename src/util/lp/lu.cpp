@@ -202,6 +202,24 @@ void lu<T, X>::solve_By_when_y_is_ready_for_T(std::vector<T> & y) {
         }
     }
 }
+template <typename T, typename X>
+void lu<T, X>::solve_By_for_T_indexed_only(indexed_vector<T> & y) {
+    if (numeric_traits<T>::precise()) {
+        m_U.solve_U_y_indexed_only(y);
+        m_R.apply_reverse_from_left(y); // see 24.3 from Chvatal
+        return;
+    }
+    lean_assert(false); // not implemented
+    /*    m_U.double_solve_U_y(y);
+    m_R.apply_reverse_from_left_to_T(y); // see 24.3 from Chvatal
+    unsigned i = m_dim;
+    while (i--) {
+        if (is_zero(y[i])) continue;
+        if (m_settings.abs_val_is_smaller_than_drop_tolerance(y[i])){
+            y[i] = zero_of_type<T>();
+        }
+        }*/
+}
 
 
 template <typename T, typename X>
@@ -238,6 +256,12 @@ template <typename T, typename X>
 void lu<T, X>::solve_Bd(unsigned a_column, std::vector<T> & d, indexed_vector<T> & w) {
     init_vector_w(a_column, w);
     solve_Bd_when_w_is_ready(d, w);
+}
+
+template <typename T, typename X>
+void lu<T, X>::solve_Bd_faster(unsigned a_column, indexed_vector<T> & d) { // d is the right side on the input and the solution at the exit
+    init_vector_w(a_column, d);
+    solve_By_for_T_indexed_only(d);
 }
 
 template <typename T, typename X>

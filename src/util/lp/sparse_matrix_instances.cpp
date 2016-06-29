@@ -6,8 +6,10 @@
 */
 #include <vector>
 #include <memory>
+#include "util/lp/lp_settings.h"
 #include "util/lp/lu.h"
 #include "util/lp/sparse_matrix.cpp"
+#include "util/lp/dense_matrix.h"
 namespace lean {
 template double sparse_matrix<double, double>::dot_product_with_row<double>(unsigned int, std::vector<double> const&) const;
 template void sparse_matrix<double, double>::add_new_element(unsigned int, unsigned int, double);
@@ -89,8 +91,10 @@ template void sparse_matrix<mpq, numeric_pair<mpq> >::double_solve_U_y<numeric_p
 #ifdef LEAN_DEBUG
 template bool sparse_matrix<double, double>::is_upper_triangular_and_maximums_are_set_correctly_in_rows(lp_settings&) const;
 template bool sparse_matrix<mpq, mpq>::is_upper_triangular_and_maximums_are_set_correctly_in_rows(lp_settings&) const;
-#endif
-#ifdef LEAN_DEBUG
 template bool sparse_matrix<mpq, numeric_pair<mpq> >::is_upper_triangular_and_maximums_are_set_correctly_in_rows(lp_settings&) const;
+//template dense_matrix<mpq, numeric_pair<mpq> >::dense_matrix(matrix<mpq, numeric_pair<mpq> > const *);
+//template void lean::dense_matrix<lean::mpq, lean::numeric_pair<lean::mpq> >::apply_from_left(std::vector<lean::mpq, std::allocator<lean::mpq> >&);
 #endif
+//template bool vectors_are_equal<mpq>(const std::vector<mpq> & a, const std::vector<mpq> &b);
 }
+template void lean::sparse_matrix<lean::mpq, lean::numeric_pair<lean::mpq> >::solve_U_y_indexed_only<lean::mpq>(lean::indexed_vector<lean::mpq>&);

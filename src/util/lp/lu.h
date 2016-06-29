@@ -127,6 +127,7 @@ public:
     void solve_By(std::vector<X> & y);
 
     void solve_Bd_when_w_is_ready(std::vector<T> & d, indexed_vector<T>& w );
+    void solve_By_for_T_indexed_only(indexed_vector<T>& y);
 
     void solve_By_when_y_is_ready_for_X(std::vector<X> & y);
     void solve_By_when_y_is_ready_for_T(std::vector<T> & y);
@@ -137,6 +138,8 @@ public:
 
     void print(indexed_vector<T> & w);
     void solve_Bd(unsigned a_column, std::vector<T> & d, indexed_vector<T> & w);
+    void solve_Bd_faster(unsigned a_column, indexed_vector<T> & d); // d is the right side on the input and the solution at the exit
+
 
     bool column_can_be_taken_to_basis(unsigned i) { return m_basis_heading[i] < 0; }
 

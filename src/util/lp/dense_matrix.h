@@ -38,9 +38,7 @@ public:
 
     dense_matrix & operator=(dense_matrix const & other);
 
-    dense_matrix(dense_matrix<T, X> const & other);
-
-    dense_matrix(matrix<T, X> const & other);
+    dense_matrix(matrix<T, X> const * other);
     void apply_from_right(T * w);
 
     void apply_from_right(std::vector <T> & w);

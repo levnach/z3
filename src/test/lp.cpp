@@ -541,7 +541,7 @@ template <typename T, typename X>
 void test_swap_rows_with_permutation(sparse_matrix<T, X>& m){
     cout << "testing swaps" << std::endl;
     unsigned dim = m.row_count();
-    dense_matrix<double, double> original(m);
+    dense_matrix<double, double> original(&m);
     permutation_matrix<double, double> q(dim);
     print_matrix(m, std::cout);
     lean_assert(original == q * m);
@@ -565,7 +565,7 @@ template <typename T, typename X>
 void test_swap_cols_with_permutation(sparse_matrix<T, X>& m){
     cout << "testing swaps" << std::endl;
     unsigned dim = m.row_count();
-    dense_matrix<double, double> original(m);
+    dense_matrix<double, double> original(&m);
     permutation_matrix<double, double> q(dim);
     print_matrix(m, std::cout);
     lean_assert(original == q * m);

@@ -271,6 +271,10 @@ public:
     // the matrix here has to be upper triangular
     template <typename L>
     void solve_U_y(std::vector<L> & y);
+    // solving this * x = y, and putting the answer into y
+    // the matrix here has to be upper triangular
+    template <typename L>
+    void solve_U_y_indexed_only(indexed_vector<L> & y);
 
 #ifdef LEAN_DEBUG
     T get_elem(unsigned i, unsigned j) const { return get(i, j); }

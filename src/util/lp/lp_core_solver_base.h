@@ -103,6 +103,8 @@ public:
 
     void solve_Bd(unsigned entering);
 
+    void solve_Bd(unsigned entering, indexed_vector<T> & column);
+
     void pretty_print(std::ostream & out);
 
     void save_state(T * w_buffer, T * d_buffer);
