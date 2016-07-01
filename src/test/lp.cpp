@@ -200,7 +200,10 @@ void test_small_lu(lp_settings & settings) {
     l.change_basis(4, 3);
     cout << "we were factoring " << std::endl;
 #ifdef LEAN_DEBUG
-    print_matrix(get_B(l), std::cout);
+    {
+        auto bl = get_B(l);
+        print_matrix(&bl, std::cout);
+    }
 #endif
     lean_assert(l.is_correct());
 
@@ -210,7 +213,10 @@ void test_small_lu(lp_settings & settings) {
     l.change_basis(5, 1);
     cout << "we were factoring " << std::endl;
 #ifdef LEAN_DEBUG
-    print_matrix(get_B(l), std::cout);
+    {
+        auto bl = get_B(l);
+        print_matrix(&bl, std::cout);
+    }
 #endif
     lean_assert(l.is_correct());
     cout << "entering 3, leaving 2" << std::endl;
@@ -219,7 +225,10 @@ void test_small_lu(lp_settings & settings) {
     l.change_basis(3, 2);
     cout << "we were factoring " << std::endl;
 #ifdef LEAN_DEBUG
-    print_matrix(get_B(l), std::cout);
+    {
+        auto bl = get_B(l);
+        print_matrix(&bl, std::cout);
+    }
 #endif
     lean_assert(l.is_correct());
 }
@@ -296,8 +305,8 @@ void test_larger_lu_exp(lp_settings & settings) {
 
     fill_larger_sparse_matrix_exp(m);
     // print_matrix(m);
-    vector<int> heading = allocate_basis_heading(m.column_count());
-    vector<unsigned> non_basic_columns;
+    std::vector<int> heading = allocate_basis_heading(m.column_count());
+    std::vector<unsigned> non_basic_columns;
     init_basis_heading_and_non_basic_columns_vector(basis, m.row_count(), heading, m.column_count(), non_basic_columns);
     lu<double, double> l(m, basis, heading, settings, non_basic_columns);
 
@@ -340,8 +349,8 @@ void test_larger_lu_with_holes(lp_settings & settings) {
     /*        */  m(6, 5) = 20; m(6, 6) = -21;
     /*        */  m(7, 5) = 22; m(7, 6) = 23; m(7, 7) = 24; m(7, 8) = 88;
     print_matrix(m, std::cout);
-    vector<int> heading = allocate_basis_heading(m.column_count());
-    vector<unsigned> non_basic_columns;
+    std::vector<int> heading = allocate_basis_heading(m.column_count());
+    std::vector<unsigned> non_basic_columns;
     init_basis_heading_and_non_basic_columns_vector(basis, m.row_count(), heading, m.column_count(), non_basic_columns);
     lu<double, double> l(m, basis, heading, settings, non_basic_columns);
     std::cout << "printing factorization" << std::endl;
@@ -349,7 +358,7 @@ void test_larger_lu_with_holes(lp_settings & settings) {
         auto lp = l.get_lp_matrix(i);
         lp->set_number_of_columns(m.row_count());
         lp->set_number_of_rows(m.row_count());
-        print_matrix(* lp, std::cout);
+        print_matrix( lp, std::cout);
     }
 
     dense_matrix<double, double> left_side = l.get_left_side();
@@ -381,8 +390,8 @@ void test_larger_lu(lp_settings& settings) {
     fill_larger_sparse_matrix(m);
     print_matrix(m, std::cout);
 
-    vector<int> heading = allocate_basis_heading(m.column_count());
-    vector<unsigned> non_basic_columns;
+    std::vector<int> heading = allocate_basis_heading(m.column_count());
+    std::vector<unsigned> non_basic_columns;
     init_basis_heading_and_non_basic_columns_vector(basis, m.row_count(), heading, m.column_count(), non_basic_columns);
     auto l = lu<double, double> (m, basis, heading, settings, non_basic_columns);
     // std::cout << "printing factorization" << std::endl;
@@ -397,9 +406,9 @@ void test_larger_lu(lp_settings& settings) {
     dense_matrix<double, double> right_side = l.get_right_side();
     if (!(left_side == right_side)) {
         cout << "left side" << std::endl;
-        print_matrix(left_side, std::cout);
+        print_matrix(&left_side, std::cout);
         cout << "right side" << std::endl;
-        print_matrix(right_side, std::cout);
+        print_matrix(&right_side, std::cout);
 
         std::cout << "different sides" << std::endl;
         cout << "initial factorization is incorrect" << std::endl;
@@ -532,7 +541,7 @@ template <typename T, typename X>
 void test_swap_rows_with_permutation(sparse_matrix<T, X>& m){
     cout << "testing swaps" << std::endl;
     unsigned dim = m.row_count();
-    dense_matrix<double, double> original(m);
+    dense_matrix<double, double> original(&m);
     permutation_matrix<double, double> q(dim);
     print_matrix(m, std::cout);
     lean_assert(original == q * m);
@@ -556,7 +565,7 @@ template <typename T, typename X>
 void test_swap_cols_with_permutation(sparse_matrix<T, X>& m){
     cout << "testing swaps" << std::endl;
     unsigned dim = m.row_count();
-    dense_matrix<double, double> original(m);
+    dense_matrix<double, double> original(&m);
     permutation_matrix<double, double> q(dim);
     print_matrix(m, std::cout);
     lean_assert(original == q * m);
@@ -962,19 +971,6 @@ void test_permutations() {
     test_apply_reverse_from_right();
 }
 
-#ifdef LEAN_DEBUG
-void test_perm_apply_reverse_from_right() {
-    permutation_generator<double, double> allp(5);
-    vector<double> w(6);
-    for (int i = 0; i < 5; i ++) {
-        w[i] = i;
-    }
-
-    while (allp.move_next()){
-        allp.current()->apply_reverse_from_right(w);
-    }
-}
-#endif
 void lp_solver_test() {
     // lp_revised_solver<double> lp_revised;
     // lp_revised.get_minimal_solution();
@@ -1802,6 +1798,7 @@ void setup_args_parser(argument_parser & parser) {
     parser.add_option_with_help_string("--lar", "test lar_solver");
     parser.add_option_with_after_string_with_help("--maxng", "max iterations without progress");
     parser.add_option_with_help_string("-tbq", "test binary queue");
+    parser.add_option_with_help_string("--randomize_lar", "test randomize funclionality");
 }
 
 char * find_home_dir() {
@@ -1810,7 +1807,7 @@ char * find_home_dir() {
     char * home_dir =   getenv("HOME");
   if (home_dir == nullptr) {
         cout << "cannot find home directory" << std::endl;
-        return;
+        return nullptr;
     }
     #endif
   return nullptr;
@@ -2202,6 +2199,24 @@ void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_read
         buffer<std::pair<lean::mpq, constraint_index>> evidence;
         solver->get_infeasibility_evidence(evidence);
     }
+    if (args_parser.option_is_used("--randomize_lar")) {
+        if (solver->get_status() != OPTIMAL) {
+            cout << "cannot check randomize on an infeazible  problem" << endl;
+            return;
+        }
+        cout << "checking randomize" << endl;
+        std::vector<var_index> all_vars = solver->get_list_of_all_var_indices();
+        unsigned m = all_vars.size();
+        if (m > 100)
+            m = 100;
+        
+        var_index *vars = new var_index[m];
+        for (unsigned i = 0; i < m; i++)
+            vars[i]=all_vars[i];
+        
+        solver->random_update(m, vars);
+        delete []vars;
+    }
 }
 
 void test_lar_on_file(std::string file_name, argument_parser & args_parser) {
@@ -2412,7 +2427,7 @@ void test_square_dense_submatrix() {
     for (unsigned i = index_start; i < parent_dim; i++)
         for (unsigned j = index_start; j < parent_dim; j++)
             m[i-index_start][j-index_start] = d[i][j];
-    print_matrix(m, std::cout);
+    print_matrix(&m, std::cout);
 #endif
     for (unsigned i = index_start; i < parent_dim; i++)
         for (unsigned j = index_start; j < parent_dim; j++)
@@ -2422,7 +2437,7 @@ void test_square_dense_submatrix() {
         for (unsigned j = index_start; j < parent_dim; j++)
             m[i-index_start][j-index_start] = d[i][j];
 
-    print_matrix(m, std::cout);
+    print_matrix(&m, std::cout);
     std::cout << std::endl;
 #endif
 }
@@ -2430,7 +2445,7 @@ void test_square_dense_submatrix() {
 void run_xyz_sample() {
     
 }
-    
+
 void test_lp_local(int argn, char**argv) {
     // initialize_util_module();
     // initialize_numerics_module();
@@ -2443,12 +2458,8 @@ void test_lp_local(int argn, char**argv) {
         ret = 1;
         return finalize(ret);
     }
-    if (argn == 0) {
-		std::cout << "there are no options" << std::endl;
-    } else {
-		std::cout << "the options are " << std::endl;
-		args_parser.print();
-    }
+
+    args_parser.print();
 
     if (args_parser.option_is_used("--xyz_sample")) {
         run_xyz_sample();
@@ -2543,7 +2554,6 @@ void test_lp_local(int argn, char**argv) {
     test_init_U();
     test_replace_column();
 #ifdef LEAN_DEBUG
-    test_perm_apply_reverse_from_right();
     sparse_matrix_with_permutaions_test();
     test_dense_matrix();
     test_swap_operations();
@@ -2556,5 +2566,5 @@ void test_lp_local(int argn, char**argv) {
 }
 }
 void tst_lp(char ** argv, int argc, int& i) {
-    lean::test_lp_local(argc - 1, argv + 1);
+    lean::test_lp_local(argc - 2, argv + 2);
 }

@@ -163,7 +163,9 @@ struct numeric_pair {
 
     static bool precize() { return lean::numeric_traits<T>::precize();}
 
-    std::string to_string() const { return std::string("(") + T_to_string(x) + ", "  + T_to_string(y) + ")"; }
+    std::string to_string() const {
+        return std::string("(") + T_to_string(x) + ", "  + T_to_string(y) + ")";
+    }
 };
 
 
@@ -182,6 +184,13 @@ template <typename T, typename X>
 numeric_pair<T> operator*(const numeric_pair<T> & r, const X & a) {
     return numeric_pair<T>(a * r.x, a * r.y);
 }
+
+
+template <typename T, typename X>
+numeric_pair<T> operator/(const numeric_pair<T> & r, const X & a) {
+    return numeric_pair<T>(r.x / a,  r.y / a);
+}
+
 
 } // close namespace lean
 

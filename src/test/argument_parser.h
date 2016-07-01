@@ -60,10 +60,8 @@ public:
                 i++;
                 m_used_options_with_after_string[ar] = m_args[i];
             } else {
-                if (starts_with(ar, "-") || starts_with(ar, "//")) {
-                    m_error_message = "Unknown option " + ar;
-                    status_is_ok = false;
-                }
+                 if (starts_with(ar, "-") || starts_with(ar, "//")) 
+                     status_is_ok = false;
 
                 m_free_args.push_back(ar);
             }
@@ -125,11 +123,22 @@ public:
     }
 
     void print() {
+        if (m_used_options.size() == 0 && m_used_options_with_after_string.size() == 0 && m_free_args.size() == 0) {
+            cout << "no options are given" << endl;
+            return;
+        }
+        cout << "options are: " << endl;
         for (string s : m_used_options) {
             cout << s << endl;
         }
         for (auto & t : m_used_options_with_after_string) {
             cout << t.first << " " << t.second << endl;
+        }
+        if (m_free_args.size() > 0) {
+            cout << "free arguments are: "  << endl;
+            for (auto & t : m_free_args) {
+                cout << t << " " <<  endl;
+            }
         }
     }
 };

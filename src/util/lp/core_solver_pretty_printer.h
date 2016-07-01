@@ -11,6 +11,7 @@
 #include <vector>
 #include <ostream>
 #include "util/lp/lp_settings.h"
+#include "util/lp/indexed_vector.h"
 namespace lean {
 template <typename T, typename X> class lp_core_solver_base; // forward definition
 
@@ -44,8 +45,8 @@ class core_solver_pretty_printer {
     unsigned ncols() { return m_core_solver.m_A.column_count(); }
     unsigned nrows() { return m_core_solver.m_A.row_count(); }
     unsigned m_artificial_start = std::numeric_limits<unsigned>::max();
-    T * m_w_buff;
-    T * m_ed_buff;
+    indexed_vector<T> m_w_buff;
+    std::vector<T> m_ed_buff;
     vector<T> m_exact_column_norms;
 
 public:

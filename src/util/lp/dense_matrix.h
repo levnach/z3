@@ -7,7 +7,6 @@
 #pragma once
 #ifdef LEAN_DEBUG
 #include <vector>
-#include "util/numerics/double.h"
 #include "util/lp/matrix.h"
 namespace lean {
 // used for debugging purposes only
@@ -39,9 +38,7 @@ public:
 
     dense_matrix & operator=(dense_matrix const & other);
 
-    dense_matrix(dense_matrix<T, X> const & other);
-
-    dense_matrix(matrix<T, X> const & other);
+    dense_matrix(matrix<T, X> const * other);
     void apply_from_right(T * w);
 
     void apply_from_right(std::vector <T> & w);

@@ -103,6 +103,8 @@ public:
 
     void solve_Bd(unsigned entering);
 
+    void solve_Bd(unsigned entering, indexed_vector<T> & column);
+
     void pretty_print(std::ostream & out);
 
     void save_state(T * w_buffer, T * d_buffer);
@@ -188,9 +190,9 @@ public:
     bool x_is_at_bound(unsigned j) const {
         return x_is_at_low_bound(j) || x_is_at_upper_bound(j);
     }
-	bool column_is_feasible(unsigned j) const;
+    bool column_is_feasible(unsigned j) const;
 
-	bool calc_current_x_is_feasible_include_non_basis() const;
+    bool calc_current_x_is_feasible_include_non_basis() const;
 
     bool column_is_dual_feasible(unsigned j) const;
 

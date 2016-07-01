@@ -23,10 +23,9 @@ core_solver_pretty_printer<T, X>::core_solver_pretty_printer(lp_core_solver_base
     m_signs(core_solver.m_A.row_count(), vector<string>(core_solver.m_A.column_count(), " ")),
     m_costs(ncols(), ""),
     m_cost_signs(ncols(), " "),
-    m_rs(ncols(), zero_of_type<X>()) {
-    m_w_buff = new T[m_core_solver.m_m];
-    m_ed_buff = new T[m_core_solver.m_m];
-    m_core_solver.save_state(m_w_buff, m_ed_buff);
+    m_rs(ncols(), zero_of_type<X>()),
+    m_w_buff(core_solver.m_w),
+    m_ed_buff(core_solver.m_ed) {
     init_m_A_and_signs();
     init_costs();
     init_column_widths();
@@ -49,9 +48,13 @@ template <typename T, typename X> void core_solver_pretty_printer<T, X>::init_co
 }
 
 template <typename T, typename X> core_solver_pretty_printer<T, X>::~core_solver_pretty_printer() {
-    m_core_solver.restore_state(m_w_buff, m_ed_buff);
-    delete [] m_w_buff;
-    delete [] m_ed_buff;
+    m_core_solver.m_w = m_w_buff;
+    m_core_solver.m_ed = m_ed_buff;
+    m_core_solver.m_index_of_ed.clear();
+    for (unsigned i = 0; i < m_ed_buff.size(); i++) {
+        if (m_ed_buff[i] != zero_of_type<T>())
+            m_core_solver.m_index_of_ed.push_back(i);
+    }
 }
 template <typename T, typename X> void core_solver_pretty_printer<T, X>::init_rs_width() {
     m_rs_width = static_cast<unsigned>(T_to_string(m_core_solver.get_cost()).size());
@@ -134,8 +137,8 @@ template <typename T, typename X> unsigned core_solver_pretty_printer<T, X>:: ge
         }
     }
     w = std::max(w, (unsigned)T_to_string(m_exact_column_norms[column]).size());
-	if (m_core_solver.m_column_norms.size() > 0)
-		w = std::max(w, (unsigned)T_to_string(m_core_solver.m_column_norms[column]).size());
+    if (m_core_solver.m_column_norms.size() > 0)
+        w = std::max(w, (unsigned)T_to_string(m_core_solver.m_column_norms[column]).size());
     return w;
 }
 
@@ -287,8 +290,8 @@ template <typename T, typename X> void core_solver_pretty_printer<T, X>::print()
     print_lows();
     print_upps();
     print_exact_norms();
-	if (m_core_solver.m_column_norms.size() > 0)
-		print_approx_norms();
+    if (m_core_solver.m_column_norms.size() > 0)
+        print_approx_norms();
     m_out << std::endl;
 }
 

@@ -7,6 +7,7 @@
 
 #include <vector>
 #include "util/lp/sparse_matrix.h"
+#include <set>
 namespace lean {
 template <typename T, typename X>
 void sparse_matrix<T, X>::copy_column_from_static_matrix(unsigned col, static_matrix<T, X> const &A, unsigned col_index_in_the_new_matrix) {
@@ -557,6 +558,47 @@ void sparse_matrix<T, X>::solve_U_y(std::vector<L> & y) { // it is a column wise
     // deb.apply_from_left(clone_y);
     // lean_assert(vectors_are_equal(rs, clone_y, dimension()));
 #endif
+}
+
+template <typename T, typename X>
+template <typename L>
+void sparse_matrix<T, X>::solve_U_y_indexed_only(indexed_vector<L> & y) { // it is a column wise version
+
+    // std::vector<L> rs(y.m_data);
+    
+    std::set<unsigned, std::greater<unsigned>> q_set;
+    for (auto i : y.m_index) 
+        q_set.insert(i);
+
+    y.m_index.clear();
+    unsigned lowest = *(q_set.begin());
+
+    while (q_set.size() > 0) {
+        auto begin = q_set.begin();
+        unsigned j = *begin;
+        q_set.erase(begin);
+        lean_assert(j <= lowest);
+        const L & yj = y[j];
+        if (is_zero(yj)) continue;
+        auto & mc = m_columns[adjust_column(j)].m_values;
+        for (auto & iv : mc) {
+            unsigned i = adjust_row_inverse(iv.m_index);
+            if (i != j) {
+                q_set.insert(i);
+                y[i] -= iv.m_value * yj;
+            }
+        }
+        if (!is_zero(yj))
+            y.m_index.push_back(j);
+    }
+    
+#ifdef LEAN_DEBUG
+     // dense_matrix<T,X> deb(this);
+     // std::vector<T> clone_y(y.m_data);
+     // deb.apply_from_left(clone_y);
+     // lean_assert(vectors_are_equal(rs, clone_y));
+#endif
+    
 }
 
 template <typename T, typename X>

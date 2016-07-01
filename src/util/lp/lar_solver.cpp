@@ -43,8 +43,7 @@ canonic_left_side * lar_solver::create_or_fetch_existing_left_side(const buffer<
         m_map_from_var_index_to_column_info_with_cls[vj].m_column_info.set_name("_s" + T_to_string(vj));
         left_side->m_additional_var_index = vj;
         m_available_var_index++;
-    }
-    else {
+    } else {
         delete left_side;
         left_side = *it;
     }
@@ -94,17 +93,10 @@ void lar_solver::fill_row_of_A(static_matrix<U, V> & A, unsigned i, canonic_left
     A.set(i, additional_column, -one_of_type<U>());
 }
 
-void lar_solver::fill_set_of_active_var_indices() {
-    for (auto & t : m_set_of_canonic_left_sides)
-        for (auto & a : t->m_coeffs)
-            m_set_of_active_var_indices.insert(a.second);
-}
-
 template <typename U, typename V>
 void lar_solver::create_matrix_A(static_matrix<U, V> & A) {
     unsigned m = m_set_of_canonic_left_sides.size();
-    fill_set_of_active_var_indices();
-    unsigned n = m_set_of_active_var_indices.size() + m;
+    unsigned n = m_map_from_var_index_to_column_info_with_cls.size();
     A.init_empty_matrix(m, n);
     unsigned i = 0;
     for (auto t : m_set_of_canonic_left_sides) {
@@ -125,16 +117,14 @@ void lar_solver::set_upper_bound_for_column_info(lar_normalized_constraint * nor
         ls->m_upper_bound_witness = norm_constr;
         ci.set_upper_bound(v);
         ci.set_upper_bound_strict(strict);
-    }
-    else if (ci.get_upper_bound() > v) {
+    } else if (ci.get_upper_bound() > v) {
         ci.set_upper_bound(v);
         ls->m_upper_bound_witness = norm_constr;
-        ci.set_upper_bound_strict(strict || ci.upper_bound_is_strict());
-	}
-	else if (ci.get_upper_bound() == v && strict && ci.upper_bound_is_strict() == false) {
-		ls->m_upper_bound_witness = norm_constr;
-		ci.set_upper_bound_strict(strict);
-	}
+        ci.set_upper_bound_strict(strict);
+    } else if (ci.get_upper_bound() == v && strict && ci.upper_bound_is_strict() == false) {
+        ls->m_upper_bound_witness = norm_constr;
+        ci.set_upper_bound_strict(strict);
+    }
     if (ci.is_infeasible()) {
         m_status = INFEASIBLE;
         m_infeasible_canonic_left_side = ls;
@@ -161,16 +151,14 @@ void lar_solver::set_low_bound_for_column_info(lar_normalized_constraint * norm_
         ci.set_low_bound(v);
         ls->m_low_bound_witness = norm_constr;
         ci.set_low_bound_strict(strict);
-    }
-    else if (ci.get_low_bound() < v) {
+    } else if (ci.get_low_bound() < v) {
         ci.set_low_bound(v);
         ls->m_low_bound_witness = norm_constr;
-        ci.set_low_bound_strict(strict || ci.low_bound_is_strict());
+        ci.set_low_bound_strict(strict);
+    } else if (ci.get_low_bound() == v && strict && ci.low_bound_is_strict() == false) {
+        ls->m_low_bound_witness = norm_constr;
+        ci.set_low_bound_strict(strict);
     }
-	else if (ci.get_low_bound() == v && strict && ci.low_bound_is_strict() == false) {
-		ls->m_low_bound_witness = norm_constr;
-		ci.set_low_bound_strict(strict);
-	}
 
 
     if (ci.is_infeasible()) {
@@ -253,7 +241,6 @@ void lar_solver::fill_bounds_for_core_solver(std::vector<V> & lb, std::vector<V>
         if (ci.low_bound_is_set()) {
             lb[j] = conversion_helper<V>::get_low_bound(ci);
         }
-
     }
 }
 
@@ -292,8 +279,6 @@ lar_solver::~lar_solver() {
         to_delete.push_back(it);
     for (auto t : to_delete)
         delete t;
-    if (m_random_updater != nullptr)
-        delete m_random_updater;
 }
 
 var_index lar_solver::add_var(std::string s) {
@@ -338,10 +323,10 @@ constraint_index lar_solver::add_constraint(const buffer<std::pair<mpq, var_inde
 bool lar_solver::all_constraints_hold() {
     std::unordered_map<var_index, mpq> var_map;
     get_model(var_map);
-	for (auto & it : m_normalized_constraints) {
-		if (!constraint_holds(it.second.m_origin_constraint, var_map))
-			return false;
-	}
+    for (auto & it : m_normalized_constraints) {
+        if (!constraint_holds(it.second.m_origin_constraint, var_map))
+            return false;
+    }
     return true;
 }
 
@@ -574,7 +559,7 @@ void lar_solver::solve() {
 }
 
 lp_status lar_solver::check() {
-	// for the time being just call solve()
+    // for the time being just call solve()
     solve();
     return m_status;
 }
@@ -707,12 +692,10 @@ void lar_solver::print_canonic_left_side(const canonic_left_side & c, std::ostre
         auto val = it.first;
         if (first) {
             first = false;
-        }
-        else {
+        } else {
             if (val.is_pos()) {
                 out << " + ";
-            }
-            else {
+            } else {
                 out << " - ";
                 val = -val;
             }
@@ -730,12 +713,10 @@ void lar_solver::print_left_side_of_constraint(const lar_base_constraint * c, st
         if (numeric_traits<mpq>::is_zero(val)) continue;
         if (first) {
             first = false;
-        }
-        else {
+        } else {
             if (val.is_pos()) {
                 out << " + ";
-            }
-            else {
+            } else {
                 out << " - ";
                 val = -val;
             }
@@ -818,14 +799,24 @@ void lar_solver::print_constraint(const lar_base_constraint * c, std::ostream & 
     out << " " << lconstraint_kind_string(c->m_kind) << " " << c->m_right_side;
 }
 
-void lar_solver::random_update(unsigned sz, var_index const * vars) {
-    if (m_random_updater == nullptr)
-        m_random_updater = new random_updater(this);
-    m_random_updater->init(sz, vars);
+void lar_solver::fill_var_set_for_random_update(unsigned sz, var_index const * vars, std::vector<unsigned>& column_list) {
+    for (unsigned i = 0; i < sz; i++) {
+        var_index var = vars[i];
+        auto it = m_map_from_var_index_to_column_info_with_cls.find(var);
+        lean_assert(it != m_map_from_var_index_to_column_info_with_cls.end());
+        unsigned var_column_index = it->second.m_column_info.get_column_index();
+        column_list.push_back(var_column_index);
+    }
 }
 
-void lar_solver::random_update(var_index v) {
+void lar_solver::random_update(unsigned sz, var_index const * vars) {
+    std::vector<unsigned> column_list;
+    fill_var_set_for_random_update(sz, vars, column_list);
+    random_updater ru(m_mpq_lar_core_solver, column_list);
+    ru.update();
+}
 
+void lar_solver::random_update(var_index /*v */) {
 }
 
 unsigned lar_solver::get_column_index_from_var_index(var_index vi) const {
@@ -843,8 +834,8 @@ column_info<mpq> & lar_solver::get_column_info_from_var_index(var_index vi) {
     }
     return it->second.m_column_info;
 }
-void lar_solver::pivot_fixed_vars_from_basis() {
-	m_mpq_lar_core_solver.pivot_fixed_vars_from_basis();
+void lar_solver::try_pivot_fixed_vars_from_basis() {
+    m_mpq_lar_core_solver.pivot_fixed_vars_from_basis();
 }
 }
 

@@ -122,6 +122,10 @@ update_index_of_ed() {
             m_index_of_ed.push_back(i);
     }
 }
+template <typename T, typename X> void lp_core_solver_base<T, X>::solve_Bd(unsigned entering, indexed_vector<T> & column) {
+    m_factorization->solve_Bd_faster(entering, column);
+}
+
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::
 solve_Bd(unsigned entering) {
@@ -193,17 +197,17 @@ restore_m_ed(T * buffer) {
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 A_mult_x_is_off() {
     if (precise<T>()) {
-		for (unsigned i = 0; i < m_m; i++) {
-			X delta = m_b[i] - m_A.dot_product_with_row(i, m_x);
-			if (delta != numeric_traits<X>::zero()) {
-				// std::cout << "x is off (";
-				// std::cout << "m_b[" << i  << "] = " << m_b[i] << " ";
-				// std::cout << "left side = " << m_A.dot_product_with_row(i, m_x) << ' ';
-				// std::cout << "delta = " << delta << ' ';
-				// std::cout << "iters = " << m_total_iterations << ")" << std::endl;
-				return true;
-			}
-		}
+        for (unsigned i = 0; i < m_m; i++) {
+            X delta = m_b[i] - m_A.dot_product_with_row(i, m_x);
+            if (delta != numeric_traits<X>::zero()) {
+                // std::cout << "x is off (";
+                // std::cout << "m_b[" << i  << "] = " << m_b[i] << " ";
+                // std::cout << "left side = " << m_A.dot_product_with_row(i, m_x) << ' ';
+                // std::cout << "delta = " << delta << ' ';
+                // std::cout << "iters = " << m_total_iterations << ")" << std::endl;
+                return true;
+            }
+        }
         return false;
     }
 
@@ -416,52 +420,48 @@ find_x_by_solving() {
 }
 
 template <typename T, typename X> bool lp_core_solver_base<T, X>::column_is_feasible(unsigned j) const {
-	const X& x = this->m_x[j];
-	switch (this->m_column_type[j]) {
-	case fixed:
-	case boxed:
-		if (this->above_bound(x, this->m_upper_bound_values[j])) {
-			return false;
-		}
-		else if (this->below_bound(x, this->m_low_bound_values[j])) {
-			return false;
-		}
-		else {
-			return true;
-		}
-		break;
-	case low_bound:
-		if (this->below_bound(x, this->m_low_bound_values[j])) {
-			return false;
-		}
-		else {
-			return true;
-		}
-		break;
-	case upper_bound:
-		if (this->above_bound(x, this->m_upper_bound_values[j])) {
-			return false;
-		}
-		else {
-			return true;
-		}
-		break;
-	case free_column:
-		return true;
-		break;
-	default:
-		lean_unreachable();
-	}
-	return false; // it is unreachable
+    const X& x = this->m_x[j];
+    switch (this->m_column_type[j]) {
+    case fixed:
+    case boxed:
+        if (this->above_bound(x, this->m_upper_bound_values[j])) {
+            return false;
+        } else if (this->below_bound(x, this->m_low_bound_values[j])) {
+            return false;
+        } else {
+            return true;
+        }
+        break;
+    case low_bound:
+        if (this->below_bound(x, this->m_low_bound_values[j])) {
+            return false;
+        } else {
+            return true;
+        }
+        break;
+    case upper_bound:
+        if (this->above_bound(x, this->m_upper_bound_values[j])) {
+            return false;
+        } else {
+            return true;
+        }
+        break;
+    case free_column:
+        return true;
+        break;
+    default:
+        lean_unreachable();
+    }
+    return false; // it is unreachable
 }
 
 template <typename T, typename X> bool lp_core_solver_base<T, X>::calc_current_x_is_feasible_include_non_basis() const {
-	unsigned j = this->m_n;
-	while (j--) {
-		if (!column_is_feasible(j))
-			return false;
-	}
-	return true;
+    unsigned j = this->m_n;
+    while (j--) {
+        if (!column_is_feasible(j))
+            return false;
+    }
+    return true;
 }
 
 
@@ -667,7 +667,7 @@ solve_Ax_eq_b() {
     std::vector<X> rrs = rs; // another copy of rs
     m_factorization->solve_By(rs);
     copy_rs_to_xB(rs);
-	if (numeric_traits<T>::precise()) return;
+    if (numeric_traits<T>::precise()) return;
     find_error_in_BxB(rrs);
     m_factorization->solve_By(rrs);
     add_delta_to_xB(rrs);
@@ -778,6 +778,39 @@ template <typename T, typename X> int lp_core_solver_base<T, X>::pivots_in_colum
 }
 template <typename T, typename X>  void lp_core_solver_base<T, X>::pivot_fixed_vars_from_basis() {
     // run over basis and non-basis at the same time
-    // todddd start here , introduce pivot(k, j) method, look at lp.cpp how to implement it by using m_factorization
+    indexed_vector<T> w(m_basis.size()); // the buffer
+    unsigned i = 0; // points to basis
+    unsigned j = 0; // points to nonbasis
+    for (; i < m_basis.size() && j < m_non_basic_columns.size(); i++) {
+        unsigned ii = m_basis[i];
+        unsigned jj;
+
+        if (get_column_type(ii) != fixed) continue;
+        while (j < m_non_basic_columns.size()) {
+            for (; j < m_non_basic_columns.size(); j++) {
+                jj = m_non_basic_columns[j];
+                if (get_column_type(jj) != fixed)
+                    break;
+            }
+            if (j >= m_non_basic_columns.size())
+                break;
+            j++;
+            if (m_factorization->need_to_refactor()) {
+                m_factorization->change_basis(jj, ii);
+                init_lu();
+            } else {
+                m_factorization->prepare_entering(jj, w); // to init vector w
+                m_factorization->replace_column(ii, zero_of_type<T>(), w);
+                m_factorization->change_basis(jj, ii);
+            }
+            if (m_factorization->get_status() != LU_status::OK) {
+                m_factorization->change_basis(ii, jj);
+                init_lu();
+            } else {
+                break;
+            }
+        }
+        lean_assert(m_factorization->get_status()== LU_status::OK)
+    }
 }
 }

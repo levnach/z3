@@ -56,6 +56,10 @@ public:
     void put_the_last_at_the_top_and_fix_the_heap();
     /// return the first element of the queue and removes it from the queue
     unsigned dequeue();
+    unsigned peek() const {
+        lean_assert(m_heap_size > 0);
+        return m_heap[1];
+    }
 #ifdef LEAN_DEBUG
     void print(std::ostream & out);
 #endif

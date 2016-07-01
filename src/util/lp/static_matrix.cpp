@@ -365,14 +365,5 @@ template <typename T, typename X>    T static_matrix<T, X>::get_row_balance(unsi
     }
     return ret;
 }
-#ifdef LEAN_DEBUG
-template <typename T, typename X> bool static_matrix<T, X>::col_val_equal_to_row_val() const {
-    for (auto & r : m_rows) {
-        for (auto & rc : r) {
-            lean_assert(rc.get_val() == m_columns[rc.m_j][rc.m_offset].m_value);
-        }
-    }
-    return true;
-}
-#endif
+
 }
