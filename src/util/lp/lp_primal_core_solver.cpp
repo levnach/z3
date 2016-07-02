@@ -525,7 +525,7 @@ template <typename T, typename X> void lp_primal_core_solver<T, X>::advance_on_e
     if (leaving == -1){
         if (get_current_x_is_infeasible()) {
             if (this->m_status == UNSTABLE) {
-                std::cout << "setting status to FLOATING_POINT_ERROR" << std::endl;
+                // std::cout << "setting status to FLOATING_POINT_ERROR" << std::endl;
                 this->m_status = FLOATING_POINT_ERROR;
                 return;
             }
@@ -613,7 +613,6 @@ template <typename T, typename X> unsigned lp_primal_core_solver<T, X>::solve() 
             // m_forbidden_enterings.clear();
             this->init_lu();
             init_reduced_costs();
-            this->m_status = UNKNOWN;
             break;
 
         default:
