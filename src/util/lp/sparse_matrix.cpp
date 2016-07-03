@@ -8,6 +8,7 @@
 #include <vector>
 #include "util/lp/sparse_matrix.h"
 #include <set>
+#include <queue>
 namespace lean {
 template <typename T, typename X>
 void sparse_matrix<T, X>::copy_column_from_static_matrix(unsigned col, static_matrix<T, X> const &A, unsigned col_index_in_the_new_matrix) {
@@ -38,7 +39,8 @@ sparse_matrix<T, X>::sparse_matrix(static_matrix<T, X> const &A, std::vector<uns
     m_pivot_queue(A.row_count()),
     m_row_permutation(A.row_count()),
     m_column_permutation(A.row_count()),
-    m_work_pivot_vector(A.row_count()) {
+    m_work_pivot_vector(A.row_count()),
+    m_processed(A.row_count()) {
     init_row_headers();
     init_column_headers();
     copy_B(A, basis);
@@ -116,7 +118,8 @@ sparse_matrix<T, X>::sparse_matrix(unsigned dim) :
     m_pivot_queue(dim), // dim will be the initial size of the queue
     m_row_permutation(dim),
     m_column_permutation(dim),
-    m_work_pivot_vector(dim) {
+    m_work_pivot_vector(dim),
+    m_processed(dim) {
     init_row_headers();
     init_column_headers();
     }
@@ -450,61 +453,6 @@ void sparse_matrix<T, X>::solve_y_U(std::vector<T> & y) const { // works by rows
 //     }
 // }
 
-// solving this * x = y, and putting the answer into y
-// the matrix here has to be upper triangular
-template <typename T, typename X>
-void sparse_matrix<T, X>::solve_U_y_(T * y) {  // the row wise version
-#ifdef LEAN_DEBUG
-    // T * rs = clone_vector<T>(y, dimension());
-#endif
-    lean_assert(dimension() == dimension());
-    for (int i = dimension() - 2 ; i >= 0; i--) {
-        auto & mc = get_row_values(adjust_row(i));
-        for (auto & c : mc) {
-            unsigned col = m_column_permutation[c.m_index];
-            lean_assert(col > i || (col  == i && close(c.m_value, numeric_traits<T>::one())));
-            if (col == i) {
-                continue;
-            }
-            y[i] -= y[col] * c.m_value;
-        }
-    }
-#ifdef LEAN_DEBUG
-    // dense_matrix<T> deb(*this);
-    // T * clone_y = clone_vector<T>(y, dimension());
-    // deb.apply_from_left(clone_y);
-    // lean_assert(vectors_are_equal(rs, clone_y, dimension()));
-    // delete [] rs;
-    // delete [] clone_y;
-#endif
-}
-// solving this * x = y, and putting the answer into y
-// the matrix here has to be upper triangular
-template <typename T, typename X>
-void sparse_matrix<T, X>::solve_U_y(T * y) { // the columns have to be correct - it is a column wise version
-#ifdef LEAN_DEBUG
-    // T * rs = clone_vector<T>(y, dimension());
-#endif
-    for (unsigned j = dimension() - 1; j > 0; j--) {
-        T yj = y[j];
-        if (numeric_traits<T>::is_zero(yj)) continue;
-        auto & mc = m_columns[adjust_column(j)].m_values;
-        for (auto & iv : mc) {
-            unsigned i = adjust_row_inverse(iv.m_index);
-            if (i != j) {
-                y[i] -= iv.m_value * yj;
-            }
-        }
-    }
-#ifdef LEAN_DEBUG
-    // dense_matrix<T> deb(*this);
-    // T * clone_y = clone_vector<T>(y, dimension());
-    // deb.apply_from_left(clone_y);
-    // lean_assert(vectors_are_equal(rs, clone_y, dimension()));
-#endif
-}
-
-
 template <typename T, typename X>
 template <typename L>
 void sparse_matrix<T, X>::find_error_in_solution_U_y(std::vector<L>& y_orig, std::vector<L> & y) {
@@ -516,11 +464,50 @@ void sparse_matrix<T, X>::find_error_in_solution_U_y(std::vector<L>& y_orig, std
 
 template <typename T, typename X>
 template <typename L>
+void sparse_matrix<T, X>::find_error_in_solution_U_y_indexed(indexed_vector<L>& y_orig, indexed_vector<L> & y) {
+    for (unsigned i : y_orig.m_index)
+        y_orig[i] -= dot_product_with_row(i, y);
+}
+
+
+template <typename T, typename X>
+template <typename L>
 void sparse_matrix<T, X>::add_delta_to_solution(const std::vector<L>& del, std::vector<L> & y) {
     unsigned i = dimension();
     while (i--) {
         y[i] += del[i];
     }
+}
+template <typename T, typename X>
+template <typename L>
+void sparse_matrix<T, X>::add_delta_to_solution(const indexed_vector<L>& del, indexed_vector<L> & y, const lp_settings & settings) {
+    lean_assert(del.is_OK());
+    lean_assert(y.is_OK());
+    for (auto i : del.m_index) {
+        bool was_zero = is_zero(y[i]);
+        y[i] += del[i];
+        if (settings.abs_val_is_smaller_than_drop_tolerance(y[i]))
+            y[i] = zero_of_type<L>();
+        else if (was_zero)
+            y.m_index.push_back(i);
+    }
+    std::vector<unsigned> index_copy(y.m_index);
+    y.m_index.clear();
+    for (auto i : index_copy) {
+        if (!is_zero(y[i]))
+            y.m_index.push_back(i);
+    }
+    lean_assert(y.is_OK());
+}
+template <typename T, typename X>
+template <typename L>
+void sparse_matrix<T, X>::double_solve_U_y(indexed_vector<L>& y, const lp_settings & settings){
+    indexed_vector<L> y_orig(y); // copy y aside
+    solve_U_y_indexed_only(y, settings);
+    find_error_in_solution_U_y_indexed(y_orig, y);
+    // y_orig contains the error now
+    solve_U_y_indexed_only(y_orig, settings);
+    add_delta_to_solution(y_orig, y, settings);
 }
 template <typename T, typename X>
 template <typename L>
@@ -532,6 +519,7 @@ void sparse_matrix<T, X>::double_solve_U_y(std::vector<L>& y){
     solve_U_y(y_orig);
     add_delta_to_solution(y_orig, y);
 }
+
 // solving this * x = y, and putting the answer into y
 // the matrix here has to be upper triangular
 template <typename T, typename X>
@@ -559,46 +547,66 @@ void sparse_matrix<T, X>::solve_U_y(std::vector<L> & y) { // it is a column wise
     // lean_assert(vectors_are_equal(rs, clone_y, dimension()));
 #endif
 }
+template <typename T, typename X>
+void sparse_matrix<T, X>::process_column_recursively(unsigned j, std::vector<unsigned> & sorted_active_rows) {
+    lean_assert(m_processed[j] == false);
+    auto & mc = m_columns[adjust_column(j)].m_values;
+    for (auto & iv : mc) {
+        unsigned i = adjust_row_inverse(iv.m_index);
+        if (i == j) continue;
+        if (!m_processed[i]) {
+            process_column_recursively(i, sorted_active_rows);
+        }
+    }
+    m_processed[j]=true;
+    sorted_active_rows.push_back(j);
+}
+
+template <typename T, typename X>
+void sparse_matrix<T, X>::create_graph_G(const std::vector<unsigned> & index_or_right_side, std::vector<unsigned> & sorted_active_rows) {
+    for (auto i : index_or_right_side) {
+        if (m_processed[i]) continue;
+        process_column_recursively(i, sorted_active_rows);
+    }
+
+    for (auto i : sorted_active_rows) {
+        m_processed[i] = false;
+    }
+}
 
 template <typename T, typename X>
 template <typename L>
-void sparse_matrix<T, X>::solve_U_y_indexed_only(indexed_vector<L> & y) { // it is a column wise version
+void sparse_matrix<T, X>::solve_U_y_indexed_only(indexed_vector<L> & y, const lp_settings & settings) { // it is a column wise version
+    std::vector<unsigned> sorted_active_rows;
+    create_graph_G(y.m_index, sorted_active_rows);
 
-    // std::vector<L> rs(y.m_data);
-    
-    std::set<unsigned, std::greater<unsigned>> q_set;
-    for (auto i : y.m_index) 
-        q_set.insert(i);
-
-    y.m_index.clear();
-    unsigned lowest = *(q_set.begin());
-
-    while (q_set.size() > 0) {
-        auto begin = q_set.begin();
-        unsigned j = *begin;
-        q_set.erase(begin);
-        lean_assert(j <= lowest);
+    for (auto k = sorted_active_rows.size(); k-- > 0;) {
+        unsigned j = sorted_active_rows[k];
         const L & yj = y[j];
         if (is_zero(yj)) continue;
         auto & mc = m_columns[adjust_column(j)].m_values;
         for (auto & iv : mc) {
             unsigned i = adjust_row_inverse(iv.m_index);
             if (i != j) {
-                q_set.insert(i);
                 y[i] -= iv.m_value * yj;
             }
         }
-        if (!is_zero(yj))
-            y.m_index.push_back(j);
     }
-    
+    y.m_index.clear();
+    for (auto j : sorted_active_rows) {
+        if (!settings.abs_val_is_smaller_than_drop_tolerance(y[j]))
+            y.m_index.push_back(j);
+        else
+            y[j] = zero_of_type<L>();
+    }
+
+    lean_assert(y.is_OK());
 #ifdef LEAN_DEBUG
      // dense_matrix<T,X> deb(this);
      // std::vector<T> clone_y(y.m_data);
      // deb.apply_from_left(clone_y);
      // lean_assert(vectors_are_equal(rs, clone_y));
 #endif
-    
 }
 
 template <typename T, typename X>
@@ -612,6 +620,19 @@ L sparse_matrix<T, X>::dot_product_with_row (unsigned row, const std::vector<L> 
     }
     return ret;
 }
+
+template <typename T, typename X>
+template <typename L>
+L sparse_matrix<T, X>::dot_product_with_row (unsigned row, const indexed_vector<L> & y) const {
+    L ret = zero_of_type<L>();
+    auto & mc = get_row_values(adjust_row(row));
+    for (auto & c : mc) {
+        unsigned col = m_column_permutation[c.m_index];
+        ret += c.m_value * y[col];
+    }
+    return ret;
+}
+
 
 template <typename T, typename X>
 unsigned sparse_matrix<T, X>::get_number_of_nonzeroes() const {

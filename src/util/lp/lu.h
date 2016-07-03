@@ -122,15 +122,18 @@ public:
     void debug_test_of_basis(static_matrix<T, X> const & A, std::vector<unsigned> & basis);
 
 
-    unsigned non_basic_column_index_in_non_basic_columns(unsigned j) { return - m_basis_heading[j] - 1; }
+    unsigned non_basic_column_indexx_in_non_basic_columns(unsigned j) { return - m_basis_heading[j] - 1; }
+    void solve_Bd_when_w_is_ready(std::vector<T> & d, indexed_vector<T>& w );
+    void solve_By(indexed_vector<X> & y);
 
     void solve_By(std::vector<X> & y);
 
-    void solve_Bd_when_w_is_ready(std::vector<T> & d, indexed_vector<T>& w );
-    void solve_By_for_T_indexed_only(indexed_vector<T>& y);
+    void solve_By_for_T_indexed_only(indexed_vector<T>& y, const lp_settings &);
 
+    template <typename L>
+    void solve_By_when_y_is_ready(indexed_vector<L> & y);
     void solve_By_when_y_is_ready_for_X(std::vector<X> & y);
-    void solve_By_when_y_is_ready_for_T(std::vector<T> & y);
+    void solve_By_when_y_is_ready_for_T(std::vector<T> & y, std::vector<unsigned> & index);
     void print_indexed_vector(indexed_vector<T> & w, std::ofstream & f);
 
     void print_basis(std::ostream & f);
@@ -138,6 +141,7 @@ public:
 
     void print(indexed_vector<T> & w);
     void solve_Bd(unsigned a_column, std::vector<T> & d, indexed_vector<T> & w);
+    void solve_Bd(unsigned a_column, indexed_vector<T> & d, indexed_vector<T> & w);
     void solve_Bd_faster(unsigned a_column, indexed_vector<T> & d); // d is the right side on the input and the solution at the exit
 
 

@@ -12,6 +12,6 @@ template void lean::dense_matrix<double, double>::apply_from_left(std::vector<do
 template lean::dense_matrix<double, double>::dense_matrix(lean::matrix<double, double> const*);
 template lean::dense_matrix<double, double>::dense_matrix(unsigned int, unsigned int);
 template lean::dense_matrix<double, double>& lean::dense_matrix<double, double>::operator=(lean::dense_matrix<double, double> const&);
-template lean::dense_matrix<rational, lean::numeric_pair<rational> >::dense_matrix(lean::matrix<rational, lean::numeric_pair<rational> > const*);
-template void lean::dense_matrix<rational, lean::numeric_pair<rational> >::apply_from_left(std::vector<rational, std::allocator<rational> >&);
+template lean::dense_matrix<lean::mpq, lean::numeric_pair<lean::mpq> >::dense_matrix(lean::matrix<lean::mpq, lean::numeric_pair<lean::mpq> > const*);
+template void lean::dense_matrix<lean::mpq, lean::numeric_pair<lean::mpq> >::apply_from_left(std::vector<lean::mpq>&);
 #endif

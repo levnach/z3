@@ -50,11 +50,6 @@ template <typename T, typename X> void core_solver_pretty_printer<T, X>::init_co
 template <typename T, typename X> core_solver_pretty_printer<T, X>::~core_solver_pretty_printer() {
     m_core_solver.m_w = m_w_buff;
     m_core_solver.m_ed = m_ed_buff;
-    m_core_solver.m_index_of_ed.clear();
-    for (unsigned i = 0; i < m_ed_buff.size(); i++) {
-        if (m_ed_buff[i] != zero_of_type<T>())
-            m_core_solver.m_index_of_ed.push_back(i);
-    }
 }
 template <typename T, typename X> void core_solver_pretty_printer<T, X>::init_rs_width() {
     m_rs_width = static_cast<unsigned>(T_to_string(m_core_solver.get_cost()).size());
@@ -68,8 +63,8 @@ template <typename T, typename X> void core_solver_pretty_printer<T, X>::init_rs
 
 template <typename T, typename X> T core_solver_pretty_printer<T, X>::current_column_norm() {
     T ret = zero_of_type<T>();
-    for (T & ed : m_core_solver.m_ed)
-        ret += ed * ed;
+    for (auto i : m_core_solver.m_ed.m_index)
+        ret += m_core_solver.m_ed[i] * m_core_solver.m_ed[i];
     return ret;
 }
 

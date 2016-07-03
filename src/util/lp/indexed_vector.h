@@ -48,7 +48,6 @@ public:
         return m_data[i];
     }
 
-
     void erase_from_index(unsigned j);
 #ifdef LEAN_DEBUG
     bool is_OK() const;

@@ -154,17 +154,17 @@ void lu<T, X>::debug_test_of_basis(static_matrix<T, X> const & A, std::vector<un
     lean_assert(set.size() == A.row_count());
 }
 
+// template <typename T, typename X>
+// void lu<T, X>::solve_By(indexed_vector<X> & y) {
+//     init_vector_y(y);
+//     solve_By_when_y_is_ready(y);
+// }
+
+
 template <typename T, typename X>
 void lu<T, X>::solve_By(std::vector<X> & y) {
     init_vector_y(y);
     solve_By_when_y_is_ready_for_X(y);
-}
-template <typename T, typename X>
-void lu<T, X>::solve_Bd_when_w_is_ready(std::vector<T> & d, indexed_vector<T>& w ) { // w -  the vector featuring in 24.3
-    for (int i = m_dim - 1; i >= 0; i--) {  // index ? todo
-        d[i] = w[i];
-    }
-    solve_By_when_y_is_ready_for_T(d);
 }
 
 template <typename T, typename X>
@@ -185,8 +185,30 @@ void lu<T, X>::solve_By_when_y_is_ready_for_X(std::vector<X> & y) {
     }
 }
 
+/*
 template <typename T, typename X>
-void lu<T, X>::solve_By_when_y_is_ready_for_T(std::vector<T> & y) {
+template <typename L>
+void lu<T, X>::solve_By_when_y_is_ready(indexed_vector<L> & y) {
+    std::cout << "solve_By_when_y_is_ready ; indexed_vector " << std::endl;
+    if (numeric_traits<T>::precise()) {
+        m_U.solve_U_y(y);
+        m_R.apply_reverse_from_left_to_X(y); // see 24.3 from Chvatal
+        return;
+    }
+    m_U.double_solve_U_y(y);
+    m_R.apply_reverse_from_left_to_X(y); // see 24.3 from Chvatal
+    unsigned i = m_dim;
+    while (i--) {
+        if (is_zero(y[i])) continue;
+        if (m_settings.abs_val_is_smaller_than_drop_tolerance(y[i])){
+            y[i] = zero_of_type<X>();
+        }
+    }
+}
+*/
+
+template <typename T, typename X>
+void lu<T, X>::solve_By_when_y_is_ready_for_T(std::vector<T> & y, std::vector<unsigned> & index) {
     if (numeric_traits<T>::precise()) {
         m_U.solve_U_y(y);
         m_R.apply_reverse_from_left_to_T(y); // see 24.3 from Chvatal
@@ -199,26 +221,28 @@ void lu<T, X>::solve_By_when_y_is_ready_for_T(std::vector<T> & y) {
         if (is_zero(y[i])) continue;
         if (m_settings.abs_val_is_smaller_than_drop_tolerance(y[i])){
             y[i] = zero_of_type<T>();
+        } else {
+            index.push_back(i);
         }
     }
 }
+
 template <typename T, typename X>
-void lu<T, X>::solve_By_for_T_indexed_only(indexed_vector<T> & y) {
+void lu<T, X>::solve_By_for_T_indexed_only(indexed_vector<T> & y, const lp_settings & settings) {
     if (numeric_traits<T>::precise()) {
-        m_U.solve_U_y_indexed_only(y);
+        m_U.solve_U_y_indexed_only(y, settings);
         m_R.apply_reverse_from_left(y); // see 24.3 from Chvatal
         return;
     }
-    lean_assert(false); // not implemented
-    /*    m_U.double_solve_U_y(y);
-    m_R.apply_reverse_from_left_to_T(y); // see 24.3 from Chvatal
+    m_U.double_solve_U_y(y, m_settings);
+    m_R.apply_reverse_from_left(y); // see 24.3 from Chvatal
     unsigned i = m_dim;
     while (i--) {
         if (is_zero(y[i])) continue;
         if (m_settings.abs_val_is_smaller_than_drop_tolerance(y[i])){
             y[i] = zero_of_type<T>();
         }
-        }*/
+    }
 }
 
 
@@ -253,15 +277,23 @@ void lu<T, X>::print(indexed_vector<T> & w) {
     f.close();
 }
 template <typename T, typename X>
-void lu<T, X>::solve_Bd(unsigned a_column, std::vector<T> & d, indexed_vector<T> & w) {
+void lu<T, X>::solve_Bd(unsigned a_column, indexed_vector<T> & d, indexed_vector<T> & w) {
     init_vector_w(a_column, w);
-    solve_Bd_when_w_is_ready(d, w);
+
+    if (w.m_index.size() * 100 < d.m_data.size()) { // this const might need some tuning
+        d = w;
+        solve_By_for_T_indexed_only(d, m_settings);
+    } else {
+        d.m_data = w.m_data;
+        d.m_index.clear();
+        solve_By_when_y_is_ready_for_T(d.m_data, d.m_index);
+    }
 }
 
 template <typename T, typename X>
 void lu<T, X>::solve_Bd_faster(unsigned a_column, indexed_vector<T> & d) { // d is the right side on the input and the solution at the exit
     init_vector_w(a_column, d);
-    solve_By_for_T_indexed_only(d);
+    solve_By_for_T_indexed_only(d, m_settings);
 }
 
 template <typename T, typename X>

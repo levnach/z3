@@ -149,7 +149,7 @@ public:
     }
 
     template <typename T>
-    bool abs_val_is_smaller_than_drop_tolerance(T const & t) {
+    bool abs_val_is_smaller_than_drop_tolerance(T const & t) const {
         return is_eps_small_general<T>(t, drop_tolerance);
     }
 

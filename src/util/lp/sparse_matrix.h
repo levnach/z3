@@ -52,6 +52,9 @@ public:
     permutation_matrix<T, X>  m_row_permutation;
     permutation_matrix<T, X>  m_column_permutation;
     indexed_vector<T> m_work_pivot_vector;
+    std::vector<bool> m_processed;
+
+
 #ifdef LEAN_DEBUG
     // dense_matrix<T> m_dense;
 #endif
@@ -236,8 +239,6 @@ public:
 
     void divide_row_by_constant(unsigned i, T & t, lp_settings & settings);
 
-    T dot_product_with_column(T const * y, unsigned j);
-
     bool close(T a, T b) {
         return // (numeric_traits<T>::precise() && numeric_traits<T>::is_zero(a - b))
             // ||
@@ -252,18 +253,20 @@ public:
     // sort them so the smaller indices come first
     void fill_reachable_indices(std::set<unsigned> & rset, T *y);
 
-    // solving this * x = y, and putting the answer into y
-    // the matrix here has to be upper triangular
-    void solve_U_y_(T * y);
-    // solving this * x = y, and putting the answer into y
-    // the matrix here has to be upper triangular
-    void solve_U_y(T * y);
-
     template <typename L>
     void find_error_in_solution_U_y(std::vector<L>& y_orig, std::vector<L> & y);
 
     template <typename L>
+    void find_error_in_solution_U_y_indexed(indexed_vector<L>& y_orig, indexed_vector<L> & y);
+
+    template <typename L>
     void add_delta_to_solution(const std::vector<L>& del, std::vector<L> & y);
+
+    template <typename L>
+    void add_delta_to_solution(const indexed_vector<L>& del, indexed_vector<L> & y, const lp_settings & settings);
+
+    template <typename L>
+    void double_solve_U_y(indexed_vector<L>& y, const lp_settings & settings);
 
     template <typename L>
     void double_solve_U_y(std::vector<L>& y);
@@ -274,7 +277,7 @@ public:
     // solving this * x = y, and putting the answer into y
     // the matrix here has to be upper triangular
     template <typename L>
-    void solve_U_y_indexed_only(indexed_vector<L> & y);
+    void solve_U_y_indexed_only(indexed_vector<L> & y, const lp_settings& );
 
 #ifdef LEAN_DEBUG
     T get_elem(unsigned i, unsigned j) const { return get(i, j); }
@@ -285,6 +288,9 @@ public:
 #endif
     template <typename L>
     L dot_product_with_row (unsigned row, const std::vector<L> & y) const;
+
+    template <typename L>
+    L dot_product_with_row (unsigned row, const indexed_vector<L> & y) const;
 
     unsigned get_number_of_nonzeroes() const;
 
@@ -376,5 +382,9 @@ public:
 
     void check_matrix();
 #endif
+    void create_graph_G(const std::vector<unsigned> & active_rows, std::vector<unsigned> & sorted_active_rows);
+    void process_column_recursively(unsigned i, std::vector<unsigned>  & sorted_rows);
 };
 };
+
+

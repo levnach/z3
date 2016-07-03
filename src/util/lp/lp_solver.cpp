@@ -10,8 +10,8 @@
 #include "util/lp/lp_solver.h"
 namespace lean {
 template <typename T, typename X> column_info<T> * lp_solver<T, X>::get_or_create_column_info(unsigned column) {
-    auto it = m_columns.find(column);
-    return (it == m_columns.end())? (m_columns[column] = new column_info<T>(static_cast<unsigned>(-1))) : it->second;
+    auto it = m_map_from_var_index_to_column_info.find(column);
+    return (it == m_map_from_var_index_to_column_info.end())? (m_map_from_var_index_to_column_info[column] = new column_info<T>(static_cast<unsigned>(-1))) : it->second;
 }
 
 
@@ -28,10 +28,10 @@ template <typename T, typename X> void lp_solver<T, X>::add_constraint(lp_relati
 }
 
 template <typename T, typename X> void lp_solver<T, X>::give_symbolic_name_to_column(std::string name, unsigned column) {
-    auto it = m_columns.find(column);
+    auto it = m_map_from_var_index_to_column_info.find(column);
     column_info<T> *ci;
-    if (it == m_columns.end()){
-        m_columns[column] = ci = new column_info<T>;
+    if (it == m_map_from_var_index_to_column_info.end()){
+        m_map_from_var_index_to_column_info[column] = ci = new column_info<T>;
     } else {
         ci = it->second;
     }
@@ -64,13 +64,13 @@ template <typename T, typename X>  lp_solver<T, X>::~lp_solver(){
     if (m_A != nullptr) {
         delete m_A;
     }
-    for (auto t : m_columns) {
+    for (auto t : m_map_from_var_index_to_column_info) {
         delete t.second;
     }
 }
 
 template <typename T, typename X> void lp_solver<T, X>::flip_costs() {
-    for (auto t : m_columns) {
+    for (auto t : m_map_from_var_index_to_column_info) {
         column_info<T> *ci = t.second;
         ci->set_cost(-ci->get_cost());
     }
@@ -146,7 +146,7 @@ template <typename T, typename X> void lp_solver<T, X>::pin_vars_on_row_with_sig
     std::unordered_map<unsigned, T> pinned;
     for (auto t : row) {
         unsigned j = t.first;
-        column_info<T> * ci = m_columns[j];
+        column_info<T> * ci = m_map_from_var_index_to_column_info[j];
         T a = t.second;
         if (a * sign > numeric_traits<T>::zero()) {
             lean_assert(ci->upper_bound_is_set());
@@ -162,7 +162,7 @@ template <typename T, typename X>    bool lp_solver<T, X>::get_minimal_row_value
     low_bound = numeric_traits<T>::zero();
     for (auto & t : row) {
         T a = t.second;
-        column_info<T> * ci = m_columns[t.first];
+        column_info<T> * ci = m_map_from_var_index_to_column_info[t.first];
         if (a > numeric_traits<T>::zero()) {
             if (ci->low_bound_is_set()) {
                 low_bound += ci->get_low_bound() * a;
@@ -184,7 +184,7 @@ template <typename T, typename X>    bool lp_solver<T, X>::get_maximal_row_value
     low_bound = numeric_traits<T>::zero();
     for (auto & t : row) {
         T a = t.second;
-        column_info<T> * ci = m_columns[t.first];
+        column_info<T> * ci = m_map_from_var_index_to_column_info[t.first];
         if (a < numeric_traits<T>::zero()) {
             if (ci->low_bound_is_set()) {
                 low_bound += ci->get_low_bound() * a;
@@ -334,8 +334,8 @@ template <typename T, typename X> void lp_solver<T, X>::remove_fixed_or_zero_col
     std::vector<unsigned> removed;
     for (auto & col : row) {
         unsigned j = col.first;
-        lean_assert(m_columns.find(j) != m_columns.end());
-        column_info<T> * ci = m_columns[j];
+        lean_assert(m_map_from_var_index_to_column_info.find(j) != m_map_from_var_index_to_column_info.end());
+        column_info<T> * ci = m_map_from_var_index_to_column_info[j];
         if (ci->is_fixed()) {
             removed.push_back(j);
             T aj = col.second;
@@ -397,13 +397,16 @@ template <typename T, typename X> void lp_solver<T, X>::map_external_columns_to_
     unsigned size = 0;
     for (auto & row : m_A_values) {
         for (auto & col : row.second) {
-            if (col.second == numeric_traits<T>::zero() || m_columns[col.first]->is_fixed()) {
+            if (col.second == numeric_traits<T>::zero() || m_map_from_var_index_to_column_info[col.first]->is_fixed()) {
                 throw_exception("found fixed column");
             }
             unsigned j = col.first;
-            auto j_column = m_columns[j]->get_column_index();
+            auto column_info_it = m_map_from_var_index_to_column_info.find(j);
+            lean_assert(column_info_it != m_map_from_var_index_to_column_info.end());
+
+            auto j_column = column_info_it->second->get_column_index();
             if (!is_valid(j_column)) { // j is a newcomer
-                m_columns[j]->set_column_index(size);
+                m_map_from_var_index_to_column_info[j]->set_column_index(size);
                 m_core_solver_columns_to_external_columns[size++] = j;
             }
         }
@@ -411,7 +414,7 @@ template <typename T, typename X> void lp_solver<T, X>::map_external_columns_to_
 }
 
 template <typename T, typename X> void lp_solver<T, X>::fill_column_names_for_core_solver() {
-    for (auto it : this->m_columns) {
+    for (auto it : this->m_map_from_var_index_to_column_info) {
         unsigned j = it.second->get_column_index();
         if (is_valid(j))
             this->m_name_map[j] = it.second->get_name();
@@ -430,12 +433,16 @@ template <typename T, typename X> void lp_solver<T, X>::unscale() {
 template <typename T, typename X> void lp_solver<T, X>::fill_A_from_A_values() {
     m_A = new static_matrix<T, X>(static_cast<unsigned>(m_A_values.size()), number_of_core_structurals());
     for (auto & t : m_A_values) {
-        lean_assert(m_external_rows_to_core_solver_rows.find(t.first) != m_external_rows_to_core_solver_rows.end());
-        unsigned row =  m_external_rows_to_core_solver_rows[t.first];
+        auto row_it = m_external_rows_to_core_solver_rows.find(t.first);
+        lean_assert(row_it != m_external_rows_to_core_solver_rows.end());
+        unsigned row =  row_it->second;
         for (auto k : t.second) {
-            unsigned col = m_columns[k.first]->get_column_index();
+            auto column_info_it = m_map_from_var_index_to_column_info.find(k.first);
+            lean_assert(column_info_it != m_map_from_var_index_to_column_info.end());
+            column_info<T> *ci = column_info_it->second;
+            unsigned col = ci->get_column_index();
             lean_assert(is_valid(col));
-            bool col_is_flipped = m_columns[k.first]->is_flipped();
+            bool col_is_flipped = m_map_from_var_index_to_column_info[k.first]->is_flipped();
             if (!col_is_flipped) {
                 (*m_A)(row, col) = k.second;
             } else {
@@ -489,7 +496,7 @@ template <typename T, typename X>    T lp_solver<T, X>::low_bound_shift_for_row(
         throw_exception("cannot find row");
     }
     for (auto col : row->second) {
-        ret += col.second * this->m_columns[col.first]->get_shift();
+        ret += col.second * this->m_map_from_var_index_to_column_info[col.first]->get_shift();
     }
     return ret;
 }
@@ -504,8 +511,8 @@ template <typename T, typename X> void lp_solver<T, X>::fill_m_b() {
 }
 
 template <typename T, typename X> T lp_solver<T, X>::get_column_value_with_core_solver(unsigned column, lp_core_solver_base<T, X> * core_solver) const {
-    auto cit = this->m_columns.find(column);
-    if (cit == this->m_columns.end()) {
+    auto cit = this->m_map_from_var_index_to_column_info.find(column);
+    if (cit == this->m_map_from_var_index_to_column_info.end()) {
         return numeric_traits<T>::zero();
     }
 
@@ -535,7 +542,7 @@ template <typename T, typename X> T lp_solver<T, X>::get_column_value_with_core_
 template <typename T, typename X> void lp_solver<T, X>::set_scaled_cost(unsigned j) {
     // grab original costs but modify it with the column scales
     lean_assert(j < this->m_column_scale.size());
-    column_info<T> * ci = this->m_columns[this->m_core_solver_columns_to_external_columns[j]];
+    column_info<T> * ci = this->m_map_from_var_index_to_column_info[this->m_core_solver_columns_to_external_columns[j]];
     T cost = ci->get_cost();
     if (ci->is_flipped()){
         cost *= -1;
