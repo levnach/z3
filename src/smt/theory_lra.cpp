@@ -114,6 +114,7 @@ namespace smt {
             unsigned m_asserted_atoms_lim;
             unsigned m_delayed_terms_lim;
             unsigned m_delayed_equalities_lim;
+            unsigned m_delayed_defs_lim;
             expr*    m_not_handled;
         };
 
@@ -190,8 +191,18 @@ namespace smt {
             }
         };
        
+        typedef buffer<std::pair<rational, lean::var_index>> var_coeffs;
+        struct delayed_def {
+            vector<rational>    m_coeffs;
+            svector<theory_var> m_vars;
+            rational            m_coeff;
+            theory_var          m_var;
+            delayed_def(svector<theory_var> const& vars, vector<rational> const& coeffs, rational const& r, theory_var v):
+                m_coeffs(coeffs), m_vars(vars), m_coeff(r), m_var(v) {}
+        };
+
         svector<lean::var_index> m_theory_var2var_index;                         // translate from theory variables to lar vars
-        buffer<std::pair<rational, lean::var_index>>  m_left_side;               // constraint left side
+        var_coeffs               m_left_side;              // constraint left side
         mutable std::unordered_map<lean::var_index, rational> m_variable_values; // current model
         
         enum constraint_source {
@@ -209,6 +220,7 @@ namespace smt {
         svector<delayed_atom>  m_asserted_atoms;        
         app_ref_vector         m_delayed_terms;        
         svector<std::pair<theory_var, theory_var>> m_delayed_equalities;
+        vector<delayed_def>    m_delayed_defs;
         expr*                  m_not_handled;
 
         // attributes for incremental version:
@@ -506,6 +518,14 @@ namespace smt {
             m_definitions.setx(index, v, null_theory_var);
             ++m_stats.m_add_rows;
         }
+
+        void internalize_eq(delayed_def const& d) {
+            scoped_internalize_state st(*this);
+            st.vars().append(d.m_vars);
+            st.coeffs().append(d.m_coeffs);            
+            init_left_side(st);
+            add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -d.m_coeff), d.m_var);
+        }
         
         void internalize_eq(theory_var v1, theory_var v2) {
                   
@@ -523,7 +543,26 @@ namespace smt {
                   << mk_pp(n1->get_owner(), m) << " = " << mk_pp(n2->get_owner(), m) << "\n";);
         }
 
-        void internalize_atom(expr* atom, bool_var bv, bool is_true) {
+        void internalize_atom1(expr* atom, bool_var bv, bool is_true) {
+            SASSERT(m_delay_constraints);
+            lp::bound& b = *m_bool_var2bound.find(bv);
+            scoped_internalize_state st(*this);
+            st.vars().push_back(b.get_var());
+            st.coeffs().push_back(rational::one());
+            init_left_side(st);
+            lean::lconstraint_kind k = lean::EQ;
+            switch (b.get_bound_kind()) {
+            case lp::lower_t:
+                k = is_true ? lean::GE : lean::LT;
+                break;
+            case lp::upper_t:
+                k = is_true ? lean::LE : lean::GT;
+                break;
+            }            
+            add_ineq_constraint(m_solver->add_constraint(m_left_side, k, b.get_value()), literal(bv, !is_true));
+        }
+
+        void internalize_atom2(expr* atom, bool_var bv, bool is_true) {
             TRACE("arith", tout << mk_pp(atom, m) << " " << is_true << "\n";);
             expr* n1, *n2;
             lean::lconstraint_kind k = lean::EQ;
@@ -627,9 +666,6 @@ namespace smt {
 
             bool_var bv = ctx().mk_bool_var(atom);
             ctx().set_var_theory(bv, get_id());
-            if (false && m_delay_constraints) {
-                return true;
-            }
             expr* n1, *n2;
             rational r;
             lp::bound_kind k;
@@ -653,9 +689,14 @@ namespace smt {
             m_bounds_trail.push_back(v);
             m_bool_var2bound.insert(bv, b);
             TRACE("arith", tout << "Internalized " << mk_pp(atom, m) << "\n";);
-            if (!m_delay_constraints && !is_unit_var(st)) {
-                init_left_side(st);
-                add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
+            if (!is_unit_var(st) && m_bounds[v].size() == 1) {
+                if (m_delay_constraints) {
+                    m_delayed_defs.push_back(delayed_def(st.vars(), st.coeffs(), st.coeff(), v));                    
+                }
+                else {
+                    init_left_side(st);
+                    add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
+                }
             }
             return true;
         }
@@ -725,6 +766,7 @@ namespace smt {
             s.m_asserted_atoms_lim = m_asserted_atoms.size();
             s.m_delayed_terms_lim = m_delayed_terms.size();
             s.m_delayed_equalities_lim = m_delayed_equalities.size();
+            s.m_delayed_defs_lim = m_delayed_defs.size();
             s.m_not_handled = m_not_handled;
         }
 
@@ -736,6 +778,7 @@ namespace smt {
             del_bounds(m_scopes[old_size].m_bounds_lim);
             m_asserted_atoms.shrink(m_scopes[old_size].m_asserted_atoms_lim);
             m_delayed_terms.shrink(m_scopes[old_size].m_delayed_terms_lim);
+            m_delayed_defs.shrink(m_scopes[old_size].m_delayed_defs_lim);
             m_delayed_equalities.shrink(m_scopes[old_size].m_delayed_equalities_lim);
             m_asserted_qhead = m_scopes[old_size].m_asserted_qhead;
             m_not_handled = m_scopes[old_size].m_not_handled;
@@ -971,10 +1014,14 @@ namespace smt {
                 for (unsigned i = 0; i < m_asserted_atoms.size(); ++i) {
                     bool_var bv = m_asserted_atoms[i].m_bv;
                     expr* atom = ctx().bool_var2expr(bv);
-                    internalize_atom(atom, bv, m_asserted_atoms[i].m_is_true);
+                    internalize_atom1(atom, bv, m_asserted_atoms[i].m_is_true);
                 }
                 for (unsigned i = 0; i < m_delayed_terms.size(); ++i) {
                     internalize_def(m_delayed_terms[i].get());
+                }
+                for (unsigned i = 0; i < m_delayed_defs.size(); ++i) {
+                    delayed_def const& dd = m_delayed_defs[i];
+                    internalize_eq(dd);
                 }
                 for (unsigned i = 0; i < m_delayed_equalities.size(); ++i) {
                     std::pair<theory_var, theory_var> const& eq = m_delayed_equalities[i];
@@ -997,10 +1044,13 @@ namespace smt {
             for (unsigned i = 0; i < m_asserted_atoms.size(); ++i) {
                 bool_var bv = m_asserted_atoms[i].m_bv;
                 expr* atom = ctx().bool_var2expr(bv);
-                internalize_atom(atom, bv, m_asserted_atoms[i].m_is_true);
+                internalize_atom1(atom, bv, m_asserted_atoms[i].m_is_true);
             }
             for (unsigned i = 0; i < m_delayed_terms.size(); ++i) {
                 internalize_def(m_delayed_terms[i].get());
+            }
+            for (unsigned i = 0; i < m_delayed_defs.size(); ++i) {
+                internalize_eq(m_delayed_defs[i]);
             }
             for (unsigned i = 0; i < m_delayed_equalities.size(); ++i) {
                 std::pair<theory_var, theory_var> const& eq = m_delayed_equalities[i];
@@ -1122,7 +1172,7 @@ namespace smt {
                     lp::bound* b2 = bounds[i];
                     if (b2 == &b) continue;
                     rational const& val2 = b2->get_value();
-                    if (val2 < val && (!lb || glb < val2)) {
+                    if ((is_true ? val2 < val : val2 <= val) && (!lb || glb < val2)) {
                         lb = b2;
                         glb = val2;
                     }
@@ -1138,7 +1188,7 @@ namespace smt {
                     lp::bound* b2 = bounds[i];
                     if (b2 == &b) continue;
                     rational const& val2 = b2->get_value();
-                    if (val < val2 && (!ub || val2 < lub)) {
+                    if ((is_true ? val < val2 : val <= val2) && (!ub || val2 < lub)) {
                         ub = b2;
                         lub = val2;
                     }
@@ -1181,6 +1231,7 @@ namespace smt {
 
         lbool make_feasible() {
             reset_variable_values();
+            TRACE("arith", display(tout););
             lean::lp_status status = m_solver->check();
             switch (status) {
             case lean::lp_status::INFEASIBLE:
