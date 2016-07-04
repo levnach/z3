@@ -87,7 +87,7 @@ template <typename T, typename X> bool lp_dual_core_solver<T, X>::update_basis(i
     init_factorization(this->m_factorization, this->m_A, this->m_basis, this->m_basis_heading, this->m_settings, this->m_non_basic_columns);
     this->m_refactor_counter = 0;
     if (this->m_factorization->get_status() != LU_status::OK) {
-        OUT(this->m_settings, "failing refactor for entering = " << entering << ", leaving = " << leaving << " total_iterations = " << this->m_total_iterations << std::endl);
+        LP_OUT(this->m_settings, "failing refactor for entering = " << entering << ", leaving = " << leaving << " total_iterations = " << this->total_iterations() << std::endl);
         this->m_iters_with_no_cost_growing++;
         return false;
     }
@@ -128,7 +128,7 @@ template <typename T, typename X> bool lp_dual_core_solver<T, X>::done() {
     if (this->m_status == OPTIMAL) {
         return true;
     }
-    if (this->m_total_iterations > this->m_settings.max_total_number_of_iterations) { // debug !!!!
+    if (this->total_iterations() > this->m_settings.max_total_number_of_iterations) { // debug !!!!
         this->m_status = ITERATIONS_EXHAUSTED;
         return true;
     }
@@ -367,7 +367,7 @@ template <typename T, typename X> bool lp_dual_core_solver<T, X>::d_is_correct()
     for  (auto j : non_basis()) {
         T d = this->m_costs[j] -  this->m_A.dot_product_with_column(this->m_y, j);
         if (numeric_traits<T>::get_double(abs(d - this->m_d[j])) >= 0.001) {
-            OUT(this->m_settings, "m_total_iterations = " << this->m_total_iterations << std::endl
+            LP_OUT(this->m_settings, "total_iterations = " << this->total_iterations() << std::endl
                 << "d[" << j << "] = " << this->m_d[j] << " but should be " << d << std::endl);
             return false;
         }
@@ -568,7 +568,7 @@ template <typename T, typename X> bool lp_dual_core_solver<T, X>::problem_is_dua
             // std::cout << "x[" << j << "] = " << this->m_x[j] << std::endl;
             // std::cout << "type = " << column_type_to_string(this->m_column_type[j]) << std::endl;
             // std::cout << "bounds = " << this->m_low_bound_values[j] << "," << this->m_upper_bound_values[j] << std::endl;
-            // std::cout << "m_total_iterations = " << this->m_total_iterations << std::endl;
+            // std::cout << "total_iterations = " << this->total_iterations() << std::endl;
             return false;
         }
     }
@@ -774,7 +774,7 @@ template <typename T, typename X> void lp_dual_core_solver<T, X>::solve() { // s
     this->m_total_iterations = 0;
     this->m_iters_with_no_cost_growing = 0;
     do {
-        if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(std::string(), this->m_total_iterations)){
+        if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(std::string(), this->total_iterations())){
             this->m_status = lp_status::TIME_EXHAUSTED;
             return;
         }
@@ -782,6 +782,6 @@ template <typename T, typename X> void lp_dual_core_solver<T, X>::solve() { // s
         this->m_total_iterations++;
     } while (this->m_status != FLOATING_POINT_ERROR && this->m_status != DUAL_UNBOUNDED && this->m_status != OPTIMAL &&
              this->m_iters_with_no_cost_growing <= this->m_settings.max_number_of_iterations_with_no_improvements
-             && this->m_total_iterations <= this->m_settings.max_total_number_of_iterations);
+             && this->total_iterations() <= this->m_settings.max_total_number_of_iterations);
 }
 }

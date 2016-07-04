@@ -40,7 +40,7 @@ template <typename T, typename X> void lar_core_solver<T, X>::init_costs() {
     m_infeasibility = zero_of_type<X>();
     for (unsigned j = this->m_n; j--;)
         init_cost_for_column(j);
-    if (!(this->m_total_iterations ==0 || inf >= m_infeasibility)) {
+    if (!(this->total_iterations() ==0 || inf >= m_infeasibility)) {
         std::cout << "inf was " << T_to_string(inf) << " and now " << T_to_string(m_infeasibility) << std::endl;
         lean_assert(false);
     }
@@ -496,7 +496,7 @@ template <typename T, typename X> bool lar_core_solver<T, X>::done() {
     if (this->m_iters_with_no_cost_growing >= this->m_settings.max_number_of_iterations_with_no_improvements) {
         this->m_status = ITERATIONS_EXHAUSTED; return true;
     }
-    if (this->m_total_iterations >= this->m_settings.max_total_number_of_iterations) {
+    if (this->total_iterations() >= this->m_settings.max_total_number_of_iterations) {
         this->m_status = ITERATIONS_EXHAUSTED; return true;
     }
     return false;
@@ -541,7 +541,7 @@ template <typename T, typename X> void lar_core_solver<T, X>::feasibility_loop()
     while (true) {
         init_costs();
         this->init_reduced_costs_for_one_iteration();
-        if (this->print_statistics_with_cost_and_check_that_the_time_is_over(this->m_total_iterations, m_infeasibility)){
+        if (this->print_statistics_with_cost_and_check_that_the_time_is_over(this->total_iterations(), m_infeasibility)){
             this->m_status = lp_status::TIME_EXHAUSTED;
             return; // this->m_total_iterations;
         }

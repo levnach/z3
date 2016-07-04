@@ -67,6 +67,12 @@ public:
     virtual bool get_cancel_flag() = 0;
 };
 
+struct stats {
+    unsigned m_total_iterations;
+    unsigned m_iters_with_no_cost_growing;
+    stats() { reset(); }
+    void reset() { memset(this, 0, sizeof(*this)); }
+};
 
 struct lp_settings {
 private:
@@ -84,6 +90,8 @@ private:
     default_lp_resource_limit m_default_resource_limit;
     lp_resource_limit* m_resource_limit;
     std::ostream* m_out = &std::cout;
+
+    stats  m_stats;
 
 public:
     // when the absolute value of an element is less than pivot_epsilon
@@ -128,6 +136,9 @@ public:
 
     void set_ostream(std::ostream* out) { m_out = out; }
     std::ostream* out() { return m_out; }
+
+    stats& st() { return m_stats; }
+    stats const& st() const { return m_stats; }
 
     template <typename T> static bool is_eps_small_general(const T & t, const double & eps) {
         return (!numeric_traits<T>::precise())? is_epsilon_small<T>(t, eps) : numeric_traits<T>::is_zero(t);
@@ -199,7 +210,7 @@ public:
 }; // end of lp_settings class
 
 
-#define OUT(_settings_, _msg_) { if (_settings_.out()) { *_settings_.out() << _msg_; } }
+#define LP_OUT(_settings_, _msg_) { if (_settings_.out()) { *_settings_.out() << _msg_; } }
 
 template <typename T>
 std::string T_to_string(const T & t) {

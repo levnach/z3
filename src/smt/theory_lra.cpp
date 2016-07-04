@@ -18,6 +18,7 @@ Revision History:
 
 
 --*/
+#include "util/stopwatch.h"
 #include "util/lp/lp_solver.h"
 #include "util/lp/lp_primal_simplex.h"
 #include "util/lp/lp_dual_simplex.h"
@@ -81,6 +82,8 @@ namespace lp {
         unsigned m_assert_upper;
         unsigned m_add_rows;
         unsigned m_bounds_propagations;
+        unsigned m_num_iterations;
+        unsigned m_num_iterations_with_no_progress;
         stats() { reset(); }
         void reset() {
             memset(this, 0, sizeof(*this));
@@ -1232,7 +1235,14 @@ namespace smt {
         lbool make_feasible() {
             reset_variable_values();
             TRACE("arith", display(tout););
+            stopwatch sw;
+            sw.start();
             lean::lp_status status = m_solver->check();
+            sw.stop();
+            std::cout << status << " " << sw.get_seconds() << "\n";
+            //m_stats.m_num_iterations += m_solver->settings().st().m_total_iterations;
+            //m_stats.m_num_iterations_with_no_progress += m_solver->settings().st().m_iters_with_no_cost_growing;
+
             switch (status) {
             case lean::lp_status::INFEASIBLE:
                 return l_false;
@@ -1387,6 +1397,8 @@ namespace smt {
             st.update("arith-upper", m_stats.m_assert_upper);
             st.update("arith-rows", m_stats.m_add_rows);
             st.update("arith-propagations", m_stats.m_bounds_propagations);
+            st.update("arith-iterations", m_stats.m_num_iterations);
+            st.update("arith-plateau-iterations", m_stats.m_num_iterations_with_no_progress);
         }        
     };
     
