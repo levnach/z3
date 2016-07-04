@@ -364,7 +364,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::update_re
     // the basis heading has changed already
 #ifdef LEAN_DEBUG
     auto & basis_heading = this->m_factorization->m_basis_heading;
-    lean_assert(basis_heading[entering] >= 0 && static_cast<unsigned>(basis_heading[entering]) < this->m_ed.size());
+    lean_assert(basis_heading[entering] >= 0 && static_cast<unsigned>(basis_heading[entering]) < this->m_m);
     lean_assert(basis_heading[leaving] < 0);
 #endif
     T pivot = this->m_pivot_row[entering];
@@ -525,7 +525,6 @@ template <typename T, typename X> void lp_primal_core_solver<T, X>::advance_on_e
     if (leaving == -1){
         if (get_current_x_is_infeasible()) {
             if (this->m_status == UNSTABLE) {
-                // std::cout << "setting status to FLOATING_POINT_ERROR" << std::endl;
                 this->m_status = FLOATING_POINT_ERROR;
                 return;
             }

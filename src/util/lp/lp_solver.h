@@ -43,7 +43,7 @@ public:
     unsigned m_first_stage_iterations = 0;
     unsigned m_second_stage_iterations = 0;
     std::unordered_map<unsigned, lp_constraint<T, X>> m_constraints;
-    std::unordered_map<var_index, column_info<T>*> m_columns;
+    std::unordered_map<var_index, column_info<T>*> m_map_from_var_index_to_column_info;
     std::unordered_map<unsigned, std::unordered_map<unsigned, T> > m_A_values;
     std::unordered_map<std::string, unsigned> m_names_to_columns; // don't have to use it
     std::unordered_map<unsigned, unsigned> m_external_rows_to_core_solver_rows;

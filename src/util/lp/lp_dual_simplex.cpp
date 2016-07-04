@@ -51,7 +51,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::fix_logical_for_st
 }
 
 template <typename T, typename X> void lp_dual_simplex<T, X>::fix_structural_for_stage2(unsigned j) {
-    column_info<T> * ci = this->m_columns[this->m_core_solver_columns_to_external_columns[j]];
+    column_info<T> * ci = this->m_map_from_var_index_to_column_info[this->m_core_solver_columns_to_external_columns[j]];
     switch (ci->get_column_type()) {
     case low_bound:
         m_low_bounds[j] = numeric_traits<T>::zero();
@@ -180,7 +180,7 @@ template <typename T, typename X> column_type lp_dual_simplex<T, X>::get_column_
     if (j >= this->number_of_core_structurals()) {
         return m_column_types_of_logicals[j - this->number_of_core_structurals()];
     }
-    return this->m_columns[this->m_core_solver_columns_to_external_columns[j]]->get_column_type();
+    return this->m_map_from_var_index_to_column_info[this->m_core_solver_columns_to_external_columns[j]]->get_column_type();
 }
 
 template <typename T, typename X> void lp_dual_simplex<T, X>::fill_costs_bounds_types_and_can_enter_basis_for_the_first_stage_solver_structural_column(unsigned j) {
@@ -190,8 +190,8 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::fill_costs_bounds_
 
     T free_bound = T(1e4); // see 4.8
     unsigned jj = this->m_core_solver_columns_to_external_columns[j];
-    lean_assert(this->m_columns.find(jj) != this->m_columns.end());
-    column_info<T> * ci = this->m_columns[jj];
+    lean_assert(this->m_map_from_var_index_to_column_info.find(jj) != this->m_map_from_var_index_to_column_info.end());
+    column_info<T> * ci = this->m_map_from_var_index_to_column_info[jj];
     switch (ci->get_column_type()) {
     case upper_bound: {
         std::stringstream s;
@@ -354,7 +354,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::find_maximal_solut
 
 template <typename T, typename X> T lp_dual_simplex<T, X>::get_current_cost() const {
     T ret = numeric_traits<T>::zero();
-    for (auto it : this->m_columns) {
+    for (auto it : this->m_map_from_var_index_to_column_info) {
         ret += this->get_column_cost_value(it.first, it.second);
     }
     return -ret; // we flip costs for now

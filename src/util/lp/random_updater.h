@@ -69,7 +69,7 @@ class random_updater {
     void fill_set_of_values_and_set_of_vars(std::vector<unsigned> & column_indices);
     void diminish_interval_to_leave_basic_vars_feasible(numeric_pair<mpq> &nb_x, interval & inter);
     void shift_var(unsigned j, interval & r);
-    void diminish_interval_for_basic_var(numeric_pair<mpq> &nb_x, unsigned i, unsigned j, mpq & a, interval & r);
+    void diminish_interval_for_basic_var(numeric_pair<mpq> &nb_x, unsigned j, mpq & a, interval & r);
     numeric_pair<mpq> get_random_from_interval(interval & r);
     void add_value(numeric_pair<mpq>& v);
     void remove_value(numeric_pair<mpq> & v);

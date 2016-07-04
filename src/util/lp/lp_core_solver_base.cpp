@@ -113,15 +113,15 @@ solve_yB(std::vector<T> & y) {
     m_factorization->solve_yB(y);
 }
 
-template <typename T, typename X> void lp_core_solver_base<T, X>::
-update_index_of_ed() {
-    m_index_of_ed.clear();
-    unsigned i = static_cast<unsigned>(m_ed.size());
-    while (i--) {
-        if (!is_zero(m_ed[i]))
-            m_index_of_ed.push_back(i);
-    }
-}
+// template <typename T, typename X> void lp_core_solver_base<T, X>::
+// update_index_of_ed() {
+//     m_index_of_ed.clear();
+//     unsigned i = static_cast<unsigned>(m_ed.size());
+//     while (i--) {
+//         if (!is_zero(m_ed[i]))
+//             m_index_of_ed.push_back(i);
+//     }
+// }
 template <typename T, typename X> void lp_core_solver_base<T, X>::solve_Bd(unsigned entering, indexed_vector<T> & column) {
     m_factorization->solve_Bd_faster(entering, column);
 }
@@ -130,7 +130,6 @@ template <typename T, typename X> void lp_core_solver_base<T, X>::solve_Bd(unsig
 template <typename T, typename X> void lp_core_solver_base<T, X>::
 solve_Bd(unsigned entering) {
     m_factorization->solve_Bd(entering, m_ed, m_w);
-    update_index_of_ed();
 #ifdef LEAN_DEBUG
     // auto B = get_B(m_factorization);
     // vector<T>  a(m_m);
@@ -278,7 +277,7 @@ update_x(unsigned entering, X delta) {
         return;
     }
     m_x[entering] += delta;
-    for (unsigned i : m_index_of_ed) {
+    for (unsigned i : m_ed.m_index) {
         m_copy_of_xB[i] = m_x[m_basis[i]];
         m_x[m_basis[i]] -= delta * m_ed[i];
     }
@@ -583,7 +582,7 @@ template <typename T, typename X> void lp_core_solver_base<T, X>::
 restore_x(unsigned entering, X const & t) {
     if (is_zero(t)) return;
     m_x[entering] -= t;
-    for (unsigned i : m_index_of_ed) {
+    for (unsigned i : m_ed.m_index) {
         m_x[m_basis[i]]  = m_copy_of_xB[i];
     }
 }

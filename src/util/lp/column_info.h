@@ -26,7 +26,7 @@ class column_info {
     T m_cost = numeric_traits<T>::zero();
     T m_fixed_value;
     bool m_is_fixed = false;
-    unsigned m_column_index;
+    unsigned m_column_index = static_cast<unsigned>(-1);
 public:
     void set_column_index(unsigned j) {
         m_column_index = j;

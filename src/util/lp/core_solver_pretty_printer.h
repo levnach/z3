@@ -46,7 +46,7 @@ class core_solver_pretty_printer {
     unsigned nrows() { return m_core_solver.m_A.row_count(); }
     unsigned m_artificial_start = std::numeric_limits<unsigned>::max();
     indexed_vector<T> m_w_buff;
-    std::vector<T> m_ed_buff;
+    indexed_vector<T> m_ed_buff;
     vector<T> m_exact_column_norms;
 
 public:

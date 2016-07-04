@@ -131,8 +131,8 @@ template <typename T, typename X> void lp_primal_simplex<T, X>::fill_costs_and_x
 
 template <typename T, typename X>    std::string lp_primal_simplex<T, X>::name_of_core_solver_column(unsigned j) { // j here is the core solver index
     unsigned external_j = this->m_core_solver_columns_to_external_columns[j];
-    auto t = this->m_columns.find(external_j);
-    if (t == this->m_columns.end()) {
+    auto t = this->m_map_from_var_index_to_column_info.find(external_j);
+    if (t == this->m_map_from_var_index_to_column_info.end()) {
         return std::string("name_not_found");
     }
     return t->m_name;
@@ -143,7 +143,7 @@ template <typename T, typename X> void lp_primal_simplex<T, X>::set_core_solver_
     unsigned total_vars = this->m_A->column_count() + this->m_slacks + this->m_artificials;
     this->m_column_types.resize(total_vars);
     this->m_upper_bounds.resize(total_vars);
-    for (auto cit : this->m_columns) {
+    for (auto cit : this->m_map_from_var_index_to_column_info) {
         column_info<T> * ci = cit.second;
         unsigned j = ci->get_column_index();
         if (!is_valid(j))
@@ -267,7 +267,7 @@ template <typename T, typename X> lp_primal_simplex<T, X>::~lp_primal_simplex() 
 }
 
 template <typename T, typename X> bool lp_primal_simplex<T, X>::bounds_hold(std::unordered_map<std::string, T> const & solution) {
-    for (auto it : this->m_columns) {
+    for (auto it : this->m_map_from_var_index_to_column_info) {
         auto sol_it = solution.find(it.second->get_name());
         if (sol_it == solution.end()) {
             std::stringstream s;
@@ -293,8 +293,8 @@ template <typename T, typename X> T lp_primal_simplex<T, X>::get_row_value(unsig
     }
     T ret = numeric_traits<T>::zero();
     for (auto & pair : it->second) {
-        auto cit = this->m_columns.find(pair.first);
-        if (cit == this->m_columns.end()){
+        auto cit = this->m_map_from_var_index_to_column_info.find(pair.first);
+        if (cit == this->m_map_from_var_index_to_column_info.end()){
             std::cout << "cannot find column " << pair.first << std::endl;
         }
 
@@ -362,7 +362,7 @@ template <typename T, typename X> bool lp_primal_simplex<T, X>::row_constraints_
 
 template <typename T, typename X> T lp_primal_simplex<T, X>::get_current_cost() const {
     T ret = numeric_traits<T>::zero();
-    for (auto it : this->m_columns) {
+    for (auto it : this->m_map_from_var_index_to_column_info) {
         ret += this->get_column_cost_value(it.first, it.second);
     }
     return ret;

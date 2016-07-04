@@ -42,7 +42,7 @@ random_updater::interval random_updater::get_interval_of_non_basic_var(unsigned 
     return ret;
 }
 
-void random_updater::diminish_interval_for_basic_var(numeric_pair<mpq>& nb_x, unsigned i, unsigned j,
+void random_updater::diminish_interval_for_basic_var(numeric_pair<mpq>& nb_x, unsigned j,
                                                      mpq & a,
                                                      interval & r) {
     lean_assert(m_core_solver.m_basis_heading[j] >= 0);
@@ -98,7 +98,7 @@ void random_updater::diminish_interval_for_basic_var(numeric_pair<mpq>& nb_x, un
 
 void random_updater::diminish_interval_to_leave_basic_vars_feasible(numeric_pair<mpq> &nb_x, interval & r) {
     for (unsigned i : m_column_j.m_index) {
-        diminish_interval_for_basic_var(nb_x, i, m_core_solver.m_basis[i], m_column_j.m_data[i], r);
+        diminish_interval_for_basic_var(nb_x, m_core_solver.m_basis[i], m_column_j.m_data[i], r);
         if (r.is_empty())
             break;
     }
@@ -143,8 +143,7 @@ numeric_pair<mpq> random_updater::get_random_from_interval(interval & r) {
 }
 
 void random_updater::random_shift_var(unsigned j) {
-    m_core_solver.solve_Bd(j, m_column_j); 
-
+    m_core_solver.solve_Bd(j, m_column_j);
     interval interv = find_shift_interval(j);
     if (interv.is_empty()) {
         return;

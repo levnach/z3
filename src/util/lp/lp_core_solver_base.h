@@ -46,8 +46,7 @@ public:
     const std::unordered_map<unsigned, std::string> & m_column_names;
     indexed_vector<T> m_w; // the vector featuring in 24.3 of the Chvatal book
     std::vector<T> m_d; // the vector of reduced costs
-    std::vector<T> m_ed; // the solution of B*m_ed = a
-    std::vector<unsigned>  m_index_of_ed;
+    indexed_vector<T> m_ed; // the solution of B*m_ed = a
     unsigned m_total_iterations = 0;
     unsigned m_iters_with_no_cost_growing = 0;
     std::vector<unsigned> m_non_basic_columns;
@@ -97,8 +96,6 @@ public:
     void fill_cb(std::vector<T> & y);
 
     void solve_yB(std::vector<T> & y);
-
-    void update_index_of_ed();
 
     void solve_Bd(unsigned entering);
 

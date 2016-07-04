@@ -2394,7 +2394,7 @@ void check_lu_from_file(std::string lufile_name) {
     lp_settings settings;
     std::vector<unsigned> non_basic_columns;
     lu<double, double> lsuhl(A, basis, basis_heading, settings, non_basic_columns);
-    std::vector<double> d(A.row_count());
+     indexed_vector<double>  d(A.row_count());
 #ifdef LEAN_DEBUG
     lp_settings::ddd = 1;
 #endif
@@ -2404,9 +2404,9 @@ void check_lu_from_file(std::string lufile_name) {
     auto B = get_B(lsuhl);
     std::vector<double>  a(m);
     A.copy_column_to_vector(entering, a);
-    std::vector<double> cd(d);
-    B.apply_from_left(cd, settings);
-    lean_assert(vectors_are_equal(cd , a));
+    indexed_vector<double> cd(d);
+    B.apply_from_left(cd.m_data, settings);
+    lean_assert(vectors_are_equal(cd.m_data , a));
 #endif
 }
 

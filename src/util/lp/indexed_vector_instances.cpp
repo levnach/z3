@@ -4,7 +4,7 @@
 
   Author: Lev Nachmanson
 */
-
+#include <vector>
 #include "util/lp/indexed_vector.cpp"
 namespace lean {
 template void indexed_vector<double>::clear();
@@ -19,5 +19,9 @@ template void indexed_vector<mpq>::set_value(mpq, unsigned int);
 #ifdef LEAN_DEBUG
 template bool indexed_vector<double>::is_OK() const;
 template bool indexed_vector<mpq>::is_OK() const;
+template bool indexed_vector<lean::numeric_pair<mpq> >::is_OK() const;
 #endif
 }
+#ifdef LEAN_DEBUG
+template void lean::print_vector<unsigned int>(std::vector<unsigned int> const&, std::ostream&);
+#endif
