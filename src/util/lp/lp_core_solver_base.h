@@ -93,7 +93,6 @@ public:
 
     void fill_cb(T * y);
 
-
     void fill_cb(std::vector<T> & y);
 
     void solve_yB(std::vector<T> & y);
@@ -144,6 +143,8 @@ public:
     bool print_statistics_with_cost_and_check_that_the_time_is_over(unsigned total_iterations, X cost);
 
     bool print_statistics_and_check_that_the_time_is_over(unsigned total_iterations);
+
+    unsigned total_iterations() const { return m_total_iterations; }
 
     void set_non_basic_x_to_correct_bounds();
 

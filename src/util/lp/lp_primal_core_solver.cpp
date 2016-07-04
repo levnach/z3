@@ -309,12 +309,12 @@ template <typename T, typename X> bool lp_primal_core_solver<T, X>::initial_x_is
     }
     for (unsigned j = 0; j < this->m_n; j++) {
         if (column_has_low_bound(j) && this->m_x[j] < numeric_traits<T>::zero()) {
-            std::cout << "low bound for variable " << j << " does not hold: this->m_x[" << j << "] = " << this->m_x[j] << " is negative " << std::endl;
+            LP_OUT(m_settings, "low bound for variable " << j << " does not hold: this->m_x[" << j << "] = " << this->m_x[j] << " is negative " << std::endl);
             return false;
         }
 
         if (column_has_upper_bound(j) && this->m_x[j] > this->m_upper_bound_values[j]) {
-            std::cout << "upper bound for " << j << " does not hold: "  << this->m_upper_bound_values[j] << ">" << this->m_x[j] << std::endl;
+            LP_OUT(m_settings, "upper bound for " << j << " does not hold: "  << this->m_upper_bound_values[j] << ">" << this->m_x[j] << std::endl);
             return false;
         }
 
@@ -453,7 +453,7 @@ template <typename T, typename X>void lp_primal_core_solver<T, X>::advance_on_en
                 this->restore_x(entering, t * m_sign_of_entering_delta);
                 m_forbidden_enterings.insert(entering);
                 this->m_iters_with_no_cost_growing++;
-                std::cout << "failing in advance_on_entering_and_leaving for entering == leaving = " << leaving << std::endl;
+                LP_OUT(m_settings, "failing in advance_on_entering_and_leaving for entering == leaving = " << leaving << std::endl);
                 return;
             }
         }
@@ -574,13 +574,13 @@ template <typename T, typename X> unsigned lp_primal_core_solver<T, X>::solve() 
     init_run();
     lean_assert(!this->A_mult_x_is_off());
     do {
-        if (this->m_total_iterations % this->m_settings.report_frequency == 0) {
+        if (this->total_iterations() % this->m_settings.report_frequency == 0) {
             std::ostringstream string_stream;
             string_stream <<  (m_using_inf_costs? "stage 1" : "stage 2");
             std::string stream_string = string_stream.str();
-            if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(stream_string, this->m_total_iterations)) {
+            if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(stream_string, this->total_iterations())) {
                 this->m_status = lp_status::TIME_EXHAUSTED;
-                return this->m_total_iterations;
+                return this->total_iterations();
             }
         }
         lean_assert(m_current_x_is_feasible == calc_current_x_is_feasible());
@@ -625,11 +625,11 @@ template <typename T, typename X> unsigned lp_primal_core_solver<T, X>::solve() 
              &&
              this->m_iters_with_no_cost_growing <= this->m_settings.max_number_of_iterations_with_no_improvements
              &&
-             this->m_total_iterations <= this->m_settings.max_total_number_of_iterations
+             this->total_iterations() <= this->m_settings.max_total_number_of_iterations
              &&
              !(m_current_x_is_feasible && m_exit_on_feasible_solution));
     lean_assert(m_current_x_is_feasible == false || this->calc_current_x_is_feasible_include_non_basis());
-    return this->m_total_iterations;
+    return this->total_iterations();
 }
 
 template <typename T, typename X>    void lp_primal_core_solver<T, X>::delete_factorization() {
@@ -905,7 +905,7 @@ template <typename T, typename X> bool lp_primal_core_solver<T, X>::done() {
     if (this->m_iters_with_no_cost_growing >= this->m_settings.max_number_of_iterations_with_no_improvements) {
         this->m_status = ITERATIONS_EXHAUSTED; return true;
     }
-    if (this->m_total_iterations >= this->m_settings.max_total_number_of_iterations) {
+    if (this->total_iterations() >= this->m_settings.max_total_number_of_iterations) {
         this->m_status = ITERATIONS_EXHAUSTED; return true;
     }
     return false;
@@ -918,7 +918,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::init_infe
     m_infeasibility = zero_of_type<X>();
     for (unsigned j = this->m_n; j--;)
         init_infeasibility_cost_for_column(j);
-    //        lean_assert(this->m_total_iterations == 0 || (inf <= m_infeasibility + convert_struct<X, double>::convert(this->m_settings.tolerance_for_artificials)));
+    //        lean_assert(this->total_iterations() == 0 || (inf <= m_infeasibility + convert_struct<X, double>::convert(this->m_settings.tolerance_for_artificials)));
     //        if (inf == m_infeasibility)
     //  this->m_iters_with_no_cost_growing++;
     m_using_inf_costs = true;

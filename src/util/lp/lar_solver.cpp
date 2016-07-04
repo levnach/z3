@@ -298,7 +298,7 @@ bool lar_solver::all_constrained_variables_are_registered(const buffer<std::pair
     for (auto it : left_side) {
         var_index vj = it.second;
         if (m_map_from_var_index_to_column_info_with_cls.find(vj) == m_map_from_var_index_to_column_info_with_cls.end()) {
-            OUT(settings(), "the variable " << vj << " is not registered in its constraint" << std::endl);
+            LP_OUT(settings(), "the variable " << vj << " is not registered in its constraint" << std::endl);
             return false;
         }
     }

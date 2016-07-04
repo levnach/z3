@@ -134,9 +134,9 @@ lu<T, X>::lu(static_matrix<T, X> const & A,
     create_initial_factorization();
     if (get_status() != LU_status::OK) {
         if (get_status() == LU_status::Degenerated) {
-            OUT(m_settings, "lu status is Degenerated" << std::endl);
+            LP_OUT(m_settings, "lu status is Degenerated" << std::endl);
         } else {
-            OUT(m_settings, "lu status is " <<static_cast<int>(get_status()) << std::endl);
+            LP_OUT(m_settings, "lu status is " <<static_cast<int>(get_status()) << std::endl);
         }
         return;
     }
@@ -267,10 +267,10 @@ void lu<T, X>::print(indexed_vector<T> & w) {
     remove(dump_file_name.c_str());
     std::ofstream f(dump_file_name);
     if (!f.is_open()) {
-        OUT(m_settings, "cannot open file " << dump_file_name << std::endl);
+        LP_OUT(m_settings, "cannot open file " << dump_file_name << std::endl);
         return;
     }
-    OUT(m_settings, "writing lu dump to " << dump_file_name << std::endl);
+    LP_OUT(m_settings, "writing lu dump to " << dump_file_name << std::endl);
     print_matrix_compact(f);
     print_basis(f);
     print_indexed_vector(w, f);
@@ -512,14 +512,14 @@ void lu<T, X>::process_column(int j) {
     unsigned pi, pj;
     m_U.get_pivot_for_column(pi, pj, m_settings.c_partial_pivoting, j);
     if (static_cast<int>(pi) == -1) {
-        OUT(m_settings, "cannot find the pivot for column " << j << std::endl);
+        LP_OUT(m_settings, "cannot find the pivot for column " << j << std::endl);
         m_failure = true;
         return;
     }
     swap_columns(j, pj);
     swap_rows(j, pi);
     if (!pivot_the_row(j)) {
-        OUT(m_settings, "pivot_the_row(" << j << ") failed" << std::endl);
+        LP_OUT(m_settings, "pivot_the_row(" << j << ") failed" << std::endl);
         m_failure = true;
     }
 }
@@ -734,7 +734,7 @@ row_eta_matrix<T, X> *lu<T, X>::get_row_eta_matrix_and_set_row_vector(unsigned r
 #endif
         !m_settings.abs_val_is_smaller_than_pivot_tolerance((m_row_eta_work_vector[lowest_row_of_the_bump] - pivot_elem_for_checking) / denom)) {
         set_status(LU_status::Degenerated);
-        //        OUT(m_settings, "diagonal element is off" << std::endl);
+        //        LP_OUT(m_settings, "diagonal element is off" << std::endl);
         return nullptr;
     }
 #ifdef LEAN_DEBUG
@@ -818,7 +818,7 @@ void init_factorization(lu<T, X>* & factorization, static_matrix<T, X> & m_A, st
     }
     factorization = new lu<T, X>(m_A, m_basis, m_basis_heading, m_settings, non_basic_columns);
     if (factorization->get_status() != LU_status::OK) {
-        OUT(m_settings, "failing in init_factorization" << std::endl);
+        LP_OUT(m_settings, "failing in init_factorization" << std::endl);
         return;
     }
 }

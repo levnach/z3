@@ -129,6 +129,8 @@ public:
 
     lp_settings & settings() { return m_lar_core_solver_params.m_settings;}
 
+    lp_settings const & settings() const { return m_lar_core_solver_params.m_settings;}
+
     void clear() {lean_assert(false); // not implemented
     }
 

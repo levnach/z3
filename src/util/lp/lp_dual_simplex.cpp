@@ -119,7 +119,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::solve_for_stage2()
     default:
         lean_unreachable();
     }
-    this->m_second_stage_iterations = m_core_solver->m_total_iterations;
+    this->m_second_stage_iterations = m_core_solver->total_iterations();
     this->m_total_iterations = this->m_first_stage_iterations + this->m_second_stage_iterations;
 }
 
@@ -156,7 +156,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::stage1() {
         m_core_solver->solve();
     }
     decide_on_status_after_stage1();
-    this->m_first_stage_iterations = m_core_solver->m_total_iterations;
+    this->m_first_stage_iterations = m_core_solver->total_iterations();
 }
 
 template <typename T, typename X> void lp_dual_simplex<T, X>::stage2() {
