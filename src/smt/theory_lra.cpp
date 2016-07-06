@@ -569,6 +569,33 @@ namespace smt {
             TRACE("arith", tout << mk_pp(atom, m) << " " << is_true << "\n";);
             expr* n1, *n2;
             lean::lconstraint_kind k = lean::EQ;
+
+#if 0
+            theory_var v = null_theory_var;
+            scoped_internalize_state st(*this);
+            rational right_side;
+            if (a.is_le(atom, n1, n2) && is_numeral(n2, right_side) && is_app(n1)) {
+                v = internalize_def(to_app(n1), st);
+                k = is_true ? lean::LE : lean::GT;
+            }
+            else if (a.is_ge(atom, n1, n2) && is_numeral(n2, right_side) && is_app(n1)) {
+                v = internalize_def(to_app(n1), st);
+                k = is_true ? lean::GE : lean::LT;
+            }    
+            else {
+                TRACE("arith", tout << "Could not internalize " << mk_pp(atom, m) << "\n";);
+                found_not_handled(atom);
+                return;
+            }
+            TRACE("arith", tout << "Internalized " << mk_pp(atom, m) << "\n";);
+            if (!is_unit_var(st)) {
+                init_left_side(st);
+                add_def_constraint(m_solver->add_constraint(m_left_side, lean::EQ, -st.coeff()), v);
+            }
+            m_left_side.reset();
+            m_left_side.push_back(std::make_pair(rational::one(), get_var_index(v)));
+            add_ineq_constraint(m_solver->add_constraint(m_left_side, k, right_side), literal(bv, !is_true));
+#else
             if (a.is_le(atom, n1, n2)){
                 k = is_true ? lean::LE : lean::GT;
             }
@@ -596,6 +623,7 @@ namespace smt {
                 // if equality is false, then we have contradiction here.
                 TRACE("arith", tout << "Ignoring inequality\n";);                
             }
+#endif
         }
 
 
@@ -967,11 +995,11 @@ namespace smt {
                 (v != null_theory_var) &&
                 (v < static_cast<theory_var>(m_theory_var2var_index.size())) && 
                 (UINT_MAX != m_theory_var2var_index[v]) && 
-                m_variable_values.size() > 0;
+                m_variable_values.count(v) > 0;
         }
 
         rational const& get_value(theory_var v) const {
-            SASSERT(can_get_value(v));
+            if (!can_get_value(v)) return rational::zero();
             lean::var_index vi = m_theory_var2var_index[v];
             return m_variable_values[vi];        
         }
@@ -986,15 +1014,31 @@ namespace smt {
             m_variable_values.clear();
         }
 
-        bool assume_eqs() {            
+        bool assume_eqs() {        
+            svector<lean::var_index> vars;
+            theory_var sz = static_cast<theory_var>(m_theory_var2var_index.size())
+;
+            for (theory_var v = 0; v < sz; ++v) {
+                if (th.is_relevant_and_shared(get_enode(v))) { 
+                    vars.push_back(m_theory_var2var_index[v]);
+                }
+            }
+            if (vars.empty()) {
+                return false;
+            }
+            m_solver->random_update(vars.size(), vars.c_ptr());
             init_variable_values();
             m_model_eqs.reset();
+            TRACE("arith", display(tout););
+            
             int start = ctx().get_random_value();
-            theory_var sz = static_cast<theory_var>(m_theory_var2var_index.size());
             for (theory_var i = 0; i < sz; ++i) {
                 theory_var v = (i + start) % sz;
                 enode* n1 = get_enode(v);
                 if (!th.is_relevant_and_shared(n1)) {                    
+                    continue;
+                }
+                if (!can_get_value(v)) {
                     continue;
                 }
                 theory_var other = m_model_eqs.insert_if_not_there(v);
@@ -1004,6 +1048,8 @@ namespace smt {
                 enode* n2 = get_enode(other);
                 if (n1->get_root() != n2->get_root()) {
                     TRACE("arith", tout << mk_pp(n1->get_owner(), m) << " = " << mk_pp(n2->get_owner(), m) << "\n";);
+                    std::cout << mk_pp(n1->get_owner(), m) << " = " << mk_pp(n2->get_owner(), m) << "\n";
+                    std::cout << m_theory_var2var_index[v] << " = " << m_theory_var2var_index[other] << "\n";
                     th.assume_eq(n1, n2);
                     return true;
                 }
@@ -1160,7 +1206,7 @@ namespace smt {
         void propagate_bound(bool_var bv, bool is_true, lp::bound& b) {
             lp::bound_kind k = b.get_bound_kind();
             theory_var v = b.get_var();
-            rational val = b.get_value();
+            inf_rational val = b.get_value(is_true);
             ptr_vector<lp::bound> const& bounds = m_bounds[v];
             SASSERT(!bounds.empty());
             if (bounds.size() == 1) return;
