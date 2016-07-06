@@ -30,9 +30,6 @@ Author: Lev Nachmanson
 #include "util/lp/binary_heap_upair_queue.h"
 namespace lean {
 unsigned seed = 1;
-#ifdef LEAN_DEBUG
-unsigned lp_settings::ddd = 0;
-#endif
 std::unordered_map<unsigned, std::string> default_column_names(unsigned n) {
     std::unordered_map<unsigned, std::string> ret;
     for (unsigned i = 0; i < n; i++) {

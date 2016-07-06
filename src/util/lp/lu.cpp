@@ -212,6 +212,11 @@ void lu<T, X>::solve_By_when_y_is_ready_for_T(std::vector<T> & y, std::vector<un
     if (numeric_traits<T>::precise()) {
         m_U.solve_U_y(y);
         m_R.apply_reverse_from_left_to_T(y); // see 24.3 from Chvatal
+        unsigned j = m_dim;
+        while (j--) {
+            if (!is_zero(y[j]))
+                index.push_back(j);
+        }
         return;
     }
     m_U.double_solve_U_y(y);

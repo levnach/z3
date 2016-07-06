@@ -309,12 +309,12 @@ template <typename T, typename X> bool lp_primal_core_solver<T, X>::initial_x_is
     }
     for (unsigned j = 0; j < this->m_n; j++) {
         if (column_has_low_bound(j) && this->m_x[j] < numeric_traits<T>::zero()) {
-            LP_OUT(m_settings, "low bound for variable " << j << " does not hold: this->m_x[" << j << "] = " << this->m_x[j] << " is negative " << std::endl);
+            LP_OUT(this->m_settings, "low bound for variable " << j << " does not hold: this->m_x[" << j << "] = " << this->m_x[j] << " is negative " << std::endl);
             return false;
         }
 
         if (column_has_upper_bound(j) && this->m_x[j] > this->m_upper_bound_values[j]) {
-            LP_OUT(m_settings, "upper bound for " << j << " does not hold: "  << this->m_upper_bound_values[j] << ">" << this->m_x[j] << std::endl);
+            LP_OUT(this->m_settings, "upper bound for " << j << " does not hold: "  << this->m_upper_bound_values[j] << ">" << this->m_x[j] << std::endl);
             return false;
         }
 
@@ -453,7 +453,7 @@ template <typename T, typename X>void lp_primal_core_solver<T, X>::advance_on_en
                 this->restore_x(entering, t * m_sign_of_entering_delta);
                 m_forbidden_enterings.insert(entering);
                 this->m_iters_with_no_cost_growing++;
-                LP_OUT(m_settings, "failing in advance_on_entering_and_leaving for entering == leaving = " << leaving << std::endl);
+                LP_OUT(this->m_settings, "failing in advance_on_entering_and_leaving for entering == leaving = " << leaving << std::endl);
                 return;
             }
         }
