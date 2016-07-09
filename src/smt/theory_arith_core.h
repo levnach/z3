@@ -268,7 +268,7 @@ namespace smt {
         }
         rational _val; 
         expr* arg1, *arg2;
-        if (m_util.is_mul(m, arg1, arg2) && m_util.is_numeral(arg1, _val)) {
+        if (m_util.is_mul(m, arg1, arg2) && m_util.is_numeral(arg1, _val) && is_app(arg1) && is_app(arg2)) {
             SASSERT(m->get_num_args() == 2);
             numeral val(_val);
             theory_var v = internalize_term_core(to_app(arg2));
@@ -297,6 +297,11 @@ namespace smt {
         scoped_row_vars _sc(m_row_vars, m_row_vars_top);
         unsigned num_args = n->get_num_args();
         for (unsigned i = 0; i < num_args; i++) {
+            if (is_var(n->get_arg(i))) {
+                std::ostringstream strm;
+                strm << mk_pp(n, get_manager()) << " contains a free variable";
+                throw default_exception(strm.str());
+            }
             internalize_internal_monomial(to_app(n->get_arg(i)), r_id);
         }
         enode * e = mk_enode(n);
@@ -356,6 +361,11 @@ namespace smt {
             SASSERT(!val.is_one());
             unsigned r_id = mk_row();
             scoped_row_vars _sc(m_row_vars, m_row_vars_top);
+            if (is_var(m->get_arg(1))) {
+                std::ostringstream strm;
+                strm << mk_pp(m, get_manager()) << " contains a free variable";
+                throw default_exception(strm.str());
+            }
             if (reflection_enabled())
                 internalize_term_core(to_app(m->get_arg(0)));
             theory_var v = internalize_mul_core(to_app(m->get_arg(1)));
@@ -747,17 +757,25 @@ namespace smt {
             enode * e = mk_enode(n);
             return mk_var(e);
         }
-        else {
-            TRACE("arith_internalize_detail", tout << "before:\n" << mk_pp(n, get_manager()) << "\n";);
-            if (!ctx.e_internalized(n))
-                ctx.internalize(n, false);
-            TRACE("arith_internalize_detail", tout << "after:\n" << mk_pp(n, get_manager()) << "\n";);
-            enode * e    = ctx.get_enode(n);
-            if (!is_attached_to_var(e))
-                return mk_var(e);
-            else
-                return e->get_th_var(get_id());
+        if (m_util.get_family_id() == n->get_family_id()) {
+            found_unsupported_op(n);
+            if (ctx.e_internalized(n))
+                return expr2var(n);
+            for (unsigned i = 0; i < n->get_num_args(); ++i) {
+                ctx.internalize(n->get_arg(i), false);
+            }
+            return mk_var(mk_enode(n));
         }
+
+        TRACE("arith_internalize_detail", tout << "before:\n" << mk_pp(n, get_manager()) << "\n";);
+        if (!ctx.e_internalized(n))
+            ctx.internalize(n, false);
+        TRACE("arith_internalize_detail", tout << "after:\n" << mk_pp(n, get_manager()) << "\n";);
+        enode * e    = ctx.get_enode(n);
+        if (!is_attached_to_var(e))
+            return mk_var(e);
+        else
+            return e->get_th_var(get_id());
     }
 
     /**
@@ -1196,6 +1214,9 @@ namespace smt {
             kind = A_UPPER;
         else
             kind = A_LOWER;
+        if (!is_app(n->get_arg(0)) || !is_app(n->get_arg(1))) {
+            return false;
+        }
         app * lhs      = to_app(n->get_arg(0));
         app * rhs      = to_app(n->get_arg(1));
         expr * rhs2;
@@ -1237,10 +1258,11 @@ namespace smt {
 
     template<typename Ext>
     void theory_arith<Ext>::internalize_eq_eh(app * atom, bool_var v) {
-        if (m_params.m_arith_eager_eq_axioms) {
+        expr* _lhs, *_rhs;
+        if (m_params.m_arith_eager_eq_axioms && get_manager().is_eq(atom, _lhs, _rhs) && is_app(_lhs) && is_app(_rhs)) {
             context & ctx  = get_context();
-            app * lhs      = to_app(atom->get_arg(0));
-            app * rhs      = to_app(atom->get_arg(1));
+            app * lhs      = to_app(_lhs);
+            app * rhs      = to_app(_rhs);
             enode * n1 = ctx.get_enode(lhs);
             enode * n2 = ctx.get_enode(rhs);
             // The expression atom may be a theory axiom. In this case, it may not be in simplified form.
