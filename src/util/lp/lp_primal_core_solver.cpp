@@ -424,7 +424,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::normalize
 }
 
 template <typename T, typename X>    void lp_primal_core_solver<T, X>::init_run() {
-    this->m_total_iterations = 0;
+    this->set_total_iterations(0);
     this->m_iters_with_no_cost_growing = 0;
     normalize_costs_and_backup_costs();
     set_current_x_is_feasible();
@@ -744,7 +744,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::add_colum
 }
 
 template <typename T, typename X> void lp_primal_core_solver<T, X>::one_iteration() {
-    this->m_total_iterations++;
+    this->inc_total_iterations();
     unsigned number_of_benefitial_columns_to_go_over = get_number_of_non_basic_column_to_try_for_enter();
     int entering = choose_entering_column(number_of_benefitial_columns_to_go_over);
     if (entering == -1)
