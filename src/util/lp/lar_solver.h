@@ -227,7 +227,7 @@ public:
     mpq get_left_side_val(const lar_constraint &  cns, const std::unordered_map<var_index, mpq> & var_map);
 
     void print_constraint(const lar_base_constraint * c, std::ostream & out);
-    unsigned get_total_iterations() const { return m_mpq_lar_core_solver.m_total_iterations; }
+    unsigned get_total_iterations() const { return m_mpq_lar_core_solver.total_iterations(); }
 // see http://research.microsoft.com/projects/z3/smt07.pdf
 // This method searches for a feasible solution with as many different values of variables, reverenced in vars, as it can find
 // Attention, after a call to this method the non-basic variables don't necesserarly stick to their bounds anymore

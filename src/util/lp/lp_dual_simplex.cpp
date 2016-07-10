@@ -120,7 +120,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::solve_for_stage2()
         lean_unreachable();
     }
     this->m_second_stage_iterations = m_core_solver->total_iterations();
-    this->m_total_iterations = this->m_first_stage_iterations + this->m_second_stage_iterations;
+    this->m_total_iterations = (this->m_first_stage_iterations + this->m_second_stage_iterations);
 }
 
 template <typename T, typename X> void lp_dual_simplex<T, X>::fill_x_with_zeros() {
@@ -151,7 +151,7 @@ template <typename T, typename X> void lp_dual_simplex<T, X>::stage1() {
     if (this->m_settings.abs_val_is_smaller_than_artificial_tolerance(m_core_solver->get_cost())) {
         // skipping stage 1
         m_core_solver->set_status(OPTIMAL);
-        m_core_solver->m_total_iterations = 0;
+        m_core_solver->set_total_iterations(0);
     } else {
         m_core_solver->solve();
     }

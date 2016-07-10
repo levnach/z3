@@ -26,6 +26,7 @@ void init_basis_heading_and_non_basic_columns_vector(std::vector<unsigned> & bas
 
 template <typename T, typename X> // X represents the type of the x variable and the bounds
 class lp_core_solver_base {
+    unsigned m_total_iterations = 0;
 public:
     unsigned m_m; // it is the length of basis. The matrix m_A has m_m rows and the dimension of the matrix A is m_m
     unsigned m_n; // the number of columns in the matrix m_A
@@ -47,7 +48,6 @@ public:
     indexed_vector<T> m_w; // the vector featuring in 24.3 of the Chvatal book
     std::vector<T> m_d; // the vector of reduced costs
     indexed_vector<T> m_ed; // the solution of B*m_ed = a
-    unsigned m_total_iterations = 0;
     unsigned m_iters_with_no_cost_growing = 0;
     std::vector<unsigned> m_non_basic_columns;
     std::vector<column_type> & m_column_type;
@@ -145,6 +145,10 @@ public:
     bool print_statistics_and_check_that_the_time_is_over(unsigned total_iterations);
 
     unsigned total_iterations() const { return m_total_iterations; }
+
+    unsigned inc_total_iterations() { ++m_settings.st().m_total_iterations; return m_total_iterations++; }
+
+    void set_total_iterations(unsigned s) { m_total_iterations = s; }
 
     void set_non_basic_x_to_correct_bounds();
 

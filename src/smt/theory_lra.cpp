@@ -118,6 +118,7 @@ namespace smt {
             unsigned m_delayed_terms_lim;
             unsigned m_delayed_equalities_lim;
             unsigned m_delayed_defs_lim;
+            unsigned m_underspecified_lim;
             expr*    m_not_handled;
         };
 
@@ -225,6 +226,7 @@ namespace smt {
         svector<std::pair<theory_var, theory_var>> m_delayed_equalities;
         vector<delayed_def>    m_delayed_defs;
         expr*                  m_not_handled;
+        ptr_vector<app>        m_underspecified;
 
         // attributes for incremental version:
         u_map<lp::bound*>      m_bool_var2bound;
@@ -271,6 +273,9 @@ namespace smt {
 
         void found_not_handled(expr* n) {
             m_not_handled = n;
+            if (is_app(n) && is_underspecified(to_app(n))) {
+                m_underspecified.push_back(to_app(n));
+            }
             TRACE("arith", tout << "Unhandled: " << mk_pp(n, m) << "\n";);
         }
 
@@ -799,6 +804,7 @@ namespace smt {
             s.m_delayed_equalities_lim = m_delayed_equalities.size();
             s.m_delayed_defs_lim = m_delayed_defs.size();
             s.m_not_handled = m_not_handled;
+            s.m_underspecified_lim = m_underspecified.size();
         }
 
         void pop_scope_eh(unsigned num_scopes) {
@@ -812,6 +818,7 @@ namespace smt {
             m_delayed_defs.shrink(m_scopes[old_size].m_delayed_defs_lim);
             m_delayed_equalities.shrink(m_scopes[old_size].m_delayed_equalities_lim);
             m_asserted_qhead = m_scopes[old_size].m_asserted_qhead;
+            m_underspecified.shrink(m_scopes[old_size].m_underspecified_lim);
             m_not_handled = m_scopes[old_size].m_not_handled;
             unsigned sz = m_scopes[old_size].m_replay_lim;
             for (unsigned i = m_replay_bounds.size(); i > sz; ) {
@@ -1142,18 +1149,32 @@ namespace smt {
                 Use the set to determine if a variable is shared.
         */
         bool is_shared(theory_var v) const {
-            if (m_not_handled == nullptr) {
+            if (m_underspecified.empty()) {
                 return false;
             }
             enode * n      = get_enode(v);
             enode * r      = n->get_root();
-            enode_vector::const_iterator it  = r->begin_parents();
-            enode_vector::const_iterator end = r->end_parents();
+            unsigned usz   = m_underspecified.size();
             TRACE("shared", tout << ctx().get_scope_level() << " " <<  v << " " << r->get_num_parents() << "\n";);
-            for (; it != end; ++it) {
-                enode * parent = *it;
-                if (is_underspecified(parent->get_owner())) {
-                    return true;
+            if (r->get_num_parents() > 2*usz) {
+                for (unsigned i = 0; i < usz; ++i) {
+                    app* u = m_underspecified[i];
+                    unsigned sz = u->get_num_args();
+                    for (unsigned j = 0; j < sz; ++j) {
+                        if (ctx().get_enode(u->get_arg(j))->get_root() == r) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            else {
+                enode_vector::const_iterator it  = r->begin_parents();
+                enode_vector::const_iterator end = r->end_parents();
+                for (; it != end; ++it) {
+                    enode * parent = *it;
+                    if (is_underspecified(parent->get_owner())) {
+                        return true;
+                    }
                 }
             }
             return false;
@@ -1286,7 +1307,7 @@ namespace smt {
             lean::lp_status status = m_solver->check();
             sw.stop();
             std::cout << status << " " << sw.get_seconds() << "\n";
-            //m_stats.m_num_iterations += m_solver->settings().st().m_total_iterations;
+            m_stats.m_num_iterations += m_solver->settings().st().m_total_iterations;
             //m_stats.m_num_iterations_with_no_progress += m_solver->settings().st().m_iters_with_no_cost_growing;
 
             switch (status) {

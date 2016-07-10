@@ -771,7 +771,7 @@ template <typename T, typename X> void lp_dual_core_solver<T, X>::solve() { // s
     lean_assert(d_is_correct());
     lean_assert(problem_is_dual_feasible());
     lean_assert(this->basis_heading_is_correct());
-    this->m_total_iterations = 0;
+    this->set_total_iterations(0);
     this->m_iters_with_no_cost_growing = 0;
     do {
         if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(std::string(), this->total_iterations())){
@@ -779,7 +779,7 @@ template <typename T, typename X> void lp_dual_core_solver<T, X>::solve() { // s
             return;
         }
         one_iteration();
-        this->m_total_iterations++;
+        this->inc_total_iterations();
     } while (this->m_status != FLOATING_POINT_ERROR && this->m_status != DUAL_UNBOUNDED && this->m_status != OPTIMAL &&
              this->m_iters_with_no_cost_growing <= this->m_settings.max_number_of_iterations_with_no_improvements
              && this->total_iterations() <= this->m_settings.max_total_number_of_iterations);
