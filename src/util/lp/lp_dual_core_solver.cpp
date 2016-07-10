@@ -774,12 +774,11 @@ template <typename T, typename X> void lp_dual_core_solver<T, X>::solve() { // s
     this->set_total_iterations(0);
     this->m_iters_with_no_cost_growing = 0;
     do {
-        if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(std::string(), this->total_iterations())){
-            this->m_status = lp_status::TIME_EXHAUSTED;
+        if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over("")){
             return;
         }
         one_iteration();
-        this->inc_total_iterations();
+        std::cout << "dual: " << this->m_status << "\n";
     } while (this->m_status != FLOATING_POINT_ERROR && this->m_status != DUAL_UNBOUNDED && this->m_status != OPTIMAL &&
              this->m_iters_with_no_cost_growing <= this->m_settings.max_number_of_iterations_with_no_improvements
              && this->total_iterations() <= this->m_settings.max_total_number_of_iterations);

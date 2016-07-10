@@ -241,7 +241,6 @@ template <typename T, typename X>    int lar_core_solver<T, X>::choose_column_en
 }
 
 template <typename T, typename X>    void lar_core_solver<T, X>::one_iteration() {
-    this->inc_total_iterations();
     lean_assert(this->m_non_basic_columns.size()  + this->m_basis.size() == this->m_basis_heading.size());
     if (is_zero(m_infeasibility)) {
         this->m_status = OPTIMAL;
@@ -541,9 +540,8 @@ template <typename T, typename X> void lar_core_solver<T, X>::feasibility_loop()
     while (true) {
         init_costs();
         this->init_reduced_costs_for_one_iteration();
-        if (this->print_statistics_with_cost_and_check_that_the_time_is_over(this->total_iterations(), m_infeasibility)){
-            this->m_status = lp_status::TIME_EXHAUSTED;
-            return; // this->m_total_iterations;
+        if (this->print_statistics_with_cost_and_check_that_the_time_is_over(m_infeasibility)){
+            break;
         }
         one_iteration();
         if (done()) {
@@ -564,9 +562,8 @@ template <typename T, typename X>    unsigned lar_core_solver<T, X>::get_number_
 
 template <typename T, typename X>    void lar_core_solver<T, X>::row_feasibility_loop() {
     while (true) {
-        if (this->print_statistics_with_iterations_and_check_that_the_time_is_over(this->inc_total_iterations())){
-            this->m_status = lp_status::TIME_EXHAUSTED;
-            return; // this->m_total_iterations;
+        if (this->print_statistics_with_iterations_and_check_that_the_time_is_over()){
+            return; 
         }
         int inf_sign;
         int i = find_infeasible_row(inf_sign);

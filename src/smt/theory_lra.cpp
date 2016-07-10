@@ -1126,7 +1126,7 @@ namespace smt {
                 set_conflict();
                 return FC_CONTINUE;
             case l_undef:
-                return FC_GIVEUP;
+                return m.canceled() ? FC_CONTINUE : FC_GIVEUP;
             default:
                 UNREACHABLE();
                 break;
@@ -1317,6 +1317,8 @@ namespace smt {
             case lean::lp_status::OPTIMAL:
                 SASSERT(m_solver->all_constraints_hold());
                 return l_true;
+            case lean::lp_status::TIME_EXHAUSTED:
+                
             default:
                 TRACE("arith", tout << "status treated as inconclusive: " << status << "\n";);
                 // TENTATIVE_UNBOUNDED, UNBOUNDED, TENTATIVE_DUAL_UNBOUNDED, DUAL_UNBOUNDED, 

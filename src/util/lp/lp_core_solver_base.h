@@ -27,6 +27,7 @@ void init_basis_heading_and_non_basic_columns_vector(std::vector<unsigned> & bas
 template <typename T, typename X> // X represents the type of the x variable and the bounds
 class lp_core_solver_base {
     unsigned m_total_iterations = 0;
+    unsigned inc_total_iterations() { ++m_settings.st().m_total_iterations; return m_total_iterations++; }
 public:
     unsigned m_m; // it is the length of basis. The matrix m_A has m_m rows and the dimension of the matrix A is m_m
     unsigned m_n; // the number of columns in the matrix m_A
@@ -134,19 +135,15 @@ public:
         return m_x[j];
     }
 
-    void print_statistics(X cost);
+    void print_statistics(char const* str, X cost);
 
-    bool print_statistics_with_iterations_and_check_that_the_time_is_over(unsigned total_iterations);
+    bool print_statistics_with_iterations_and_check_that_the_time_is_over();
 
-    bool print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(std::string str, unsigned total_iterations);
+    bool print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(char const* str);
 
-    bool print_statistics_with_cost_and_check_that_the_time_is_over(unsigned total_iterations, X cost);
-
-    bool print_statistics_and_check_that_the_time_is_over(unsigned total_iterations);
+    bool print_statistics_with_cost_and_check_that_the_time_is_over(X cost);
 
     unsigned total_iterations() const { return m_total_iterations; }
-
-    unsigned inc_total_iterations() { ++m_settings.st().m_total_iterations; return m_total_iterations++; }
 
     void set_total_iterations(unsigned s) { m_total_iterations = s; }
 
