@@ -3068,7 +3068,8 @@ extern "C" {
        \brief Create a numeral of a given sort.
 
        \param c logical context.
-       \param numeral A string representing the numeral value in decimal notation. If the given sort is a real, then the numeral can be a rational, that is, a string of the form \ccode{[num]* / [num]*}.
+       \param numeral A string representing the numeral value in decimal notation. The string may be of the form \code{[num]*[.[num]*][E[+|-][num]+]}.
+                      If the given sort is a real, then the numeral can be a rational, that is, a string of the form \ccode{[num]* / [num]*}.                      
        \param ty The sort of the numeral. In the current implementation, the given sort can be an int, real, finite-domain, or bit-vectors of arbitrary size.
 
        \sa Z3_mk_int
@@ -5115,6 +5116,13 @@ extern "C" {
        def_API('Z3_get_error_msg', STRING, (_in(CONTEXT), _in(ERROR_CODE)))
     */
     Z3_string Z3_API Z3_get_error_msg(Z3_context c, Z3_error_code err);
+    /*@}*/
+
+    /**
+       \brief Return a string describing the given error code. 
+       Retained function name for backwards compatibility within v4.1
+    */
+    Z3_string Z3_API Z3_get_error_msg_ex(Z3_context c, Z3_error_code err);
     /*@}*/
 
     /** @name Miscellaneous */

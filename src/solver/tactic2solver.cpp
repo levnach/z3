@@ -23,6 +23,7 @@ Notes:
 #include"tactic.h"
 #include"ast_pp_util.h"
 #include"ast_translation.h"
+#include"mus.h"
 
 /**
    \brief Simulates the incremental solver interface using a tactic.
@@ -42,6 +43,7 @@ class tactic2solver : public solver_na2as {
     bool                         m_produce_proofs;
     bool                         m_produce_unsat_cores;
     statistics                   m_stats;
+    
 public:
     tactic2solver(ast_manager & m, tactic * t, params_ref const & p, bool produce_proofs, bool produce_models, bool produce_unsat_cores, symbol const & logic);
     virtual ~tactic2solver();
@@ -73,7 +75,7 @@ public:
     virtual unsigned get_num_assertions() const;
     virtual expr * get_assertion(unsigned idx) const;
 
-    virtual void display(std::ostream & out) const;
+    virtual std::ostream& display(std::ostream & out) const;
     virtual ast_manager& get_manager(); 
 };
 
@@ -203,8 +205,9 @@ void tactic2solver::collect_statistics(statistics & st) const {
 }
 
 void tactic2solver::get_unsat_core(ptr_vector<expr> & r) {
-    if (m_result.get())
+    if (m_result.get()) {
         m_result->get_unsat_core(r);
+    }
 }
 
 void tactic2solver::get_model(model_ref & m) {
@@ -240,7 +243,7 @@ expr * tactic2solver::get_assertion(unsigned idx) const {
     return m_assertions.get(idx);
 }
 
-void tactic2solver::display(std::ostream & out) const {
+std::ostream& tactic2solver::display(std::ostream & out) const {
     ast_pp_util visitor(m_assertions.m());
     visitor.collect(m_assertions);
     visitor.display_decls(out);
@@ -254,6 +257,7 @@ void tactic2solver::display(std::ostream & out) const {
     }
     out << ")";
 #endif
+    return out;
 }
 
 solver * mk_tactic2solver(ast_manager & m, 

@@ -274,7 +274,7 @@ namespace pdr {
 
         for (unsigned i = 0; i < src.size(); ) {
             expr * curr = src[i].get();
-            unsigned stored_lvl;
+            unsigned stored_lvl = 0;
             VERIFY(m_prop2level.find(curr, stored_lvl));
             SASSERT(stored_lvl >= src_level);
             bool assumes_level;
@@ -889,6 +889,7 @@ namespace pdr {
 
     void model_node::dequeue(model_node*& root) {
         TRACE("pdr", tout << this << " " << state() << "\n";);
+        root = 0;
         if (!m_next && !m_prev) return;
         SASSERT(m_next);
         SASSERT(m_prev);

@@ -1575,19 +1575,6 @@ bool ast_manager::are_equal(expr * a, expr * b) const {
     return false;
 }
 
-void ast_manager::inc_ref(ast * n) {
-    if (n) {
-        n->inc_ref();
-    }
-}
-
-void ast_manager::dec_ref(ast* n) {
-    if (n) {
-        n->dec_ref();
-        if (n->get_ref_count() == 0)
-            delete_node(n);
-    }
-}
 
 bool ast_manager::are_distinct(expr* a, expr* b) const {
     if (is_app(a) && is_app(b)) {
@@ -1978,7 +1965,7 @@ bool ast_manager::check_sorts(ast const * n) const {
         return true;
     }
     catch (ast_exception & ex) {
-        warning_msg(ex.msg());
+        warning_msg("%s", ex.msg());
         return false;
     }
 }
@@ -2576,6 +2563,8 @@ proof * ast_manager::mk_modus_ponens(proof * p1, proof * p2) {
     CTRACE("mk_modus_ponens", to_app(get_fact(p2))->get_arg(0) != get_fact(p1),
            tout << mk_pp(get_fact(p1), *this) << "\n" << mk_pp(get_fact(p2), *this) << "\n";);
     SASSERT(to_app(get_fact(p2))->get_arg(0) == get_fact(p1));
+    CTRACE("mk_modus_ponens", !is_ground(p2) && !has_quantifiers(p2), tout << "Non-ground: " << mk_pp(p2, *this) << "\n";);
+    CTRACE("mk_modus_ponens", !is_ground(p1) && !has_quantifiers(p1), tout << "Non-ground: " << mk_pp(p1, *this) << "\n";);
     if (is_reflexivity(p2))
         return p1;
     expr * f = to_app(get_fact(p2))->get_arg(1);
