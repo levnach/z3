@@ -321,7 +321,7 @@ template <typename T, typename X> bool lp_primal_core_solver<T, X>::initial_x_is
         if (basis_set.find(j) != basis_set.end()) continue;
         if (this->m_column_type[j] == low_bound)  {
             if (numeric_traits<T>::zero() != this->m_x[j]) {
-                std::cout << "only low bound is set for " << j << " but low bound value " << numeric_traits<T>::zero() << " is not equal to " << this->m_x[j] << std::endl;
+                LP_OUT(this->m_settings, "only low bound is set for " << j << " but low bound value " << numeric_traits<T>::zero() << " is not equal to " << this->m_x[j] << std::endl);
                 return false;
             }
         }
@@ -574,14 +574,9 @@ template <typename T, typename X> unsigned lp_primal_core_solver<T, X>::solve() 
     init_run();
     lean_assert(!this->A_mult_x_is_off());
     do {
-        if (this->total_iterations() % this->m_settings.report_frequency == 0) {
-            std::ostringstream string_stream;
-            string_stream <<  (m_using_inf_costs? "stage 1" : "stage 2");
-            std::string stream_string = string_stream.str();
-            if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(stream_string, this->total_iterations())) {
-                this->m_status = lp_status::TIME_EXHAUSTED;
-                return this->total_iterations();
-            }
+        char const* str = (m_using_inf_costs? "stage 1 " : "stage 2 ");
+        if (this->print_statistics_with_iterations_and_nonzeroes_and_cost_and_check_that_the_time_is_over(str)) {
+            return this->total_iterations();
         }
         lean_assert(m_current_x_is_feasible == calc_current_x_is_feasible());
         one_iteration();
@@ -628,6 +623,7 @@ template <typename T, typename X> unsigned lp_primal_core_solver<T, X>::solve() 
              this->total_iterations() <= this->m_settings.max_total_number_of_iterations
              &&
              !(m_current_x_is_feasible && m_exit_on_feasible_solution));
+
     lean_assert(m_current_x_is_feasible == false || this->calc_current_x_is_feasible_include_non_basis());
     return this->total_iterations();
 }
@@ -744,7 +740,6 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::add_colum
 }
 
 template <typename T, typename X> void lp_primal_core_solver<T, X>::one_iteration() {
-    this->inc_total_iterations();
     unsigned number_of_benefitial_columns_to_go_over = get_number_of_non_basic_column_to_try_for_enter();
     int entering = choose_entering_column(number_of_benefitial_columns_to_go_over);
     if (entering == -1)
