@@ -28,6 +28,8 @@ Author: Lev Nachmanson
 #include "util/lp/lar_solver.h"
 #include "util/lp/numeric_pair.h"
 #include "util/lp/binary_heap_upair_queue.h"
+#include "util/lp/stacked_value.h"
+#include "util/lp/stacked_value.h"
 namespace lean {
 unsigned seed = 1;
 std::unordered_map<unsigned, std::string> default_column_names(unsigned n) {
@@ -1765,6 +1767,7 @@ void test_replace_column() {
 
 
 void setup_args_parser(argument_parser & parser) {
+    parser.add_option_with_help_string("--incr", "test an incremental scenario");
 	parser.add_option_with_help_string("-xyz_sample", "run a small interactive scenario");
     parser.add_option_with_after_string_with_help("--density", "the percentage of non-zeroes in the matrix below which it is not dense");
     parser.add_option_with_after_string_with_help("--harris_toler", "harris tolerance");
@@ -1796,6 +1799,105 @@ void setup_args_parser(argument_parser & parser) {
     parser.add_option_with_after_string_with_help("--maxng", "max iterations without progress");
     parser.add_option_with_help_string("-tbq", "test binary queue");
     parser.add_option_with_help_string("--randomize_lar", "test randomize funclionality");
+    parser.add_option_with_help_string("--smap", "test stacked_map");
+}
+
+struct fff { int a; int b;};
+
+void test_stacked_map_itself() {
+
+    std::unordered_map<int, fff> foo;
+    fff l;
+    l.a = 0;
+    l.b =1;
+    foo[1] = l;
+    int r = 1;
+    int k = foo[r].a;
+    std::cout << k << std::endl;
+    
+    stacked_map<mpq, double> m;
+    m[mpq(0)] = 3;
+    m[mpq(1)] = 4;
+    m.push();
+    m[mpq(1)] = 5;
+    m[mpq(2)] = 2;
+    m.pop();
+    {
+        lean_assert(m.size() == 2);
+        double val;
+        bool r = m.try_get_value(mpq(1), val);
+        lean_assert(r);
+        if (r) lean_assert(val == 4);
+        lean_assert(m.contains(mpq(2))==false);
+    }
+    m.push();
+    m[mpq(3)] = 100;
+    m[mpq(4)] = 200;
+    m.push();
+    m[mpq(5)] = 300;
+    m[mpq(6)] = 400;
+    m[mpq(3)] = 122;
+    m.pop(2);
+    {
+        lean_assert(m.size() == 2);
+        double val;
+        bool r = m.try_get_value(mpq(1), val);
+        lean_assert(r);
+        if (r) lean_assert(val == 4);
+        lean_assert(m.contains(mpq(2))==false);
+    }
+    m.pop();
+}
+
+void test_stacked_unsigned() {
+    std::cout << "test stacked unsigned" << std::endl;
+    stacked_value<unsigned> v(0);
+    v = 1;
+    v = 2;
+    v.push();
+    v = 3;
+    v = 4;
+    v.pop();
+    lean_assert(v == 2);
+    v ++;
+    v++;
+    std::cout << "before push v=" << v << std::endl;
+    v.push();
+    v++;
+    v.push();
+    v+=1;
+    std::cout << "v = " << v << std::endl;
+    v.pop(2);
+    lean_assert(v == 4);
+    const unsigned & rr = v;
+    std::cout << rr << std:: endl;
+    
+}
+
+void test_stacked_value() {
+    test_stacked_unsigned();
+}
+
+void test_stacked_vector() {
+    stacked_value<std::vector<int>> v;
+    v().push_back(0);
+    v().push_back(1);
+    v.push();
+    v().pop_back();
+    v()[0] = 3;
+    v.push();
+    v()[1] = 4;
+    v.pop(2);
+    lean_assert(v().size() == 2);
+    lean_assert(v()[0] == 0);
+    lean_assert(v()[1] == 1);
+}
+
+void test_stacked_map() {
+    std::cout << "test_stacked_map()" << std::endl;
+    test_stacked_map_itself();
+    test_stacked_value();
+    test_stacked_vector();
 }
 
 char * find_home_dir() {
@@ -2216,29 +2318,34 @@ void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_read
     }
 }
 
-void test_lar_on_file(std::string file_name, argument_parser & args_parser) {
-    lar_solver * solver = nullptr;
-    std::cout << "processing " << file_name << std::endl;
+lar_solver * create_lar_solver_from_file(std::string file_name, argument_parser & args_parser) {
     if (args_parser.option_is_used("--smt")) {
         smt_reader reader(file_name);
         reader.read();
         if (!reader.is_ok()){
             std::cout << "cannot process " << file_name << std::endl;
-            return;
+            return nullptr;
         }
-        solver = reader.create_lar_solver();
-        run_lar_solver(args_parser, solver, nullptr);
-        delete solver;
-        return;
+        return reader.create_lar_solver();
     }
     mps_reader<lean::mpq, lean::mpq> reader(file_name);
     reader.read();
     if (!reader.is_ok()) {
         std::cout << "cannot process " << file_name << std::endl;
-        return;
+        return nullptr;
     }
-    solver =  reader.create_lar_solver();
-    run_lar_solver(args_parser, solver, & reader);
+    return reader.create_lar_solver();
+}
+
+void test_lar_on_file(std::string file_name, argument_parser & args_parser) {
+    lar_solver * solver = create_lar_solver_from_file(file_name, args_parser);
+    mps_reader<lean::mpq, lean::mpq> reader(file_name);
+    mps_reader<lean::mpq, lean::mpq> * mps_reader = nullptr;
+    reader.read();
+    if (reader.is_ok()) {
+        mps_reader = & reader;
+        run_lar_solver(args_parser, solver, mps_reader);
+    }
     delete solver;
 }
 
@@ -2439,8 +2546,105 @@ void test_square_dense_submatrix() {
 #endif
 }
 
-void run_xyz_sample() {
+
+
+void print_st(lp_status status) {
+    std::cout << lp_status_to_string(status) << std::endl;
+}
+
+
+void incremental_test(argument_parser& args_parser, lp_settings & settings) {
+    std::cout << "test incremental" << std::endl;
+    string file_name = args_parser.get_option_value("--file");
+    if (file_name.size()==0) {
+        std::cout << "please provide the \"--file\" option" << std::endl;
+    }
+    lar_solver * orig_solver = create_lar_solver_from_file(file_name, args_parser);
+    if (orig_solver==nullptr) {
+        std::cout << "cannot create a lar_solver, exiting incremental_test()" << std::endl;
+        return;
+    }
+    orig_solver->solve();
+    print_st(orig_solver->get_status());
+    if (orig_solver->get_status() != INFEASIBLE) {
+        std::cout << "need an infeasible set of constraints, exiting" << std::endl;
+        return;
+    }
     
+    std::vector<constraint_index> constraint_index_vector = orig_solver->get_all_constraint_indices();
+    std::cout << "original constraints" << std::endl;
+    for (auto ci : constraint_index_vector) {
+        lar_constraint constr;
+        if (orig_solver->get_constraint(ci, constr)) {
+            orig_solver->print_constraint(&constr, std::cout);
+        } else {
+            std::cout << "cannot find a constraint " << ci << std::endl;
+            return;
+        }
+    }
+
+    std::vector<std::string> var_names = orig_solver->get_all_var_names();
+    std::cout << "var names " << std::endl;
+    print_vector(var_names, std::cout);
+    std::cout << std::endl;
+
+    lar_solver test_ls;
+    for (auto s : var_names)
+        test_ls.add_var(s);
+
+    for (auto ci : constraint_index_vector) {
+        lar_constraint constr;
+        if (orig_solver->get_constraint(ci, constr)) {
+            auto left_side_or_orig = constr.get_left_side_coefficients();
+            for (auto& p : left_side_or_orig) {
+                var_index j = p.second;
+                std::string j_name = orig_solver->get_variable_name(j);
+                var_index jn = test_ls.add_var(j_name); // just to get the correct var_index
+                p.second = jn;
+            }
+            test_ls.add_constraint(left_side_or_orig, constr.m_kind, constr.m_right_side);
+            lp_status st = test_ls.check();
+            print_st(st);
+        } else {
+            std::cout << "cannot find a constraint " << ci << std::endl;
+            return;
+        }
+    }
+    
+
+   
+    /*   
+    for (int i = 1; i < 6; i++) {
+        add_var_to_ls(i, ls);
+    }
+    add_first_row_incr_test(ls);
+    lp_status status = ls.check();
+    print_st(status);
+    ls.push();
+    add_second_row_incr_test(ls);    
+    add_third_row_incr_test(ls);
+    status = ls.check();
+    
+    ls.push();
+    add_fourth_row_incr_test(ls);
+    status = ls.check();
+    print_st(status);
+    ls.push();
+    add_fifth_row_incr_test(ls);
+    status = ls.check();
+    print_st(status);
+    ls.push();
+    status = ls.check();
+    print_st(status);
+    ls.add_var_bound(x1 >= 0);
+    status = ls.check();
+    print_st(status);
+    
+    ls.add_var_bound(x2 >= 0);
+    status = ls.check();
+    print_st(status);
+
+    ls.pop();*/
 }
 
 void test_lp_local(int argn, char**argv) {
@@ -2458,10 +2662,6 @@ void test_lp_local(int argn, char**argv) {
 
     args_parser.print();
 
-    if (args_parser.option_is_used("--xyz_sample")) {
-        run_xyz_sample();
-    }
-    
     std::string lufile = args_parser.get_option_value("--checklu");
     if (lufile.size()) {
         check_lu_from_file(lufile);
@@ -2508,6 +2708,12 @@ void test_lp_local(int argn, char**argv) {
         return finalize(ret);
     }
 
+    if (args_parser.option_is_used("--incr")) {
+        incremental_test(args_parser, settings);
+        ret = 0;
+        return finalize(ret);
+    }
+    
     if (args_parser.option_is_used("--test_larger_lu")) {
         test_larger_lu(settings);
         ret = 0;
@@ -2527,7 +2733,11 @@ void test_lp_local(int argn, char**argv) {
         return finalize(ret);
     }
 
-
+    if (args_parser.option_is_used("--smap")) {
+        test_stacked_map();
+        ret = 0;
+        return finalize(ret);
+    }
     unsigned max_iters;
     unsigned time_limit;
     get_time_limit_and_max_iters_from_parser(args_parser, time_limit, max_iters);

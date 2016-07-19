@@ -24,4 +24,5 @@ template bool indexed_vector<lean::numeric_pair<mpq> >::is_OK() const;
 }
 #ifdef LEAN_DEBUG
 template void lean::print_vector<unsigned int>(std::vector<unsigned int> const&, std::ostream&);
+template void lean::print_vector<std::string>(std::vector<std::string, std::allocator<std::string> > const&, std::ostream&);
 #endif

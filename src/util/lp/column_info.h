@@ -28,6 +28,20 @@ class column_info {
     bool m_is_fixed = false;
     unsigned m_column_index = static_cast<unsigned>(-1);
 public:
+    bool operator==(const column_info & c) const {
+        return     m_name == c.m_name &&
+            m_low_bound_is_set == c.m_low_bound_is_set &&
+            m_low_bound_is_strict == c.m_low_bound_is_strict &&
+            m_upper_bound_is_set == c.m_upper_bound_is_set&&
+            m_upper_bound_is_strict == c.m_upper_bound_is_strict&&
+            (!m_low_bound_is_set || m_low_bound == c.m_low_bound) &&
+            (!m_upper_bound_is_set || m_upper_bound_is_set == c.m_upper_bound) &&
+            m_cost == c.m_cost&&
+            m_is_fixed == c.m_is_fixed &&
+            (!m_is_fixed || m_fixed_value == c.m_fixed_value) &&
+            m_column_index == c.m_column_index;
+    }
+    bool operator!=(const column_info & c) const { return !((*this) == c); }
     void set_column_index(unsigned j) {
         m_column_index = j;
     }
@@ -59,7 +73,7 @@ public:
         return m_is_fixed? fixed : (m_low_bound_is_set? (m_upper_bound_is_set? boxed : low_bound) : (m_upper_bound_is_set? upper_bound: free_column));
     }
 
-    column_type get_column_type_no_flipping() {
+    column_type get_column_type_no_flipping() const {
         if (m_is_fixed) {
             return column_type::fixed;
         }

@@ -22,6 +22,9 @@
 #include "util/lp/lp_primal_core_solver.h"
 #include "util/lp/lar_core_solver_parameter_struct.h"
 #include "util/lp/random_updater.h"
+#include <stack>
+#include "util/lp/stacked_map.h"
+#include "util/lp/stacked_value.h"
 namespace lean {
 template <typename V>
 struct conversion_helper {
@@ -35,11 +38,14 @@ struct conversion_helper {
 };
 
 struct column_info_with_cls { // column_info_with canonic_left_side
-    canonic_left_side * m_canonic_left_side;
+    canonic_left_side  m_canonic_left_side;
     column_info<mpq> m_column_info;
-
-    column_info_with_cls(): m_canonic_left_side(nullptr), m_column_info(static_cast<unsigned>(-1)) {}
-    column_info_with_cls(canonic_left_side * cls) : m_canonic_left_side(cls), m_column_info(static_cast<unsigned>(-1)) {}
+    bool operator!=(const column_info_with_cls & c) const {
+        return m_canonic_left_side!=c.m_canonic_left_side || m_column_info != c.m_column_info;
+    }
+    column_info_with_cls():
+        m_column_info(static_cast<unsigned>(-1)) {}
+    column_info_with_cls(const canonic_left_side & cls) : m_canonic_left_side(cls), m_column_info(static_cast<unsigned>(-1)) {}
 };
 
 template<>
@@ -49,23 +55,23 @@ struct conversion_helper <double> {
 };
 
 class lar_solver {
-    unsigned m_available_var_index = 0;
+    stacked_value<unsigned> m_available_var_index = 0;
     unsigned m_available_constr_index = 0;
-    lp_status m_status = UNKNOWN;
-    std::unordered_map<std::string, var_index> m_var_names_to_var_index;
-    std::unordered_set<canonic_left_side*, hash_and_equal_of_canonic_left_side_struct, hash_and_equal_of_canonic_left_side_struct> m_set_of_canonic_left_sides;
-    std::unordered_map<unsigned, var_index> m_map_from_column_indices_to_var_index;
-    std::unordered_map<constraint_index, lar_normalized_constraint> m_normalized_constraints;
-    std::unordered_map<var_index, column_info_with_cls> m_map_from_var_index_to_column_info_with_cls;
+    stacked_value<lp_status> m_status = UNKNOWN;
+    stacked_map<std::string, var_index> m_var_names_to_var_index;
+    stacked_map<canonic_left_side, ul_pair, hash_and_equal_of_canonic_left_side_struct, hash_and_equal_of_canonic_left_side_struct> m_map_of_canonic_left_sides;
+    stacked_map<unsigned, var_index> m_map_from_column_indices_to_var_index;
+    stacked_map<constraint_index, lar_normalized_constraint> m_normalized_constraints;
+    stacked_map<var_index, column_info_with_cls> m_map_from_var_index_to_column_info_with_cls;
     lar_core_solver_parameter_struct<mpq, numeric_pair<mpq>> m_lar_core_solver_params;
     lar_core_solver<mpq, numeric_pair<mpq>> m_mpq_lar_core_solver;
-    canonic_left_side * m_infeasible_canonic_left_side = nullptr; // such can be found at the initialization step
-    canonic_left_side * create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par);
-    mpq find_ratio_of_original_constraint_to_normalized(canonic_left_side * ls, const lar_constraint & constraint);
+    canonic_left_side m_infeasible_canonic_left_side; // such can be found at the initialization step
+    canonic_left_side create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par, unsigned & row_var_index);
+    mpq find_ratio_of_original_constraint_to_normalized(const canonic_left_side & ls, const lar_constraint & constraint);
 
     void add_canonic_left_side_for_var(var_index i, std::string var_name);
 
-    void map_left_side_to_A_of_core_solver(canonic_left_side*  left_side, var_index vj);
+    void map_left_side_to_A_of_core_solver(const canonic_left_side &  left_side, var_index vj);
 
     void map_left_sides_to_A_of_core_solver();
 
@@ -74,7 +80,7 @@ class lar_solver {
 
     // this adds a row to A
     template <typename U, typename V>
-    void fill_row_of_A(static_matrix<U, V> & A, unsigned i, canonic_left_side * ls);
+    void fill_row_of_A(static_matrix<U, V> & A, unsigned i, const canonic_left_side & ls);
 
     template <typename U, typename V>
     void create_matrix_A(static_matrix<U, V> & A);
@@ -92,15 +98,15 @@ class lar_solver {
     //         m_column_names
     //     }
     // }
-    void set_upper_bound_for_column_info(lar_normalized_constraint * norm_constr);
+    void set_upper_bound_for_column_info(constraint_index i, const lar_normalized_constraint & norm_constr);
 
     bool try_to_set_fixed(column_info<mpq> & ci);
 
-    void set_low_bound_for_column_info(lar_normalized_constraint * norm_constr);
+    void set_low_bound_for_column_info(constraint_index i, const lar_normalized_constraint & norm_constr);
 
-    void update_column_info_of_normalized_constraint(lar_normalized_constraint & norm_constr);
+    void update_column_info_of_normalized_constraint(constraint_index i, const lar_normalized_constraint & norm_constr);
 
-    column_type get_column_type(column_info<mpq> & ci);
+    column_type get_column_type(const column_info<mpq> & ci);
 
     void fill_column_names();
 
@@ -120,13 +126,11 @@ class lar_solver {
     template <typename V> V get_column_val(std::vector<V> & low_bound, std::vector<V> & upper_bound, non_basic_column_value_position pos_type, unsigned j);
     void map_var_indices_to_columns_of_A();
 
-    void register_in_map(std::unordered_map<var_index, mpq> & coeffs, lar_constraint & cn, const mpq & a);
+    void register_in_map(std::unordered_map<var_index, mpq> & coeffs, const lar_constraint & cn, const mpq & a);
     unsigned get_column_index_from_var_index(var_index vi) const;
-    column_info<mpq> & get_column_info_from_var_index(var_index vi);
+    const column_info<mpq> & get_column_info_from_var_index(var_index vi);
 
 public:
-    ~lar_solver();
-
     lp_settings & settings() { return m_lar_core_solver_params.m_settings;}
 
     lp_settings const & settings() const { return m_lar_core_solver_params.m_settings;}
@@ -150,6 +154,16 @@ public:
 
     constraint_index add_constraint(const buffer<std::pair<mpq, var_index>>& left_side, lconstraint_kind kind_par, mpq right_side_par);
 
+    bool get_constraint(constraint_index ci, lar_constraint& ci_constr) const {
+        auto it = m_normalized_constraints().find(ci);
+        if (it == m_normalized_constraints().end())
+            return false;
+
+        ci_constr = it->second.m_origin_constraint;
+        return true;
+    }
+
+    
     bool all_constraints_hold();
 
     bool constraint_holds(const lar_constraint & constr, std::unordered_map<var_index, mpq> & var_map);
@@ -162,7 +176,7 @@ public:
 
     bool the_left_sides_sum_to_zero(const buffer<std::pair<mpq, unsigned>> & evidence);
 
-    bool the_righ_sides_do_not_sum_to_zero(const buffer<std::pair<mpq, unsigned>> & evidence);
+    bool the_right_sides_do_not_sum_to_zero(const buffer<std::pair<mpq, unsigned>> & evidence);
 
     bool the_evidence_is_correct();
 
@@ -222,7 +236,7 @@ public:
 
     mpq get_infeasibility_of_constraint(const lar_normalized_constraint & norm_constr, std::unordered_map<std::string, mpq> & solution);
 
-    mpq get_canonic_left_side_val(canonic_left_side * ls, std::unordered_map<std::string, mpq> & solution);
+    mpq get_canonic_left_side_val(const canonic_left_side & ls, std::unordered_map<std::string, mpq> & solution);
 
     mpq get_left_side_val(const lar_constraint &  cns, const std::unordered_map<var_index, mpq> & var_map);
 
@@ -237,9 +251,27 @@ public:
     void fill_var_set_for_random_update(unsigned sz, var_index const * vars, std::vector<unsigned>& column_list);
     std::vector<unsigned> get_list_of_all_var_indices() const {
         std::vector<unsigned> ret;
-        for (auto t : m_map_from_var_index_to_column_info_with_cls)
+        for (auto t : m_map_from_var_index_to_column_info_with_cls())
             ret.push_back(t.first);
         return ret;
     }
+    void push() {
+
+    }
+    void pop();
+    void pop(unsigned k);
+    std::vector<constraint_index> get_all_constraint_indices() const {
+        std::vector<constraint_index> ret;
+        for (auto & it : m_normalized_constraints())
+            ret.push_back(it.first);
+        return ret;
+    }
+    std::vector<std::string> get_all_var_names() const {
+        std::vector<std::string> ret;
+        for (auto & it : m_var_names_to_var_index())
+            ret.push_back(it.first);
+        return ret;
+    }
+    
 };
 }

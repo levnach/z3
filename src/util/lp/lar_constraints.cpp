@@ -4,11 +4,12 @@
 
   Author: Lev Nachmanson
 */
+
 #include <utility>
 #include "util/lp/lar_constraints.h"
 namespace lean {
 
-lar_constraint::lar_constraint(const buffer<std::pair<mpq, var_index>> & left_side, lconstraint_kind kind, mpq right_side, constraint_index index) :  lar_base_constraint(kind, right_side, index) {
+lar_constraint::lar_constraint(const buffer<std::pair<mpq, var_index>> & left_side, lconstraint_kind kind, mpq right_side) :  lar_base_constraint(kind, right_side) {
     for (auto & it : left_side) {
         auto r = m_left_side_map_from_index_to_coefficient.find(it.second);
         if (r == m_left_side_map_from_index_to_coefficient.end()) {
@@ -19,7 +20,7 @@ lar_constraint::lar_constraint(const buffer<std::pair<mpq, var_index>> & left_si
     }
 }
 
-lar_constraint::lar_constraint(const lar_base_constraint & c): lar_base_constraint(c.m_kind, c.m_right_side, c.m_index) {
+lar_constraint::lar_constraint(const lar_base_constraint & c): lar_base_constraint(c.m_kind, c.m_right_side) {
     for (auto t : c.get_left_side_coefficients())
         m_left_side_map_from_index_to_coefficient.insert(std::make_pair(t.second, t.first));
 }
@@ -35,7 +36,7 @@ buffer<std::pair<mpq, var_index>> lar_constraint::get_left_side_coefficients() c
 
 buffer<std::pair<mpq, var_index>> lar_normalized_constraint::get_left_side_coefficients() const {
     buffer<std::pair<mpq, var_index>> ret;
-    for (auto t : m_canonic_left_side->m_coeffs) ret.push_back(t);
+    for (auto t : m_canonic_left_side.m_coeffs) ret.push_back(t);
     return ret;
 }
 }

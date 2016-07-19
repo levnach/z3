@@ -35,9 +35,8 @@ public:
     lconstraint_kind m_kind;
     mpq m_right_side;
     virtual buffer<std::pair<mpq, var_index>> get_left_side_coefficients() const = 0;
-    constraint_index m_index; // the index of constraint
     lar_base_constraint() {}
-    lar_base_constraint(lconstraint_kind kind, mpq right_side, constraint_index index) :m_kind(kind), m_right_side(right_side), m_index(index) {}
+    lar_base_constraint(lconstraint_kind kind, mpq right_side) :m_kind(kind), m_right_side(right_side) {}
 
     virtual unsigned size() const = 0;
     virtual ~lar_base_constraint(){}
@@ -46,9 +45,10 @@ public:
 class lar_constraint : public lar_base_constraint {
 public:
     std::unordered_map<var_index, mpq> m_left_side_map_from_index_to_coefficient;
-    lar_constraint() {}
-    lar_constraint(const buffer<std::pair<mpq, var_index>> & left_side, lconstraint_kind kind, mpq right_side, constraint_index index);
+    lar_constraint() {} 
+    lar_constraint(const buffer<std::pair<mpq, var_index>> & left_side, lconstraint_kind kind, mpq right_side);
 
+    
     lar_constraint(const lar_base_constraint & c);
 
     unsigned size() const {
@@ -60,21 +60,22 @@ public:
 
 class lar_normalized_constraint : public lar_base_constraint {
 public:
-    canonic_left_side* m_canonic_left_side;
+    canonic_left_side m_canonic_left_side;
     mpq m_ratio_to_original; // by multiplying this constraint by m_ratio_to_original we get the original one
     lar_constraint m_origin_constraint;
-    lar_normalized_constraint(canonic_left_side * ls, mpq ratio, lconstraint_kind kind, mpq right_side, const lar_constraint & origin):
-        lar_base_constraint(kind, right_side, origin.m_index),
+    lar_normalized_constraint(canonic_left_side ls, mpq ratio, lconstraint_kind kind, mpq right_side, const lar_constraint & origin):
+        lar_base_constraint(kind, right_side),
         m_canonic_left_side(ls),
         m_ratio_to_original(ratio),
         m_origin_constraint(origin) {
     }
 
     lar_normalized_constraint() {}
-
+    
     buffer<std::pair<mpq, var_index>> get_left_side_coefficients() const;
     unsigned size() const {
-        return m_canonic_left_side->size();
-    }
+        return m_canonic_left_side.size();
+    }    
 };
+inline bool operator!=(const lar_normalized_constraint&, const lar_normalized_constraint &) {return false;}
 }

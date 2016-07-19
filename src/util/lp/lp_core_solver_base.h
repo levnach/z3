@@ -25,7 +25,7 @@ void init_basis_heading_and_non_basic_columns_vector(std::vector<unsigned> & bas
                                                      std::vector<unsigned> & non_basic_columns);
 
 template <typename T, typename X> // X represents the type of the x variable and the bounds
-class lp_core_solver_base {
+class lp_core_solver_base {    
     unsigned m_total_iterations = 0;
     unsigned inc_total_iterations() { ++m_settings.st().m_total_iterations; return m_total_iterations++; }
 public:

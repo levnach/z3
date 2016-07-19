@@ -22,12 +22,26 @@ inline   bool compare(const std::pair<mpq, var_index> & a, const std::pair<mpq, 
     return a.second < b.second;
 }
 
+struct ul_pair {
+    constraint_index m_low_bound_witness = static_cast<constraint_index>(-1);
+    constraint_index m_upper_bound_witness = static_cast<constraint_index>(-1);
+    var_index m_additional_var_index = static_cast<var_index>(-1); // this is the index of the additional variable created for the constraint
+    bool operator!=(const ul_pair & p) {
+        return m_low_bound_witness != p.m_low_bound_witness || m_upper_bound_witness != p.m_upper_bound_witness || m_additional_var_index != p.m_additional_var_index;
+    }
+    ul_pair(){}
+    ul_pair(var_index vi) : m_additional_var_index(vi) {}
+    ul_pair(const ul_pair & o): m_low_bound_witness(o.m_low_bound_witness), m_upper_bound_witness(o.m_upper_bound_witness), m_additional_var_index(o.m_additional_var_index) {}
+};
+
 class canonic_left_side {
 public:
-    var_index m_additional_var_index = static_cast<var_index>(-1); // this is the index of the additional variable created for this constraint
     std::vector<std::pair<mpq, var_index>> m_coeffs;
-    lar_normalized_constraint * m_low_bound_witness = nullptr;
-    lar_normalized_constraint * m_upper_bound_witness = nullptr;
+
+    canonic_left_side() {}
+    
+    canonic_left_side(const canonic_left_side & ls): m_coeffs(ls.m_coeffs) {
+    }
 
     canonic_left_side(buffer<std::pair<mpq, var_index>> buffer) {
         for (auto it : buffer) {
@@ -57,6 +71,10 @@ public:
         return true;
     }
 
+    bool operator!=(const canonic_left_side & a) const {
+        return !(*this == a);
+    }
+    
     std::size_t hash_of_ls() const {
         std::size_t ret = 0;
         std::hash<std::pair<mpq, var_index>> hash_fun;
@@ -68,11 +86,11 @@ public:
 };
 
 struct hash_and_equal_of_canonic_left_side_struct {
-    std::size_t operator() (const canonic_left_side* ls) const {
-        return ls->hash_of_ls();
+    std::size_t operator() (const canonic_left_side& ls) const {
+        return ls.hash_of_ls();
     }
-    bool operator() (const canonic_left_side* a, const canonic_left_side* b) const {
-        return (*a) == (*b);
+    bool operator() (const canonic_left_side& a, const canonic_left_side& b) const {
+        return a == b;
     }
 };
 }
