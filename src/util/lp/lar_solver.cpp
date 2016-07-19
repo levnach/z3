@@ -369,7 +369,8 @@ bool lar_solver::the_relations_are_of_same_type(const buffer<std::pair<mpq, unsi
     for (auto & it : evidence) {
         mpq coeff = it.first;
         constraint_index con_ind = it.second;        
-        const lar_normalized_constraint & constr = m_normalized_constraints[con_ind];
+        const lar_normalized_constraint & norm_constr = m_normalized_constraints[con_ind];
+        const lar_constraint & constr = norm_constr.m_origin_constraint;
         lconstraint_kind kind = coeff.is_pos() ? constr.m_kind : flip_kind(constr.m_kind);
         if (kind == GT || kind == LT)
             strict = true;
@@ -501,7 +502,7 @@ void lar_solver::prepare_core_solver_fields(static_matrix<U, V> & A, std::vector
     create_matrix_A(A);
     fill_bounds_for_core_solver(low_bound, upper_bound);
     if (m_status == INFEASIBLE) {
-        lean_assert(m_infeasible_canonic_left_side.size() > 0);
+        lean_assert(m_infeasible_canonic_left_side().size() > 0);
         return;
     }
     resize_and_init_x_with_zeros(x, A.column_count());
@@ -600,7 +601,7 @@ void lar_solver::fill_evidence_from_canonic_left_side(buffer<std::pair<mpq, cons
 }
 
 void lar_solver::get_infeasibility_evidence(buffer<std::pair<mpq, constraint_index>> & evidence) {
-    if (m_infeasible_canonic_left_side.size() > 0) {
+    if (m_infeasible_canonic_left_side().size() > 0) {
         fill_evidence_from_canonic_left_side(evidence);
         return;
     }

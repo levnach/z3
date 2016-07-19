@@ -2367,8 +2367,13 @@ std::vector<std::string> get_file_names_from_file_list(std::string filelist) {
     } while (true);
     return ret;
 }
-
+void incremental_test(argument_parser& args_parser, lp_settings & settings); // forward definition
 void test_lar_solver(argument_parser & args_parser) {
+    if (args_parser.option_is_used("--incr")) {
+        lp_settings settings;
+        incremental_test(args_parser, settings);
+        return;
+    }
     std::string file_name = args_parser.get_option_value("--file");
     if (file_name.size() > 0) {
         test_lar_on_file(file_name, args_parser);
@@ -2681,11 +2686,6 @@ void test_lp_local(int argn, char**argv) {
         test_files_from_directory(args_parser.get_option_value("--test_file_directory"), args_parser);
         return finalize(0);
     }
-    if (args_parser.option_is_used("--lar")){
-        std::cout <<"calling test_lar_solver" << std::endl;
-        test_lar_solver(args_parser);
-        return finalize(0);
-    }
     std::string file_list = args_parser.get_option_value("--filelist");
     if (file_list.size() > 0) {
         for (std::string fn : get_file_names_from_file_list(file_list))
@@ -2706,6 +2706,12 @@ void test_lp_local(int argn, char**argv) {
         test_lu(settings);
         ret = 0;
         return finalize(ret);
+    }
+
+    if (args_parser.option_is_used("--lar")){
+        std::cout <<"calling test_lar_solver" << std::endl;
+        test_lar_solver(args_parser);
+        return finalize(0);
     }
 
     if (args_parser.option_is_used("--incr")) {

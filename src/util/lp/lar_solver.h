@@ -65,7 +65,7 @@ class lar_solver {
     stacked_map<var_index, column_info_with_cls> m_map_from_var_index_to_column_info_with_cls;
     lar_core_solver_parameter_struct<mpq, numeric_pair<mpq>> m_lar_core_solver_params;
     lar_core_solver<mpq, numeric_pair<mpq>> m_mpq_lar_core_solver;
-    canonic_left_side m_infeasible_canonic_left_side; // such can be found at the initialization step
+    stacked_value<canonic_left_side> m_infeasible_canonic_left_side; // such can be found at the initialization step
     canonic_left_side create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par, unsigned & row_var_index);
     mpq find_ratio_of_original_constraint_to_normalized(const canonic_left_side & ls, const lar_constraint & constraint);
 
