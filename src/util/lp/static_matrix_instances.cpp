@@ -44,9 +44,7 @@ template void static_matrix<double, double>::set(unsigned int, unsigned int, dou
 template static_matrix<double, double>::static_matrix(unsigned int, unsigned int);
 template void static_matrix<mpq, mpq>::add_column_to_vector(mpq const&, unsigned int, mpq*) const;
 template void static_matrix<mpq, mpq>::add_columns_at_the_end(unsigned int);
-#ifdef LEAN_DEBUG
 template bool static_matrix<mpq, mpq>::col_val_equal_to_row_val() const;
-#endif
 template void static_matrix<mpq, mpq>::copy_column_to_vector(unsigned int, indexed_vector<mpq>&) const;
 template void static_matrix<mpq, mpq>::divide_row_by_constant(unsigned int, mpq const&);
 template mpq static_matrix<mpq, mpq>::dot_product_with_column(std::vector<mpq, std::allocator<mpq> > const&, unsigned int) const;

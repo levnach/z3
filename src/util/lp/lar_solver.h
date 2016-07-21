@@ -55,35 +55,35 @@ struct conversion_helper <double> {
 };
 
 class lar_solver {
-    stacked_value<unsigned> m_available_var_index = 0;
-    unsigned m_available_constr_index = 0;
     stacked_value<lp_status> m_status = UNKNOWN;
     stacked_map<std::string, var_index> m_var_names_to_var_index;
     stacked_map<canonic_left_side, ul_pair, hash_and_equal_of_canonic_left_side_struct, hash_and_equal_of_canonic_left_side_struct> m_map_of_canonic_left_sides;
-    stacked_map<unsigned, var_index> m_map_from_column_indices_to_var_index;
     stacked_map<constraint_index, lar_normalized_constraint> m_normalized_constraints;
     stacked_map<var_index, column_info_with_cls> m_map_from_var_index_to_column_info_with_cls;
     lar_core_solver_parameter_struct<mpq, numeric_pair<mpq>> m_lar_core_solver_params;
     lar_core_solver<mpq, numeric_pair<mpq>> m_mpq_lar_core_solver;
+
     stacked_value<canonic_left_side> m_infeasible_canonic_left_side; // such can be found at the initialization step
-    canonic_left_side create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par, unsigned & row_var_index);
+
+    static_matrix<mpq, numeric_pair<mpq>> & A() { return m_lar_core_solver_params.m_A;}
+    canonic_left_side create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par);
     mpq find_ratio_of_original_constraint_to_normalized(const canonic_left_side & ls, const lar_constraint & constraint);
 
     void add_canonic_left_side_for_var(var_index i, std::string var_name);
 
     void map_left_side_to_A_of_core_solver(const canonic_left_side &  left_side, var_index vj);
 
-    void map_left_sides_to_A_of_core_solver();
-
     bool valid_index(unsigned j) { return static_cast<int>(j) >= 0;}
 
 
     // this adds a row to A
     template <typename U, typename V>
-    void fill_row_of_A(static_matrix<U, V> & A, unsigned i, const canonic_left_side & ls);
+    void fill_row_of_A(static_matrix<U, V> & A, const canonic_left_side & ls);
 
     template <typename U, typename V>
     void create_matrix_A(static_matrix<U, V> & A);
+    template <typename U, typename V>
+    void copy_from_mpq_matrix(static_matrix<U,V> & matr);
 
     // void fill_column_info_names() {
     //     for (unsigned j = 0; j < m_A.column_count(); j++) {
@@ -124,10 +124,9 @@ class lar_solver {
                                           std::vector<V> & upper_bound, const lar_solution_signature & signature);
 
     template <typename V> V get_column_val(std::vector<V> & low_bound, std::vector<V> & upper_bound, non_basic_column_value_position pos_type, unsigned j);
-    void map_var_indices_to_columns_of_A();
 
     void register_in_map(std::unordered_map<var_index, mpq> & coeffs, const lar_constraint & cn, const mpq & a);
-    unsigned get_column_index_from_var_index(var_index vi) const;
+
     const column_info<mpq> & get_column_info_from_var_index(var_index vi);
 
 public:
@@ -272,6 +271,6 @@ public:
             ret.push_back(it.first);
         return ret;
     }
-    
+    void add_row_to_A(const canonic_left_side & ls);
 };
 }

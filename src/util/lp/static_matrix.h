@@ -107,6 +107,7 @@ public:
 
     void add_columns_at_the_end(unsigned delta);
 
+    void add_row() {m_rows.push_back(row_strip());}
     void add_column() {m_columns.push_back(column_strip()); }
 
     void forget_last_columns(unsigned how_many_to_forget);
@@ -189,6 +190,7 @@ public:
 
     T get_row_balance(unsigned row) const;
 
-    bool col_val_equal_to_row_val() const { return true; } // TBD: has no definition.
+    bool col_val_equal_to_row_val() const; // TBD: has no definition.
+
 };
 }

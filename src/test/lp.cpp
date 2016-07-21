@@ -30,6 +30,7 @@ Author: Lev Nachmanson
 #include "util/lp/binary_heap_upair_queue.h"
 #include "util/lp/stacked_value.h"
 #include "util/lp/stacked_value.h"
+#include "util/lp/stacked_unordered_set.h"
 namespace lean {
 unsigned seed = 1;
 std::unordered_map<unsigned, std::string> default_column_names(unsigned n) {
@@ -1893,11 +1894,33 @@ void test_stacked_vector() {
     lean_assert(v()[1] == 1);
 }
 
+void test_stacked_set() {
+    std::cout << "test_stacked_set" << std::endl;
+    stacked_unordered_set<int> s;
+    s.insert(1);
+    s.insert(2);
+    s.insert(3);
+    unordered_set<int> scopy = s();
+    s.push();
+    s.insert(4);
+    s.pop();
+    lean_assert(s() == scopy);
+    s.push();
+    s.push();
+    s.insert(4);
+    s.insert(5);
+    s.push();
+    s.insert(4);
+    s.pop(3);
+    lean_assert(s() == scopy);
+}
+
 void test_stacked_map() {
     std::cout << "test_stacked_map()" << std::endl;
     test_stacked_map_itself();
     test_stacked_value();
     test_stacked_vector();
+    test_stacked_set();
 }
 
 char * find_home_dir() {
@@ -2607,6 +2630,7 @@ void incremental_test(argument_parser& args_parser, lp_settings & settings) {
                 var_index jn = test_ls.add_var(j_name); // just to get the correct var_index
                 p.second = jn;
             }
+            std::cout << "adding a constraint " << std::endl;
             test_ls.add_constraint(left_side_or_orig, constr.m_kind, constr.m_right_side);
             lp_status st = test_ls.check();
             print_st(st);

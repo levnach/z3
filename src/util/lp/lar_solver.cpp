@@ -31,21 +31,28 @@ double conversion_helper <double>::get_upper_bound(const column_info<mpq> & ci) 
     return ci.get_upper_bound().get_double() - eps;
 }
 
-canonic_left_side lar_solver::create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par, unsigned & row_var_index) { 
+canonic_left_side lar_solver::create_or_fetch_existing_left_side(const buffer<std::pair<mpq, var_index>>& left_side_par) { 
     auto left_side = canonic_left_side(left_side_par);
     lean_assert(left_side.size() > 0);
     if (!m_map_of_canonic_left_sides.contains(left_side)) {
-        lean_assert(!m_map_from_var_index_to_column_info_with_cls.contains(m_available_var_index));
-        var_index vj = m_available_var_index;
-        ul_pair ul(vj);
+        var_index j = A().column_count();
+        A().add_column();
+        ul_pair ul(j);
         m_map_of_canonic_left_sides[left_side] = ul;
         auto ci_cls = column_info_with_cls(left_side);
-        ci_cls.m_column_info.set_name("_s" + T_to_string(vj));
-        m_map_from_var_index_to_column_info_with_cls[vj] = ci_cls;
-        row_var_index = vj;
-        m_available_var_index++;
+        ci_cls.m_column_info.set_name("_s" + T_to_string(j));
+        ci_cls.m_column_info.set_column_index(j);
+        m_map_from_var_index_to_column_info_with_cls[j] = ci_cls;
+        add_row_to_A(left_side);
+        // j will be a basis column, so we put it into the basis as well
+        m_lar_core_solver_params.m_basis.push_back(j); 
     }
     return left_side;
+}
+
+void lar_solver::add_row_to_A(const canonic_left_side & ls) {
+    A().add_row();
+    fill_row_of_A(A(), ls);
 }
 
 mpq lar_solver::find_ratio_of_original_constraint_to_normalized(const canonic_left_side & ls, const lar_constraint & constraint) {
@@ -67,43 +74,44 @@ void lar_solver::map_left_side_to_A_of_core_solver(const canonic_left_side &  le
     lean_assert(!is_valid(ci.get_column_index()));
     lean_assert(left_side.size() > 0); // if size is zero we have an empty row
     m_lar_core_solver_params.m_basis.push_back(j); // j will be a basis column, so we put it into the basis as well
-    lean_assert(!m_map_from_column_indices_to_var_index.contains(j));
     ci.set_column_index(j);
     m_map_from_var_index_to_column_info_with_cls[additional_var] = ci_cls;
-    m_map_from_column_indices_to_var_index[j] = additional_var;
 }
 
 
-void lar_solver::map_left_sides_to_A_of_core_solver() {
-    unsigned j = m_map_from_column_indices_to_var_index.size();
-    for (auto & it : m_map_of_canonic_left_sides())
-        map_left_side_to_A_of_core_solver(it.first, j++);
-}
-
-// this adds a row to A
+// this adds a row to A and set the basis column: -1 in the last column of the row
 template <typename U, typename V>
-void lar_solver::fill_row_of_A(static_matrix<U, V> & A, unsigned i, const canonic_left_side & ls) {
+void lar_solver::fill_row_of_A(static_matrix<U, V> & A, const canonic_left_side & ls) {
+    unsigned i = A.row_count() - 1;
     for (auto & t : ls.m_coeffs) {
-        var_index vi = t.second;
-        unsigned column = get_column_index_from_var_index(vi);
-        A.set(i, column, convert_struct<U, mpq>::convert(t.first));
+        var_index j = t.second;
+        A.set(i, j, convert_struct<U, mpq>::convert(t.first));
     }
-    const ul_pair & ul = m_map_of_canonic_left_sides[ls];
-    unsigned additional_column = get_column_index_from_var_index(ul.m_additional_var_index);
-    A.set(i, additional_column, -one_of_type<U>());
+    unsigned basis_j = A.column_count() - 1;
+    A.set(i, basis_j, -one_of_type<U>());
 }
 
 template <typename U, typename V>
-void lar_solver::create_matrix_A(static_matrix<U, V> & A) {
+void lar_solver::create_matrix_A(static_matrix<U, V> & matr) {
     unsigned m = m_map_of_canonic_left_sides.size();
     unsigned n = m_map_from_var_index_to_column_info_with_cls.size();
-    A.init_empty_matrix(m, n);
-    unsigned i = 0;
-    for (auto & t : m_map_of_canonic_left_sides()) {
-        lean_assert(t.first.size() > 0);
-        fill_row_of_A(A, i++, t.first);
+    if (matr.row_count() == m && matr.column_count() == n)
+        return;
+    matr.init_empty_matrix(m, n);
+    copy_from_mpq_matrix(matr);
+}
+
+template <typename U, typename V>
+void lar_solver::copy_from_mpq_matrix(static_matrix<U, V> & matr) {
+    lean_assert(matr.row_count() == A().row_count());
+    lean_assert(matr.column_count() == A().column_count());
+    for (unsigned i = 0; i < matr.row_count(); i++) {
+        for (auto & it : A().m_rows[i]) {
+            matr.set(i, it.m_j,  convert_struct<U, mpq>::convert(it.get_val()));
+        }
     }
 }
+
 
 void lar_solver::set_upper_bound_for_column_info(constraint_index i, const lar_normalized_constraint & norm_constr) {
     const mpq & v = norm_constr.m_right_side;
@@ -294,10 +302,12 @@ var_index lar_solver::add_var(std::string s) {
     auto it = m_var_names_to_var_index().find(s);
     if (it != m_var_names_to_var_index().end())
         return it->second;
-    var_index i = m_available_var_index++;
+    var_index i = A().column_count();
+    A().add_column();
     lean_assert(!m_map_from_var_index_to_column_info_with_cls.contains(i));
     auto ci_with_cls = column_info_with_cls();
     ci_with_cls.m_column_info.set_name(s);
+    ci_with_cls.m_column_info.set_column_index(i);
     m_map_from_var_index_to_column_info_with_cls[i] = ci_with_cls;
     m_var_names_to_var_index[s] = i;
     return i;
@@ -316,12 +326,11 @@ bool lar_solver::all_constrained_variables_are_registered(const buffer<std::pair
 
 constraint_index lar_solver::add_constraint(const buffer<std::pair<mpq, var_index>>& left_side, lconstraint_kind kind_par, mpq right_side_par) {
     lean_assert(left_side.size() > 0);
-    constraint_index i = m_available_constr_index++;
+    constraint_index i = m_normalized_constraints.size();
     lean_assert(m_normalized_constraints().find(i) == m_normalized_constraints().end());
     lean_assert(all_constrained_variables_are_registered(left_side));
     lar_constraint original_constr(left_side, kind_par, right_side_par);
-    unsigned row_var_index;
-    canonic_left_side ls = create_or_fetch_existing_left_side(left_side, row_var_index);
+    canonic_left_side ls = create_or_fetch_existing_left_side(left_side);
     mpq ratio = find_ratio_of_original_constraint_to_normalized(ls, original_constr);
     auto kind = ratio.is_neg() ? flip_kind(kind_par) : kind_par;
     mpq right_side = right_side_par / ratio;
@@ -467,6 +476,7 @@ mpq lar_solver::sum_of_right_sides_of_evidence(const buffer<std::pair<mpq, unsig
     }
     return ret;
 }
+/*
 // do not touch additional vars here
 void lar_solver::map_var_indices_to_columns_of_A() {
     lean_assert(m_map_from_column_indices_to_var_index.size() == 0);
@@ -485,12 +495,13 @@ void lar_solver::map_var_indices_to_columns_of_A() {
         m_map_from_var_index_to_column_info_with_cls[vi] = ci_cls;
     }
 }
+*/
 void lar_solver::prepare_independently_of_numeric_type() {
     update_column_info_of_normalized_constraints();
-    map_var_indices_to_columns_of_A();
+    //    map_var_indices_to_columns_of_A();
     if (m_status == INFEASIBLE)
         return;
-    map_left_sides_to_A_of_core_solver();
+    //    map_left_sides_to_A_of_core_solver();
     fill_column_names();
     fill_column_types();
 }
@@ -621,9 +632,7 @@ void lar_solver::get_infeasibility_evidence_for_inf_sign(buffer<std::pair<mpq, c
     for (auto & it : inf_row) {
         mpq coeff = it.first;
         unsigned j = it.second;
-        unsigned var_j = m_map_from_column_indices_to_var_index[j];
-        
-        const column_info_with_cls & ci_cls =  m_map_from_var_index_to_column_info_with_cls[var_j];
+        const column_info_with_cls & ci_cls =  m_map_from_var_index_to_column_info_with_cls[j];
         const canonic_left_side & ls = ci_cls.m_canonic_left_side;
         int adj_sign = coeff.is_pos() ? inf_sign : -inf_sign;
         const ul_pair & ul = m_map_of_canonic_left_sides[ls];
@@ -848,12 +857,6 @@ void lar_solver::random_update(unsigned sz, var_index const * vars) {
 void lar_solver::random_update(var_index /*v */) {
 }
 
-unsigned lar_solver::get_column_index_from_var_index(var_index vi) const {
-    if (!m_map_from_var_index_to_column_info_with_cls.contains(vi))
-        return static_cast<unsigned>(-1);
-    const column_info_with_cls& c = m_map_from_var_index_to_column_info_with_cls[vi];
-    return c.m_column_info.get_column_index();
-}
 
 const column_info<mpq> & lar_solver::get_column_info_from_var_index(var_index vi) {
     if (! m_map_from_var_index_to_column_info_with_cls.contains(vi)) {
