@@ -1900,6 +1900,7 @@ void test_stacked_vector() {
 }
 
 void test_stacked_set() {
+#ifdef LEAN_DEBUG
     std::cout << "test_stacked_set" << std::endl;
     stacked_unordered_set<int> s;
     s.insert(1);
@@ -1918,6 +1919,7 @@ void test_stacked_set() {
     s.insert(4);
     s.pop(3);
     lean_assert(s() == scopy);
+#endif
 }
 
 void test_stacked() {
