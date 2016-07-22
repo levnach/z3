@@ -20,6 +20,7 @@ void init_basic_part_of_basis_heading(std::vector<unsigned> & basis, unsigned m,
 void init_non_basic_part_of_basis_heading(std::vector<int> & basis_heading, std::vector<unsigned> & non_basic_columns, unsigned n) {
     for (int j = n; j--;){
         if (basis_heading[j] < 0) {
+            lean_assert(std::find(non_basic_columns.begin(), non_basic_columns.end(), j) == non_basic_columns.end());
             non_basic_columns.push_back(j);
             // the index of column j in m_non_basic_columns is (- basis_heading[j] - 1)
             basis_heading[j] = - static_cast<int>(non_basic_columns.size());
@@ -515,6 +516,8 @@ basis_has_no_doubles() {
 
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 non_basis_has_no_doubles() {
+    std::cout << "this is non_basis" << std::endl;
+    print_vector(m_non_basic_columns, std::cout);
     std::set<int> bm;
     for (auto j : m_non_basic_columns) {
         bm.insert(j);
@@ -546,7 +549,28 @@ non_basis_is_correctly_represented_in_heading() {
 
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 basis_heading_is_correct() {
-    return basis_has_no_doubles() && non_basis_has_no_doubles() && basis_is_correctly_represented_in_heading() && non_basis_is_correctly_represented_in_heading();
+    if (!basis_has_no_doubles()) {
+        std::cout << "basis_has_no_doubles" << std::endl;
+        return false;
+    }
+
+    if (!non_basis_has_no_doubles()) {
+        std::cout << "non_basis_has_no_doubles" << std::endl;
+        return false;
+    }
+
+    if (!basis_is_correctly_represented_in_heading()) {
+        std::cout << "basis_is_correctly_represented_in_heading" << std::endl;
+        return false;
+    }
+
+    if (!non_basis_is_correctly_represented_in_heading()) {
+        std::cout << "non_basis_is_correctly_represented_in_heading" << std::endl;
+        return false;
+    }
+
+    
+    return true;
 }
 
 template <typename T, typename X> void lp_core_solver_base<T, X>::

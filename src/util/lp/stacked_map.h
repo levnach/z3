@@ -12,9 +12,6 @@
 #include <stack>
 namespace lean {
 
-template <typename A, typename B> bool map_contains(const std::unordered_map<A, B> & m, const A & key) {
-    return m.find(key) != m.end();
-}
 
 template <typename A, typename B,
           typename Hash = std::hash<A>,
@@ -56,6 +53,8 @@ private:
                 auto itt = orig_changed.find(a);
                 if (itt == orig_changed.end()) {
                     orig_changed.emplace(a, it->second);
+                } else if (itt->second == b) {
+                    orig_changed.erase(itt);
                 }
                 it->second = b;
             }            

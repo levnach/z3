@@ -41,8 +41,13 @@ struct column_info_with_cls { // column_info_with canonic_left_side
     canonic_left_side  m_canonic_left_side;
     column_info<mpq> m_column_info;
     bool operator!=(const column_info_with_cls & c) const {
-        return m_canonic_left_side!=c.m_canonic_left_side || m_column_info != c.m_column_info;
+        return !(*this == c);
     }
+
+    bool operator==(const column_info_with_cls & c) const {
+        return m_canonic_left_side==c.m_canonic_left_side && m_column_info == c.m_column_info;
+    }
+
     column_info_with_cls():
         m_column_info(static_cast<unsigned>(-1)) {}
     column_info_with_cls(const canonic_left_side & cls) : m_canonic_left_side(cls), m_column_info(static_cast<unsigned>(-1)) {}

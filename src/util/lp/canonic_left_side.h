@@ -27,8 +27,16 @@ struct ul_pair {
     constraint_index m_upper_bound_witness = static_cast<constraint_index>(-1);
     var_index m_additional_var_index = static_cast<var_index>(-1); // this is the index of the additional variable created for the constraint
     bool operator!=(const ul_pair & p) {
-        return m_low_bound_witness != p.m_low_bound_witness || m_upper_bound_witness != p.m_upper_bound_witness || m_additional_var_index != p.m_additional_var_index;
+        return !(*this == p);
     }
+
+    bool operator==(const ul_pair & p) {
+        return m_low_bound_witness == p.m_low_bound_witness
+            && m_upper_bound_witness == p.m_upper_bound_witness
+            && m_additional_var_index == p.m_additional_var_index;
+    }
+    
+    
     ul_pair(){}
     ul_pair(var_index vi) : m_additional_var_index(vi) {}
     ul_pair(const ul_pair & o): m_low_bound_witness(o.m_low_bound_witness), m_upper_bound_witness(o.m_upper_bound_witness), m_additional_var_index(o.m_additional_var_index) {}

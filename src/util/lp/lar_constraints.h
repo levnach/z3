@@ -77,5 +77,6 @@ public:
         return m_canonic_left_side.size();
     }    
 };
-inline bool operator!=(const lar_normalized_constraint&, const lar_normalized_constraint &) {return false;}
+inline bool operator!=(const lar_normalized_constraint&, const lar_normalized_constraint &) {return true;}
+inline bool operator==(const lar_normalized_constraint&, const lar_normalized_constraint &) {return false;}
 }

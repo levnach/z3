@@ -29,7 +29,7 @@ Author: Lev Nachmanson
 #include "util/lp/numeric_pair.h"
 #include "util/lp/binary_heap_upair_queue.h"
 #include "util/lp/stacked_value.h"
-#include "util/lp/stacked_value.h"
+#include "util/lp/stacked_vector.h"
 #include "util/lp/stacked_unordered_set.h"
 namespace lean {
 unsigned seed = 1;
@@ -1806,6 +1806,9 @@ void setup_args_parser(argument_parser & parser) {
 struct fff { int a; int b;};
 
 void test_stacked_map_itself() {
+    std::vector<int> v(3,0);
+    for(auto u : v)
+        std::cout << u << std::endl;
 
     std::unordered_map<int, fff> foo;
     fff l;
@@ -1880,18 +1883,20 @@ void test_stacked_value() {
 }
 
 void test_stacked_vector() {
-    stacked_value<std::vector<int>> v;
-    v().push_back(0);
-    v().push_back(1);
+    stacked_vector<int> v;
+          
+    v.push_back(0);
+    v.push_back(1);
     v.push();
-    v().pop_back();
-    v()[0] = 3;
+    v[0] = 3;
     v.push();
-    v()[1] = 4;
+    v[1] = 4;
+    v.clear();
+    v.push_back(10);
     v.pop(2);
-    lean_assert(v().size() == 2);
-    lean_assert(v()[0] == 0);
-    lean_assert(v()[1] == 1);
+    lean_assert(v.size() == 2);
+    lean_assert(v[0] == 0);
+    lean_assert(v[1] == 1);
 }
 
 void test_stacked_set() {
@@ -1915,12 +1920,13 @@ void test_stacked_set() {
     lean_assert(s() == scopy);
 }
 
-void test_stacked_map() {
+void test_stacked() {
     std::cout << "test_stacked_map()" << std::endl;
     test_stacked_map_itself();
     test_stacked_value();
     test_stacked_vector();
     test_stacked_set();
+    
 }
 
 char * find_home_dir() {
@@ -2582,6 +2588,7 @@ void print_st(lp_status status) {
 
 
 void incremental_test(argument_parser& args_parser, lp_settings & settings) {
+    
     std::cout << "test incremental" << std::endl;
     string file_name = args_parser.get_option_value("--file");
     if (file_name.size()==0) {
@@ -2764,7 +2771,7 @@ void test_lp_local(int argn, char**argv) {
     }
 
     if (args_parser.option_is_used("--smap")) {
-        test_stacked_map();
+        test_stacked();
         ret = 0;
         return finalize(ret);
     }
