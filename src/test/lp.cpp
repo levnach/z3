@@ -2643,6 +2643,12 @@ void incremental_test(argument_parser& args_parser, lp_settings & settings) {
             test_ls.add_constraint(left_side_or_orig, constr.m_kind, constr.m_right_side);
             lp_status st = test_ls.check();
             print_st(st);
+            if (st != OPTIMAL) {
+                std::cout << "pop when the status is not optimal" << std::endl;
+                test_ls.pop();
+                st = test_ls.get_status();
+                print_st(st);
+            }
         } else {
             std::cout << "cannot find a constraint " << ci << std::endl;
             return;

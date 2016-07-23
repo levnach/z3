@@ -35,7 +35,7 @@ public:
             m_upper_bound_is_set == c.m_upper_bound_is_set&&
             m_upper_bound_is_strict == c.m_upper_bound_is_strict&&
             (!m_low_bound_is_set || m_low_bound == c.m_low_bound) &&
-            (!m_upper_bound_is_set || m_upper_bound_is_set == c.m_upper_bound) &&
+            (!m_upper_bound_is_set || m_upper_bound == c.m_upper_bound) &&
             m_cost == c.m_cost&&
             m_is_fixed == c.m_is_fixed &&
             (!m_is_fixed || m_fixed_value == c.m_fixed_value) &&

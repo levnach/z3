@@ -13,6 +13,7 @@
 #include "util/lp/sparse_vector.h"
 #include "util/lp/indexed_vector.h"
 #include "util/lp/permutation_matrix.h"
+#include <stack>
 namespace lean {
 template <typename T>
 struct column_cell {
@@ -47,6 +48,12 @@ class static_matrix
 #ifdef LEAN_DEBUG
     std::set<std::pair<unsigned, unsigned>> m_domain;
 #endif
+    struct dim {
+        unsigned m_m;
+        unsigned m_n;
+        dim(unsigned m, unsigned n) :m_m(m), m_n(n) {}
+    };
+    std::stack<dim> m_stack;
 public:
     typedef std::vector<row_cell<T>> row_strip;
     typedef std::vector<column_cell<T>> column_strip;
@@ -191,6 +198,22 @@ public:
     T get_row_balance(unsigned row) const;
 
     bool col_val_equal_to_row_val() const; // TBD: has no definition.
-
+    void push() {
+        dim d(row_count(), column_count());
+        m_stack.push(d);
+    }
+    void pop(unsigned k) {
+        while (k-- > 0) {
+            if (m_stack.empty()) break;
+            unsigned m = m_stack.top().m_m;
+            while (m < row_count())
+                m_rows.pop_back(); // delete the last row
+            unsigned n = m_stack.top().m_n;
+            while (n < column_count())
+                m_columns.pop_back(); // delete the last column
+            m_stack.pop();
+        }
+    }
+    
 };
 }

@@ -8,17 +8,36 @@
 #include <vector>
 #include <string>
 #include "util/lp/lp_settings.h"
-
+#include "util/lp/stacked_value.h"
 namespace lean {
 template <typename T, typename X>
 struct lar_core_solver_parameter_struct {
-std::vector<X> m_x; // the solution
-std::vector<column_type> m_column_types;
-std::vector<X> m_low_bounds;
-std::vector<X> m_upper_bounds;
-std::vector<unsigned> m_basis;
-static_matrix<T, X> m_A;
-lp_settings m_settings;
-std::unordered_map<unsigned, std::string> m_column_names;
+    stacked_value<std::vector<X>> m_x; // the solution
+    stacked_value<std::vector<column_type>> m_column_types;
+    stacked_value<std::vector<X>> m_low_bounds;
+    stacked_value<std::vector<X>> m_upper_bounds;
+    stacked_value<std::vector<unsigned>> m_basis;
+    static_matrix<T, X> m_A;
+    lp_settings m_settings;
+    std::unordered_map<unsigned, std::string> m_column_names;
+    void push() {
+        m_x.push(); // the solution
+        m_column_types.push();
+        m_low_bounds.push();
+        m_upper_bounds.push();
+        m_basis.push();
+        m_A.push();
+    }
+    void pop() {
+        pop(1);
+    }
+    void pop(unsigned k) {
+        m_x.pop(k); // the solution
+        m_column_types.pop(k);
+        m_low_bounds.pop(k);
+        m_upper_bounds.pop(k);
+        m_basis.pop(k);
+        m_A.pop(k);
+    }
 };
 }

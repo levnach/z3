@@ -18,9 +18,9 @@ void init_basic_part_of_basis_heading(std::vector<unsigned> & basis, unsigned m,
 }
 
 void init_non_basic_part_of_basis_heading(std::vector<int> & basis_heading, std::vector<unsigned> & non_basic_columns, unsigned n) {
+    non_basic_columns.clear();
     for (int j = n; j--;){
         if (basis_heading[j] < 0) {
-            lean_assert(std::find(non_basic_columns.begin(), non_basic_columns.end(), j) == non_basic_columns.end());
             non_basic_columns.push_back(j);
             // the index of column j in m_non_basic_columns is (- basis_heading[j] - 1)
             basis_heading[j] = - static_cast<int>(non_basic_columns.size());
@@ -516,8 +516,6 @@ basis_has_no_doubles() {
 
 template <typename T, typename X> bool lp_core_solver_base<T, X>::
 non_basis_has_no_doubles() {
-    std::cout << "this is non_basis" << std::endl;
-    print_vector(m_non_basic_columns, std::cout);
     std::set<int> bm;
     for (auto j : m_non_basic_columns) {
         bm.insert(j);

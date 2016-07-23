@@ -45,7 +45,7 @@ canonic_left_side lar_solver::create_or_fetch_existing_left_side(const buffer<st
         m_map_from_var_index_to_column_info_with_cls[j] = ci_cls;
         add_row_to_A(left_side);
         // j will be a basis column, so we put it into the basis as well
-        m_lar_core_solver_params.m_basis.push_back(j); 
+        m_lar_core_solver_params.m_basis().push_back(j); 
     }
     return left_side;
 }
@@ -73,7 +73,7 @@ void lar_solver::map_left_side_to_A_of_core_solver(const canonic_left_side &  le
     column_info<mpq>& ci = ci_cls.m_column_info;
     lean_assert(!is_valid(ci.get_column_index()));
     lean_assert(left_side.size() > 0); // if size is zero we have an empty row
-    m_lar_core_solver_params.m_basis.push_back(j); // j will be a basis column, so we put it into the basis as well
+    m_lar_core_solver_params.m_basis().push_back(j); // j will be a basis column, so we put it into the basis as well
     ci.set_column_index(j);
     m_map_from_var_index_to_column_info_with_cls[additional_var] = ci_cls;
 }
@@ -241,13 +241,13 @@ void lar_solver::fill_column_names() {
 }
 
 void lar_solver::fill_column_types() {
-    m_lar_core_solver_params.m_column_types.clear();
-    m_lar_core_solver_params.m_column_types.resize(m_map_from_var_index_to_column_info_with_cls.size(), free_column);
+    m_lar_core_solver_params.m_column_types().clear();
+    m_lar_core_solver_params.m_column_types().resize(m_map_from_var_index_to_column_info_with_cls.size(), free_column);
     for (auto & it : m_map_from_var_index_to_column_info_with_cls()) {
         const column_info<mpq> & ci = it.second.m_column_info;;
         unsigned j = ci.get_column_index();
         lean_assert(is_valid(j));
-        m_lar_core_solver_params.m_column_types[j] = get_column_type(ci);
+        m_lar_core_solver_params.m_column_types()[j] = get_column_type(ci);
     }
 }
 
@@ -299,8 +299,8 @@ template <typename V> V lar_solver::get_column_val(std::vector<V> & low_bound, s
 }
 
 var_index lar_solver::add_var(std::string s) {
-    auto it = m_var_names_to_var_index().find(s);
-    if (it != m_var_names_to_var_index().end())
+    auto it = m_var_names_to_var_index.find(s);
+    if (it != m_var_names_to_var_index.end())
         return it->second;
     var_index i = A().column_count();
     A().add_column();
@@ -517,7 +517,7 @@ void lar_solver::prepare_core_solver_fields(static_matrix<U, V> & A, std::vector
         return;
     }
     resize_and_init_x_with_zeros(x, A.column_count());
-    lean_assert(m_lar_core_solver_params.m_basis.size() == A.row_count());
+    lean_assert(m_lar_core_solver_params.m_basis().size() == A.row_count());
 }
 
 template <typename U, typename V>
@@ -574,7 +574,7 @@ void lar_solver::extract_signature_from_lp_core_solver(lp_primal_core_solver<U, 
 }
 
 void lar_solver::solve_on_signature(const lar_solution_signature & signature) {
-    prepare_core_solver_fields_with_signature(m_lar_core_solver_params.m_A, m_lar_core_solver_params.m_x, m_lar_core_solver_params.m_low_bounds, m_lar_core_solver_params.m_upper_bounds, signature);
+    prepare_core_solver_fields_with_signature(m_lar_core_solver_params.m_A, m_lar_core_solver_params.m_x(), m_lar_core_solver_params.m_low_bounds(), m_lar_core_solver_params.m_upper_bounds(), signature);
     solve_with_core_solver();
 }
 
@@ -589,13 +589,13 @@ void lar_solver::solve() {
         solve_on_signature(solution_signature);
         return;
     }
-    prepare_core_solver_fields(m_lar_core_solver_params.m_A, m_lar_core_solver_params.m_x, m_lar_core_solver_params.m_low_bounds, m_lar_core_solver_params.m_upper_bounds);
+    prepare_core_solver_fields(m_lar_core_solver_params.m_A, m_lar_core_solver_params.m_x(), m_lar_core_solver_params.m_low_bounds(), m_lar_core_solver_params.m_upper_bounds());
     solve_with_core_solver();
 }
 
 lp_status lar_solver::check() {
-    solve();
     push();
+    solve();
     return m_status;
 }
 
@@ -663,8 +663,8 @@ mpq lar_solver::find_delta_for_strict_bounds() {
 
 void lar_solver::restrict_delta_on_low_bound_column(mpq& delta, unsigned j) {
     lean_assert(delta > numeric_traits<mpq>::zero());
-    numeric_pair<mpq> & x = m_lar_core_solver_params.m_x[j];
-    numeric_pair<mpq> & l = m_lar_core_solver_params.m_low_bounds[j];
+    numeric_pair<mpq> & x = m_lar_core_solver_params.m_x()[j];
+    numeric_pair<mpq> & l = m_lar_core_solver_params.m_low_bounds()[j];
     mpq & xx = x.x;
     mpq & xy = x.y;
     if (!xy.is_neg()) return;
@@ -677,8 +677,8 @@ void lar_solver::restrict_delta_on_low_bound_column(mpq& delta, unsigned j) {
     delta = std::min(delta, (lx - xx) / (2 * xy)); // we need to have delta * xy < xx - lx for the strict case
 }
 void lar_solver::restrict_delta_on_upper_bound(mpq& delta, unsigned j) {
-    numeric_pair<mpq> & x = m_lar_core_solver_params.m_x[j];
-    numeric_pair<mpq> & u = m_lar_core_solver_params.m_upper_bounds[j];
+    numeric_pair<mpq> & x = m_lar_core_solver_params.m_x()[j];
+    numeric_pair<mpq> & u = m_lar_core_solver_params.m_upper_bounds()[j];
     mpq & xx = x.x;
     mpq & xy = x.y;
     mpq & ux = u.x;
@@ -692,7 +692,7 @@ void lar_solver::get_model(std::unordered_map<var_index, mpq> & variable_values)
     for (auto & it : m_map_from_var_index_to_column_info_with_cls()) {
         const column_info<mpq> & ci = it.second.m_column_info;
         unsigned j = ci.get_column_index();
-        numeric_pair<mpq> & rp = m_lar_core_solver_params.m_x[j];
+        numeric_pair<mpq> & rp = m_lar_core_solver_params.m_x()[j];
         variable_values[it.first] = rp.x + delta * rp.y;
     }
 }
@@ -870,11 +870,23 @@ void lar_solver::try_pivot_fixed_vars_from_basis() {
     m_mpq_lar_core_solver.pivot_fixed_vars_from_basis();
 }
 
+void lar_solver::push() {
+    m_status.push();
+    m_map_of_canonic_left_sides.push();
+    m_normalized_constraints.push();
+    m_map_from_var_index_to_column_info_with_cls.push();
+    m_lar_core_solver_params.push();}
+
 void lar_solver::pop() {
-    pop(0);
+    pop(1);
 }
 
 void lar_solver::pop(unsigned k) {
+    m_status.pop(k);
+    m_map_of_canonic_left_sides.pop(k);
+    m_normalized_constraints.pop(k);
+    m_map_from_var_index_to_column_info_with_cls.pop(k);
+    m_lar_core_solver_params.pop(k);
 }
 }
 
