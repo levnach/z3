@@ -68,7 +68,7 @@ public:
     lar_core_solver m_mpq_lar_core_solver;
     unsigned constraint_count() const;
     const lar_base_constraint& get_constraint(unsigned ci) const;
-    std::function<void (unsigned, const impq&)> m_tracker_of_x_change;
+    std::function<void (unsigned)> m_tracker_of_x_change;
     int_set m_inf_int_set; 
     ////////////////// methods ////////////////////////////////
     static_matrix<mpq, numeric_pair<mpq>> & A_r();
@@ -79,6 +79,14 @@ public:
     static bool valid_index(unsigned j){ return static_cast<int>(j) >= 0;}
 
     bool column_is_int(unsigned j) const;
+    bool column_value_is_int(unsigned j) const {
+        return m_mpq_lar_core_solver.m_r_x[j].is_int();
+    }
+
+    const impq& get_column_value(unsigned j) const {
+        return m_mpq_lar_core_solver.m_r_x[j];
+    }
+    bool is_term(var_index j) const;
     bool column_is_fixed(unsigned j) const;
 public:
 
@@ -154,10 +162,6 @@ public:
     void set_propagate_bounds_on_pivoted_rows_mode(bool v);
 
     virtual ~lar_solver();
-
-    numeric_pair<mpq> const& get_value(var_index vi) const;
-
-    bool is_term(var_index j) const;
 
     unsigned adjust_term_index(unsigned j) const;
 
@@ -411,8 +415,7 @@ public:
     
     
     bool column_value_is_integer(unsigned j) const {
-        const impq & v = m_mpq_lar_core_solver.m_r_x[j];
-        return v.is_int();
+        return get_column_value(j).is_int();
     }
 
     bool column_is_real(unsigned j) const {
@@ -475,6 +478,34 @@ public:
         t = lar_term(pol_after_subs, v);
     }
 
+    bool inf_int_set_is_correct() const {
+        for (unsigned j = 0; j < A_r().column_count(); j++) {
+            if (m_inf_int_set.contains(j) != (column_is_int(j) && (!column_value_is_integer(j)))) {
+                TRACE("arith_int",
+                      tout << "j= " << j <<
+                      " inf_int_set().contains(j) = " << m_inf_int_set.contains(j) <<
+                      ", column_is_int(j) = "   << column_is_int(j) <<
+                      "\n column_value_is_integer(j) = " << column_value_is_integer(j) <<
+                      ", val = " << get_column_value(j) << std::endl;); 
+                return false;
+            }
+        }
+        return true;
+}
+
+    
+    
     bool has_int_var() const;
+    void call_assignment_tracker(unsigned j) {
+        if (!var_is_int(j)) {
+            lp_assert(m_inf_int_set.contains(j) == false);
+            return;
+        }
+        if (m_mpq_lar_core_solver.m_r_x[j].is_int())
+            m_inf_int_set.erase(j);
+        else
+            m_inf_int_set.insert(j);
+    }
+
 };
 }
