@@ -300,7 +300,7 @@ public:
 
     bool costs_are_used() const;
     
-    void change_basic_x_by_delta_on_column(unsigned j, const numeric_pair<mpq> & delta);
+    void change_basic_columns_dependend_on_a_given_nb_column(unsigned j, const numeric_pair<mpq> & delta);
 
     void update_x_and_inf_costs_for_column_with_changed_bounds(unsigned j);
 
