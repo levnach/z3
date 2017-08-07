@@ -45,6 +45,9 @@ struct iterator_on_term_with_basis_var:linear_combination_iterator<mpq> {
         m_i++;
         return true;
     }
+
+    bool is_reset() const { return m_term_j_returned == false && m_i == m_term.m_coeffs.begin();}
+
     void reset() {
         m_term_j_returned = false;
         m_i = m_term.m_coeffs.begin();

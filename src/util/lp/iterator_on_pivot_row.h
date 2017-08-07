@@ -36,6 +36,9 @@ struct iterator_on_pivot_row:linear_combination_iterator<T> {
         m_basis_returned = false;
         m_it.reset();
     }
+    
+    bool is_reset() const { return m_basis_returned == false && m_it.is_reset();}
+
     linear_combination_iterator<T> * clone() {
         iterator_on_pivot_row * r = new iterator_on_pivot_row(m_v, m_basis_j);
         return r;

@@ -30,6 +30,9 @@ struct iterator_on_row:linear_combination_iterator<T> {
     void reset() {
         m_i = 0;
     }
+
+    bool is_reset() const { return m_i == 0;}
+
     linear_combination_iterator<T>* clone() {
         return new iterator_on_row(m_row);
     }
