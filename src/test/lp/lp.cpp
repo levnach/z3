@@ -1,6 +1,6 @@
 /*
-Copyright (c) 2017 Microsoft Corporation. All rights reserved.
-Author: Lev Nachmanson
+  Copyright (c) 2017 Microsoft Corporation. All rights reserved.
+  Author: Lev Nachmanson
 */
 #include <limits>
 #if _LINUX_
@@ -31,13 +31,14 @@ Author: Lev Nachmanson
 #include "util/lp/stacked_unordered_set.h"
 #include "util/lp/int_set.h"
 #include "util/stopwatch.h"
+#include "util/lp/disjoint_intervals.h"
 namespace lp {
 unsigned seed = 1;
 
-    random_gen g_rand;
-    static unsigned my_random() {
-        return g_rand();
-    }
+random_gen g_rand;
+static unsigned my_random() {
+    return g_rand();
+}
 struct simple_column_namer:public column_namer
 {
     std::string get_column_name(unsigned j) const override {
@@ -50,7 +51,7 @@ template <typename T, typename X>
 void test_matrix(sparse_matrix<T, X> & a) {
     auto m = a.dimension();
 
-// copy a to b in the reversed order
+    // copy a to b in the reversed order
     sparse_matrix<T, X> b(m);
     std::cout << "copy b to a"<< std::endl;
     for (int row = m - 1; row >= 0; row--)
@@ -182,9 +183,9 @@ void init_non_basic_part_of_basis_heading(vector<int> & basis_heading, vector<un
     non_basic_columns.clear();
     for (int j = basis_heading.size(); j--;){
         if (basis_heading[j] < 0) {
-                non_basic_columns.push_back(j);
-                // the index of column j in m_nbasis is (- basis_heading[j] - 1)
-                basis_heading[j] = - static_cast<int>(non_basic_columns.size());
+            non_basic_columns.push_back(j);
+            // the index of column j in m_nbasis is (- basis_heading[j] - 1)
+            basis_heading[j] = - static_cast<int>(non_basic_columns.size());
         }
     }
 }
@@ -538,7 +539,7 @@ void test_lp_0() {
     vector<unsigned> nbasis;
     vector<int>  heading;
 
-        lp_primal_core_solver<double, double> lpsolver(m_, b, x_star, basis, nbasis, heading, costs, column_types, upper_bound_values, settings, cn);
+    lp_primal_core_solver<double, double> lpsolver(m_, b, x_star, basis, nbasis, heading, costs, column_types, upper_bound_values, settings, cn);
 
     lpsolver.solve();
 }
@@ -658,7 +659,7 @@ void test_swap_rows(sparse_matrix<T, X>& m, unsigned i0, unsigned i1){
     for (unsigned i = 0; i  < m.dimension(); i++)
         for (unsigned j = 0; j < m.dimension(); j++) {
             mcopy(i, j)= m(i, j);
-    }
+        }
     std::cout << "swapping rows "<< i0 << "," << i1 << std::endl;
     m.swap_rows(i0, i1);
 
@@ -674,7 +675,7 @@ void test_swap_columns(sparse_matrix<T, X>& m, unsigned i0, unsigned i1){
     for (unsigned i = 0; i  < m.dimension(); i++)
         for (unsigned j = 0; j < m.dimension(); j++) {
             mcopy(i, j)= m(i, j);
-    }
+        }
     m.swap_columns(i0, i1);
 
     for (unsigned j = 0; j < m.dimension(); j++) {
@@ -706,7 +707,7 @@ void test_pivot_like_swaps_and_pivot(){
     sparse_matrix<double, double> m(10);
     fill_matrix(m);
     // print_matrix(m);
-// pivot at 2,7
+    // pivot at 2,7
     m.swap_columns(0, 7);
     // print_matrix(m);
     m.swap_rows(2, 0);
@@ -716,7 +717,7 @@ void test_pivot_like_swaps_and_pivot(){
     }
     // print_matrix(m);
 
-// say pivot at 3,4
+    // say pivot at 3,4
     m.swap_columns(1, 4);
     // print_matrix(m);
     m.swap_rows(1, 3);
@@ -774,7 +775,7 @@ void test_swap_rows() {
     // print_matrix(m);
     test_swap_rows(m, 0, 7);
 
-// go over some corner cases
+    // go over some corner cases
     sparse_matrix<double, double> m0(2);
     test_swap_rows(m0, 0, 1);
     m0(0, 0) = 3;
@@ -926,7 +927,7 @@ void test_swap_columns() {
 
     test_swap_columns(m, 0, 7);
 
-// go over some corner cases
+    // go over some corner cases
     sparse_matrix<double, double> m0(2);
     test_swap_columns(m0, 0, 1);
     m0(0, 0) = 3;
@@ -1026,7 +1027,7 @@ void test_apply_reverse_from_right_to_perm(permutation_matrix<double, double> & 
     auto rs = pclone * rev;
     lp_assert(p == rs)
 #endif
-}
+        }
 
 void test_apply_reverse_from_right() {
     auto vec = vector_of_permutaions();
@@ -1802,7 +1803,7 @@ std::unordered_map<std::string, double> * get_solution_from_glpsol_output(std::s
         }
         auto split = string_split(s, " \t", false);
         if (split.size() == 0) {
-           return ret;
+            return ret;
         }
 
         lp_assert(split.size() > 3);
@@ -1864,6 +1865,7 @@ void test_replace_column() {
 
 
 void setup_args_parser(argument_parser & parser) {
+    parser.add_option_with_help_string("-dji", "test disjoint_intervals");
     parser.add_option_with_help_string("-xyz_sample", "run a small interactive scenario");
     parser.add_option_with_after_string_with_help("--density", "the percentage of non-zeroes in the matrix below which it is not dense");
     parser.add_option_with_after_string_with_help("--harris_toler", "harris tolerance");
@@ -2042,15 +2044,15 @@ void test_stacked() {
 }
 
 char * find_home_dir() {
-    #ifdef _WINDOWS
-    #else
+#ifdef _WINDOWS
+#else
     char * home_dir =   getenv("HOME");
-  if (home_dir == nullptr) {
+    if (home_dir == nullptr) {
         std::cout << "cannot find home directory" << std::endl;
         return nullptr;
     }
-    #endif
-  return nullptr;
+#endif
+    return nullptr;
 }
 
 
@@ -2072,8 +2074,8 @@ struct mem_cpy_place_holder {
 
 void finalize(unsigned ret) {
     /*
-    finalize_util_module();
-    finalize_numerics_module();
+      finalize_util_module();
+      finalize_numerics_module();
     */
     //    return ret;
 }
@@ -2211,7 +2213,7 @@ bool values_are_one_percent_close(double a, double b) {
 
 // returns true if both are optimal
 void compare_costs(std::string glpk_out_file_name,
-                    std::string lp_out_file_name,
+                   std::string lp_out_file_name,
                    unsigned & successes,
                    unsigned & failures) {
     double a = get_glpk_cost(glpk_out_file_name);
@@ -2290,78 +2292,78 @@ void process_test_file(std::string test_dir, std::string test_file_name, argumen
 }
 /*
   int my_readdir(DIR *dirp, struct dirent *
-#ifndef LEAN_WINDOWS
-               entry
-#endif
-               , struct dirent **result) {
-#ifdef LEAN_WINDOWS
-    *result = readdir(dirp); // NOLINT
-    return *result != nullptr? 0 : 1;
-#else
-    return readdir_r(dirp, entry, result);
-#endif
-}
+  #ifndef LEAN_WINDOWS
+  entry
+  #endif
+  , struct dirent **result) {
+  #ifdef LEAN_WINDOWS
+  *result = readdir(dirp); // NOLINT
+  return *result != nullptr? 0 : 1;
+  #else
+  return readdir_r(dirp, entry, result);
+  #endif
+  }
 */
 /*
-vector<std::pair<std::string, int>> get_file_list_of_dir(std::string test_file_dir) {
-    DIR *dir;
-    if ((dir  = opendir(test_file_dir.c_str())) == nullptr) {
-        std::cout << "Cannot open directory " << test_file_dir << std::endl;
-        throw 0;
-    }
-    vector<std::pair<std::string, int>> ret;
-    struct dirent entry;
-    struct dirent* result;
-    int return_code;
-    for (return_code = my_readdir(dir, &entry, &result);
-#ifndef LEAN_WINDOWS
-         result != nullptr &&
-#endif
-         return_code == 0;
-         return_code = my_readdir(dir, &entry, &result)) {
-      DIR *tmp_dp = opendir(result->d_name);
-        struct stat file_record;
-        if (tmp_dp == nullptr) {
-            std::string s = test_file_dir+ "/" + result->d_name;
-            int stat_ret = stat(s.c_str(), & file_record);
-            if (stat_ret!= -1) {
-                ret.push_back(make_pair(result->d_name, file_record.st_size));
-            } else {
-                perror("stat");
-                exit(1);
-            }
-        } else  {
-            closedir(tmp_dp);
-        }
-    }
-    closedir(dir);
-    return ret;
-}
+  vector<std::pair<std::string, int>> get_file_list_of_dir(std::string test_file_dir) {
+  DIR *dir;
+  if ((dir  = opendir(test_file_dir.c_str())) == nullptr) {
+  std::cout << "Cannot open directory " << test_file_dir << std::endl;
+  throw 0;
+  }
+  vector<std::pair<std::string, int>> ret;
+  struct dirent entry;
+  struct dirent* result;
+  int return_code;
+  for (return_code = my_readdir(dir, &entry, &result);
+  #ifndef LEAN_WINDOWS
+  result != nullptr &&
+  #endif
+  return_code == 0;
+  return_code = my_readdir(dir, &entry, &result)) {
+  DIR *tmp_dp = opendir(result->d_name);
+  struct stat file_record;
+  if (tmp_dp == nullptr) {
+  std::string s = test_file_dir+ "/" + result->d_name;
+  int stat_ret = stat(s.c_str(), & file_record);
+  if (stat_ret!= -1) {
+  ret.push_back(make_pair(result->d_name, file_record.st_size));
+  } else {
+  perror("stat");
+  exit(1);
+  }
+  } else  {
+  closedir(tmp_dp);
+  }
+  }
+  closedir(dir);
+  return ret;
+  }
 */
 /*
-struct file_size_comp {
-    unordered_map<std::string, int>& m_file_sizes;
-    file_size_comp(unordered_map<std::string, int>& fs) :m_file_sizes(fs) {}
-    int operator()(std::string a, std::string b) {
-        std::cout << m_file_sizes.size() << std::endl;
-        std::cout << a << std::endl;
-        std::cout << b << std::endl;
+  struct file_size_comp {
+  unordered_map<std::string, int>& m_file_sizes;
+  file_size_comp(unordered_map<std::string, int>& fs) :m_file_sizes(fs) {}
+  int operator()(std::string a, std::string b) {
+  std::cout << m_file_sizes.size() << std::endl;
+  std::cout << a << std::endl;
+  std::cout << b << std::endl;
 
-        auto ls = m_file_sizes.find(a);
-        std::cout << "fa" << std::endl;
-        auto rs = m_file_sizes.find(b);
-        std::cout << "fb" << std::endl;
-        if (ls != m_file_sizes.end() && rs != m_file_sizes.end()) {
-            std::cout << "fc " << std::endl;
-            int r = (*ls < *rs? -1: (*ls > *rs)? 1 : 0);
-            std::cout << "calc r " << std::endl;
-            return r;
-        } else {
-            std::cout << "sc " << std::endl;
-            return 0;
-        }
-    }
-};
+  auto ls = m_file_sizes.find(a);
+  std::cout << "fa" << std::endl;
+  auto rs = m_file_sizes.find(b);
+  std::cout << "fb" << std::endl;
+  if (ls != m_file_sizes.end() && rs != m_file_sizes.end()) {
+  std::cout << "fc " << std::endl;
+  int r = (*ls < *rs? -1: (*ls > *rs)? 1 : 0);
+  std::cout << "calc r " << std::endl;
+  return r;
+  } else {
+  std::cout << "sc " << std::endl;
+  return 0;
+  }
+  }
+  };
 
 */
 struct sort_pred {
@@ -2373,26 +2375,26 @@ struct sort_pred {
 
 void test_files_from_directory(std::string test_file_dir, argument_parser & args_parser) {
     /*
-    std::cout << "loading files from directory \"" << test_file_dir << "\"" << std::endl;
-    std::string out_dir = args_parser.get_option_value("--out_dir");
-    if (out_dir.size() == 0) {
-        out_dir = "/tmp/test";
-    }
-    DIR *out_dir_p = opendir(out_dir.c_str());
-    if (out_dir_p == nullptr) {
-        std::cout << "Cannot open output directory \"" << out_dir << "\"" << std::endl;
-        return;
-    }
-    closedir(out_dir_p);
-    vector<std::pair<std::string, int>> files = get_file_list_of_dir(test_file_dir);
-    std::sort(files.begin(), files.end(), sort_pred());
-    unsigned max_iters, time_limit;
-    get_time_limit_and_max_iters_from_parser(args_parser, time_limit, max_iters);
-    unsigned successes = 0, failures = 0, inconclusives = 0;
-    for  (auto & t : files) {
-        process_test_file(test_file_dir, t.first, args_parser, out_dir, max_iters, time_limit, successes, failures, inconclusives);
-    }
-    std::cout << "comparing with glpk: successes " << successes << ", failures " << failures << ", inconclusives " << inconclusives << std::endl;
+      std::cout << "loading files from directory \"" << test_file_dir << "\"" << std::endl;
+      std::string out_dir = args_parser.get_option_value("--out_dir");
+      if (out_dir.size() == 0) {
+      out_dir = "/tmp/test";
+      }
+      DIR *out_dir_p = opendir(out_dir.c_str());
+      if (out_dir_p == nullptr) {
+      std::cout << "Cannot open output directory \"" << out_dir << "\"" << std::endl;
+      return;
+      }
+      closedir(out_dir_p);
+      vector<std::pair<std::string, int>> files = get_file_list_of_dir(test_file_dir);
+      std::sort(files.begin(), files.end(), sort_pred());
+      unsigned max_iters, time_limit;
+      get_time_limit_and_max_iters_from_parser(args_parser, time_limit, max_iters);
+      unsigned successes = 0, failures = 0, inconclusives = 0;
+      for  (auto & t : files) {
+      process_test_file(test_file_dir, t.first, args_parser, out_dir, max_iters, time_limit, successes, failures, inconclusives);
+      }
+      std::cout << "comparing with glpk: successes " << successes << ", failures " << failures << ", inconclusives " << inconclusives << std::endl;
     */
 }
 
@@ -2638,7 +2640,7 @@ void check_lu_from_file(std::string lufile_name) {
     lp_settings settings;
     vector<unsigned> non_basic_columns;
     lu<double, double> lsuhl(A, basis, settings);
-     indexed_vector<double>  d(A.row_count());
+    indexed_vector<double>  d(A.row_count());
     unsigned entering = 26;
     lsuhl.solve_Bd(entering, d, v);
 #ifdef LEAN_DEBUG
@@ -2749,21 +2751,21 @@ void test_evidence_for_total_inf_simple(argument_parser & args_parser) {
 }
 void test_bound_propagation_one_small_sample1() {
     /*
-(<= (+ a (* (- 1.0) b)) 0.0)
-(<= (+ b (* (- 1.0) x_13)) 0.0)
---> (<= (+ a (* (- 1.0) c)) 0.0)
+      (<= (+ a (* (- 1.0) b)) 0.0)
+      (<= (+ b (* (- 1.0) x_13)) 0.0)
+      --> (<= (+ a (* (- 1.0) c)) 0.0)
 
-the inequality on (<= a c) is obtained from a triangle inequality (<= a b) (<= b c).
-If b becomes basic variable, then it is likely the old solver ends up with a row that implies (<= a c).
- a - b <= 0.0
- b  - c <= 0.0
+      the inequality on (<= a c) is obtained from a triangle inequality (<= a b) (<= b c).
+      If b becomes basic variable, then it is likely the old solver ends up with a row that implies (<= a c).
+      a - b <= 0.0
+      b  - c <= 0.0
 
- got to get a <= c
+      got to get a <= c
     */
     std::function<bool (unsigned, bool, bool, const mpq & )> bound_is_relevant =
         [&](unsigned j, bool is_low_bound, bool strict, const rational& bound_val) {
-            return true; 
-        };   
+        return true; 
+    };   
     lar_solver ls;
     unsigned a = ls.add_var(0, false);
     unsigned b = ls.add_var(1, false);
@@ -2799,34 +2801,34 @@ void test_bound_propagation_one_small_samples() {
     test_bound_propagation_one_small_sample1();
     /*
       (>= x_46 0.0)
-(<= x_29 0.0)
-(not (<= x_68 0.0))
-(<= (+ (* (/ 1001.0 1998.0) x_10) (* (- 1.0) x_151) x_68) (- (/ 1001.0 999.0)))
-(<= (+ (* (/ 1001.0 999.0) x_9)
-       (* (- 1.0) x_152)
-       (* (/ 1001.0 999.0) x_151)
-       (* (/ 1001.0 999.0) x_68))
-    (- (/ 1502501.0 999000.0)))
-(not (<= (+ (* (/ 999.0 2.0) x_10) (* (- 1.0) x_152) (* (- (/ 999.0 2.0)) x_151))
-    (/ 1001.0 2.0)))
-(not (<= x_153 0.0))z
-(>= (+ x_9 (* (- (/ 1001.0 999.0)) x_10) (* (- 1.0) x_153) (* (- 1.0) x_68))
-    (/ 5003.0 1998.0))
---> (not (<= (+ x_10 x_46 (* (- 1.0) x_29)) 0.0))
+      (<= x_29 0.0)
+      (not (<= x_68 0.0))
+      (<= (+ (* (/ 1001.0 1998.0) x_10) (* (- 1.0) x_151) x_68) (- (/ 1001.0 999.0)))
+      (<= (+ (* (/ 1001.0 999.0) x_9)
+      (* (- 1.0) x_152)
+      (* (/ 1001.0 999.0) x_151)
+      (* (/ 1001.0 999.0) x_68))
+      (- (/ 1502501.0 999000.0)))
+      (not (<= (+ (* (/ 999.0 2.0) x_10) (* (- 1.0) x_152) (* (- (/ 999.0 2.0)) x_151))
+      (/ 1001.0 2.0)))
+      (not (<= x_153 0.0))z
+      (>= (+ x_9 (* (- (/ 1001.0 999.0)) x_10) (* (- 1.0) x_153) (* (- 1.0) x_68))
+      (/ 5003.0 1998.0))
+      --> (not (<= (+ x_10 x_46 (* (- 1.0) x_29)) 0.0))
 
-and 
+      and 
 
-(<= (+ a (* (- 1.0) b)) 0.0)
-(<= (+ b (* (- 1.0) x_13)) 0.0)
---> (<= (+ a (* (- 1.0) x_13)) 0.0)
+      (<= (+ a (* (- 1.0) b)) 0.0)
+      (<= (+ b (* (- 1.0) x_13)) 0.0)
+      --> (<= (+ a (* (- 1.0) x_13)) 0.0)
 
-In the first case, there typically are no atomic formulas for bounding x_10. So there is never some
-basic lemma of the form (>= x46 0), (<= x29 0), (>= x10 0) -> (not (<= (+ x10 x46 (- x29)) 0)).
-Instead the bound on x_10 falls out from a bigger blob of constraints. 
+      In the first case, there typically are no atomic formulas for bounding x_10. So there is never some
+      basic lemma of the form (>= x46 0), (<= x29 0), (>= x10 0) -> (not (<= (+ x10 x46 (- x29)) 0)).
+      Instead the bound on x_10 falls out from a bigger blob of constraints. 
 
-In the second case, the inequality on (<= x19 x13) is obtained from a triangle inequality (<= x19 x9) (<= x9 x13).
-If x9 becomes basic variable, then it is likely the old solver ends up with a row that implies (<= x19 x13).
-     */
+      In the second case, the inequality on (<= x19 x13) is obtained from a triangle inequality (<= x19 x9) (<= x9 x13).
+      If x9 becomes basic variable, then it is likely the old solver ends up with a row that implies (<= x19 x13).
+    */
 }
 void test_bound_propagation_one_row() {
     lar_solver ls;
@@ -3067,11 +3069,36 @@ void test_rationals() {
     std::cout << T_to_string(r) << std::endl;
 }
 
-void test_lp_local(int argn, char**argv) {
-        std::cout << "resize\n";
-    vector<mpq> r;
-    r.resize(1);
+void test_disjoint_intervals() {
+    disjoint_intervals d;
+    d.print(std::cout);
+	d.intersect_with_interval(-100, 100);
+	d.print(std::cout);
+    std::cout << "d has pos_inf = " << d.has_pos_inf() << std::endl;
+    d.intersect_with_lower_bound(-5);
+	std::cout << "insert lower -5\n";
+	d.print(std::cout);
+	std::cout << "insert upper 5\n";
+	d.intersect_with_upper_bound(5);
+	d.print(std::cout);
+	std::cout << "insert lower bound -4\n";
+	d.intersect_with_lower_bound(-4);
 
+    d.print(std::cout);
+	std::cout << "insert upper bound 3\n";
+
+	d.intersect_with_upper_bound(3);
+	d.print(std::cout);
+	d.intersect_with_lower_bound(7);
+	d.print(std::cout);
+
+    std::cout << "d has neg_inf = " << d.has_neg_inf() << std::endl;
+    std::cout << "d has pos_inf = " << d.has_pos_inf() << std::endl;
+    lp_assert(d.is_correct());
+}
+
+void test_lp_local(int argn, char**argv) {
+    
     // initialize_util_module();
     // initialize_numerics_module();
     int ret;
@@ -3086,6 +3113,10 @@ void test_lp_local(int argn, char**argv) {
 
     args_parser.print();
 
+    if (args_parser.option_is_used("-dji")) {
+        test_disjoint_intervals();
+        return finalize(0);
+    }
     if (args_parser.option_is_used("--test_mpq")) {
         test_rationals();
         return finalize(0);
@@ -3096,7 +3127,7 @@ void test_lp_local(int argn, char**argv) {
         return finalize(0);
     }
 
-  if (args_parser.option_is_used("--test_mpq_np_plus")) {
+    if (args_parser.option_is_used("--test_mpq_np_plus")) {
         test_rationals_no_numeric_pairs_plus();
         return finalize(0);
     }

@@ -54,6 +54,11 @@ class lar_solver : public column_namer {
     vector<unsigned> m_columns_to_ext_vars_or_term_indices;
     stacked_vector<ul_pair> m_columns_to_ul_pairs;
     vector<lar_base_constraint*> m_constraints;
+public :
+    const vector<lar_base_constraint*>& constraints() const {
+        return m_constraints;
+    }
+private:
     stacked_value<unsigned> m_constraint_count;
     // the set of column indices j such that bounds have changed for j
     int_set m_columns_with_changed_bound;
@@ -186,12 +191,12 @@ public:
     bool implied_bound_is_correctly_explained(implied_bound const & be, const vector<std::pair<mpq, unsigned>> & explanation) const;
     
     void analyze_new_bounds_on_row(
-                                   unsigned row_index,
-                                   bound_propagator & bp);
+        unsigned row_index,
+        bound_propagator & bp);
 
     void analyze_new_bounds_on_row_tableau(
-                                           unsigned row_index,
-                                           bound_propagator & bp
+        unsigned row_index,
+        bound_propagator & bp
                                            );
 
     
@@ -277,7 +282,7 @@ public:
 
 
     void substitute_terms_in_linear_expression( const vector<std::pair<mpq, var_index>>& left_side_with_terms,
-                          vector<std::pair<mpq, var_index>> &left_side, mpq & free_coeff) const;
+                                                vector<std::pair<mpq, var_index>> &left_side, mpq & free_coeff) const;
 
 
     void detect_rows_of_bound_change_column_for_nbasic_column(unsigned j);
@@ -378,9 +383,9 @@ public:
     void get_infeasibility_explanation(vector<std::pair<mpq, constraint_index>> & explanation) const;
 
     void get_infeasibility_explanation_for_inf_sign(
-                                                    vector<std::pair<mpq, constraint_index>> & explanation,
-                                                    const vector<std::pair<mpq, unsigned>> & inf_row,
-                                                    int inf_sign) const;
+        vector<std::pair<mpq, constraint_index>> & explanation,
+        const vector<std::pair<mpq, unsigned>> & inf_row,
+        int inf_sign) const;
 
 
 
@@ -433,7 +438,7 @@ public:
         return !column_is_int(j);
     }	
 	
-	bool model_is_int_feasible() const;
+    bool model_is_int_feasible() const;
 
     const impq & column_low_bound(unsigned j) const {
         return m_mpq_lar_core_solver.low_bound(j);
@@ -490,16 +495,16 @@ public:
     }
 
     bool inf_int_set_is_correct_for_column(unsigned j) const {
-            if (m_inf_int_set.contains(j) != (column_is_int(j) && (!column_value_is_integer(j)))) {
-                TRACE("arith_int",
-                      tout << "j= " << j <<
-                      " inf_int_set().contains(j) = " << m_inf_int_set.contains(j) <<
-                      ", column_is_int(j) = "   << column_is_int(j) <<
-                      "\n column_value_is_integer(j) = " << column_value_is_integer(j) <<
-                      ", val = " << get_column_value(j) << std::endl;); 
-                return false;
-            }
-            return true;
+        if (m_inf_int_set.contains(j) != (column_is_int(j) && (!column_value_is_integer(j)))) {
+            TRACE("arith_int",
+                  tout << "j= " << j <<
+                  " inf_int_set().contains(j) = " << m_inf_int_set.contains(j) <<
+                  ", column_is_int(j) = "   << column_is_int(j) <<
+                  "\n column_value_is_integer(j) = " << column_value_is_integer(j) <<
+                  ", val = " << get_column_value(j) << std::endl;); 
+            return false;
+        }
+        return true;
     }
     
     bool inf_int_set_is_correct() const {
@@ -510,10 +515,7 @@ public:
                 return false;
         }
         return true;
-}
-
-    
-    
+    }
     bool has_int_var() const;
     void call_assignment_tracker(unsigned j) {
         if (!var_is_int(j)) {
@@ -527,5 +529,6 @@ public:
     }
 
     lar_core_solver & get_core_solver() { return m_mpq_lar_core_solver; }
+    
 };
 }
