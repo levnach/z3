@@ -6,6 +6,7 @@
 #pragma once
 // this class implements a map with some stack functionality
 #include <unordered_map>
+#include <unordered_set>
 #include <set>
 #include <stack>
 namespace lp {
