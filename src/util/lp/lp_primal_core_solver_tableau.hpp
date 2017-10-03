@@ -163,24 +163,33 @@ unsigned lp_primal_core_solver<T, X>::solve_with_tableau() {
             break; // do nothing
         }
     } while (this->get_status() != lp_status::FLOATING_POINT_ERROR
-             &&
+		&&
              this->get_status() != lp_status::UNBOUNDED
-             &&
+		&&
              this->get_status() != lp_status::OPTIMAL
-             &&
+		&&
              this->get_status() != lp_status::INFEASIBLE
-             &&
-             this->iters_with_no_cost_growing() <= this->m_settings.max_number_of_iterations_with_no_improvements
-             &&
-             this->total_iterations() <= this->m_settings.max_total_number_of_iterations
-             &&
-             !(this->current_x_is_feasible() && this->m_look_for_feasible_solution_only));
+		&&
+		this->iters_with_no_cost_growing() <= this->m_settings.max_number_of_iterations_with_no_improvements
+		&&
+		this->total_iterations() <= this->m_settings.max_total_number_of_iterations
+		&&
+		!(this->current_x_is_feasible() && this->m_look_for_feasible_solution_only)
+		&&
+		m_settings.get_cancel_flag() == false);
+	
+	if (m_settings.get_cancel_flag()) {
+        this->set_status(lp_status::CANCELLED);
+	}
 
-    lp_assert(this->get_status() == lp_status::FLOATING_POINT_ERROR
-                ||
-                this->current_x_is_feasible() == false
-                ||
-                this->calc_current_x_is_feasible_include_non_basis());
+	lp_assert(
+            this->get_status() == lp_status::FLOATING_POINT_ERROR
+            ||
+            this->get_status() == lp_status::CANCELLED
+            ||
+            this->current_x_is_feasible() == false
+            ||
+            this->calc_current_x_is_feasible_include_non_basis());
     return this->total_iterations();
 
 }
