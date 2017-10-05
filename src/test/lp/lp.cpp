@@ -3181,7 +3181,8 @@ void test_cut_solver() {
     for (int i = 0; i  < 7; i++)
         cs.m_maps.push_back(std::map<rational, char>());
 
-    cs.add_ineq(term);
+    vector<vector<rational>> m_vecs;
+    m_vecs.push_back(term);
 }
 
 void test_lp_local(int argn, char**argv) {
