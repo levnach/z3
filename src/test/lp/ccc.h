@@ -7,9 +7,9 @@
 #include "util/rational.h"
 namespace lp {
 struct ccc {
-    vector<vector<std::pair<rational, unsigned>>> m_ineqs;
+    vector<vector<rational>> m_ineqs;
     vector<std::map<rational, char>> m_intdomains;
-    void add_ineq(vector<std::pair<rational, var_index>> & lhs) {
+    void add_ineq(vector<rational> & lhs) {
         for (auto & p : lhs) {
             add_var();
         }

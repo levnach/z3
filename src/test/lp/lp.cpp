@@ -3177,12 +3177,12 @@ void test_vector() {
 }
 void test_cut_solver() {
     ccc cs;
-    vector<std::pair<mpq, unsigned>> term;
-    term.push_back(std::make_pair(2, 0));
-    term.push_back(std::make_pair(-3, 0));
+    vector<rational> term;
+    term.push_back(rational(2));
+    term.push_back(rational(2));
     cs.add_ineq(term);
     cs.add_ineq(term);
-    term.push_back(std::make_pair(2, 0));
+    term.push_back(rational(2));
     cs.add_ineq(term);
 }
 
