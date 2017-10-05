@@ -3179,7 +3179,7 @@ void test_cut_solver() {
     ccc cs;
     vector<rational> term;
     for (int i = 0; i  < 7; i++)
-        cs.add_var();
+        cs.m_intdomains.push_back(std::map<rational, char>());
 
     cs.add_ineq(term);
 }

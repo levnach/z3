@@ -12,10 +12,5 @@ struct ccc {
     void add_ineq(vector<rational> & lhs) {
         m_ineqs.push_back(lhs);
     }
-        
-    void add_var() {
-        std::map<rational, char> v;
-        m_intdomains.push_back(v);
-    }
 };
 }
