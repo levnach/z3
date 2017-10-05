@@ -3176,9 +3176,9 @@ void test_vector() {
     }
 }
 void test_cut_solver() {
-    ccc cs;
-    for (int i = 0; i  < 7; i++)
-        cs.m_maps.push_back(std::map<rational, char>());
+    vector<std::map<rational, char>> m_maps;
+    for (int i = 0; i  < 35; i++)
+        m_maps.push_back(std::map<rational, char>());
 
     vector<vector<rational>> m_vecs;
     vector<rational> term;

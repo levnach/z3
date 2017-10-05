@@ -7,6 +7,5 @@
 #include "util/rational.h"
 namespace lp {
 struct ccc {
-    vector<std::map<rational, char>> m_maps;
 };
 }
