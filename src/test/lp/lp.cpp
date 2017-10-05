@@ -3182,8 +3182,6 @@ void test_cut_solver() {
         cs.add_var();
 
     term.push_back(rational(2));
-    term.push_back(rational(2));
-    cs.add_ineq(term);
     cs.add_ineq(term);
 }
 
