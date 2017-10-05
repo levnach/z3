@@ -10,9 +10,6 @@ struct ccc {
     vector<vector<rational>> m_ineqs;
     vector<std::map<rational, char>> m_intdomains;
     void add_ineq(vector<rational> & lhs) {
-        for (auto & p : lhs) {
-            add_var();
-        }
         m_ineqs.push_back(lhs);
     }
         

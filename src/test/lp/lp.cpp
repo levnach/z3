@@ -3178,6 +3178,9 @@ void test_vector() {
 void test_cut_solver() {
     ccc cs;
     vector<rational> term;
+    for (int i = 0;i  < 7; i++)
+        cs.add_var();
+
     term.push_back(rational(2));
     term.push_back(rational(2));
     cs.add_ineq(term);
