@@ -3168,6 +3168,7 @@ void test_vector() {
     vector<std::map<rational, int>> maps;
     for (int i = 0; i  < 4; i++)
         maps.push_back(std::map<rational, int>());
+	maps[0][mpq(1)] = 0;
 }
 
 void test_lp_local(int argn, char**argv) {
