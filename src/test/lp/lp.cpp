@@ -3178,14 +3178,11 @@ void test_vector() {
 void test_cut_solver() {
     ccc cs;
     vector<std::pair<mpq, unsigned>> term;
-    unsigned x = 0;
-    unsigned y = 1;
-    unsigned z = 2;
-    term.push_back(std::make_pair(2, x));
-    term.push_back(std::make_pair(-3, y));
+    term.push_back(std::make_pair(2, 0));
+    term.push_back(std::make_pair(-3, 0));
     cs.add_ineq(term);
     cs.add_ineq(term);
-    term.push_back(std::make_pair(2, z));
+    term.push_back(std::make_pair(2, 0));
     cs.add_ineq(term);
 }
 
