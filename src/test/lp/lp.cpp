@@ -3177,11 +3177,11 @@ void test_vector() {
 }
 void test_cut_solver() {
     ccc cs;
-    vector<rational> term;
     for (int i = 0; i  < 7; i++)
         cs.m_maps.push_back(std::map<rational, char>());
 
     vector<vector<rational>> m_vecs;
+    vector<rational> term;
     m_vecs.push_back(term);
 }
 
