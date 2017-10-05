@@ -3165,12 +3165,11 @@ void test_integer_domain() {
 }
 
 void test_vector() {
-    vector<std::map<rational, char>> maps;
+    vector<std::map<rational, int>> maps;
     for (int i = 0; i  < 17; i++)
-        maps.push_back(std::map<rational, char>());
+        maps.push_back(std::map<rational, int>());
 
     vector<vector<rational>> vecs;
-    vecs.push_back(vector<rational>());
 }
 
 void test_lp_local(int argn, char**argv) {
