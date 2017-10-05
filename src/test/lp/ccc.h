@@ -10,12 +10,10 @@ struct ccc {
     vector<vector<std::pair<rational, unsigned>>> m_ineqs;
     vector<std::map<rational, char>> m_intdomains;
     void add_ineq(vector<std::pair<rational, var_index>> & lhs) {
-        vector<std::pair<rational, var_index>>  local_lhs;
         for (auto & p : lhs) {
-            local_lhs.push_back(std::make_pair(p.first, 0));
             add_var();
         }
-        m_ineqs.push_back(local_lhs);
+        m_ineqs.push_back(lhs);
     }
         
     void add_var() {
