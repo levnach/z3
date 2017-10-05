@@ -3165,24 +3165,12 @@ void test_integer_domain() {
 }
 
 void test_vector() {
-    std::cout << "test_vector\n";
-    struct lf {
-        integer_domain<mpq> m_m;
-    };
-    vector<lf> vec;
-    for (int i = 0; i < 20; i++) {
-        lf  m;
-        vec.push_back(m);
-    }
-}
-void test_cut_solver() {
-    vector<std::map<rational, char>> m_maps;
-    for (int i = 0; i  < 35; i++)
-        m_maps.push_back(std::map<rational, char>());
+    vector<std::map<rational, char>> maps;
+    for (int i = 0; i  < 17; i++)
+        maps.push_back(std::map<rational, char>());
 
-    vector<vector<rational>> m_vecs;
-    vector<rational> term;
-    m_vecs.push_back(term);
+    vector<vector<rational>> vecs;
+    vecs.push_back(vector<rational>());
 }
 
 void test_lp_local(int argn, char**argv) {
@@ -3203,10 +3191,6 @@ void test_lp_local(int argn, char**argv) {
 
     if (args_parser.option_is_used("-dji")) {
         test_integer_domain();
-        return finalize(0);
-    }
-    if (args_parser.option_is_used("-cs")) {
-        test_cut_solver();
         return finalize(0);
     }
     if (args_parser.option_is_used("-tv")) {
