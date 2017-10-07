@@ -37,6 +37,7 @@ public:
     static bool is_zero(unsigned v) { return v == 0; }
     static double const get_double(unsigned const & d) { return d; }
     static bool is_int(unsigned) {return true;}
+    static bool is_pos(unsigned) {return true;}
 };
 
 template <>  class numeric_traits<int> {
@@ -48,6 +49,8 @@ public:
     static double const get_double(int const & d) { return d; }
     static bool is_int(int) {return true;}
     static bool is_pos(int j) {return j > 0;}
+    static int ceil_ratio(int a, int b) { return static_cast<int>(ceil(mpq(a, b)).get_int32());}
+    static int floor_ratio(int a, int b) { return static_cast<int>(floor(mpq(a, b)).get_int32());}
 };
 
 
@@ -79,6 +82,13 @@ template <>  class numeric_traits<double> {
         static bool is_pos(const rational & d) {return d.is_pos();}
         static bool is_neg(const rational & d) {return d.is_neg();}
         static bool is_int(const rational & d) {return d.is_int();}
+        static mpq ceil_ratio(const mpq & a, const mpq & b) {
+            return ceil(a / b);
+        }
+        static mpq floor_ratio(const mpq & a, const mpq & b) {
+            return floor(a / b);
+        }
+
     };
 #endif
 
