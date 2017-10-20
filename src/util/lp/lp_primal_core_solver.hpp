@@ -10,7 +10,7 @@
 #include <string>
 #include "util/lp/lp_primal_core_solver.h"
 namespace lp {
-// This core solver solves (Ax=b, low_bound_values \leq x \leq upper_bound_values, maximize costs*x )
+// This core solver solves (Ax=b, lower_bound_values \leq x \leq upper_bound_values, maximize costs*x )
 // The right side b is given implicitly by x and the basis
 
 template <typename T, typename X>
@@ -69,8 +69,8 @@ bool lp_primal_core_solver<T, X>::column_is_benefitial_for_entering_on_breakpoin
     bool ret;
     const T & d = this->m_d[j];
     switch (this->m_column_types[j]) {
-    case column_type::low_bound:
-        lp_assert(this->x_is_at_low_bound(j));
+    case column_type::lower_bound:
+        lp_assert(this->x_is_at_lower_bound(j));
         ret = d < -m_epsilon_of_reduced_cost;
         break;
     case column_type::upper_bound:
@@ -82,9 +82,9 @@ bool lp_primal_core_solver<T, X>::column_is_benefitial_for_entering_on_breakpoin
         break;
     case column_type::boxed:
         {
-            bool low_bound = this->x_is_at_low_bound(j);
-            lp_assert(low_bound || this->x_is_at_upper_bound(j));
-            ret = (low_bound && d < -m_epsilon_of_reduced_cost) || ((!low_bound) && d > m_epsilon_of_reduced_cost);
+            bool lower_bound = this->x_is_at_lower_bound(j);
+            lp_assert(lower_bound || this->x_is_at_upper_bound(j));
+            ret = (lower_bound && d < -m_epsilon_of_reduced_cost) || ((!lower_bound) && d > m_epsilon_of_reduced_cost);
         }
         break;
     case column_type::free_column:
@@ -110,7 +110,7 @@ bool lp_primal_core_solver<T, X>::column_is_benefitial_for_entering_basis(unsign
         if (dj > m_epsilon_of_reduced_cost || dj < -m_epsilon_of_reduced_cost)
             return true;
         break;
-    case column_type::low_bound:
+    case column_type::lower_bound:
         if (dj > m_epsilon_of_reduced_cost) return true;;
         break;
     case column_type::upper_bound:
@@ -122,7 +122,7 @@ bool lp_primal_core_solver<T, X>::column_is_benefitial_for_entering_basis(unsign
                 return true;
             break;
         } else if (dj < - m_epsilon_of_reduced_cost) {
-            if (this->m_x[j] > this->m_low_bounds[j] + this->bound_span(j)/2)
+            if (this->m_x[j] > this->m_lower_bounds[j] + this->bound_span(j)/2)
                 return true;
         }
         break;
@@ -144,9 +144,9 @@ bool lp_primal_core_solver<T, X>::column_is_benefitial_for_entering_basis_precis
         if (!is_zero(dj))
             return true;
         break;
-    case column_type::low_bound:
+    case column_type::lower_bound:
         if (dj > zero_of_type<T>()) return true;
-        if (dj < 0 && this->m_x[j] > this->m_low_bounds[j]){
+        if (dj < 0 && this->m_x[j] > this->m_lower_bounds[j]){
             return true;
         }
         break;
@@ -162,7 +162,7 @@ bool lp_primal_core_solver<T, X>::column_is_benefitial_for_entering_basis_precis
                 return true;
             break;
         } else if (dj < zero_of_type<T>()) {
-            if (this->m_x[j] > this->m_low_bounds[j])
+            if (this->m_x[j] > this->m_lower_bounds[j])
                 return true;
         }
         break;
@@ -349,7 +349,7 @@ template <typename T, typename X> bool lp_primal_core_solver<T, X>::try_jump_to_
                     return true;
                 }
             } else { // m_sign_of_entering_delta == -1
-                t = this->m_x[entering] - this->m_low_bounds[entering];
+                t = this->m_x[entering] - this->m_lower_bounds[entering];
                 if (unlimited || t <= theta) {
                     lp_assert(t >= zero_of_type<X>());
                     return true;
@@ -365,9 +365,9 @@ template <typename T, typename X> bool lp_primal_core_solver<T, X>::try_jump_to_
             }
         }
         return false;
-    case column_type::low_bound:
+    case column_type::lower_bound:
         if (m_sign_of_entering_delta < 0) {
-                t = this->m_x[entering] - this->m_low_bounds[entering];
+                t = this->m_x[entering] - this->m_lower_bounds[entering];
                 if (unlimited || t <= theta) {
                     lp_assert(t >= zero_of_type<X>());
                     return true;
@@ -389,7 +389,7 @@ try_jump_to_another_bound_on_entering_unlimited(unsigned entering, X & t ) {
         return true;
     }
      // m_sign_of_entering_delta == -1
-    t = this->m_x[entering] - this->m_low_bounds[entering];
+    t = this->m_x[entering] - this->m_lower_bounds[entering];
     return true;
 }
 
@@ -474,7 +474,7 @@ template <typename T, typename X>    int lp_primal_core_solver<T, X>::find_leavi
 
 
 // m is the multiplier. updating t in a way that holds the following
-// x[j] + t * m >= m_low_bounds[j] ( if m < 0 )
+// x[j] + t * m >= m_lower_bounds[j] ( if m < 0 )
 // or
 // x[j] + t * m <= this->m_upper_bounds[j] ( if m > 0)
 template <typename T, typename X> void
@@ -486,7 +486,7 @@ lp_primal_core_solver<T, X>::get_bound_on_variable_and_update_leaving_precisely(
             return;
         default:break;
         }
-        X tt = - (this->m_low_bounds[j] - this->m_x[j]) / m;
+        X tt = - (this->m_lower_bounds[j] - this->m_x[j]) / m;
         if (numeric_traits<X>::is_neg(tt))
             tt = zero_of_type<X>();
         if (leavings.size() == 0 || tt < t || (tt == t && m > abs_of_d_of_leaving)) {
@@ -501,7 +501,7 @@ lp_primal_core_solver<T, X>::get_bound_on_variable_and_update_leaving_precisely(
     } else if (m < 0){
         switch (this->m_column_types[j]) { // check that j has an upper bound
         case column_type::free_column:
-        case column_type::low_bound:
+        case column_type::lower_bound:
             return;
         default:break;
         }
@@ -543,7 +543,7 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::check_the
 }
 
 template <typename T, typename X>    void lp_primal_core_solver<T, X>::check_bound(unsigned i) {
-    lp_assert (!(this->column_has_low_bound(i) && (numeric_traits<T>::zero() > this->m_x[i])));
+    lp_assert (!(this->column_has_lower_bound(i) && (numeric_traits<T>::zero() > this->m_x[i])));
     lp_assert (!(this->column_has_upper_bound(i) && (this->m_upper_bounds[i] < this->m_x[i])));
 }
 
@@ -1121,7 +1121,7 @@ lp_primal_core_solver<T, X>::get_infeasibility_cost_for_column(unsigned j) const
             ret = numeric_traits<T>::zero();
         }
         break;
-    case column_type::low_bound:
+    case column_type::lower_bound:
         if (this->x_below_low_bound(j)) {
             ret = -1;
         } else {
@@ -1175,7 +1175,7 @@ lp_primal_core_solver<T, X>::init_infeasibility_cost_for_column(unsigned j) {
             this->m_costs[j] = numeric_traits<T>::zero();
         }
         break;
-    case column_type::low_bound:
+    case column_type::lower_bound:
         if (this->x_below_low_bound(j)) {
             this->m_costs[j] = -1;
         } else {
@@ -1213,13 +1213,13 @@ template <typename T, typename X> void lp_primal_core_solver<T, X>::print_column
     switch (this->m_column_type[j]) {
     case column_type::fixed:
     case column_type::boxed:
-        out <<  "( " << this->m_low_bounds[j] << " " << this->m_x[j] << " " << this->m_upper_bounds[j] << ")" << std::endl;
+        out <<  "( " << this->m_lower_bounds[j] << " " << this->m_x[j] << " " << this->m_upper_bounds[j] << ")" << std::endl;
         break;
     case column_type::upper_bound:
         out <<  "( _"  << this->m_x[j] << " " << this->m_upper_bounds[j] << ")" << std::endl;
         break;
-    case column_type::low_bound:
-        out <<  "( " << this->m_low_bounds[j] << " " << this->m_x[j] << " " << "_ )" << std::endl;
+    case column_type::lower_bound:
+        out <<  "( " << this->m_lower_bounds[j] << " " << this->m_x[j] << " " << "_ )" << std::endl;
         break;
     case column_type::free_column:
         out << "( _" << this->m_x[j] << "_)" << std::endl;
@@ -1328,14 +1328,14 @@ template <typename T, typename X>    void lp_primal_core_solver<T, X>::try_add_b
     const X & x = this->m_x[j];
     switch (this->m_column_types[j]) {
     case column_type::fixed:
-        try_add_breakpoint(j, x, d, fixed_break, this->m_low_bounds[j]);
+        try_add_breakpoint(j, x, d, fixed_break, this->m_lower_bounds[j]);
         break;
     case column_type::boxed:
-        try_add_breakpoint(j, x, d, low_break, this->m_low_bounds[j]);
+        try_add_breakpoint(j, x, d, low_break, this->m_lower_bounds[j]);
         try_add_breakpoint(j, x, d, upper_break, this->m_upper_bounds[j]);
         break;
-    case column_type::low_bound:
-        try_add_breakpoint(j, x, d, low_break, this->m_low_bounds[j]);
+    case column_type::lower_bound:
+        try_add_breakpoint(j, x, d, low_break, this->m_lower_bounds[j]);
         break;
     case column_type::upper_bound:
         try_add_breakpoint(j, x, d, upper_break, this->m_upper_bounds[j]);
@@ -1355,10 +1355,10 @@ template <typename T, typename X> void lp_primal_core_solver<T, X>::print_bound_
     switch (this->m_column_types[j]) {
     case column_type::fixed:
     case column_type::boxed:
-        out << "[" << this->m_low_bounds[j] << "," << this->m_upper_bounds[j] << "]" << std::endl;
+        out << "[" << this->m_lower_bounds[j] << "," << this->m_upper_bounds[j] << "]" << std::endl;
         break;
-    case column_type::low_bound:
-        out << "[" << this->m_low_bounds[j] << ", inf" << std::endl;
+    case column_type::lower_bound:
+        out << "[" << this->m_lower_bounds[j] << ", inf" << std::endl;
         break;
     case column_type::upper_bound:
         out << "inf ," << this->m_upper_bounds[j] << "]" << std::endl;

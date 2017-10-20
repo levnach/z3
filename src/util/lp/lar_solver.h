@@ -162,7 +162,7 @@ public:
     void update_upper_bound_column_type_and_bound(var_index j, lconstraint_kind kind, const mpq & right_side, constraint_index ci);
     
     void update_boxed_column_type_and_bound(var_index j, lconstraint_kind kind, const mpq & right_side, constraint_index ci);
-    void update_low_bound_column_type_and_bound(var_index j, lconstraint_kind kind, const mpq & right_side, constraint_index ci);
+    void update_lower_bound_column_type_and_bound(var_index j, lconstraint_kind kind, const mpq & right_side, constraint_index ci);
 
     void update_fixed_column_type_and_bound(var_index j, lconstraint_kind kind, const mpq & right_side, constraint_index ci);
     //end of init region
@@ -277,7 +277,7 @@ public:
 
     void set_upper_bound_witness(var_index j, constraint_index ci);
 
-    void set_low_bound_witness(var_index j, constraint_index ci);
+    void set_lower_bound_witness(var_index j, constraint_index ci);
 
 
     void substitute_terms_in_linear_expression( const vector<std::pair<mpq, var_index>>& left_side_with_terms,
@@ -439,8 +439,8 @@ public:
 	
     bool model_is_int_feasible() const;
 
-    const impq & column_low_bound(unsigned j) const {
-        return m_mpq_lar_core_solver.low_bound(j);
+    const impq & column_lower_bound(unsigned j) const {
+        return m_mpq_lar_core_solver.lower_bound(j);
     }
 
     const impq & column_upper_bound(unsigned j) const {
@@ -453,7 +453,7 @@ public:
 
     void get_bound_constraint_witnesses_for_column(unsigned j, constraint_index & lc, constraint_index & uc) const {
         const ul_pair & ul = m_columns_to_ul_pairs[j];
-        lc = ul.low_bound_witness();
+        lc = ul.lower_bound_witness();
         uc = ul.upper_bound_witness();
     }
     indexed_vector<mpq> & get_column_in_lu_mode(unsigned j) {
@@ -476,8 +476,8 @@ public:
         return m_columns_to_ul_pairs()[j].upper_bound_witness();
     }
 
-    constraint_index get_column_low_bound_witness(unsigned j) const {
-        return m_columns_to_ul_pairs()[j].low_bound_witness();
+    constraint_index get_column_lower_bound_witness(unsigned j) const {
+        return m_columns_to_ul_pairs()[j].lower_bound_witness();
     }
 
     void subs_term_columns(lar_term& t) {
