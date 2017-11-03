@@ -463,7 +463,7 @@ public:
         return m_column_buffer;
     }
     
-    bool bound_is_integer_if_needed(unsigned j, const mpq & right_side) const;
+    bool bound_is_integer_for_integer_column(unsigned j, const mpq & right_side) const;
     linear_combination_iterator<mpq> * get_iterator_on_row(unsigned i) {
         return m_mpq_lar_core_solver.m_r_solver.get_iterator_on_row(i);
     }
@@ -529,5 +529,6 @@ public:
 
     lar_core_solver & get_core_solver() { return m_mpq_lar_core_solver; }
     bool column_corresponds_to_term(unsigned) const;
+    void catch_up_in_updating_int_solver();
 };
 }
