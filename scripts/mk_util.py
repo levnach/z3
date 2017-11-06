@@ -72,6 +72,7 @@ IS_FREEBSD=False
 IS_OPENBSD=False
 IS_CYGWIN=False
 IS_CYGWIN_MINGW=False
+IS_MSYS2=False
 VERBOSE=True
 DEBUG_MODE=False
 SHOW_CPPS = True
@@ -104,6 +105,8 @@ GIT_DESCRIBE=False
 SLOW_OPTIMIZE=False
 USE_OMP=True
 LOG_SYNC=False
+GUARD_CF=False
+ALWAYS_DYNAMIC_BASE=False
 
 FPMATH="Default"
 FPMATH_FLAGS="-mfpmath=sse -msse -msse2"
@@ -149,6 +152,9 @@ def is_cygwin():
 
 def is_cygwin_mingw():
     return IS_CYGWIN_MINGW
+
+def is_msys2():
+    return IS_MSYS2
 
 def norm_path(p):
     return os.path.expanduser(os.path.normpath(p))
@@ -225,7 +231,7 @@ def rmf(fname):
 
 def exec_compiler_cmd(cmd):
     r = exec_cmd(cmd)
-    if is_windows() or is_cygwin_mingw():
+    if is_windows() or is_cygwin_mingw() or is_cygwin() or is_msys2():
         rmf('a.exe')
     else:
         rmf('a.out')
@@ -604,6 +610,13 @@ elif os.name == 'posix':
         IS_CYGWIN=True
         if (CC != None and "mingw" in CC):
             IS_CYGWIN_MINGW=True
+    elif os.uname()[0].startswith('MSYS_NT') or os.uname()[0].startswith('MINGW'):
+        IS_MSYS2=True
+        if os.uname()[4] == 'x86_64':
+            LINUX_X64=True
+        else:
+            LINUX_X64=False
+            
 
 def display_help(exit_code):
     print("mk_make.py: Z3 Makefile generator\n")
@@ -623,13 +636,13 @@ def display_help(exit_code):
     print("  -d, --debug                   compile Z3 in debug mode.")
     print("  -t, --trace                   enable tracing in release mode.")
     if IS_WINDOWS:
+        print("  --guardcf                     enable Control Flow Guard runtime checks.")
         print("  -x, --x64                     create 64 binary when using Visual Studio.")
     else:
         print("  --x86                         force 32-bit x86 build on x64 systems.")
     print("  -m, --makefiles               generate only makefiles.")
     if IS_WINDOWS:
         print("  -v, --vsproj                  generate Visual Studio Project Files.")
-    if IS_WINDOWS:
         print("  --optimize                    generate optimized code during linking.")
     print("  --dotnet                      generate .NET bindings.")
     print("  --dotnet-key=<file>           sign the .NET assembly using the private key in <file>.")
@@ -670,10 +683,11 @@ def parse_options():
     global VERBOSE, DEBUG_MODE, IS_WINDOWS, VS_X64, ONLY_MAKEFILES, SHOW_CPPS, VS_PROJ, TRACE, VS_PAR, VS_PAR_NUM
     global DOTNET_ENABLED, DOTNET_KEY_FILE, JAVA_ENABLED, ML_ENABLED, STATIC_LIB, STATIC_BIN, PREFIX, GMP, PYTHON_PACKAGE_DIR, GPROF, GIT_HASH, GIT_DESCRIBE, PYTHON_INSTALL_ENABLED, PYTHON_ENABLED
     global LINUX_X64, SLOW_OPTIMIZE, USE_OMP, LOG_SYNC
+    global GUARD_CF, ALWAYS_DYNAMIC_BASE
     try:
         options, remainder = getopt.gnu_getopt(sys.argv[1:],
                                                'b:df:sxhmcvtnp:gj',
-                                               ['build=', 'debug', 'silent', 'x64', 'help', 'makefiles', 'showcpp', 'vsproj',
+                                               ['build=', 'debug', 'silent', 'x64', 'help', 'makefiles', 'showcpp', 'vsproj', 'guardcf',
                                                 'trace', 'dotnet', 'dotnet-key=', 'staticlib', 'prefix=', 'gmp', 'java', 'parallel=', 'gprof',
                                                 'githash=', 'git-describe', 'x86', 'ml', 'optimize', 'noomp', 'pypkgdir=', 'python', 'staticbin', 'log-sync'])
     except:
@@ -742,6 +756,9 @@ def parse_options():
         elif opt in ('--python'):
             PYTHON_ENABLED = True
             PYTHON_INSTALL_ENABLED = True
+        elif opt == '--guardcf':
+            GUARD_CF = True
+            ALWAYS_DYNAMIC_BASE = True # /GUARD:CF requires /DYNAMICBASE
         else:
             print("ERROR: Invalid command line option '%s'" % opt)
             display_help(1)
@@ -1223,7 +1240,7 @@ def get_so_ext():
     sysname = os.uname()[0]
     if sysname == 'Darwin':
         return 'dylib'
-    elif sysname == 'Linux' or sysname == 'FreeBSD' or sysname == 'OpenBSD':
+    elif sysname == 'Linux' or sysname == 'FreeBSD' or sysname == 'OpenBSD' or sysname.startswith('MSYS_NT') or sysname.startswith('MINGW'):
         return 'so'
     elif sysname == 'CYGWIN':
         return 'dll'
@@ -1777,6 +1794,8 @@ class JavaDLLComponent(Component):
                 t = t.replace('PLATFORM', 'openbsd')
             elif IS_CYGWIN:
                 t = t.replace('PLATFORM', 'cygwin')
+            elif IS_MSYS2:
+                t = t.replace('PLATFORM', 'win32')
             else:
                 t = t.replace('PLATFORM', 'win32')
             out.write(t)
@@ -1869,7 +1888,6 @@ class MLComponent(Component):
     def _init_ocamlfind_paths(self):
         """
             Initialises self.destdir and self.ldconf
-
             Do not call this from the MLComponent constructor because OCAMLFIND
             has not been checked at that point
         """
@@ -1907,7 +1925,11 @@ class MLComponent(Component):
             src_dir = self.to_src_dir
             mk_dir(os.path.join(BUILD_DIR, self.sub_dir))
             api_src = get_component(API_COMPONENT).to_src_dir
-            out.write('CXXFLAGS_OCAML=$(CXXFLAGS:/GL=)\n') # remove /GL; the ocaml tools don't like it.
+            # remove /GL and -std=c++11; the ocaml tools don't like them.
+            if IS_WINDOWS:                
+                out.write('CXXFLAGS_OCAML=$(CXXFLAGS:/GL=)\n')
+            else:
+                out.write('CXXFLAGS_OCAML=$(subst -std=c++11,,$(CXXFLAGS))\n')
 
             if IS_WINDOWS:
                 prefix_lib = '-L' + os.path.abspath(BUILD_DIR).replace('\\', '\\\\')
@@ -2310,6 +2332,7 @@ def mk_config():
             'SLINK_OUT_FLAG=/Fe\n'
             'OS_DEFINES=/D _WINDOWS\n')
         extra_opt = ''
+        link_extra_opt = ''
         HAS_OMP = test_openmp('cl')
         if HAS_OMP:
             extra_opt = ' /openmp'
@@ -2319,10 +2342,14 @@ def mk_config():
             extra_opt = '%s /DZ3_LOG_SYNC' % extra_opt
         if GIT_HASH:
             extra_opt = ' %s /D Z3GITHASH=%s' % (extra_opt, GIT_HASH)
+        if GUARD_CF:
+            extra_opt = ' %s /guard:cf' % extra_opt
+            link_extra_opt = ' %s /GUARD:CF' % link_extra_opt
         if STATIC_BIN:
             static_opt = '/MT'
         else:
             static_opt = '/MD'
+        maybe_disable_dynamic_base = '/DYNAMICBASE' if ALWAYS_DYNAMIC_BASE else '/DYNAMICBASE:NO'
         if DEBUG_MODE:
             static_opt = static_opt + 'd'
             config.write(
@@ -2333,8 +2360,8 @@ def mk_config():
                 config.write(
                     'CXXFLAGS=/c /Zi /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _AMD64_ /D _DEBUG /D Z3DEBUG /D _CONSOLE /D _TRACE /D _WINDOWS /Gm- /EHsc /RTC1 /GS /fp:precise /Zc:wchar_t /Zc:forScope /Gd /analyze- %s %s\n' % (extra_opt, static_opt))
                 config.write(
-                    'LINK_EXTRA_FLAGS=/link /DEBUG /MACHINE:X64 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE /NXCOMPAT\n'
-                    'SLINK_EXTRA_FLAGS=/link /DEBUG /MACHINE:X64 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE:NO\n')
+                    'LINK_EXTRA_FLAGS=/link /DEBUG /MACHINE:X64 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE /NXCOMPAT %s\n'
+                    'SLINK_EXTRA_FLAGS=/link /DEBUG /MACHINE:X64 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 %s %s\n' % (link_extra_opt, maybe_disable_dynamic_base, link_extra_opt))
             elif VS_ARM:
                 print("ARM on VS is unsupported")
                 exit(1)
@@ -2342,8 +2369,8 @@ def mk_config():
                 config.write(
                     'CXXFLAGS=/c /Zi /nologo /W3 /WX- /Od /Oy- /D WIN32 /D _DEBUG /D Z3DEBUG /D _CONSOLE /D _TRACE /D _WINDOWS /Gm- /EHsc /RTC1 /GS /fp:precise /Zc:wchar_t /Zc:forScope /Gd /analyze- /arch:SSE2 %s %s\n' % (extra_opt, static_opt))
                 config.write(
-                    'LINK_EXTRA_FLAGS=/link /DEBUG /MACHINE:X86 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE /NXCOMPAT\n'
-                    'SLINK_EXTRA_FLAGS=/link /DEBUG /MACHINE:X86 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE:NO\n')
+                    'LINK_EXTRA_FLAGS=/link /DEBUG /MACHINE:X86 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE /NXCOMPAT %s\n'
+                    'SLINK_EXTRA_FLAGS=/link /DEBUG /MACHINE:X86 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 %s %s\n' % (link_extra_opt, maybe_disable_dynamic_base, link_extra_opt))
         else:
             # Windows Release mode
             LTCG=' /LTCG' if SLOW_OPTIMIZE else ''
@@ -2358,8 +2385,8 @@ def mk_config():
                 config.write(
                     'CXXFLAGS=/c%s /Zi /nologo /W3 /WX- /O2 /D _EXTERNAL_RELEASE /D WIN32 /D NDEBUG /D _LIB /D _WINDOWS /D _AMD64_ /D _UNICODE /D UNICODE /Gm- /EHsc /GS /fp:precise /Zc:wchar_t /Zc:forScope /Gd /TP %s %s\n' % (GL, extra_opt, static_opt))
                 config.write(
-                    'LINK_EXTRA_FLAGS=/link%s /MACHINE:X64 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608\n'
-                    'SLINK_EXTRA_FLAGS=/link%s /MACHINE:X64 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608\n' % (LTCG, LTCG))
+                    'LINK_EXTRA_FLAGS=/link%s /MACHINE:X64 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608 %s\n'
+                    'SLINK_EXTRA_FLAGS=/link%s /MACHINE:X64 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608 %s\n' % (LTCG, link_extra_opt, LTCG, link_extra_opt))
             elif VS_ARM:
                 print("ARM on VS is unsupported")
                 exit(1)
@@ -2367,8 +2394,8 @@ def mk_config():
                 config.write(
                     'CXXFLAGS=/nologo /c%s /Zi /W3 /WX- /O2 /Oy- /D _EXTERNAL_RELEASE /D WIN32 /D NDEBUG /D _CONSOLE /D _WINDOWS /D ASYNC_COMMANDS /Gm- /EHsc /GS /fp:precise /Zc:wchar_t /Zc:forScope /Gd /analyze- /arch:SSE2 %s %s\n' % (GL, extra_opt, static_opt))
                 config.write(
-                    'LINK_EXTRA_FLAGS=/link%s /DEBUG /MACHINE:X86 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE /NXCOMPAT\n'
-                    'SLINK_EXTRA_FLAGS=/link%s /DEBUG /MACHINE:X86 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE:NO\n' % (LTCG, LTCG))
+                    'LINK_EXTRA_FLAGS=/link%s /DEBUG /MACHINE:X86 /SUBSYSTEM:CONSOLE /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 /DYNAMICBASE /NXCOMPAT %s\n'
+                    'SLINK_EXTRA_FLAGS=/link%s /DEBUG /MACHINE:X86 /SUBSYSTEM:WINDOWS /INCREMENTAL:NO /STACK:8388608 /OPT:REF /OPT:ICF /TLBID:1 %s %s\n' % (LTCG, link_extra_opt, LTCG, maybe_disable_dynamic_base, link_extra_opt))
 
 
 
@@ -2431,30 +2458,30 @@ def mk_config():
         if sysname == 'Darwin':
             SO_EXT         = '.dylib'
             SLIBFLAGS      = '-dynamiclib'
-        elif sysname == 'Linux':
-            CXXFLAGS       = '%s -fno-strict-aliasing -D_LINUX_' % CXXFLAGS
+        elif sysname == 'Linux' or sysname.startswith('MSYS_NT') or sysname.startswith('MINGW'):
+            CXXFLAGS       = '%s -D_LINUX_' % CXXFLAGS
             OS_DEFINES     = '-D_LINUX_'
             SO_EXT         = '.so'
             LDFLAGS        = '%s -lrt' % LDFLAGS
             SLIBFLAGS      = '-shared'
             SLIBEXTRAFLAGS = '%s -lrt' % SLIBEXTRAFLAGS
         elif sysname == 'FreeBSD':
-            CXXFLAGS       = '%s -fno-strict-aliasing -D_FREEBSD_' % CXXFLAGS
+            CXXFLAGS       = '%s -D_FREEBSD_' % CXXFLAGS
             OS_DEFINES     = '-D_FREEBSD_'
             SO_EXT         = '.so'
             LDFLAGS        = '%s -lrt' % LDFLAGS
             SLIBFLAGS      = '-shared'
             SLIBEXTRAFLAGS = '%s -lrt' % SLIBEXTRAFLAGS
         elif sysname == 'OpenBSD':
-            CXXFLAGS       = '%s -fno-strict-aliasing -D_OPENBSD_' % CXXFLAGS
+            CXXFLAGS       = '%s -D_OPENBSD_' % CXXFLAGS
             OS_DEFINES     = '-D_OPENBSD_'
             SO_EXT         = '.so'
             SLIBFLAGS      = '-shared'
         elif sysname[:6] ==  'CYGWIN':
-            CXXFLAGS    = '%s -D_CYGWIN -fno-strict-aliasing' % CXXFLAGS
+            CXXFLAGS       = '%s -D_CYGWIN' % CXXFLAGS
             OS_DEFINES     = '-D_CYGWIN'
-            SO_EXT      = '.dll'
-            SLIBFLAGS   = '-shared'
+            SO_EXT         = '.dll'
+            SLIBFLAGS      = '-shared'
         else:
             raise MKException('Unsupported platform: %s' % sysname)
         if is64():
@@ -3035,6 +3062,7 @@ def mk_vs_proj_cl_compile(f, name, components, debug):
         else:
             f.write(';')
         f.write(get_component(dep).to_src_dir)
+    f.write(';%s\n' % os.path.join(REV_BUILD_DIR, SRC_DIR))
     f.write('</AdditionalIncludeDirectories>\n')
     f.write('    </ClCompile>\n')
 
@@ -3144,7 +3172,6 @@ class MakeRuleCmd(object):
     """
         These class methods provide a convenient way to emit frequently
         needed commands used in Makefile rules
-
         Note that several of the method are meant for use during ``make
         install`` and ``make uninstall``.  These methods correctly use
         ``$(PREFIX)`` and ``$(DESTDIR)`` and therefore are preferrable
@@ -3320,10 +3347,8 @@ def configure_file(template_file_path, output_file_path, substitutions):
         Read a template file ``template_file_path``, perform substitutions
         found in the ``substitutions`` dictionary and write the result to
         the output file ``output_file_path``.
-
         The template file should contain zero or more template strings of the
         form ``@NAME@``.
-
         The substitutions dictionary maps old strings (without the ``@``
         symbols) to their replacements.
     """

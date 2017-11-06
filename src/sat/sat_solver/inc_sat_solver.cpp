@@ -17,24 +17,24 @@ Notes:
 
 --*/
 
-#include "solver.h"
-#include "tactical.h"
-#include "sat_solver.h"
-#include "tactic2solver.h"
-#include "aig_tactic.h"
-#include "propagate_values_tactic.h"
-#include "max_bv_sharing_tactic.h"
-#include "card2bv_tactic.h"
-#include "bit_blaster_tactic.h"
-#include "simplify_tactic.h"
-#include "goal2sat.h"
-#include "ast_pp.h"
-#include "model_smt2_pp.h"
-#include "filter_model_converter.h"
-#include "bit_blaster_model_converter.h"
-#include "ast_translation.h"
-#include "ast_util.h"
-#include "propagate_values_tactic.h"
+#include "solver/solver.h"
+#include "tactic/tactical.h"
+#include "sat/sat_solver.h"
+#include "solver/tactic2solver.h"
+#include "tactic/aig/aig_tactic.h"
+#include "tactic/core/propagate_values_tactic.h"
+#include "tactic/bv/max_bv_sharing_tactic.h"
+#include "tactic/arith/card2bv_tactic.h"
+#include "tactic/bv/bit_blaster_tactic.h"
+#include "tactic/core/simplify_tactic.h"
+#include "sat/tactic/goal2sat.h"
+#include "ast/ast_pp.h"
+#include "model/model_smt2_pp.h"
+#include "tactic/filter_model_converter.h"
+#include "tactic/bv/bit_blaster_model_converter.h"
+#include "ast/ast_translation.h"
+#include "ast/ast_util.h"
+#include "tactic/core/propagate_values_tactic.h"
 
 // incremental SAT solver.
 class inc_sat_solver : public solver {
@@ -69,7 +69,7 @@ class inc_sat_solver : public solver {
 public:
     inc_sat_solver(ast_manager& m, params_ref const& p):
         m(m), m_solver(p, m.limit(), 0),
-        m_params(p), m_optimize_model(false),
+        m_optimize_model(false),
         m_fmls(m),
         m_asmsf(m),
         m_fmls_head(0),
@@ -79,7 +79,7 @@ public:
         m_dep_core(m),
         m_unknown("no reason given") {
         m_params.set_bool("elim_vars", false);
-        m_solver.updt_params(m_params);
+        updt_params(p);
         init_preprocess();
     }
 
@@ -104,7 +104,6 @@ public:
     }
 
     virtual void set_progress_callback(progress_callback * callback) {}
-
 
     void display_weighted(std::ostream& out, unsigned sz, expr * const * assumptions, unsigned const* weights) {
         if (weights != 0) {
@@ -131,7 +130,7 @@ public:
     }
 
     bool is_literal(expr* e) const {
-        return 
+        return
             is_uninterp_const(e) ||
             (m.is_not(e, e) && is_uninterp_const(e));
     }
@@ -153,7 +152,7 @@ public:
                 asm2fml.insert(assumptions[i], assumptions[i]);
             }
         }
-        
+
         TRACE("sat", tout << _assumptions << "\n";);
         dep2asm_t dep2asm;
         m_model = 0;
@@ -163,7 +162,12 @@ public:
         if (r != l_true) return r;
 
         r = m_solver.check(m_asms.size(), m_asms.c_ptr());
-        
+        if (r == l_undef && m_solver.get_config().m_dimacs_display) {
+            for (auto const& kv : m_map) {
+                std::cout << "c " << kv.m_value << " " << mk_pp(kv.m_key, m) << "\n";
+            }
+        }
+
         switch (r) {
         case l_true:
             if (sz > 0) {
@@ -233,7 +237,7 @@ public:
         sat::solver::collect_param_descrs(r);
     }
     virtual void updt_params(params_ref const & p) {
-        m_params = p;
+        solver::updt_params(p);
         m_params.set_bool("elim_vars", false);
         m_solver.updt_params(m_params);
         m_optimize_model = m_params.get_bool("optimize_model", false);
@@ -280,14 +284,14 @@ public:
             return r;
         }
 
-        // build map from bound variables to 
+        // build map from bound variables to
         // the consequences that cover them.
         u_map<unsigned> bool_var2conseq;
         for (unsigned i = 0; i < lconseq.size(); ++i) {
             TRACE("sat", tout << lconseq[i] << "\n";);
             bool_var2conseq.insert(lconseq[i][0].var(), i);
         }
-        
+
         // extract original fixed variables
         u_map<expr*> asm2dep;
         extract_asm2dep(dep2asm, asm2dep);
@@ -388,6 +392,9 @@ private:
         m_subgoals.reset();
         init_preprocess();
         SASSERT(g->models_enabled());
+        if (g->proofs_enabled()) {
+            throw default_exception("generation of proof objects is not supported in this mode");
+        }
         SASSERT(!g->proofs_enabled());
         TRACE("sat", g->display(tout););
         try {
@@ -441,7 +448,7 @@ private:
 
     lbool internalize_vars(expr_ref_vector const& vars, sat::bool_var_vector& bvars) {
         for (unsigned i = 0; i < vars.size(); ++i) {
-            internalize_var(vars[i], bvars);            
+            internalize_var(vars[i], bvars);
         }
         return l_true;
     }
@@ -453,7 +460,7 @@ private:
         bool internalized = false;
         if (is_uninterp_const(v) && m.is_bool(v)) {
             sat::bool_var b = m_map.to_bool_var(v);
-            
+
             if (b != sat::null_bool_var) {
                 bvars.push_back(b);
                 internalized = true;
@@ -479,7 +486,7 @@ private:
         else if (is_uninterp_const(v) && bvutil.is_bv(v)) {
             // variable does not occur in assertions, so is unconstrained.
         }
-        CTRACE("sat", !internalized, tout << "unhandled variable " << mk_pp(v, m) << "\n";);        
+        CTRACE("sat", !internalized, tout << "unhandled variable " << mk_pp(v, m) << "\n";);
         return internalized;
     }
 
@@ -506,7 +513,7 @@ private:
         }
         expr_ref val(m);
         expr_ref_vector conj(m);
-        internalize_value(value, v, val);        
+        internalize_value(value, v, val);
         while (!premises.empty()) {
             expr* e = 0;
             VERIFY(asm2dep.find(premises.pop().index(), e));
@@ -641,14 +648,12 @@ private:
         }
         sat::model const & ll_m = m_solver.get_model();
         model_ref md = alloc(model, m);
-        atom2bool_var::iterator it  = m_map.begin();
-        atom2bool_var::iterator end = m_map.end();
-        for (; it != end; ++it) {
-            expr * n   = it->m_key;
+        for (auto const& kv : m_map) {
+            expr * n   = kv.m_key;
             if (is_app(n) && to_app(n)->get_num_args() > 0) {
                 continue;
             }
-            sat::bool_var v = it->m_value;
+            sat::bool_var v = kv.m_value;
             switch (sat::value_at(v, ll_m)) {
             case l_true:
                 md->register_decl(to_app(n)->get_decl(), m.mk_true());

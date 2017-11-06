@@ -21,12 +21,12 @@ Author:
 Notes:
 
 --*/
-#include"tactical.h"
-#include"bv_decl_plugin.h"
-#include"expr_replacer.h"
-#include"extension_model_converter.h"
-#include"filter_model_converter.h"
-#include"ast_smt2_pp.h"
+#include "tactic/tactical.h"
+#include "ast/bv_decl_plugin.h"
+#include "ast/rewriter/expr_replacer.h"
+#include "tactic/extension_model_converter.h"
+#include "tactic/filter_model_converter.h"
+#include "ast/ast_smt2_pp.h"
 
 class bv_size_reduction_tactic : public tactic {
     struct imp;
@@ -399,8 +399,8 @@ void bv_size_reduction_tactic::operator()(goal_ref const & g,
 
  
 void bv_size_reduction_tactic::cleanup() {
-    imp * d = alloc(imp, m_imp->m);
-    std::swap(d, m_imp);    
-    dealloc(d);
+    ast_manager & m = m_imp->m;
+    m_imp->~imp();
+    new (m_imp) imp(m);
 }
 

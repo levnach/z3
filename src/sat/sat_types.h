@@ -19,13 +19,13 @@ Revision History:
 #ifndef SAT_TYPES_H_
 #define SAT_TYPES_H_
 
-#include"util/debug.h"
-#include"util/approx_set.h"
-#include"util/lbool.h"
-#include"util/z3_exception.h"
-#include"util/common_msgs.h"
-#include"util/vector.h"
-#include<iomanip>
+#include "util/debug.h"
+#include "util/approx_set.h"
+#include "util/lbool.h"
+#include "util/z3_exception.h"
+#include "util/common_msgs.h"
+#include "util/vector.h"
+#include <iomanip>
 
 namespace sat {
 #define SAT_VB_LVL 10

@@ -16,11 +16,11 @@ Author:
 Revision History:
 
 --*/
-#include"sat_solver.h"
-#include"sat_integrity_checker.h"
-#include"luby.h"
-#include"trace.h"
-#include"max_cliques.h"
+#include "sat/sat_solver.h"
+#include "sat/sat_integrity_checker.h"
+#include "util/luby.h"
+#include "util/trace.h"
+#include "util/max_cliques.h"
 
 // define to update glue during propagation
 #define UPDATE_GLUE
@@ -724,6 +724,13 @@ namespace sat {
         pop_to_base_level();
         IF_VERBOSE(2, verbose_stream() << "(sat.sat-solver)\n";);
         SASSERT(scope_lvl() == 0);
+        if (m_config.m_dimacs_display) {
+            display_dimacs(std::cout);
+            for (unsigned i = 0; i < num_lits; ++i) {
+                std::cout << dimacs_lit(lits[i]) << " 0\n";
+            }
+            return l_undef;
+        }
         if (m_config.m_num_parallel > 1 && !m_par) {
             return check_par(num_lits, lits);
         }
@@ -1242,10 +1249,7 @@ namespace sat {
     }
 
     void solver::sort_watch_lits() {
-        vector<watch_list>::iterator it  = m_watches.begin();
-        vector<watch_list>::iterator end = m_watches.end();
-        for (; it != end; ++it) {
-            watch_list & wlist = *it;
+        for (watch_list & wlist : m_watches) {
             std::stable_sort(wlist.begin(), wlist.end(), watched_lt());
         }
     }
@@ -2628,7 +2632,7 @@ namespace sat {
         unsigned j = 0;
         for (unsigned i = 0; i < clauses.size(); ++i) {
             clause & c = *(clauses[i]);
-            if (c.contains(lit)) {
+            if (c.contains(lit) || c.contains(~lit)) {
                 detach_clause(c);
                 del_clause(c);
             }
@@ -2684,6 +2688,7 @@ namespace sat {
             w = max_var(m_clauses, w);
             w = max_var(true, w);
             w = max_var(false, w);
+            v = m_mc.max_var(w);
             for (unsigned i = 0; i < m_trail.size(); ++i) {
                 if (m_trail[i].var() > w) w = m_trail[i].var();
             }
@@ -3150,9 +3155,9 @@ namespace sat {
             }
         }
     }
-    
+
     // Algorithm 7: Corebased Algorithm with Chunking
-    
+
     static void back_remove(sat::literal_vector& lits, sat::literal l) {
         for (unsigned i = lits.size(); i > 0; ) {
             --i;
@@ -3176,7 +3181,7 @@ namespace sat {
             }
         }
     }
-    
+
     static lbool core_chunking(sat::solver& s, model const& m, sat::bool_var_vector const& vars, sat::literal_vector const& asms, vector<sat::literal_vector>& conseq, unsigned K) {
         sat::literal_vector lambda;
         for (unsigned i = 0; i < vars.size(); i++) {
@@ -3375,7 +3380,7 @@ namespace sat {
         if (check_inconsistent()) return l_false;
 
         unsigned num_iterations = 0;
-        extract_fixed_consequences(unfixed_lits, assumptions, unfixed_vars, conseq); 
+        extract_fixed_consequences(unfixed_lits, assumptions, unfixed_vars, conseq);
         update_unfixed_literals(unfixed_lits, unfixed_vars);
         while (!unfixed_lits.empty()) {
             if (scope_lvl() > 1) {
@@ -3390,7 +3395,7 @@ namespace sat {
             unsigned num_assigned = 0;
             lbool is_sat = l_true;
             for (; it != end; ++it) {
-                literal lit = *it;                
+                literal lit = *it;
                 if (value(lit) != l_undef) {
                     ++num_fixed;
                     if (lvl(lit) <= 1 && value(lit) == l_true) {
@@ -3445,8 +3450,8 @@ namespace sat {
                        << " iterations: " << num_iterations
                        << " variables: " << unfixed_lits.size()
                        << " fixed: " << conseq.size()
-                       << " status: " << is_sat 
-                       << " pre-assigned: " << num_fixed                        
+                       << " status: " << is_sat
+                       << " pre-assigned: " << num_fixed
                        << " unfixed: " << lits.size() - conseq.size() - unfixed_lits.size()
                        << ")\n";);
 

@@ -19,12 +19,12 @@ Author:
 Revision History:
 
 --*/
-#include"tactical.h"
-#include"bv_decl_plugin.h"
-#include"rewriter_def.h"
-#include"obj_pair_hashtable.h"
-#include"ast_lt.h"
-#include"cooperate.h"
+#include "tactic/tactical.h"
+#include "ast/bv_decl_plugin.h"
+#include "ast/rewriter/rewriter_def.h"
+#include "util/obj_pair_hashtable.h"
+#include "ast/ast_lt.h"
+#include "util/cooperate.h"
 
 class max_bv_sharing_tactic : public tactic {
     
@@ -307,9 +307,10 @@ public:
     }
     
     virtual void cleanup() {
-        imp * d = alloc(imp, m_imp->m(), m_params);
-        std::swap(d, m_imp);        
-        dealloc(d);
+        ast_manager & m = m_imp->m();
+        params_ref p = std::move(m_params);
+        m_imp->~imp();
+        new (m_imp) imp(m, p);
     }
 };
 

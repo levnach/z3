@@ -1,20 +1,20 @@
 /*++
 Copyright (c) 2016 Microsoft Corporation
 
-Author: 
+Author:
 
     Lev Nachmanson 2016-10-27
 
 --*/
 
-#include "lp_params.hpp"
+#include "util/lp/lp_params.hpp"
 #include "util/lp/lp_settings.h"
 #include "util/lp/mps_reader.h"
-#include "timeout.h"
-#include "cancel_eh.h"
-#include "scoped_timer.h"
-#include "rlimit.h"
-#include "gparams.h"
+#include "util/timeout.h"
+#include "util/cancel_eh.h"
+#include "util/scoped_timer.h"
+#include "util/rlimit.h"
+#include "util/gparams.h"
 #include <signal.h>
 
 static lp::lp_solver<double, double>* g_solver = 0;
@@ -54,7 +54,7 @@ struct front_end_resource_limit : public lp::lp_resource_limit {
 
 void run_solver(lp_params & params, char const * mps_file_name) {
 
-    reslimit rlim;    
+    reslimit rlim;
     unsigned timeout = gparams::get().get_uint("timeout", 0);
     unsigned rlimit  = gparams::get().get_uint("rlimit", 0);
     front_end_resource_limit lp_limit(rlim);
@@ -90,9 +90,9 @@ void run_solver(lp_params & params, char const * mps_file_name) {
         }
         solver->print_model(std::cout);
     }
-    
+
 //    #pragma omp critical (g_display_stats)
-    {    
+    {
         display_statistics();
         register_on_timeout_proc(0);
         g_solver = 0;

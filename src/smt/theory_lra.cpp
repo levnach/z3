@@ -26,7 +26,7 @@ Revision History:
 #include "util/lp/lar_solver.h"
 #include "util/nat_set.h"
 #include "util/optional.h"
-#include "lp_params.hpp"
+#include "util/lp/lp_params.hpp"
 #include "util/inf_rational.h"
 #include "smt/smt_theory.h"
 #include "smt/smt_context.h"
@@ -39,7 +39,7 @@ Revision History:
 #include "tactic/filter_model_converter.h"
 #include "math/polynomial/algebraic_numbers.h"
 #include "math/polynomial/polynomial.h"
-
+#include "ast/ast_pp.h"
 namespace lp_api {
     enum bound_kind { lower_t, upper_t };
 
@@ -321,9 +321,6 @@ namespace smt {
 
 
         void found_not_handled(expr* n) {
-            if (a.is_div0(n)) {
-                return;
-            }
             m_not_handled = n;
             if (is_app(n) && is_underspecified(to_app(n))) {
                 TRACE("arith", tout << "Unhandled: " << mk_pp(n, m) << "\n";);
@@ -1256,7 +1253,7 @@ namespace smt {
             app_ref atom(a.mk_le(t, a.mk_numeral(k, k.is_int())), m);
             expr_ref atom1(m);
             proof_ref atomp(m);
-            ctx().get_simplifier()(atom, atom1, atomp);
+            ctx().get_rewriter()(atom, atom1, atomp);
             atom = to_app(atom1);
             TRACE("arith", tout << atom << "\n";
                   m_solver->print_term(term, tout << "bound atom: "); tout << " <= " << k << "\n";
