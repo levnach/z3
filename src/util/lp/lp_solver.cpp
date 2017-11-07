@@ -3,7 +3,7 @@
   Author: Lev Nachmanson
 */
 #include <string>
-#include "util/lp/lp_solver.hpp"
+#include "util/lp/lp_solver_def.h"
 template void lp::lp_solver<double, double>::add_constraint(lp::lp_relation, double, unsigned int);
 template void lp::lp_solver<double, double>::cleanup();
 template void lp::lp_solver<double, double>::count_slacks_and_artificials();

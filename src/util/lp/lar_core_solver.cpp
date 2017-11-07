@@ -7,4 +7,4 @@
 #include <string>
 #include "util/vector.h"
 #include <functional>
-#include "util/lp/lar_core_solver.hpp"
+#include "util/lp/lar_core_solver_def.h"

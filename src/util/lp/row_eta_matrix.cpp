@@ -4,7 +4,7 @@
 */
 #include <memory>
 #include "util/vector.h"
-#include "util/lp/row_eta_matrix.hpp"
+#include "util/lp/row_eta_matrix_def.h"
 #include "util/lp/lu.h"
 namespace lp {
 template void row_eta_matrix<double, double>::conjugate_by_permutation(permutation_matrix<double, double>&);

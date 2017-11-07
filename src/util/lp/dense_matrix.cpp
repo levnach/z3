@@ -3,7 +3,7 @@
   Author: Lev Nachmanson
 */
 #include "util/lp/lp_settings.h"
-#include "util/lp/dense_matrix.hpp"
+#include "util/lp/dense_matrix_def.h"
 #ifdef LEAN_DEBUG
 #include "util/vector.h"
 template lp::dense_matrix<double, double> lp::operator*<double, double>(lp::matrix<double, double>&, lp::matrix<double, double>&);
