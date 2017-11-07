@@ -241,6 +241,9 @@ public: // for debugging
         void add_dependent_ineq(unsigned i) {
             m_dependent_ineqs.insert(i);
         }
+        void remove_depended_ineq(unsigned i) {
+            m_dependent_ineqs.erase(i);
+        }
     };
 
     std::vector<var_info> m_var_infos;
@@ -573,6 +576,7 @@ public: // for debugging
         return get_column_name(j);
     }
 
+    
     void trace_print_domain_change(unsigned j, const T& v, const monomial & p, unsigned ineq_index) const {
         tout << "change in domain of " << var_name(j) << ", v = " << v << ", domain becomes ";
         print_var_domain(tout, j);
@@ -627,11 +631,20 @@ public: // for debugging
         }
     }
 
+    void print_var_info(std::ostream & out, const var_info & vi) const {
+        out << m_var_name_function(vi.m_user_var_index) << " ";
+        print_var_domain(out, vi);
+    }
+
     
     void print_var_domain(std::ostream & out, unsigned j) const {
         m_var_infos[j].m_domain.print(out);
     }
-    
+
+    void print_var_domain(std::ostream & out, const var_info & vi) const {
+        vi.m_domain.print(out);
+    }
+
     // b is the value of lower
     void propagate_inequality_on_lower(unsigned i, const T & b) {
         for (const auto & p: m_ineqs[i].coeffs()) {
@@ -1032,6 +1045,11 @@ public: // for debugging
             out << "\n";
         }
         out << "end of trail\n";
+        out << "var_infos\n";
+        for (const auto & v: m_var_infos) {
+            print_var_info(out, v);
+        }
+        out << "end of var_infos\n";
         out << "end of state dump" << std::endl;
     }
     
@@ -1046,8 +1064,6 @@ public: // for debugging
             out << "constraint_index = " << j << ":";
             m_print_constraint_function(j, out);
         }
-        out << "\n";
-       
     }
 
     void print_literal_bound(std::ostream & o, const literal & t) const {
@@ -1206,16 +1222,54 @@ public: // for debugging
         return ret;
     }
 
+    void pop_ineqs() {
+        for (unsigned j = m_ineqs.size(); j-- > m_scope().m_ineqs_size;) {
+            const ineq & i = m_ineqs[j];
+            for (const auto & p: i.m_poly.m_coeffs) {
+                m_var_infos[p.var()].remove_depended_ineq(j);
+            }
+            m_ineqs.pop_back();
+        }
+        lp_assert(m_ineqs.size() == m_scope().m_ineqs_size);
+    }
+
+    void pop_div_constraints() {
+        for (unsigned j = m_div_constraints.size(); j-- > m_scope().m_div_constraints_size; ) {
+            const div_constraint & i = m_div_constraints[j];
+            for (const auto & p: i.m_poly.m_coeffs) {
+                m_var_infos[p.var()].remove_depended_ineq(j);
+            }
+            m_div_constraints.pop_back();
+        }
+        lp_assert(m_div_constraints.size() == m_scope().m_div_constraints_size);
+    }
+
+    void pop_var_domains(unsigned k) {
+        for (auto & v : m_var_infos) {
+            v.m_domain.pop(k);
+        }
+    }
+    
     void pop(unsigned k) {
         m_scope.pop(k);
         m_trail.resize(m_scope().m_trail_size);
-        m_ineqs.resize(m_scope().m_ineqs_size);
-        m_div_constraints.resize(m_scope().m_div_constraints_size);
+        pop_ineqs();
+        pop_div_constraints();
+        pop_var_domains(k);
+        TRACE("trace_push_pop_in_cut_solver", print_state(tout););
     }
 
+    void push_var_domains() {
+        for (auto & v : m_var_infos) {
+            v.m_domain.push();
+        }
+    }
+    
     void push() {
+        TRACE("trace_push_pop_in_cut_solver", print_state(tout););
         m_scope = scope(m_trail.size(), m_ineqs.size(), m_div_constraints.size());
         m_scope.push();
+        push_var_domains();
     }
 };
 }
