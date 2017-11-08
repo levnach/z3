@@ -521,15 +521,15 @@ public: // for debugging
     }
 
     
-    void trace_print_domain_change(unsigned j, const T& v, const monomial & p, unsigned ineq_index) const {
-        tout << "change in domain of " << var_name(j) << ", v = " << v << ", domain becomes ";
-        print_var_domain(tout, j);
+    void trace_print_domain_change(std::ostream& out,unsigned j, const T& v, const monomial & p, unsigned ineq_index) const {
+        out << "change in domain of " << var_name(j) << ", v = " << v << ", domain becomes ";
+        print_var_domain(out, j);
         T lb;
         bool r = lower(ineq_index, lb);
         if (r)
-            tout << "lower_of_ineq = " << lb << "\n";
+            out << "lower_of_ineq = " << lb << "\n";
         else
-            tout << "no lower bound for ineq\n";
+            out << "no lower bound for ineq\n";
     }
     
     void propagate_monomial_on_lower(const monomial & p, const T& lower_val, unsigned ineq_index) {
@@ -540,7 +540,7 @@ public: // for debugging
             T v = floor(- lower_val / p.coeff()) + m;
             bool change = m_var_infos[j].m_domain.intersect_with_upper_bound(v);
             if (change) {
-                TRACE("ba_int", trace_print_domain_change(j, v, p, ineq_index););
+                TRACE("ba_int", trace_print_domain_change(tout, j, v, p, ineq_index););
                 add_bound(v, j, false, ineq_index);
             }
         } else {
@@ -549,7 +549,7 @@ public: // for debugging
             T v = ceil( - lower_val / p.coeff()) + m;
             bool change = m_var_infos[j].m_domain.intersect_with_lower_bound(v);
             if (change) {
-                TRACE("ba_int", trace_print_domain_change(j, v, p, ineq_index););
+                TRACE("ba_int", trace_print_domain_change(tout, j, v, p, ineq_index););
                 add_bound(v, j, true , ineq_index);
             }
         }
@@ -562,14 +562,14 @@ public: // for debugging
             T v = floor(rs / p.coeff());
             bool change = m_var_infos[j].m_domain.intersect_with_upper_bound(v);
             if (change) {
-                TRACE("ba_int", trace_print_domain_change(j, v, p, ineq_index););
+                TRACE("ba_int", trace_print_domain_change(tout, j, v, p, ineq_index););
                 add_bound(v, j, false, ineq_index);
             }
         } else {
             T v = ceil(rs / p.coeff());
             bool change = m_var_infos[j].m_domain.intersect_with_lower_bound(v);
             if (change) {
-                TRACE("ba_int", trace_print_domain_change(j, v, p, ineq_index););
+                TRACE("ba_int", trace_print_domain_change(tout, j, v, p, ineq_index););
                 add_bound(v, j, true , ineq_index);
             }
         }
@@ -635,7 +635,7 @@ public: // for debugging
     }
 
     void trace_print_ineq(std::ostream& out, unsigned i) {
-        print_ineq(out, i); tout << "\n";
+        print_ineq(out, i); out << "\n";
         unsigned j;
         auto pairs = to_pairs(m_ineqs[i].m_poly.m_coeffs);
         auto it = linear_combination_iterator_on_std_vector<T>(pairs);
@@ -1143,6 +1143,8 @@ public: // for debugging
             v.m_domain.push();
         }
     }
-    
+
+    // returns -1 if every variable is fixed
+    int find_non_fixed_var() const;
 };
 }

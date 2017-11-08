@@ -174,4 +174,17 @@ bool cut_solver<T>::consistent(const ineq & i) const {
     return ret;
 }
 
+template <typename T>
+int cut_solver<T>::find_non_fixed_var() const {
+    // it is a very non efficient implementation for now
+    // the current limitation is that we only deal with bounded vars
+    for (unsigned j = 0; j < m_var_infos.size(); j++) {
+        const auto & d = m_var_infos[j].m_domain;
+        lp_assert(d.lower_bound_exists() && d.upper_bound_exists());
+        if (!d.is_fixed())
+            return j;
+    }
+    return -1;
+}
+
 }
