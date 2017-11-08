@@ -298,7 +298,7 @@ public: // for debugging
     std::vector<T> m_v; // the values of the variables
     std::function<std::string (unsigned)> m_var_name_function;
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
-    unsigned m_scope_lvl;  // tracks the number of case splits
+    stacked_value<bool> m_decision_has_been_made;  // tracks the number of case splits
     int_set m_changed_vars;
     std::vector<literal>          m_trail;
 
@@ -383,14 +383,13 @@ public: // for debugging
     }
 
     
-    bool  at_base_lvl() const { return m_scope_lvl == 0; }
+    bool  at_base_lvl() const { return !m_decision_has_been_made; }
 
     lbool check();
 
     cut_solver(std::function<std::string (unsigned)> var_name_function,
-               std::function<void (unsigned, std::ostream &)> print_constraint_function
-               ) : m_var_name_function(var_name_function), m_print_constraint_function(print_constraint_function) {
-    }
+               std::function<void (unsigned, std::ostream &)> print_constraint_function);
+    
     
     void init_search() {
         // initialize data-structures
@@ -415,55 +414,16 @@ public: // for debugging
         return false;
     }
 
-    lbool bounded_search() {
-        while (true) {
-            checkpoint();
-            bool done = false;
-            while (!done) {
-                lbool is_sat = propagate_and_backjump_step(done);
-                if (is_sat == lbool::l_undef) // temporary fix for debugging
-                    return lbool::l_undef;
-                if (is_sat != lbool::l_true) return is_sat;
-            }
+    lbool bounded_search();
 
-            gc();
-
-            if (!decide()) {
-                lbool is_sat = final_check();
-                if (is_sat != lbool::l_undef) {
-                    return is_sat;
-                }
-            }
-        }
-    }
-
-    void checkpoint() {
-        // check for cancelation
-    }
+    void checkpoint();
 
     void cleanup() {
     }
 
-    lbool propagate_and_backjump_step(bool& done) {
-        done = true;
-        propagate();
-        if (!inconsistent())
-            return lbool::l_true;
-        return lbool::l_undef; // temporary fix for debugging
-        if (!resolve_conflict())
-            return lbool::l_false;
-        if (at_base_lvl()) {
-            cleanup(); // cleaner may propagate frozen clauses
-            if (inconsistent()) {
-                TRACE("sat", tout << "conflict at level 0\n";);
-                return lbool::l_false;
-            }
-            gc();
-        }
-        done = false;
-        return lbool::l_true;
-    }
+    lbool propagate_and_backjump_step(bool& done);
 
+    
     lbool final_check() {
         // there are no more case splits, and all clauses are satisfied.
         // prepare the model for external consumption.
@@ -723,11 +683,9 @@ public: // for debugging
             m_changed_vars.erase(j);
         }
     }
-    
-    void propagate() {
-        propagate_simple_ineqs();
-        propagate_ineqs_for_changed_vars();
-    }
+
+    void propagate();
+
 
     bool decide() {
         // this is where the main action is.
@@ -745,21 +703,11 @@ public: // for debugging
             if (!consistent(i))
                 return false;
         }
-
         return true;
     }
-    
-    bool consistent(const ineq & i) const {
-        bool ret = value(i.m_poly) <= zero_of_type<T>();
-        if (!ret) {
-            TRACE("cut_solver_state", 
-                  tout << "inconsistent ineq "; print_ineq(tout,i); tout <<"\n";
-                  tout << "value = " << value(i.m_poly) << '\n';
-                  );
-        }
-        return ret;
-    }
-    
+
+    bool consistent(const ineq & i) const;
+
     bool var_lower_bound_exists(var_info i) const {
         const var_info & v = m_var_infos[i];
         return v.m_domain.lower_bound_exists();
@@ -987,31 +935,8 @@ public: // for debugging
         return bound(m_ineqs[ineq_index], j);
     }
 
-
-    void print_state(std::ostream & out) const {
-        out << "ineqs:\n";
-        for (const auto & i: m_ineqs) {
-            print_ineq(out, i);
-        }
-        out << "end of ineqs\n";
-        out << "var values\n";
-        for (unsigned j = 0; j < m_v.size(); j++) {
-            out << get_column_name(j) << " = " << m_v[j] << "\n";
-        }
-        out << "end of var values\n";
-        out << "trail\n";
-        for (const auto & l : m_trail) {
-            print_literal(out, l);
-            out << "\n";
-        }
-        out << "end of trail\n";
-        out << "var_infos\n";
-        for (const auto & v: m_var_infos) {
-            print_var_info(out, v);
-        }
-        out << "end of var_infos\n";
-        out << "end of state dump" << std::endl;
-    }
+    void print_state(std::ostream & out) const;
+    
     
     void print_ineq(std::ostream & out, unsigned i)  const {
         print_ineq(out, m_ineqs[i]);
@@ -1209,15 +1134,9 @@ public: // for debugging
             v.m_domain.pop(k);
         }
     }
-    
-    void pop(unsigned k) {
-        m_scope.pop(k);
-        m_trail.resize(m_scope().m_trail_size);
-        pop_ineqs();
-        pop_div_constraints();
-        pop_var_domains(k);
-        TRACE("trace_push_pop_in_cut_solver", print_state(tout););
-    }
+
+    void pop(unsigned);
+    void push();
 
     void push_var_domains() {
         for (auto & v : m_var_infos) {
@@ -1225,11 +1144,5 @@ public: // for debugging
         }
     }
     
-    void push() {
-        TRACE("trace_push_pop_in_cut_solver", print_state(tout););
-        m_scope = scope(m_trail.size(), m_ineqs.size(), m_div_constraints.size());
-        m_scope.push();
-        push_var_domains();
-    }
 };
 }
