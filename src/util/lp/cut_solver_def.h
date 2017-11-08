@@ -7,15 +7,7 @@ namespace lp {
 
 template <typename T>
 lbool cut_solver<T>::check() {
-    TRACE("cs_ch",);
-    if (consistent())
-        return lbool::l_true;
     init_search();
-    propagate(); 
-    if (conflict()) {
-        TRACE("cs_ch", tout << "conflict\n";);
-        return lbool::l_false;
-    }
     while (true) {
         TRACE("cs_ch", tout << "inside loop\n";);
         lbool r = bounded_search();
@@ -27,6 +19,13 @@ lbool cut_solver<T>::check() {
         gc();
     }
 }
+
+template <typename T>
+void cut_solver<T>::init_search() {
+    m_changed_vars.resize(m_v.size());
+    m_explanation.clear();
+}
+
 
 template <typename T>
 void cut_solver<T>::propagate_inequality(unsigned i) {
@@ -163,7 +162,54 @@ void cut_solver<T>::propagate() {
 }
 
 template <typename T>
+bool cut_solver<T>::propagate_simple_ineq(unsigned ineq_index) {
+    const ineq & t = m_ineqs[ineq_index];
+    TRACE("cut_solver_state",   print_ineq(tout, t); tout << std::endl;);
+    var_index j = t.m_poly.m_coeffs[0].var();
+        
+    bound_result br = bound(t, j);
+    TRACE("cut_solver_state", tout << "bound result = {"; br.print(tout); tout << "}\n";
+          tout << "domain of " << get_column_name(j) << " = "; m_var_infos[j].m_domain.print(tout);
+          tout << "\n";
+          );
+        
+    if (improves(j, br)) {
+        literal l(j, br.m_type == bound_type::LOWER, br.m_bound, ineq_index);
+        l.m_tight_explanation_ineq_index = ineq_index;
+        push_literal_to_trail(l);
+        restrict_var_domain_with_bound_result(j, br);
+        TRACE("cut_solver_state", tout <<"improved domain = ";
+              m_var_infos[j].m_domain.print(tout);
+              tout<<"\n";
+              tout << "literal = "; print_literal(tout, l);
+              tout <<"\n";
+              );
+        if (j >= m_changed_vars.size())
+            m_changed_vars.resize(j + 1);
+        m_changed_vars.insert(j);
+        return true;
+    }
+        
+    TRACE("cut_solver_state", tout <<"no improvement\n";);
+    return false;
+}
+    
+
+template <typename T>
+bool cut_solver<T>::propagate_simple_ineqs() {
+    bool ret = false;
+    for (unsigned i = 0; i < m_ineqs.size(); i++) {
+        if (m_ineqs[i].is_simple() && propagate_simple_ineq(i)){
+            ret = true;
+        }
+    }
+    return ret;
+}
+
+template <typename T>
 bool cut_solver<T>::consistent(const ineq & i) const {
+    if (find_non_fixed_var() != -1)
+        return false; // ignore the variables values and only return true if every variable is fixed
     bool ret = value(i.m_poly) <= zero_of_type<T>();
     if (!ret) {
         TRACE("cut_solver_state_inconsistent", 
@@ -176,8 +222,9 @@ bool cut_solver<T>::consistent(const ineq & i) const {
 
 template <typename T>
 int cut_solver<T>::find_non_fixed_var() const {
-    // it is a very non efficient implementation for now
-    // the current limitation is that we only deal with bounded vars
+    // it is a very non efficient implementation for now.
+    // the current limitation is that we only deal with bounded vars.
+    // the search should be randomized.
     for (unsigned j = 0; j < m_var_infos.size(); j++) {
         const auto & d = m_var_infos[j].m_domain;
         lp_assert(d.lower_bound_exists() && d.upper_bound_exists());
