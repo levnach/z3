@@ -385,24 +385,7 @@ public: // for debugging
     
     bool  at_base_lvl() const { return m_scope_lvl == 0; }
 
-    lbool check() {
-        if (consistent())
-            return lbool::l_true;
-        init_search();
-        propagate();
-        if (conflict())
-            return lbool::l_false;
-        while (true) {
-            lbool r = bounded_search();
-            if (r != lbool::l_undef)
-                return r;
-            return r; // temporary fix for debugging
-            restart();
-            simplify_problem();
-            if (check_inconsistent()) return lbool::l_false;
-            gc();
-        }
-    }
+    lbool check();
 
     cut_solver(std::function<std::string (unsigned)> var_name_function,
                std::function<void (unsigned, std::ostream &)> print_constraint_function
@@ -412,6 +395,7 @@ public: // for debugging
     void init_search() {
         // initialize data-structures
         m_changed_vars.resize(m_v.size());
+        m_explanation.clear();
     }
 
     void simplify_problem() {
@@ -676,7 +660,7 @@ public: // for debugging
     }
     
     void fill_conflict_explanation(unsigned ineq_index, unsigned upper_end_of_trail) {
-        // it is a depth search in the DAG of inequalities: the chidlren of an inequalitiy are those inequalities the provide its lower bound
+        // it is a depth search in the DAG of inequalities: the chidlren of an inequalitiy are those inequalities that provide its lower bound
         add_inequality_explanations(ineq_index);
         const ineq& in = m_ineqs[ineq_index];
         TRACE("ba_int", print_ineq(tout, in););
@@ -685,6 +669,8 @@ public: // for debugging
             unsigned l_ineq_index = m_trail[literal_index].m_ineq_index;
             if (!m_ineqs[l_ineq_index].is_simple()) 
                 fill_conflict_explanation(l_ineq_index, literal_index);
+            else
+                add_inequality_explanations(l_ineq_index);
         }
     }
 
@@ -715,33 +701,7 @@ public: // for debugging
         propagate_monomial_on_right_side(i.m_poly.m_coeffs[the_only_unlim], rs, ineq_index);
     }
     
-    void propagate_inequality(unsigned i) {
-        TRACE("ba_int", trace_print_ineq(tout, i););
-        const ineq & in = m_ineqs[i];
-        if (in.is_simple())
-            return;
-        // consider a special case for inequalities with just two variables
-        unsigned the_only_unlim;
-        int r = lower_analize(in, the_only_unlim);
-        if (r == 0) {
-            T b;
-            lower(in.m_poly, b);
-            if (is_pos(b)) {
-                lp_assert(m_explanation.size() == 0);
-                std::unordered_set<unsigned> expl;
-                fill_conflict_explanation(i, m_trail.size());
-                TRACE("ba_int", tout << "conflict explanation\n";
-                      for (auto p : m_explanation) {
-                          m_print_constraint_function(p, tout);
-                      }
-                      );
-            } else {
-                propagate_inequality_on_lower(i, b);
-            }
-        } else if (r == 1) {
-            propagate_inequality_only_one_unlim(i, the_only_unlim);
-        }
-    }
+    void propagate_inequality(unsigned i);
 
     bool conflict() const { return m_explanation.size() > 0; }
     
