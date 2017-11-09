@@ -79,23 +79,21 @@ void cut_solver<T>::print_state(std::ostream & out) const {
 }
 template <typename T>
 lbool cut_solver<T>::bounded_search() {
-    while (true) {
-        bool done = false;
-        while (!done) {
-            lbool is_sat = propagate_and_backjump_step(done);
-            if (is_sat != lbool::l_true) return is_sat; //start here
-        }
+    lbool is_sat = propagate_and_backjump_step();
+    if (is_sat != lbool::l_undef)
+        return is_sat; //start here
 
-        gc();
+    gc();
 
-        if (!decide()) {
-            lbool is_sat = final_check();
-            if (is_sat != lbool::l_undef) {
-                return is_sat;
-            }
+    if (!decide()) {
+        lbool is_sat = final_check();
+        if (is_sat != lbool::l_undef) {
+            return is_sat;
         }
     }
+    return lbool::l_undef;
 }
+
 
 template <typename T>
 bool cut_solver<T>::decide() {
@@ -107,14 +105,12 @@ bool cut_solver<T>::decide() {
 }
 
 template <typename T>
-lbool cut_solver<T>::propagate_and_backjump_step(bool& done) {
-    done = true;
+lbool cut_solver<T>::propagate_and_backjump_step() {
     propagate();
     if (consistent())
         return lbool::l_true;
     if (!resolve_conflict())
         return lbool::l_false;
-    done = false;
     return lbool::l_undef;
 }
 
@@ -162,12 +158,6 @@ void cut_solver<T>::push() {
 }
 
 template <typename T>
-void cut_solver<T>::checkpoint() {
-    push();
-    // check for cancelation
-}
-
-template <typename T>
 cut_solver<T>::cut_solver(std::function<std::string (unsigned)> var_name_function,
                           std::function<void (unsigned, std::ostream &)> print_constraint_function,
                           lp_settings & settings
@@ -185,10 +175,10 @@ void cut_solver<T>::propagate() {
 
 template <typename T>
 void cut_solver<T>::decide_var_on_bound(unsigned j, bool decide_on_lower) {
+    push();    
     vector<constraint_index> explanation; // empty in this case
     T b;
     std::vector<monomial> lhs;
-    
     if (decide_on_lower) {
         m_var_infos[j].m_domain.get_lower_bound(b);
         lhs.push_back(monomial(one_of_type<T>(), j));
@@ -199,7 +189,7 @@ void cut_solver<T>::decide_var_on_bound(unsigned j, bool decide_on_lower) {
         lhs.push_back(monomial(-one_of_type<T>(), j));
     }
     m_decision_has_been_made = true;
-    add_ineq(lhs, b, explanation);
+    add_ineq_in_local_vars(lhs, b, explanation);
 }
 
 
@@ -213,11 +203,11 @@ void cut_solver<T>::decide_var() {
 template <typename T>
 bool cut_solver<T>::propagate_simple_ineq(unsigned ineq_index) {
     const ineq & t = m_ineqs[ineq_index];
-    TRACE("cut_solver_state",   print_ineq(tout, t); tout << std::endl;);
+    TRACE("cut_solver_state_simpe_ineq",   print_ineq(tout, t); tout << std::endl;);
     var_index j = t.m_poly.m_coeffs[0].var();
         
     bound_result br = bound(t, j);
-    TRACE("cut_solver_state", tout << "bound result = {"; br.print(tout); tout << "}\n";
+    TRACE("cut_solver_state_simpe_ineq", tout << "bound result = {"; br.print(tout); tout << "}\n";
           tout << "domain of " << get_column_name(j) << " = "; m_var_infos[j].m_domain.print(tout);
           tout << "\n";
           );
@@ -227,13 +217,13 @@ bool cut_solver<T>::propagate_simple_ineq(unsigned ineq_index) {
         l.m_tight_explanation_ineq_index = ineq_index;
         push_literal_to_trail(l);
         restrict_var_domain_with_bound_result(j, br);
-        TRACE("cut_solver_state", tout <<"improved domain = ";
+        TRACE("cut_solver_state_simpe_ineq", tout <<"improved domain = ";
               m_var_infos[j].m_domain.print(tout);
               tout<<"\n";
               tout << "literal = "; print_literal(tout, l);
               tout <<"\n";
               );
-        if (j >= m_changed_vars.size())
+        if (j >= m_changed_vars.data_size())
             m_changed_vars.resize(j + 1);
         m_changed_vars.insert(j);
         return true;
@@ -293,6 +283,53 @@ bool cut_solver<T>::consistent() const {
             return false;
     }
     return true;
+}
+
+template <typename T>
+unsigned cut_solver<T>::add_ineq_in_local_vars(const std::vector<monomial> & lhs,
+                                 const T& free_coeff,
+                                 vector<constraint_index> explanation) {
+    lp_assert(lhs_is_int(lhs));
+    lp_assert(is_int(free_coeff));
+    unsigned ineq_index = m_ineqs.size();
+        
+    m_ineqs.push_back(ineq(lhs, free_coeff, explanation));
+    TRACE("ba_int",
+          tout << "explanation :";
+          for (auto i: explanation) {
+              m_print_constraint_function(i, tout);
+              tout << "\n";
+          });
+
+    for (auto & p : lhs)
+        m_var_infos[p.var()].add_dependent_ineq(ineq_index);
+        
+    return ineq_index;
+}
+
+template <typename T>
+unsigned cut_solver<T>::add_ineq(const std::vector<monomial> & lhs,
+                                 const T& free_coeff,
+                                 vector<constraint_index> explanation) {
+    lp_assert(lhs_is_int(lhs));
+    lp_assert(is_int(free_coeff));
+    std::vector<monomial> local_lhs;
+    unsigned ineq_index = m_ineqs.size();
+    for (auto & p : lhs)
+        local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
+        
+    m_ineqs.push_back(ineq(local_lhs, free_coeff, explanation));
+    TRACE("ba_int",
+          tout << "explanation :";
+          for (auto i: explanation) {
+              m_print_constraint_function(i, tout);
+              tout << "\n";
+          });
+
+    for (auto & p : local_lhs)
+        m_var_infos[p.var()].add_dependent_ineq(ineq_index);
+        
+    return ineq_index;
 }
 
 }

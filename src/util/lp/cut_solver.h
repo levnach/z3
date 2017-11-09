@@ -44,8 +44,8 @@ public: // for debugging
         // the polynomial evaluates to m_coeffs + m_a
         std::vector<monomial> m_coeffs;
         T m_a; // the free coefficient
-        polynomial(std::vector<monomial>& p, const T & a) : m_coeffs(p), m_a(a) {}
-        polynomial(std::vector<monomial>& p) : polynomial(p, 0) {}
+        polynomial(const std::vector<monomial>& p, const T & a) : m_coeffs(p), m_a(a) {}
+        polynomial(const std::vector<monomial>& p) : polynomial(p, 0) {}
         polynomial(): m_a(zero_of_type<T>()) {}
         polynomial(const polynomial & p) : m_coeffs(p.m_coeffs), m_a(p.m_a) {} 
             
@@ -110,7 +110,7 @@ public: // for debugging
     struct ineq { // we only have less or equal, which is enough for integral variables
         polynomial m_poly;
         vector<constraint_index> m_explanation; 
-        ineq(std::vector<monomial>& term,
+        ineq(const std::vector<monomial>& term,
              const T& a,
              const vector<constraint_index> &explanation):
             m_poly(term, a),
@@ -260,30 +260,15 @@ public:
         return m_var_name_function(m_var_infos[j].m_user_var_index);
     }
 
-    unsigned add_ineq(std::vector<monomial> & lhs,
+    unsigned add_ineq(const std::vector<monomial> & lhs,
                       const T& free_coeff,
-                      vector<constraint_index> explanation) {
-        lp_assert(lhs_is_int(lhs));
-        lp_assert(is_int(free_coeff));
-        std::vector<monomial>  local_lhs;
-        unsigned ineq_index = m_ineqs.size();
-        for (auto & p : lhs)
-            local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
-        
-        m_ineqs.push_back(ineq(local_lhs, free_coeff, explanation));
-        TRACE("ba_int",
-              tout << "explanation :";
-              for (auto i: explanation) {
-                  m_print_constraint_function(i, tout);
-                  tout << "\n";
-              });
-
-        for (auto & p : local_lhs)
-            m_var_infos[p.var()].add_dependent_ineq(ineq_index);
-        
-        return ineq_index;
-    }
-
+                      vector<constraint_index> explanation);
+private:    
+    unsigned add_ineq_in_local_vars(const std::vector<monomial> & lhs,
+                      const T& free_coeff,
+                      vector<constraint_index> explanation);
+public:
+    
     ineq & get_ineq(unsigned i) {
         return m_ineqs[i];
     }
@@ -412,12 +397,10 @@ public:
 
     lbool bounded_search();
 
-    void checkpoint();
-
     void cleanup() {
     }
 
-    lbool propagate_and_backjump_step(bool& done);
+    lbool propagate_and_backjump_step();
 
     
     lbool final_check() {

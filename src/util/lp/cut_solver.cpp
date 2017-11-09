@@ -21,6 +21,12 @@ template cut_solver<mpq>::cut_solver(std::function<std::string (unsigned)> var_n
 
 template bool cut_solver<mpq>::consistent(const ineq & i) const;
 template bool cut_solver<int>::consistent(const ineq & i) const;
+template unsigned cut_solver<mpq>::add_ineq(const std::vector<cut_solver<mpq>::monomial> & lhs,
+                      const mpq& free_coeff,
+                      vector<constraint_index> explanation);
+template unsigned cut_solver<int>::add_ineq(const std::vector<cut_solver<int>::monomial> & lhs,
+                      const int& free_coeff,
+                      vector<constraint_index> explanation);
 
 
 }
