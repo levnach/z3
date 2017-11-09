@@ -22,8 +22,8 @@ lbool cut_solver<T>::check() {
 
 template <typename T>
 void cut_solver<T>::init_search() {
-    m_changed_vars.resize(m_v.size());
-    m_explanation.clear();
+    lp_assert(m_explanation.size() == 0);
+    lp_assert(m_changed_vars.size() == 0);
 }
 
 
@@ -80,13 +80,10 @@ void cut_solver<T>::print_state(std::ostream & out) const {
 template <typename T>
 lbool cut_solver<T>::bounded_search() {
     while (true) {
-        checkpoint();
         bool done = false;
         while (!done) {
             lbool is_sat = propagate_and_backjump_step(done);
-            if (is_sat == lbool::l_undef) // temporary fix for debugging
-                return lbool::l_undef;
-            if (is_sat != lbool::l_true) return is_sat;
+            if (is_sat != lbool::l_true) return is_sat; //start here
         }
 
         gc();
@@ -101,23 +98,45 @@ lbool cut_solver<T>::bounded_search() {
 }
 
 template <typename T>
+bool cut_solver<T>::decide() {
+    int j = find_non_fixed_var();
+    if (j < 0)
+        return false;
+    decide_var_on_bound(j, flip_coin());
+    return true;
+}
+
+template <typename T>
 lbool cut_solver<T>::propagate_and_backjump_step(bool& done) {
     done = true;
     propagate();
-    if (!inconsistent())
+    if (consistent())
         return lbool::l_true;
     if (!resolve_conflict())
         return lbool::l_false;
-    if (at_base_lvl()) {
-        cleanup(); // cleaner may propagate frozen clauses
-        if (inconsistent()) {
-            TRACE("sat", tout << "conflict at level 0\n";);
-            return lbool::l_false;
-        }
-        gc();
-    }
     done = false;
-    return lbool::l_true;
+    return lbool::l_undef;
+}
+
+template <typename T>
+bool cut_solver<T>::resolve_conflict() {
+    if(conflict()) {
+        if (at_base_lvl())
+            return false;
+        else 
+            lp_assert(false);// not implemented
+    }
+    return true; 
+    /*
+      while (true) {
+      bool r = resolve_conflict_core();
+      // after pop, clauses are reinitialized, 
+      // this may trigger another conflict.
+      if (!r)
+      return false;
+      if (!inconsistent())
+      return true;
+      }*/
 }
 
 
@@ -150,15 +169,45 @@ void cut_solver<T>::checkpoint() {
 
 template <typename T>
 cut_solver<T>::cut_solver(std::function<std::string (unsigned)> var_name_function,
-                          std::function<void (unsigned, std::ostream &)> print_constraint_function
+                          std::function<void (unsigned, std::ostream &)> print_constraint_function,
+                          lp_settings & settings
                           ) : m_var_name_function(var_name_function),
                               m_print_constraint_function(print_constraint_function),
-                              m_decision_has_been_made(false) {}
+                              m_decision_has_been_made(false),
+                              m_settings(settings)
+{}
 
 template <typename T>
 void cut_solver<T>::propagate() {
     propagate_simple_ineqs();
     propagate_ineqs_for_changed_vars();
+}
+
+template <typename T>
+void cut_solver<T>::decide_var_on_bound(unsigned j, bool decide_on_lower) {
+    vector<constraint_index> explanation; // empty in this case
+    T b;
+    std::vector<monomial> lhs;
+    
+    if (decide_on_lower) {
+        m_var_infos[j].m_domain.get_lower_bound(b);
+        lhs.push_back(monomial(one_of_type<T>(), j));
+        b = -b;
+    }
+    else {
+        m_var_infos[j].m_domain.get_upper_bound(b);
+        lhs.push_back(monomial(-one_of_type<T>(), j));
+    }
+    m_decision_has_been_made = true;
+    add_ineq(lhs, b, explanation);
+}
+
+
+template <typename T>
+void cut_solver<T>::decide_var() {
+    int j = find_non_fixed_var();
+    lp_assert(j >= 0);
+    decide_var_on_bound(j, flip_coin());
 }
 
 template <typename T>
@@ -208,8 +257,7 @@ bool cut_solver<T>::propagate_simple_ineqs() {
 
 template <typename T>
 bool cut_solver<T>::consistent(const ineq & i) const {
-    if (find_non_fixed_var() != -1)
-        return false; // ignore the variables values and only return true if every variable is fixed
+    // an option could be to check that upper(i.m_poly) <= 0
     bool ret = value(i.m_poly) <= zero_of_type<T>();
     if (!ret) {
         TRACE("cut_solver_state_inconsistent", 
@@ -232,6 +280,19 @@ int cut_solver<T>::find_non_fixed_var() const {
             return j;
     }
     return -1;
+}
+template <typename T>
+bool cut_solver<T>::consistent() const {
+    if (find_non_fixed_var() != -1) {
+        // this check could be removed if we calculate upper bound for every ineq
+        return false; // ignore the variables values and only return true if every variable is fixed
+    }
+    
+    for (const auto & i : m_ineqs) {
+        if (!consistent(i))
+            return false;
+    }
+    return true;
 }
 
 }

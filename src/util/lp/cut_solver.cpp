@@ -14,9 +14,9 @@ template void cut_solver<mpq>::pop(unsigned int);
 template void cut_solver<mpq>::propagate();
 template void cut_solver<mpq>::push();
 template cut_solver<int>::cut_solver(std::function<std::string (unsigned)> var_name_function,
-                          std::function<void (unsigned, std::ostream &)> print_constraint_function);
+                                     std::function<void (unsigned, std::ostream &)> print_constraint_function, lp_settings&);
 template cut_solver<mpq>::cut_solver(std::function<std::string (unsigned)> var_name_function,
-                          std::function<void (unsigned, std::ostream &)> print_constraint_function);
+                                     std::function<void (unsigned, std::ostream &)> print_constraint_function, lp_settings&);
     
 
 template bool cut_solver<mpq>::consistent(const ineq & i) const;

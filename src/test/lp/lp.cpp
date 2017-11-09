@@ -3266,13 +3266,14 @@ void test_improves(cut_solver<int>& cs, unsigned ineq_index, unsigned i0) {
 }
 
 void test_cut_solver() {
+    lp_settings settings;
     cut_solver<int> cs([](unsigned i)
                        {
                            if (i == 0) return std::string("x");
                            if (i == 1) return  std::string("y");
                            if (i == 2) return std::string("z");
                            return std::to_string(i);
-                       }, [](unsigned, std::ostream&){});
+                       }, [](unsigned, std::ostream&){}, settings);
     std::vector<mono> term;
     unsigned x = 0;
     unsigned y = 1;

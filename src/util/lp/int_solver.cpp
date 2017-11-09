@@ -812,7 +812,8 @@ int_solver::int_solver(lar_solver* lar_slv) :
     m_lar_solver(lar_slv),
     m_branch_cut_counter(0),
     m_cut_solver([this](unsigned j) {return m_lar_solver->get_column_name(j);},
-                 [this](unsigned j, std::ostream &o) {m_lar_solver->print_constraint(j, o);}) {
+                 [this](unsigned j, std::ostream &o) {m_lar_solver->print_constraint(j, o);},
+                 settings()) {
     lp_assert(m_old_values_set.size() == 0);
     m_old_values_set.resize(lar_slv->A_r().column_count());
     m_old_values_data.resize(lar_slv->A_r().column_count(), zero_of_type<impq>());

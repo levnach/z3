@@ -301,7 +301,7 @@ public:
     stacked_value<bool> m_decision_has_been_made;  // tracks the number of case splits
     int_set m_changed_vars;
     std::vector<literal>          m_trail;
-
+    lp_settings & m_settings;
     struct scope {
         unsigned m_trail_size;
         unsigned m_ineqs_size;
@@ -388,7 +388,8 @@ public:
     lbool check();
 
     cut_solver(std::function<std::string (unsigned)> var_name_function,
-               std::function<void (unsigned, std::ostream &)> print_constraint_function);
+               std::function<void (unsigned, std::ostream &)> print_constraint_function,
+               lp_settings &);
 
     void init_search();
 
@@ -425,18 +426,7 @@ public:
         return lbool::l_true;
     }
     
-
-    bool resolve_conflict() {
-        while (true) {
-            bool r = resolve_conflict_core();
-            // after pop, clauses are reinitialized, 
-            // this may trigger another conflict.
-            if (!r)
-                return false;
-            if (!inconsistent())
-                return true;
-        }
-    }
+    bool resolve_conflict();
 
     bool resolve_conflict_core() {
         // this is where the main action is.
@@ -644,33 +634,23 @@ public:
         while (!m_changed_vars.is_empty()) {
             unsigned j = m_changed_vars.m_index.back();
             propagate_on_ineqs_of_var(j);
-            if (conflict())
+            if (conflict()) {
+                m_changed_vars.clear();
                 return;
+            }
             m_changed_vars.erase(j);
         }
     }
 
     void propagate();
 
-
-    bool decide() {
-        // this is where the main action is.
-        // pick the next variable and bound or value on the variable.
-        // return false if all variables have been assigned.
-        return false;
-    }
+    bool decide();
 
     bool inconsistent() const {
         return !consistent();
     }
 
-    bool consistent() const {
-        for (const auto & i : m_ineqs) {
-            if (!consistent(i))
-                return false;
-        }
-        return true;
-    }
+    bool consistent() const;
 
     bool consistent(const ineq & i) const;
 
@@ -1112,5 +1092,11 @@ public:
 
     // returns -1 if every variable is fixed
     int find_non_fixed_var() const;
+    void decide_var();
+    bool flip_coin() {
+        return m_settings.random_next()%2 == 0;
+    }
+    void decide_var_on_bound(unsigned j, bool decide_on_lower);
 };
+
 }
