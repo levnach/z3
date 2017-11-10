@@ -41,6 +41,7 @@ bool cut_solver<T>::propagate_inequality(unsigned i) {
         T b;
         lower(in.m_poly, b);
         if (is_pos(b)) {
+            TRACE("cs_inconsistent", trace_print_ineq(tout, i););
             return false;
         } else {
             propagate_inequality_on_lower(i, b);
@@ -106,7 +107,7 @@ void cut_solver<T>::print_literal_bound(std::ostream & o, const literal & t) con
     }
     if (t.m_ineq_index >= 0) {
         if (t.m_ineq_index == t.m_tight_explanation_ineq_index) {
-            o << " ineq is the same is the tight\n";
+            o << " ineq is the same as the tight one\n";
         } else {
             o << "  ineq ";
             print_ineq(o, t.m_ineq_index);
@@ -120,7 +121,7 @@ bool cut_solver<T>::decide() {
     int j = find_non_fixed_var();
     if (j < 0)
         return false;
-    TRACE("cs_dec", tout << "decided " << var_name(j) << " j = " << j << "\n";);
+    TRACE("cs_dec", tout << "decided " << var_name(j) << " var index = " << j << "\n";);
     decide_var_on_bound(j, flip_coin());
     return true;
 }
@@ -168,8 +169,7 @@ template <typename T>
 bool cut_solver<T>::resolve_conflict_on_trail_bound(const ineq & i, const literal & l) {
     lp_assert(lower_val(i) > 0);
     lp_assert(l.m_tag == literal_type::BOUND);
-    const ineq & bound_ineq = m_ineqs[l.m_ineq_index];
-    if (is_decided(bound_ineq)) {
+    if (l.is_decided()) {
         if (decision_is_redundant_for_ineq(i, l))
             pop(); // skip decision
         else
@@ -206,12 +206,17 @@ bool cut_solver<T>::resolve_conflict(int inconstistent_ineq) {
       }*/
 }
 
-
+template <typename T>
+void cut_solver<T>::print_scope(std::ostream& out) const {
+    out << "trail_size = " << m_scope().m_trail_size << ", ineqs_size = " << m_scope().m_ineqs_size <<
+        ", div_constraint size = " << m_scope().m_div_constraints_size << "\n";
+}
 
 template <typename T>
 void cut_solver<T>::pop(unsigned k) {
     TRACE("trace_push_pop_in_cut_solver", tout << "before pop\n";print_state(tout););
     m_scope.pop(k);
+    TRACE("trace_push_pop_in_cut_solver", tout << "scope = ";print_scope(tout); tout << "\n";);
     m_trail.resize(m_scope().m_trail_size);
     pop_ineqs();
     pop_div_constraints();

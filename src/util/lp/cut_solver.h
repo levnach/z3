@@ -110,16 +110,20 @@ public: // for debugging
     struct ineq { // we only have less or equal, which is enough for integral variables
         polynomial m_poly;
         vector<constraint_index> m_explanation; 
+
         ineq(const std::vector<monomial>& term,
              const T& a,
              const vector<constraint_index> &explanation):
             m_poly(term, a),
             m_explanation(explanation) {
         }
+
         ineq() {}
+
         bool contains(var_index j) const {
             return m_poly.contains(j);
         }
+
         const T & coeff(var_index j) const {
             return m_poly.coeff(j);
         }
@@ -203,7 +207,7 @@ public: // for debugging
             m_bool_val(l.m_bool_val),
             m_index_of_div_constraint(l.m_index_of_div_constraint) { }
         
-        bool decided() const { return m_ineq_index < 0; }
+        bool is_decided() const { return m_ineq_index < 0; }
     };    
 
     enum class bound_type {
@@ -292,6 +296,9 @@ public:
         unsigned m_ineqs_size;
         unsigned m_div_constraints_size;
         scope() {}
+        scope(const scope& s) : m_trail_size(s.m_trail_size),
+                                               m_ineqs_size(s.m_ineqs_size),
+                                               m_div_constraints_size(s.m_div_constraints_size) {}
         scope(unsigned trail_size,
               unsigned ineqs_size,
               unsigned div_constraints_size) : m_trail_size(trail_size),
@@ -444,6 +451,8 @@ public:
     bool propagate_simple_ineq(unsigned ineq_index);
     
     void print_trail(std::ostream & out) const;
+
+    void print_scope(std::ostream & out) const;
 
     bool propagate_simple_ineqs();
 
@@ -744,10 +753,6 @@ public:
 
     void pop() { pop(1); }
         
-    
-    bool is_decided(const ineq & i) const {
-        return m_explanation.size() == 0;
-    }
     // returns false if not limited from below
     // otherwise the answer is put into lb
     bool lower(const polynomial & f, T & lb) const {
@@ -1016,7 +1021,7 @@ public:
     
     bool literal_is_correct(const literal &t ) const {
         if (t.m_tag == literal_type::BOUND) {
-            if (t.decided())
+            if (t.is_decided())
                 return true;
             auto & i = m_ineqs[t.m_ineq_index];
             int sign_should_be = t.m_is_lower? -1: 1;
