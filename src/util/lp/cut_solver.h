@@ -409,7 +409,7 @@ public:
         return lbool::l_true;
     }
     
-    bool resolve_conflict();
+    bool resolve_conflict(int incostistent_ineq);
 
     bool resolve_conflict_core() {
         // this is where the main action is.
@@ -443,9 +443,9 @@ public:
 
     bool propagate_simple_ineq(unsigned ineq_index);
     
-    
+    void print_trail(std::ostream & out) const;
+
     bool propagate_simple_ineqs();
-        
 
     unsigned find_large_enough_j(unsigned i) {
         unsigned r = 0;
@@ -599,39 +599,44 @@ public:
         // is unlimited from below and we are adding an upper bound for it
         propagate_monomial_on_right_side(i.m_poly.m_coeffs[the_only_unlim], rs, ineq_index);
     }
-    
-    void propagate_inequality(unsigned i);
+
+    // returns true if there is no conflict
+    bool propagate_inequality(unsigned i);
 
     bool conflict() const { return m_explanation.size() > 0; }
-    
-    void propagate_on_ineqs_of_var(var_index j) {
+
+    // returns -1 if there is no conflict and the index of the conflict inequality otherwise
+    int  propagate_on_ineqs_of_var(var_index j) {
         for (unsigned i : m_var_infos[j].m_dependent_ineqs) {
-            propagate_inequality(i);
-            if (conflict())
-                return;
+            if (!propagate_inequality(i))
+                return i;
         }
+        return -1;
     }
     
-    void propagate_ineqs_for_changed_vars() {
+    // returns -1 if there is no conflict and the index of the conflict inequality otherwise
+    int propagate_ineqs_for_changed_vars() {
         TRACE("cut_solver_state", tout << "changed vars size = " << m_changed_vars.size() << "\n";);
         while (!m_changed_vars.is_empty()) {
             unsigned j = m_changed_vars.m_index.back();
-            propagate_on_ineqs_of_var(j);
-            if (conflict()) {
+            int i = propagate_on_ineqs_of_var(j);
+            if (i >= 0) {
                 m_changed_vars.clear();
-                return;
+                return i;
             }
             m_changed_vars.erase(j);
         }
+        return -1;
     }
 
-    void propagate();
+    // returns -1 if there is no conflict and the index of the conflict inequality otherwise
+    int propagate();
 
     bool decide();
-
-    bool inconsistent() const {
-        return !consistent();
-    }
+    
+    bool all_vars_are_fixed() const;
+    // returns -1 if consistent, or the index of an incostistent inequality
+    int inconsistent() const;
 
     bool consistent() const;
 
@@ -737,7 +742,12 @@ public:
         return lb;
     }
 
+    void pop() { pop(1); }
         
+    
+    bool is_decided(const ineq & i) const {
+        return m_explanation.size() == 0;
+    }
     // returns false if not limited from below
     // otherwise the answer is put into lb
     bool lower(const polynomial & f, T & lb) const {
@@ -873,30 +883,18 @@ public:
 
     void print_ineq(std::ostream & out, const ineq & i ) const {
         print_polynomial(out, i.m_poly);
-        out << " <= 0, explanations = \n";
-        for (unsigned j : i.m_explanation) {
-            out << "constraint_index = " << j << ":";
-            m_print_constraint_function(j, out);
+        if (i.m_explanation.size()) {
+            out << " <= 0, explanations = \n";
+            for (unsigned j : i.m_explanation) {
+                out << "constraint_index = " << j << ":";
+                m_print_constraint_function(j, out);
+            }
         }
+        else { out << " decided\n";}
     }
 
-    void print_literal_bound(std::ostream & o, const literal & t) const {
-        o << "BOUND: ";
-        o << get_column_name(t.m_var_index) << " ";
-        if (t.m_is_lower)
-            o << ">= ";
-        else
-            o << "<= ";
-        o << t.m_bound;
-        if (t.m_tight_explanation_ineq_index >= 0) {
-            o << "  tight ineq ";
-            print_ineq(o, t.m_tight_explanation_ineq_index);
-        }
-        if (t.m_ineq_index >= 0) {
-            o << "  ineq ";
-            print_ineq(o, t.m_ineq_index);
-        }
-    }
+    void print_literal_bound(std::ostream & o, const literal & t) const;
+    
 
     void print_literal(std::ostream & o, const literal & t) const {
         if (t.m_tag == literal_type::BOUND)
@@ -1079,7 +1077,11 @@ public:
     bool flip_coin() {
         return m_settings.random_next()%2 == 0;
     }
+    
+    bool resolve_conflict_on_trail_bound(const ineq & i, const literal & l);
     void decide_var_on_bound(unsigned j, bool decide_on_lower);
+    // i is a not consistent ineq
+    bool decision_is_redundant_for_ineq(const ineq& i, const literal & l) const;
 };
 
 }

@@ -27,12 +27,13 @@ void cut_solver<T>::init_search() {
 }
 
 
+// returns true if there is no conflict and false otherwise
 template <typename T>
-void cut_solver<T>::propagate_inequality(unsigned i) {
+bool cut_solver<T>::propagate_inequality(unsigned i) {
     TRACE("ba_int", trace_print_ineq(tout, i););
     const ineq & in = m_ineqs[i];
     if (in.is_simple())
-        return;
+        return true;
     // consider a special case for inequalities with just two variables
     unsigned the_only_unlim;
     int r = lower_analize(in, the_only_unlim);
@@ -40,23 +41,22 @@ void cut_solver<T>::propagate_inequality(unsigned i) {
         T b;
         lower(in.m_poly, b);
         if (is_pos(b)) {
-            lp_assert(m_explanation.size() == 0);
-            std::unordered_set<unsigned> expl;
-            if (at_base_lvl())
-                fill_conflict_explanation(i, m_trail.size());
-            TRACE("trace_conflict_int", tout << "conflict explanation\n";
-                  for (auto p : m_explanation) {
-                      m_print_constraint_function(p, tout);
-                  }
-                  );
+            return false;
         } else {
             propagate_inequality_on_lower(i, b);
         }
     } else if (r == 1) {
         propagate_inequality_only_one_unlim(i, the_only_unlim);
     }
+    return true;
 }
-
+template <typename T>
+void cut_solver<T>::print_trail(std::ostream & out) const {
+    for (const auto & l : m_trail) {
+        print_literal(out, l);
+        out << "\n";
+    }
+}
 template <typename T>
 void cut_solver<T>::print_state(std::ostream & out) const {
     out << "ineqs:\n";
@@ -65,10 +65,7 @@ void cut_solver<T>::print_state(std::ostream & out) const {
     }
     out << "end of ineqs\n";
     out << "trail\n";
-    for (const auto & l : m_trail) {
-        print_literal(out, l);
-        out << "\n";
-    }
+    print_trail(out);
     out << "end of trail\n";
     out << "var_infos\n";
     for (const auto & v: m_var_infos) {
@@ -94,34 +91,108 @@ lbool cut_solver<T>::bounded_search() {
     return lbool::l_undef;
 }
 
+template <typename T>
+void cut_solver<T>::print_literal_bound(std::ostream & o, const literal & t) const {
+    o << "BOUND: ";
+    o << get_column_name(t.m_var_index) << " ";
+    if (t.m_is_lower)
+        o << ">= ";
+    else
+        o << "<= ";
+    o << t.m_bound;
+    if (t.m_tight_explanation_ineq_index >= 0) {
+        o << "  tight ineq ";
+        print_ineq(o, t.m_tight_explanation_ineq_index);
+    }
+    if (t.m_ineq_index >= 0) {
+        if (t.m_ineq_index == t.m_tight_explanation_ineq_index) {
+            o << " ineq is the same is the tight\n";
+        } else {
+            o << "  ineq ";
+            print_ineq(o, t.m_ineq_index);
+        }
+    }
+}
+
 
 template <typename T>
 bool cut_solver<T>::decide() {
     int j = find_non_fixed_var();
     if (j < 0)
         return false;
+    TRACE("cs_dec", tout << "decided " << var_name(j) << " j = " << j << "\n";);
     decide_var_on_bound(j, flip_coin());
     return true;
 }
 
 template <typename T>
 lbool cut_solver<T>::propagate_and_backjump_step() {
-    propagate();
-    if (consistent())
-        return lbool::l_true;
-    if (!resolve_conflict())
-        return lbool::l_false;
-    return lbool::l_undef;
+    int incostistent_ineq = propagate();
+    TRACE("cs_dec", tout << "trail = \n"; print_trail(tout); tout << "end of trail\n";);
+
+    if (incostistent_ineq >= 0) {
+        if (at_base_lvl()) {
+            fill_conflict_explanation(incostistent_ineq, m_trail.size());
+            return lbool::l_false;
+        }
+        resolve_conflict(incostistent_ineq);
+    }
+
+    if(!all_vars_are_fixed())
+        return lbool::l_undef;
+
+    return lbool::l_true;
+}
+
+// returns -1 if consistent, or the index of an incostistent inequality
+template <typename T>
+int cut_solver<T>::inconsistent() const {
+    for (int i=0;i<m_ineqs.size();i++)
+        if (lower(i) > 0)
+            return i;
+
+    return -1;
+}
+template <typename T>
+bool cut_solver<T>::decision_is_redundant_for_ineq(const ineq& i, const literal & l) const {
+    const T & coeff = i.coeff(l.m_var_index);
+    if (is_zero(coeff))
+        return true;
+    if (is_pos(coeff)) {
+        return l.m_is_lower;
+    }
+    return !l.m_is_lower;
+}
+// i is an incostistent inequality
+template <typename T>
+bool cut_solver<T>::resolve_conflict_on_trail_bound(const ineq & i, const literal & l) {
+    lp_assert(lower_val(i) > 0);
+    lp_assert(l.m_tag == literal_type::BOUND);
+    const ineq & bound_ineq = m_ineqs[l.m_ineq_index];
+    if (is_decided(bound_ineq)) {
+        if (decision_is_redundant_for_ineq(i, l))
+            pop(); // skip decision
+        else
+            lp_assert(false); // not implemented
+        
+    } else {
+        lp_assert(false);// not implemented
+    }
+        
+    return true;
 }
 
 template <typename T>
-bool cut_solver<T>::resolve_conflict() {
-    if(conflict()) {
-        if (at_base_lvl())
-            return false;
-        else 
-            lp_assert(false);// not implemented
-    }
+bool cut_solver<T>::resolve_conflict(int inconstistent_ineq) {
+    lp_assert(!at_base_lvl());
+    ineq & i = m_ineqs[inconstistent_ineq];
+    const auto & l = m_trail.back();
+    TRACE("cut_solver_state_inconsistent", print_literal(tout, l););
+    if (l.m_tag == literal_type::BOUND)
+        return resolve_conflict_on_trail_bound(i, l);
+    else 
+        lp_assert(false);
+    
     return true; 
     /*
       while (true) {
@@ -134,6 +205,7 @@ bool cut_solver<T>::resolve_conflict() {
       return true;
       }*/
 }
+
 
 
 template <typename T>
@@ -167,10 +239,11 @@ cut_solver<T>::cut_solver(std::function<std::string (unsigned)> var_name_functio
                               m_settings(settings)
 {}
 
+// returns -1 if there is no conflict and the index of the conflict inequality otherwise
 template <typename T>
-void cut_solver<T>::propagate() {
+int cut_solver<T>::propagate() {
     propagate_simple_ineqs();
-    propagate_ineqs_for_changed_vars();
+    return propagate_ineqs_for_changed_vars();
 }
 
 template <typename T>
@@ -271,10 +344,16 @@ int cut_solver<T>::find_non_fixed_var() const {
     }
     return -1;
 }
+
+template <typename T>
+bool cut_solver<T>::all_vars_are_fixed() const {
+    return find_non_fixed_var() == -1;
+}
+
 template <typename T>
 bool cut_solver<T>::consistent() const {
     if (find_non_fixed_var() != -1) {
-        // this check could be removed if we calculate upper bound for every ineq
+        // this check could be removed if we use upper bound to check if an inequality holds
         return false; // ignore the variables values and only return true if every variable is fixed
     }
     
