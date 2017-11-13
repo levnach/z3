@@ -105,6 +105,10 @@ public: // for debugging
             }
             return m_coeffs.size() == s.size();
         }
+        bool is_tight(unsigned j) const {
+            const T & a = coeff(j);
+            return a == 1 || a == -1;
+        }
     };
 
     
@@ -828,16 +832,14 @@ public:
         }
     }
 
-    // trying to improve constraint ie by using literal t, and eliminate the literal variable.
-    bool resolve(const literal & t, const constraint & ie, constraint & result) const {
-        lp_assert(literal_is_correct(t));
-        lp_assert(t.m_expl_index >= 0); // ! t.decided()
-        var_index j = t.m_var_index;
-        const constraint & tight_i = m_constraints[t.m_tight_explanation_constraint_index];
-        lp_assert(tight_i.is_tight(j));
+    // Trying to improve constraint "ie" by eliminating var j by using a  tight inequality 
+    // for j. The left side of the inequality is passed as a parameter.
+    bool resolve(const polynomial & ie, unsigned j, bool sign_j_in_ti_is_pos, const polynomial & ti, polynomial & result) const {
+        lp_assert(ti.is_tight(j));
+        lp_assert(result.is_zero());
         result.clear();
-        const auto &coeffs = ie.m_poly.m_coeffs;
-        // start here !!!!!!!!!!!!!!!!!!!!1
+        const auto &coeffs = ie.m_coeffs;
+        // todo: implement a more efficient version
         bool found = false;
         T a;
         for (const auto & c : coeffs) {
@@ -846,18 +848,27 @@ public:
                 found = true;
             }
             else {
-                result.m_poly.m_coeffs.push_back(c);
+                result.m_coeffs.push_back(c);
             }
         }
-        
-        if ( !found || (t.m_is_lower == is_neg(a)))
-            return false;
 
-        for (auto & c : tight_i.m_poly.m_coeffs) {
-            if (c.var() != j)
-                result.m_poly += monomial(a * c.coeff(), c.var());
+        if (!found) return false;
+        
+        if (is_neg(a)) {
+            a = -a;
+            if (!sign_j_in_ti_is_pos) return false;
+        } else {
+            if (sign_j_in_ti_is_pos) return false;
         }
-        result.m_poly.m_a = ie.m_poly.m_a + a * tight_i.m_poly.m_a;
+
+        for (auto & c : ti.m_coeffs) {
+            if (c.var() != j)
+                result += monomial(a * c.coeff(), c.var());
+            else {
+                lp_assert(c.coeff() == sign_j_in_ti_is_pos? one_of_type<T>():-one_of_type<T>());
+            }
+        }
+        result.m_a = ie.m_a + a * ti.m_a;
         return true;
     }
 
