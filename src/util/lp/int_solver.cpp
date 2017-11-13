@@ -1179,7 +1179,7 @@ void int_solver::add_constraint_to_cut_solver(unsigned ci, const lar_base_constr
     std::vector<cut_solver<mpq>::monomial> coeffs;
     mpq rs;
     get_int_coeffs_from_constraint<mpq>(c, coeffs, rs);
-    vector<constraint_index> explanation;
+    svector<constraint_index> explanation;
     explanation.push_back(ci);
     m_cut_solver.add_ineq(coeffs, -rs, explanation);
 }

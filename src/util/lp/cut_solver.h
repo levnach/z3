@@ -117,16 +117,24 @@ public: // for debugging
         bool m_is_ineq;
         polynomial m_poly;
         T m_d; // the divider for the case of a divisibility constraint
-        constraint(const std::vector<monomial>& term, const T& a, bool is_lemma):
+        svector<constraint_index> m_origins; // these indices come from the client
+        constraint(const std::vector<monomial>& term, const T& a, bool is_lemma,
+                   const svector<constraint_index> & origin):
             m_is_lemma(is_lemma),
             m_is_ineq(true),
-            m_poly(term, a) {}
+            m_poly(term, a),
+            m_origins(origin)
+        {}
 
-        constraint(const std::vector<monomial>& term, const T& a, const T & divider, bool is_lemma):
+        constraint(const std::vector<monomial>& term, const T& a, const T & divider,
+                   bool is_lemma,
+                   const svector<constraint_index> & origin):
             m_is_lemma(is_lemma),
             m_is_ineq(false), // it is a division constraint
             m_poly(term, a),
-            m_d(divider) {}
+            m_d(divider),
+            m_origins(origin)
+        {}
 
 
         constraint() {}
@@ -156,6 +164,7 @@ public: // for debugging
         void add_monomial(const T & t, var_index j) {
             m_poly += monomial(t, j);
         }
+
     };
 
     struct literal {
@@ -163,8 +172,7 @@ public: // for debugging
         unsigned m_var_index;        
         bool m_is_lower;
         T m_bound;
-        //=================
-        int m_expl_index; // if m_is_decided, then m_expx_index points to trail, otherwise it point to m_constraints
+        int m_expl_index; // if m_is_decided, then m_expl_index points to trail, otherwise it points to m_constraints
         literal(bool is_decided, unsigned var_index, bool is_lower, const T & bound, int expl_index):
             m_is_decided(is_decided),
             m_var_index(var_index),
@@ -493,21 +501,24 @@ public:
         return 0;// to avoid the warning
     }
 
+    void add_constraint_origins_to_explanation(unsigned constraint_index) {
+        for (auto j : m_constraints[constraint_index].m_origins)
+            m_explanation.insert(j);
+    }
+
     void fill_conflict_explanation(unsigned constraint_index, unsigned upper_end_of_trail) {
-        lp_assert(false);
-        /*
-        // it is a depth search in the DAG of constraint: the chidlren of an constraintualitiy are those constraint that provide its lower bound
-        add_constraint_explanations(constraint_index);
+        // it is a depth search in the DAG of constraint: the chidlren of a constraint are those constraints that provide its lower bound
+        add_constraint_origins_to_explanation(constraint_index);
         const constraint& in = m_constraints[constraint_index];
         TRACE("ba_int", print_constraint(tout, in););
         for (const auto & p: in.coeffs()){
             unsigned literal_index = find_lower_bound_literal(is_pos(p.coeff()), p.var(), upper_end_of_trail);
-            unsigned l_constraint_index = m_trail[literal_index].m_constraint_index;
+            unsigned l_constraint_index = m_trail[literal_index].m_expl_index;
             if (!m_constraints[l_constraint_index].is_simple()) 
                 fill_conflict_explanation(l_constraint_index, literal_index);
             else
-                add_constraint_explanations(l_constraint_index);
-                }*/
+                add_constraint_origins_to_explanation(l_constraint_index);
+        }
     }
 
     void trace_print_constraint(std::ostream& out, unsigned i) {
@@ -1041,7 +1052,7 @@ public:
     lbool bounded_search() {
         lbool is_sat = propagate_and_backjump_step();
         if (is_sat != lbool::l_undef)
-            return is_sat; //start here
+            return is_sat;
 
         gc();
 
@@ -1058,7 +1069,8 @@ public:
         int j = find_non_fixed_var();
         if (j < 0)
             return false;
-        TRACE("cs_dec", tout << "decided " << var_name(j) << " var index = " << j << "\n";);
+        TRACE("decide", tout << "going to decide " << var_name(j) << " var index = " << j << "\n";
+              tout << "domain = "; print_var_domain(tout, j); tout << "\n";);
         decide_var_on_bound(j, flip_coin());
         return true;
     }
@@ -1171,13 +1183,14 @@ public:
         return propagate_constraints_for_changed_vars();
     }
 
-    // walk the trail backward and find find the last implied bound on j (of the right kind)
+    // walk the trail backward and find the last implied bound on j (of the right kind)
     unsigned find_literal_index(unsigned j, bool is_lower) const {
-        for (unsigned j = m_trail.size(); j-- > 0;){
-            const auto & l = m_trail[j];
+        for (unsigned k = m_trail.size(); k-- > 0;){
+            const auto & l = m_trail[k];
             if (!l.m_is_decided && l.m_var_index == j && l.m_is_lower == is_lower)
-                return j;
+                return k;
         }
+        TRACE("find_literal", tout << "cannot find deciding literal for " << var_name(j)<<  " j = " << j << " is_lower = " << is_lower << std::endl;);
         lp_assert(false); // unreacheable
         return 0;
     }
@@ -1188,9 +1201,11 @@ public:
         std::vector<monomial> lhs;
         if (decide_on_lower) {
             m_var_infos[j].m_domain.get_lower_bound(b);
+            m_var_infos[j].m_domain.intersect_with_upper_bound(b);
         }
         else {
             m_var_infos[j].m_domain.get_upper_bound(b);
+            m_var_infos[j].m_domain.intersect_with_lower_bound(b);
         }
         m_decision_has_been_made = true;
         m_trail.push_back(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
@@ -1290,7 +1305,7 @@ public:
 
     unsigned add_ineq(const std::vector<monomial> & lhs,
                       const T& free_coeff,
-                      vector<constraint_index> explanation) {
+                      svector<constraint_index> origins) {
         lp_assert(lhs_is_int(lhs));
         lp_assert(is_int(free_coeff));
         std::vector<monomial> local_lhs;
@@ -1298,10 +1313,10 @@ public:
         for (auto & p : lhs)
             local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
         
-        m_constraints.push_back(constraint(local_lhs, free_coeff, false)); // false means it is not a lemma
+        m_constraints.push_back(constraint(local_lhs, free_coeff, false, origins)); // false means it is not a lemma
         TRACE("ba_int",
               tout << "explanation :";
-              for (auto i: explanation) {
+              for (auto i: origins) {
                   m_print_constraint_function(i, tout);
                   tout << "\n";
               });

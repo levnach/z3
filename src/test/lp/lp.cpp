@@ -3270,7 +3270,7 @@ void test_cut_solver() {
     term.push_back(mono(8, x));
     term.push_back(mono(-3, y));
     term.push_back(mono(-2, z));
-    vector<unsigned> expl;
+    svector<unsigned> expl;
     unsigned constraint_index = cs.add_ineq(term, 5, expl);
 
     cs.print_constraint(std::cout, constraint_index);
