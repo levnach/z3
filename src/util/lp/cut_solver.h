@@ -81,6 +81,8 @@ public: // for debugging
         
         bool is_zero() const { return m_coeffs.size() == 0 && numeric_traits<T>::is_zero(m_a); }
 
+        unsigned number_of_monomials() const { return m_coeffs.size();}
+        
         polynomial & operator+=(const monomial &m ){
             for (unsigned k = 0; k < m_coeffs.size(); k++) {
                 auto & l = m_coeffs[k];
@@ -188,6 +190,8 @@ public: // for debugging
 
         bool is_decided() const { return m_is_decided; }
 
+        bool is_implied() const { return !m_is_decided;}
+
         static literal make_implied_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
             return literal(false, var_index, is_lower, bound, expl_index);
         }
@@ -195,8 +199,6 @@ public: // for debugging
         static literal make_decided_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
             return literal(true, var_index, is_lower, bound, expl_index);
         }
-
-        
     };    
 
     enum class bound_type {
@@ -885,7 +887,7 @@ public:
             if (c.var() != j)
                 result += monomial(a * c.coeff(), c.var());
             else {
-                lp_assert(c.coeff() == sign_j_in_ti_is_pos? one_of_type<T>():-one_of_type<T>());
+                lp_assert(c.coeff() == (sign_j_in_ti_is_pos? one_of_type<T>():-one_of_type<T>()));
             }
         }
         result.m_a = ie.m_a + a * ti.m_a;
@@ -1143,24 +1145,58 @@ public:
               print_polynomial(tout, ndiv_part););
     }
 
+    void tighten_on_prev_literal(polynomial & p, const T & j_coeff, polynomial & div_part, polynomial &ndiv_part, int trail_index) {
+        TRACE("tight",
+              tout << "trail_index = " << trail_index << ", ";
+              print_literal(tout, m_trail[trail_index]););
+        literal & l = m_trail[trail_index];
+        if (l.m_tight_ineq.number_of_monomials() == 0) {
+            create_tight_ineq_under_literal(trail_index);
+        }
+        if (l.is_implied()) { // Resolve-Implied
+            polynomial result;
+            resolve(ndiv_part, l.m_var_index, !l.m_is_lower, l.m_tight_ineq, result);
+            ndiv_part = result;
+            TRACE("tight", tout << "after resolve ndiv_part = "; print_polynomial(tout, ndiv_part);
+                  tout << "\n";);
+        } else {
+            lp_assert(false);
+        }
+        
+    }
+    
     // see page 88
     void tighten(polynomial & p, unsigned j_of_var, const T& j_coeff, unsigned trail_index) {
         polynomial div_part, ndiv_part;
-        T r = p.m_a;
+        ndiv_part.m_a = p.m_a;
         TRACE("tight",
+              tout << "trail_index = " << trail_index;
+              tout << ", var name = " << var_name(j_of_var) << ";";
               tout << "p = ";
               print_polynomial(tout, p););
         create_div_ndiv_parts_for_tightening(p, j_coeff, div_part, ndiv_part);
-        lp_assert(false);
+        int k = trail_index - 1;
+        lp_assert(k >= 0);
+        while (ndiv_part.number_of_monomials() > 0) {
+            tighten_on_prev_literal(p, j_coeff, div_part, ndiv_part, k--);
+        }
     }
     
-    void create_tight_ineq(const literal & l, polynomial & p, unsigned trail_index) {
+    void create_tight_ineq_under_literal(unsigned trail_index) {
+        TRACE("tight", tout << "trail_index = " << trail_index << "\n";);
+        literal & l = m_trail[trail_index];
+        if (l.m_tight_ineq.number_of_monomials() > 0)
+            return;
+        const constraint & c = m_constraints[l.m_expl_index];
+        lp_assert(c.m_is_ineq);
+        polynomial &p = l.m_tight_ineq = c.m_poly;
         unsigned j = l.m_var_index;
         const T& a = p.coeff(j);
-        if (is_zero(a))
+        lp_assert(!is_zero(a));
+        if (a == one_of_type<T>() || a == - one_of_type<T>()) {
+            TRACE("tight", tout << "created = "; print_polynomial(tout, l.m_tight_ineq););
             return;
-        if (a == one_of_type<T>() || a == - one_of_type<T>())
-            return;
+        }
         tighten(p, j, a, trail_index);
     }
 
@@ -1172,9 +1208,8 @@ public:
             else
                 lp_assert(false); // not implemented
             return false;
-        } else {
-            const literal &l = m_trail[trail_index];
-            create_tight_ineq(l, p, trail_index);
+        } else { // the literal is implied
+            create_tight_ineq_under_literal(trail_index);
         }
         return false;
     }
