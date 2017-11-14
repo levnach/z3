@@ -1123,8 +1123,8 @@ public:
     }
 
     bool is_divizible(const T & a, const T & b) const {
-        lp_assert(false);
-        return false;
+        lp_assert(!is_zero(b));
+        return is_zero(a % b);
     }
     
     void create_div_ndiv_parts_for_tightening(const polynomial & p, const T & coeff, polynomial & div_part, polynomial & ndiv_part) {
@@ -1135,13 +1135,23 @@ public:
                 ndiv_part.m_coeffs.push_back(m);
             }
         }
+
+        TRACE("tight",
+              tout << "div_part = ";
+              print_polynomial(tout, div_part);
+              tout << "\nndiv_part = ";
+              print_polynomial(tout, ndiv_part););
     }
 
     // see page 88
     void tighten(polynomial & p, unsigned j_of_var, const T& j_coeff, unsigned trail_index) {
         polynomial div_part, ndiv_part;
         T r = p.m_a;
+        TRACE("tight",
+              tout << "p = ";
+              print_polynomial(tout, p););
         create_div_ndiv_parts_for_tightening(p, j_coeff, div_part, ndiv_part);
+        lp_assert(false);
     }
     
     void create_tight_ineq(const literal & l, polynomial & p, unsigned trail_index) {
