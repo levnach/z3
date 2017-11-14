@@ -165,6 +165,7 @@ public: // for debugging
             m_poly += monomial(t, j);
         }
 
+        bool is_ineq() const { return m_is_ineq;}
     };
 
     struct literal {
@@ -173,12 +174,15 @@ public: // for debugging
         bool m_is_lower;
         T m_bound;
         int m_expl_index; // if m_is_decided, then m_expl_index points to trail, otherwise it points to m_constraints
+        polynomial m_tight_ineq;
         literal(bool is_decided, unsigned var_index, bool is_lower, const T & bound, int expl_index):
             m_is_decided(is_decided),
             m_var_index(var_index),
             m_is_lower(is_lower),
             m_bound(bound),
-            m_expl_index(expl_index) {
+            m_expl_index(expl_index)
+        {
+            m_tight_ineq.m_a = zero_of_type<T>();
         }
         literal() {}
 
@@ -819,14 +823,19 @@ public:
         out << "\n";
     }
 
-    void print_literal(std::ostream & o, const literal & t) const {
-        o << (t.m_is_decided? "decided ": "implied ");
-        o << get_column_name(t.m_var_index) << " ";
+    void print_literal(std::ostream & out, const literal & t) const {
+        out << (t.m_is_decided? "decided ": "implied ");
+        out << get_column_name(t.m_var_index) << " ";
         if (t.m_is_lower)
-            o << ">= ";
+            out << ">= ";
         else
-            o << "<= ";
-        o << t.m_bound;
+            out << "<= ";
+        out << t.m_bound;
+
+        if (t.m_is_decided == false) {
+            out << " by constraint " << t.m_expl_index << " "; print_constraint(out, m_constraints[t.m_expl_index]);
+        }
+        
      }
     
 
@@ -980,7 +989,7 @@ public:
     }
 
     bool flip_coin() {
-        return m_settings.random_next()%2 == 0;
+        return m_settings.random_next() % 2 == 0;
     }
     
 
@@ -1071,6 +1080,7 @@ public:
             return false;
         TRACE("decide", tout << "going to decide " << var_name(j) << " var index = " << j << "\n";
               tout << "domain = "; print_var_domain(tout, j); tout << "\n";);
+        m_changed_vars.insert(j);
         decide_var_on_bound(j, flip_coin());
         return true;
     }
@@ -1101,7 +1111,8 @@ public:
 
         return -1;
     }
-    bool decision_is_redundant_for_constraint(const constraint& i, const literal & l) const {
+    
+    bool decision_is_redundant_for_constraint(const polynomial& i, const literal & l) const {
         const T & coeff = i.coeff(l.m_var_index);
         if (is_zero(coeff))
             return true;
@@ -1110,28 +1121,80 @@ public:
         }
         return !l.m_is_lower;
     }
-    // i is an incostistent constraint
-    bool resolve_conflict_on_trail_bound(const constraint & i, const literal & l) {
-        lp_assert(lower_val(i) > 0);
+
+    bool is_divizible(const T & a, const T & b) const {
+        lp_assert(false);
+        return false;
+    }
+    
+    void create_div_ndiv_parts_for_tightening(const polynomial & p, const T & coeff, polynomial & div_part, polynomial & ndiv_part) {
+        for (const auto &m : p.m_coeffs) {
+            if (is_divizible(m.coeff(), coeff)){
+                div_part.m_coeffs.push_back(m);
+            } else {
+                ndiv_part.m_coeffs.push_back(m);
+            }
+        }
+    }
+
+    // see page 88
+    void tighten(polynomial & p, unsigned j_of_var, const T& j_coeff, unsigned trail_index) {
+        polynomial div_part, ndiv_part;
+        T r = p.m_a;
+        create_div_ndiv_parts_for_tightening(p, j_coeff, div_part, ndiv_part);
+    }
+    
+    void create_tight_ineq(const literal & l, polynomial & p, unsigned trail_index) {
+        unsigned j = l.m_var_index;
+        const T& a = p.coeff(j);
+        if (is_zero(a))
+            return;
+        if (a == one_of_type<T>() || a == - one_of_type<T>())
+            return;
+        tighten(p, j, a, trail_index);
+    }
+
+    bool resolve_conflict_for_inequality_on_trail(polynomial & p, unsigned trail_index) {
+        const literal & l = m_trail[trail_index];
         if (l.is_decided()) {
-            if (decision_is_redundant_for_constraint(i, l))
+            if (decision_is_redundant_for_constraint(p, l))
                 pop(); // skip decision
             else
                 lp_assert(false); // not implemented
-        
+            return false;
         } else {
-            lp_assert(false);// not implemented
+            const literal &l = m_trail[trail_index];
+            create_tight_ineq(l, p, trail_index);
         }
-        
-        return true;
+        return false;
+    }
+    
+    bool resolve_conflict_for_inequality(polynomial & p) {
+#if Z3DEBUG
+        T b;
+        lp_assert(lower(p, b) && is_pos(b));
+#endif
+        bool done = false;
+        unsigned j = m_trail.size() - 1;
+        while (!done) {
+            done = resolve_conflict_for_inequality_on_trail(p, j--);
+            if (j >= m_trail.size()) {
+                lp_assert(m_trail.size());
+                j = m_trail.size() - 1;
+            }
+        }
+        return false;
     }
 
     bool resolve_conflict(int inconstistent_constraint) {
         lp_assert(!at_base_lvl());
         constraint & i = m_constraints[inconstistent_constraint];
-        const auto & l = m_trail.back();
-        TRACE("cut_solver_state_inconsistent", print_literal(tout, l););
-        return resolve_conflict_on_trail_bound(i, l);
+        if (i.is_ineq()) {
+            return resolve_conflict_for_inequality(i.m_poly);
+        } else {
+            lp_assert(false); // not implemented
+            return false;
+        }
     
         /*
           while (true) {
@@ -1209,14 +1272,6 @@ public:
         }
         m_decision_has_been_made = true;
         m_trail.push_back(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
-    }
-
-
-    void decide_var() {
-        int j = find_non_fixed_var();
-        lp_assert(j >= 0);
-        m_changed_vars.insert(j);
-        decide_var_on_bound(j, flip_coin());
     }
 
     bool propagate_simple_constraint(unsigned constraint_index) {
