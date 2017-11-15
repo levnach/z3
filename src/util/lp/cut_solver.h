@@ -70,7 +70,7 @@ public: // for debugging
         polynomial &  operator+=(const polynomial & p) {
             m_a += p.m_a;
             for (const auto & t: p.m_coeffs)
-                add_monomial(t.first, t.second);
+                *this += monomial(t.coeff(), t.var());
 	    return *this;
 	}
 
@@ -113,6 +113,8 @@ public: // for debugging
         }
     };
 
+
+        
     
     struct constraint { // we only have less or equal, which is enough for integral variables
         bool m_is_lemma;
@@ -172,14 +174,14 @@ public: // for debugging
 
     struct literal {
         bool m_is_decided;
-        unsigned m_var_index;        
+        unsigned m_var;        
         bool m_is_lower;
         T m_bound;
         int m_expl_index; // if m_is_decided, then m_expl_index points to trail, otherwise it points to m_constraints
         polynomial m_tight_ineq;
         literal(bool is_decided, unsigned var_index, bool is_lower, const T & bound, int expl_index):
             m_is_decided(is_decided),
-            m_var_index(var_index),
+            m_var(var_index),
             m_is_lower(is_lower),
             m_bound(bound),
             m_expl_index(expl_index)
@@ -199,6 +201,7 @@ public: // for debugging
         static literal make_decided_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
             return literal(true, var_index, is_lower, bound, expl_index);
         }
+        unsigned var() const { return m_var; }
     };    
 
     enum class bound_type {
@@ -398,7 +401,7 @@ public:
         unsigned literal_index = m_trail.size();
         m_trail.push_back(l);
         TRACE("ba_int", print_literal(tout, l););
-        m_var_infos[l.m_var_index].m_literals.push_back(literal_index);
+        m_var_infos[l.m_var].m_literals.push_back(literal_index);
     }
 
     unsigned find_large_enough_j(unsigned i) {
@@ -496,7 +499,7 @@ public:
             if (literal_index >= upper_end_of_trail)
                 continue;
             const literal& l = m_trail[literal_index];
-            if (l.m_var_index == j && l.m_is_lower == is_lower) {
+            if (l.m_var == j && l.m_is_lower == is_lower) {
                 TRACE("ba_int",
                       tout << "found lower bound expl\n";
                       print_literal(tout, l); tout << "\n";);
@@ -827,7 +830,7 @@ public:
 
     void print_literal(std::ostream & out, const literal & t) const {
         out << (t.m_is_decided? "decided ": "implied ");
-        out << get_column_name(t.m_var_index) << " ";
+        out << get_column_name(t.m_var) << " ";
         if (t.m_is_lower)
             out << ">= ";
         else
@@ -874,7 +877,10 @@ public:
             }
         }
 
-        if (!found) return false;
+        if (!found) {
+            result.m_a = ie.m_a;
+            return false;
+        }
         
         if (is_neg(a)) {
             a = -a;
@@ -955,7 +961,7 @@ public:
             return true;
         auto & i = m_constraints[t.m_constraint_index];
         int sign_should_be = t.m_is_lower? -1: 1;
-        const T &a = i.coeff(t.m_var_index);
+        const T &a = i.coeff(t.m_var);
         int sign = a > 0? 1: -1;
         return sign == sign_should_be;
     }
@@ -1115,7 +1121,7 @@ public:
     }
     
     bool decision_is_redundant_for_constraint(const polynomial& i, const literal & l) const {
-        const T & coeff = i.coeff(l.m_var_index);
+        const T & coeff = i.coeff(l.m_var);
         if (is_zero(coeff))
             return true;
         if (is_pos(coeff)) {
@@ -1145,6 +1151,41 @@ public:
               print_polynomial(tout, ndiv_part););
     }
 
+    void decide_lower_neg(polynomial &ndiv_part, T & c, literal &l) {
+        ndiv_part += -c * m_trail[l.m_expl_index].m_tight_ineq;
+        lp_assert(is_zero(ndiv_part.coeff(l.var())));
+        TRACE("tight", tout << "Decided-Lower-Neg, "; tout << "ndiv_part = ";
+              print_polynomial(tout, ndiv_part); tout << "\n";);
+    }
+
+    void decided_lower(const T & j_coeff, const T & c, polynomial &div_part, polynomial &ndiv_part, const literal &l) {
+        T k = is_pos(j_coeff)?ceil( c / j_coeff): floor(c / j_coeff);
+        ndiv_part += monomial(-c, l.var()); // it will be moved to div_part
+        T j_coeff_by_k = j_coeff * k;
+        T m = j_coeff_by_k - c;
+        TRACE("tight", tout << "c = " << c << ", j_coeff = " << j_coeff <<
+              ", c / j_coeff = " << c/j_coeff << ", k = " <<
+              k << ", j_coeff * k = " << j_coeff * k << ", m = " << m << "\n"; );  
+        lp_assert(is_pos(m));
+        for (const monomial & n : l.m_tight_ineq.m_coeffs) {
+            if (n.var() == l.var()) {
+                lp_assert(n.coeff() == one_of_type<T>());
+                div_part += monomial(j_coeff_by_k, l.var());
+            } else {
+                ndiv_part += monomial(m*n.coeff(), n.var());
+            }
+        }
+        TRACE("tight", tout << "Decided-Lower ";
+              tout << "div_part = ";
+              print_polynomial(tout, div_part);
+              tout << "\n";
+              tout << "ndiv_part = ";
+              print_polynomial(tout, ndiv_part);
+              tout << "\n";);
+                    
+        lp_assert(false); // just to stop here
+    }
+    
     void tighten_on_prev_literal(polynomial & p, const T & j_coeff, polynomial & div_part, polynomial &ndiv_part, int trail_index) {
         TRACE("tight",
               tout << "trail_index = " << trail_index << ", ";
@@ -1155,12 +1196,28 @@ public:
         }
         if (l.is_implied()) { // Resolve-Implied
             polynomial result;
-            resolve(ndiv_part, l.m_var_index, !l.m_is_lower, l.m_tight_ineq, result);
+            resolve(ndiv_part, l.m_var, !l.m_is_lower, l.m_tight_ineq, result);
             ndiv_part = result;
             TRACE("tight", tout << "after resolve ndiv_part = "; print_polynomial(tout, ndiv_part);
                   tout << "\n";);
-        } else {
-            lp_assert(false);
+        } else { 
+            lp_assert(l.is_decided());
+            create_tight_ineq_under_literal(l.m_expl_index);
+            T c = ndiv_part.coeff(l.var());
+            if (l.m_is_lower) {
+                if (is_neg(c)) {
+                    decide_lower_neg(ndiv_part, c, l);
+                } else { 
+                    decided_lower(j_coeff, c, div_part, ndiv_part, l);
+                }
+            } else {
+                lp_assert(!l.m_is_lower);
+                if (is_pos(c)) { // Decided-Upper-Pos
+                    lp_assert(false);
+                } else { // Decided-Upper
+                    lp_assert(false);
+                }
+            }
         }
         
     }
@@ -1180,6 +1237,13 @@ public:
         while (ndiv_part.number_of_monomials() > 0) {
             tighten_on_prev_literal(p, j_coeff, div_part, ndiv_part, k--);
         }
+        T abs_j_coeff = abs(j_coeff);
+        p.clear();
+        for (const auto & m : div_part.m_coeffs) {
+            p.m_coeffs.push_back(monomial(m.coeff() / abs_j_coeff, m.var()));
+        }
+        p.m_a = ceil(ndiv_part.m_a / abs_j_coeff);
+        TRACE("tight", tout << "trail_index = " << trail_index << ", got tight p = "; print_polynomial(tout, p); tout << "\n";);
     }
     
     void create_tight_ineq_under_literal(unsigned trail_index) {
@@ -1190,7 +1254,7 @@ public:
         const constraint & c = m_constraints[l.m_expl_index];
         lp_assert(c.m_is_ineq);
         polynomial &p = l.m_tight_ineq = c.m_poly;
-        unsigned j = l.m_var_index;
+        unsigned j = l.m_var;
         const T& a = p.coeff(j);
         lp_assert(!is_zero(a));
         if (a == one_of_type<T>() || a == - one_of_type<T>()) {
@@ -1295,7 +1359,7 @@ public:
     unsigned find_literal_index(unsigned j, bool is_lower) const {
         for (unsigned k = m_trail.size(); k-- > 0;){
             const auto & l = m_trail[k];
-            if (!l.m_is_decided && l.m_var_index == j && l.m_is_lower == is_lower)
+            if (!l.m_is_decided && l.m_var == j && l.m_is_lower == is_lower)
                 return k;
         }
         TRACE("find_literal", tout << "cannot find deciding literal for " << var_name(j)<<  " j = " << j << " is_lower = " << is_lower << std::endl;);
@@ -1427,5 +1491,15 @@ public:
         return constraint_index;
     }
 };
+template <typename T>
+inline typename cut_solver<T>::polynomial operator*(const T & a, const typename cut_solver<T>::polynomial & p) {
+    typename cut_solver<T>::polynomial ret;
+    ret.m_a = p.m_a * a;
+    
+    for (const auto & t: p.m_coeffs)
+        ret.m_coeffs.emplace_back(a * t.coeff(), t.var());
+    
+    return ret;
+}
 
 }
