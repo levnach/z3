@@ -194,16 +194,18 @@ public: // for debugging
 
         bool is_implied() const { return !m_is_decided;}
 
-        static literal make_implied_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
-            return literal(false, var_index, is_lower, bound, expl_index);
-        }
-
-        static literal make_decided_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
-            return literal(true, var_index, is_lower, bound, expl_index);
-        }
         unsigned var() const { return m_var; }
     };    
 
+    literal make_implied_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
+        return literal(false, var_index, is_lower, bound, expl_index);
+    }
+
+    literal make_decided_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
+        return literal(true, var_index, is_lower, bound, expl_index);
+    }
+
+    
     enum class bound_type {
         LOWER, UPPER, UNDEF
             };
@@ -400,6 +402,11 @@ public:
     void push_literal_to_trail(const literal & l) {
         unsigned literal_index = m_trail.size();
         m_trail.push_back(l);
+        // DEBUG
+        // for debugging purposes eagerely create tight inequalities
+        create_tight_ineq_under_literal(m_trail.size() - 1);
+        
+        // end DEBUG
         TRACE("ba_int", print_literal(tout, l););
         m_var_infos[l.m_var].m_literals.push_back(literal_index);
     }
@@ -867,6 +874,7 @@ public:
     bool resolve(const polynomial & ie, unsigned j, bool sign_j_in_ti_is_pos, const polynomial & ti, polynomial & result) const {
         lp_assert(ti.is_tight(j));
         lp_assert(result.is_zero());
+        lp_assert(is_pos(ti.coeff(j)) == sign_j_in_ti_is_pos);
         result.clear();
         const auto &coeffs = ie.m_coeffs;
         // todo: implement a more efficient version
@@ -883,10 +891,9 @@ public:
         }
 
         if (!found) {
-            result.m_a = ie.m_a;
             return false;
         }
-        
+        TRACE("tight", tout << "a = " << a << "\n";);
         if (is_neg(a)) {
             a = -a;
             if (!sign_j_in_ti_is_pos) return false;
@@ -958,7 +965,7 @@ public:
 
 
     void add_bound(T v, unsigned j, bool is_lower, unsigned constraint_index) {
-        push_literal_to_trail(literal::make_implied_literal(j, is_lower, v, constraint_index));
+        push_literal_to_trail(make_implied_literal(j, is_lower, v, constraint_index));
     }
     
     bool literal_is_correct(const literal &t ) const {
@@ -1196,8 +1203,8 @@ public:
         }
         if (l.is_implied()) { // Resolve-Implied
             polynomial result;
-            resolve(ndiv_part, l.m_var, !l.m_is_lower, l.m_tight_ineq, result);
-            ndiv_part = result;
+            if (resolve(ndiv_part, l.m_var, !l.m_is_lower, l.m_tight_ineq, result))
+                ndiv_part = result;
             TRACE("tight", tout << "after resolve ndiv_part = "; print_polynomial(tout, ndiv_part);
                   tout << "\n";);
         } else { 
@@ -1243,14 +1250,15 @@ public:
             p.m_coeffs.push_back(monomial(m.coeff() / abs_j_coeff, m.var()));
         }
         p.m_a = ceil(ndiv_part.m_a / abs_j_coeff);
+        lp_assert(p.m_a >= ndiv_part.m_a / abs_j_coeff);
         TRACE("tight", tout << "trail_index = " << trail_index << ", got tight p = "; print_polynomial(tout, p); tout << "\n";);
     }
     
     void create_tight_ineq_under_literal(unsigned trail_index) {
-        TRACE("tight", tout << "trail_index = " << trail_index << "\n";);
         literal & l = m_trail[trail_index];
-        if (l.m_tight_ineq.number_of_monomials() > 0)
+        if (l.m_tight_ineq.number_of_monomials() > 0) {
             return;
+        }
         const constraint & c = m_constraints[l.m_expl_index];
         lp_assert(c.m_is_ineq);
         polynomial &p = l.m_tight_ineq = c.m_poly;
@@ -1258,7 +1266,6 @@ public:
         const T& a = p.coeff(j);
         lp_assert(!is_zero(a));
         if (a == one_of_type<T>() || a == - one_of_type<T>()) {
-            TRACE("tight", tout << "created = "; print_polynomial(tout, l.m_tight_ineq););
             return;
         }
         tighten(p, j, a, trail_index);
@@ -1266,21 +1273,17 @@ public:
 
     bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index) {
         const literal & l = m_trail[trail_index];
-        TRACE("int_resolve_confl", tout << "l = ";  print_literal(tout, l););
+        TRACE("int_resolve_confl", tout << "p = ";
+              print_polynomial(tout, p);
+              tout << "\nl = ";  print_literal(tout, l););
         if (l.is_decided()) {
             if (decision_is_redundant_for_constraint(p, l))
                 pop(); // skip decision
             else {
-                const literal & l_origin = m_trail[l.m_expl_index];
-                TRACE("int_resolve_confl",
-                      tout << "l.m_expl_index = " << l.m_expl_index << ", ";
-                      tout << "l_origin = ";
-                      print_literal(tout, l_origin);
-                      tout << "m_constraints[" << l_origin.m_expl_index << "] = ";
-                      print_constraint(tout, m_constraints[l_origin.m_expl_index]);
-                      tout << "\n";
-                      );
-                
+                bound_result br = bound_on_polynomial(p,
+                                                      p.coeff(l.var()),
+                                                      l.var());
+                TRACE("int_resolve_confl", br.print(tout););
                 lp_assert(false);
                 
             }
@@ -1289,8 +1292,8 @@ public:
             create_tight_ineq_under_literal(trail_index);
             // applying Resolve rool
             polynomial result;
-            resolve(p, l.var(), !l.m_is_lower, l.m_tight_ineq, result);
-            p = result;
+            if (resolve(p, l.var(), !l.m_is_lower, l.m_tight_ineq, result))
+                p = result;
             TRACE("int_resolve_confl",
                   tout << "p = ";
                   print_polynomial(tout, result););
@@ -1403,7 +1406,7 @@ public:
             m_var_infos[j].m_domain.intersect_with_lower_bound(b);
         }
         m_decision_has_been_made = true;
-        m_trail.push_back(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
+        m_trail.push_back(make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
     }
 
     bool propagate_simple_constraint(unsigned constraint_index) {
@@ -1418,7 +1421,8 @@ public:
               );
         
         if (improves(j, br)) {
-            literal l = literal::make_implied_literal(j, br.m_type == bound_type::LOWER, br.m_bound, constraint_index);
+            literal l = make_implied_literal(j, br.m_type == bound_type::LOWER, br.m_bound, constraint_index);
+            l.m_tight_ineq = t.m_poly;
             push_literal_to_trail(l);
             restrict_var_domain_with_bound_result(j, br);
             TRACE("cut_solver_state_simpe_constraint", tout <<"improved domain = ";
