@@ -119,7 +119,7 @@ public: // for debugging
     struct constraint { // we only have less or equal, which is enough for integral variables
         bool m_is_lemma;
         bool m_is_ineq;
-        polynomial m_poly;
+        const polynomial m_poly;
         T m_d; // the divider for the case of a divisibility constraint
         svector<constraint_index> m_origins; // these indices come from the client
         constraint(const std::vector<monomial>& term, const T& a, bool is_lemma,
@@ -418,6 +418,7 @@ public:
 
     
     void trace_print_domain_change(std::ostream& out,unsigned j, const T& v, const monomial & p, unsigned constraint_index) const {
+        out << "trail.size() = " << m_trail.size() << "\n";
         out << "change in domain of " << var_name(j) << ", v = " << v << ", domain becomes ";
         print_var_domain(out, j);
         T lb;
@@ -840,7 +841,11 @@ public:
         if (t.m_is_decided == false) {
             out << " by constraint " << t.m_expl_index << " "; print_constraint(out, m_constraints[t.m_expl_index]);
         }
-        
+        if (! t.m_tight_ineq.is_zero()) {
+            out << " m_tight_ineq = ";
+            print_polynomial(out, t.m_tight_ineq);
+            out << "\n";
+        }
      }
     
 
@@ -1124,10 +1129,7 @@ public:
         const T & coeff = i.coeff(l.m_var);
         if (is_zero(coeff))
             return true;
-        if (is_pos(coeff)) {
-            return l.m_is_lower;
-        }
-        return !l.m_is_lower;
+        return is_pos(coeff)? ! l.m_is_lower: l.m_is_lower;
     }
 
     bool is_divizible(const T & a, const T & b) const {
@@ -1182,11 +1184,9 @@ public:
               tout << "ndiv_part = ";
               print_polynomial(tout, ndiv_part);
               tout << "\n";);
-                    
-        lp_assert(false); // just to stop here
     }
     
-    void tighten_on_prev_literal(polynomial & p, const T & j_coeff, polynomial & div_part, polynomial &ndiv_part, int trail_index) {
+    void tighten_on_literal(polynomial & p, const T & j_coeff, polynomial & div_part, polynomial &ndiv_part, int trail_index) {
         TRACE("tight",
               tout << "trail_index = " << trail_index << ", ";
               print_literal(tout, m_trail[trail_index]););
@@ -1222,7 +1222,7 @@ public:
         
     }
     
-    // see page 88
+    // see page 88 of Cutting to chaze
     void tighten(polynomial & p, unsigned j_of_var, const T& j_coeff, unsigned trail_index) {
         polynomial div_part, ndiv_part;
         ndiv_part.m_a = p.m_a;
@@ -1235,7 +1235,7 @@ public:
         int k = trail_index - 1;
         lp_assert(k >= 0);
         while (ndiv_part.number_of_monomials() > 0) {
-            tighten_on_prev_literal(p, j_coeff, div_part, ndiv_part, k--);
+            tighten_on_literal(p, j_coeff, div_part, ndiv_part, k--);
         }
         T abs_j_coeff = abs(j_coeff);
         p.clear();
@@ -1264,21 +1264,42 @@ public:
         tighten(p, j, a, trail_index);
     }
 
-    bool resolve_conflict_for_inequality_on_trail(polynomial & p, unsigned trail_index) {
+    bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index) {
         const literal & l = m_trail[trail_index];
+        TRACE("int_resolve_confl", tout << "l = ";  print_literal(tout, l););
         if (l.is_decided()) {
             if (decision_is_redundant_for_constraint(p, l))
                 pop(); // skip decision
-            else
-                lp_assert(false); // not implemented
+            else {
+                const literal & l_origin = m_trail[l.m_expl_index];
+                TRACE("int_resolve_confl",
+                      tout << "l.m_expl_index = " << l.m_expl_index << ", ";
+                      tout << "l_origin = ";
+                      print_literal(tout, l_origin);
+                      tout << "m_constraints[" << l_origin.m_expl_index << "] = ";
+                      print_constraint(tout, m_constraints[l_origin.m_expl_index]);
+                      tout << "\n";
+                      );
+                
+                lp_assert(false);
+                
+            }
             return false;
         } else { // the literal is implied
             create_tight_ineq_under_literal(trail_index);
+            // applying Resolve rool
+            polynomial result;
+            resolve(p, l.var(), !l.m_is_lower, l.m_tight_ineq, result);
+            p = result;
+            TRACE("int_resolve_confl",
+                  tout << "p = ";
+                  print_polynomial(tout, result););
         }
         return false;
     }
     
-    bool resolve_conflict_for_inequality(polynomial & p) {
+    bool resolve_conflict_for_inequality(const polynomial & confl_ineq) {
+        polynomial p = confl_ineq;
 #if Z3DEBUG
         T b;
         lp_assert(lower(p, b) && is_pos(b));
@@ -1286,7 +1307,7 @@ public:
         bool done = false;
         unsigned j = m_trail.size() - 1;
         while (!done) {
-            done = resolve_conflict_for_inequality_on_trail(p, j--);
+            done = resolve_conflict_for_inequality_on_trail_element(p, j--);
             if (j >= m_trail.size()) {
                 lp_assert(m_trail.size());
                 j = m_trail.size() - 1;
@@ -1298,6 +1319,8 @@ public:
     bool resolve_conflict(int inconstistent_constraint) {
         lp_assert(!at_base_lvl());
         constraint & i = m_constraints[inconstistent_constraint];
+        TRACE("int_resolve_confl", tout << "inconstistent_constraint = ";
+              print_constraint(tout, i););
         if (i.is_ineq()) {
             return resolve_conflict_for_inequality(i.m_poly);
         } else {
@@ -1476,7 +1499,6 @@ public:
         unsigned constraint_index = m_constraints.size();
         for (auto & p : lhs)
             local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
-        
         m_constraints.push_back(constraint(local_lhs, free_coeff, false, origins)); // false means it is not a lemma
         TRACE("ba_int",
               tout << "explanation :";
@@ -1485,6 +1507,9 @@ public:
                   tout << "\n";
               });
 
+        TRACE("add_ineq_int", tout << "m_constraints[" << m_constraints.size() - 1 << "] =  ";
+              print_constraint(tout, m_constraints.back()); tout << "\n";);
+        
         for (auto & p : local_lhs)
             m_var_infos[p.var()].add_dependent_constraint(constraint_index);
         

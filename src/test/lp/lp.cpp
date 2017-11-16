@@ -3242,16 +3242,16 @@ void test_improves(cut_solver<int>& cs, unsigned constraint_index, unsigned i0) 
     } else {
         std::cout << "does not improve y\n";
     }
-
-	q.m_poly.m_a = -10;
-	std::cout << "constraint = "; cs.print_constraint(std::cout, constraint_index); std::cout << std::endl;
-	if (cs.improves(x, q)) {
-		std::cout << "improves x\n";		
-	}
-	else {
-		std::cout << "does not improve x\n";
-	}
-
+    /*
+    q.m_poly.m_a = -10;
+    std::cout << "constraint = "; cs.print_constraint(std::cout, constraint_index); std::cout << std::endl;
+    if (cs.improves(x, q)) {
+        std::cout << "improves x\n";		
+    }
+    else {
+        std::cout << "does not improve x\n";
+    }
+    */
 }
 
 void test_cut_solver() {
@@ -3285,6 +3285,7 @@ void test_cut_solver() {
     
     auto & i = cs.m_constraints[constraint_index0];
     std::cout << "add monomial y" << std::endl;
+    /*
     i.m_poly += mono(1, y);
     cs.print_constraint(std::cout, constraint_index0);
     std::cout << std::endl;
@@ -3316,6 +3317,7 @@ void test_cut_solver() {
 
     test_resolve(cs, constraint_index, constraint_index0);
     test_improves(cs, constraint_index, constraint_index0);
+    */
 }
 
 
