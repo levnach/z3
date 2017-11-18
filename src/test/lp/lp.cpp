@@ -3181,24 +3181,21 @@ void test_bound_of_cut_solver(cut_solver<int>& cs, unsigned ineq_index)  {
 
 
 void test_resolve_with_tight_constraint(cut_solver<int>& cs,
-                                        const lp::cut_solver<int>::polynomial&i ,
+                                        lp::cut_solver<int>::polynomial&i ,
                                         unsigned int j,
-                                        const cut_solver<int>::polynomial& ti) {
+                                        cut_solver<int>::polynomial& ti) {
     
-    std::cout << "resolve constraint ";
-    cs.print_polynomial(std::cout, i);
-    std::cout << " for " << cs.get_column_name(j) << " by using poly ";
-    cs.print_polynomial(std::cout, ti);
-    std::cout << std::endl;
-    bool j_coeff_is_one = ti.coeff(j) == 1;
-    cut_solver<int>::polynomial result;
-    if (cs.resolve(i, j,  j_coeff_is_one, ti, result)) {
-        std::cout << "resolve succeeds, result is ";
-        cs.print_polynomial(std::cout, result);
-    } else {
-        std::cout << "resolve did not succeed";
-    }
-    std::cout << std::endl;
+    // std::cout << "resolve constraint ";
+    // cs.print_polynomial(std::cout, i);
+    // std::cout << " for " << cs.get_column_name(j) << " by using poly ";
+    // cs.print_polynomial(std::cout, ti);
+    // std::cout << std::endl;
+    // bool j_coeff_is_one = ti.coeff(j) == 1;
+    // cut_solver<int>::polynomial result;
+    // cs.resolve(i, j,  j_coeff_is_one, ti);
+    // std::cout << "resolve result is ";
+    // cs.print_polynomial(std::cout, i);
+    // std::cout << std::endl;
 }
 
 typedef cut_solver<int>::monomial mono;
