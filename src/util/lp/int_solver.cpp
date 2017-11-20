@@ -415,7 +415,7 @@ unsigned int_solver::row_of_basic_column(unsigned j) const {
 // }
 
 
-typedef cut_solver<mpq>::monomial mono;
+typedef cut_solver::monomial mono;
 
 // it produces an inequality coeff*x <= rs
 template <typename T>
@@ -1176,7 +1176,7 @@ bool int_solver::is_term(unsigned j) const {
 }
 
 void int_solver::add_constraint_to_cut_solver(unsigned ci, const lar_base_constraint * c) {
-    std::vector<cut_solver<mpq>::monomial> coeffs;
+    std::vector<mono> coeffs;
     mpq rs;
     get_int_coeffs_from_constraint<mpq>(c, coeffs, rs);
     svector<constraint_index> explanation;

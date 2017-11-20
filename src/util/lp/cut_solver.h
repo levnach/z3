@@ -17,25 +17,25 @@
 namespace lp {
 enum
 class lbool { l_false, l_true, l_undef };
-template <typename T>
+
 class cut_solver : public column_namer {
 public: // for debugging
     struct monomial {
-        T m_coeff; // the coefficient of the monomial
-        var_index m_var; // the variable index
+        mpq           m_coeff; // the coefficient of the monomial
+        var_index   m_var; // the variable index
     public:
-        monomial(const T& coeff, var_index var) : m_coeff(coeff), m_var(var) {}
+        monomial(const mpq& coeff, var_index var) : m_coeff(coeff), m_var(var) {}
         // copy constructor
         monomial(const monomial& m) : monomial(m.coeff(), m.var()) {}
-        monomial(var_index var) : monomial(one_of_type<T>(), var) {}
-        const T & coeff() const { return m_coeff; }
-        T & coeff() { return m_coeff; }
+        monomial(var_index var) : monomial(one_of_type<mpq>(), var) {}
+        const mpq & coeff() const { return m_coeff; }
+        mpq & coeff() { return m_coeff; }
         var_index var() const { return m_var; }
-        std::pair<T, var_index> to_pair() const { return std::make_pair(coeff(), var());}
+        std::pair<mpq, var_index> to_pair() const { return std::make_pair(coeff(), var());}
     };
 
-    std::vector<std::pair<T, var_index>> to_pairs(const std::vector<monomial>& ms) const {
-        std::vector<std::pair<T, var_index>> ret;
+    std::vector<std::pair<mpq, var_index>> to_pairs(const std::vector<monomial>& ms) const {
+        std::vector<std::pair<mpq, var_index>> ret;
         for (const auto p : ms)
             ret.push_back(p.to_pair());
         return ret;
@@ -44,63 +44,65 @@ public: // for debugging
     struct polynomial {
         // the polynomial evaluates to m_coeffs + m_a
         std::vector<monomial> m_coeffs;
-        T m_a; // the free coefficient
-        polynomial(const std::vector<monomial>& p, const T & a) : m_coeffs(p), m_a(a) {}
+        mpq                     m_a; // the free coefficient
+        polynomial(const std::vector<monomial>& p, const mpq & a) : m_coeffs(p), m_a(a) {}
         polynomial(const std::vector<monomial>& p) : polynomial(p, 0) {}
-        polynomial(): m_a(zero_of_type<T>()) {}
+        polynomial(): m_a(zero_of_type<mpq>()) {}
         polynomial(const polynomial & p) : m_coeffs(p.m_coeffs), m_a(p.m_a) {} 
             
-        const T & coeff(var_index j) const {
+        const mpq & coeff(var_index j) const {
             for (const auto & t : m_coeffs) {
                 if (j == t.var()) {
                     return t.coeff();
                 }
             }
-            return cut_solver::m_local_zero;
-        }
-
-        std::vector<monomial> copy_coeff_but_one(var_index j) const {
-            std::vector<monomial> ret;
-            for (const auto & t : m_coeffs)
-                if (t.var() != j)
-                    ret.push_back(std::make_pair(t.coeff(), t.var()));
-
-            return ret;
+            return m_local_zero;
         }
 
         polynomial &  operator+=(const polynomial & p) {
             m_a += p.m_a;
             for (const auto & t: p.m_coeffs)
                 *this += monomial(t.coeff(), t.var());
-	    return *this;
-	}
+            return *this;
+        }
 
-        void clear() {
-            m_coeffs.clear();
-            m_a = zero_of_type<T>();
+        void add(const mpq & c, const polynomial &p) {
+            m_a += p.m_a * c;
+            
+            for (const auto & t: p.m_coeffs)
+                *this += monomial(c * t.coeff(), t.var());
         }
         
-        bool is_empty() const { return m_coeffs.size() == 0 && numeric_traits<T>::is_zero(m_a); }
+        void clear() {
+            m_coeffs.clear();
+            m_a = zero_of_type<mpq>();
+        }
+        
+        bool is_empty() const { return m_coeffs.size() == 0 && numeric_traits<mpq>::is_zero(m_a); }
 
         unsigned number_of_monomials() const { return m_coeffs.size();}
-        
-        polynomial & operator+=(const monomial &m ){
-            if (is_zero(m.coeff())) return *this;
+
+        void add(const monomial &m ){
+            if (is_zero(m.coeff())) return;
             for (unsigned k = 0; k < m_coeffs.size(); k++) {
                 auto & l = m_coeffs[k];
                 if (m.var() == l.var()) {
                     l.coeff() += m.coeff();
                     if (l.coeff() == 0)
                         m_coeffs.erase(m_coeffs.begin() + k);
-                    return *this;
+                    return;
                 }
             }
             m_coeffs.push_back(m);
             lp_assert(is_correct());
+        }
+        
+        polynomial & operator+=(const monomial &m ){
+            add(m);
             return *this;
         }
 
-        polynomial & operator+=(const T &c ){
+        polynomial & operator+=(const mpq &c ){
             m_a += c;
             return *this;
         }
@@ -116,21 +118,23 @@ public: // for debugging
             return m_coeffs.size() == s.size();
         }
         bool is_tight(unsigned j) const {
-            const T & a = coeff(j);
+            const mpq & a = coeff(j);
             return a == 1 || a == -1;
         }
+
+
     };
 
 
         
     
     struct constraint { // we only have less or equal, which is enough for integral variables
-        bool m_is_lemma;
-        bool m_is_ineq;
-        const polynomial m_poly;
-        T m_d; // the divider for the case of a divisibility constraint
+        bool                      m_is_lemma;
+        bool                      m_is_ineq;
+        const polynomial                m_poly;
+        mpq                         m_d; // the divider for the case of a divisibility constraint
         svector<constraint_index> m_origins; // these indices come from the client
-        constraint(const std::vector<monomial>& term, const T& a, bool is_lemma,
+        constraint(const std::vector<monomial>& term, const mpq& a, bool is_lemma,
                    const svector<constraint_index> & origin):
             m_is_lemma(is_lemma),
             m_is_ineq(true),
@@ -143,9 +147,8 @@ public: // for debugging
             m_is_ineq(true),
             m_poly(p)
         {}
-
         
-        constraint(const std::vector<monomial>& term, const T& a, const T & divider,
+        constraint(const std::vector<monomial>& term, const mpq& a, const mpq & divider,
                    bool is_lemma,
                    const svector<constraint_index> & origin):
             m_is_lemma(is_lemma),
@@ -155,54 +158,46 @@ public: // for debugging
             m_origins(origin)
         {}
 
-
         constraint() {}
 
-        bool contains(var_index j) const {
-            return m_poly.contains(j);
-        }
-
-        const T & coeff(var_index j) const {
+        const mpq & coeff(var_index j) const {
             return m_poly.coeff(j);
         }
 
         const std::vector<monomial>& coeffs() const { return m_poly.m_coeffs;}
         
-        void clear() { m_poly.clear(); }
-
         bool is_simple() const {
             return m_poly.m_coeffs.size() == 1 &&
-                (m_poly.m_coeffs[0].coeff() == one_of_type<T>()
-                 || m_poly.m_coeffs[0].coeff() == -one_of_type<T>());
+                (m_poly.m_coeffs[0].coeff() == one_of_type<mpq>()
+                 || m_poly.m_coeffs[0].coeff() == -one_of_type<mpq>());
         }
 
         bool is_tight(unsigned j) const {
-            const T & a = m_poly.coeff(j);
+            const mpq & a = m_poly.coeff(j);
             return a == 1 || a == -1;
         }
-        void add_monomial(const T & t, var_index j) {
-            m_poly += monomial(t, j);
-        }
+        
 
         bool is_ineq() const { return m_is_ineq;}
     };
 
     struct literal {
-        bool m_is_decided;
-        unsigned m_var;        
-        bool m_is_lower;
-        T m_bound;
-        int m_expl_index; // if m_is_decided, then m_expl_index points to trail, otherwise it points to m_constraints
-        polynomial m_tight_ineq;
-        literal(bool is_decided, unsigned var_index, bool is_lower, const T & bound, int expl_index):
+        bool          m_is_decided;
+        unsigned      m_var;        
+        bool          m_is_lower;
+        mpq             m_bound;
+        int           m_expl_index; // if m_is_decided, then m_expl_index points to trail, otherwise it points to m_constraints
+        polynomial    m_tight_ineq;
+        literal(bool is_decided, unsigned var_index, bool is_lower, const mpq & bound, int expl_index):
             m_is_decided(is_decided),
             m_var(var_index),
             m_is_lower(is_lower),
             m_bound(bound),
             m_expl_index(expl_index)
         {
-            m_tight_ineq.m_a = zero_of_type<T>();
+            m_tight_ineq.m_a = zero_of_type<mpq>();
         }
+        
         literal() {}
 
         bool is_decided() const { return m_is_decided; }
@@ -212,23 +207,23 @@ public: // for debugging
         unsigned var() const { return m_var; }
     };    
 
-    literal make_implied_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
+    literal make_implied_literal(unsigned var_index, bool is_lower, const mpq & bound, int expl_index) {
         return literal(false, var_index, is_lower, bound, expl_index);
     }
 
-    literal make_decided_literal(unsigned var_index, bool is_lower, const T & bound, int expl_index) {
+    literal make_decided_literal(unsigned var_index, bool is_lower, const mpq & bound, int expl_index) {
         return literal(true, var_index, is_lower, bound, expl_index);
     }
 
     
     enum class bound_type {
         LOWER, UPPER, UNDEF
-            };
+    };
     struct bound_result {
-        T m_bound;
+        mpq m_bound;
         bound_type m_type;
         
-        bound_result(const T & b, bound_type bt): m_bound(b), m_type(bt) {}
+        bound_result(const mpq & b, bound_type bt): m_bound(b), m_type(bt) {}
         bound_result() : m_type(bound_type::UNDEF) {
         }
         void print( std::ostream & out) const {
@@ -250,7 +245,7 @@ public: // for debugging
         unsigned m_user_var_index;
         var_info(unsigned user_var_index) : m_user_var_index(user_var_index) {}
         std::vector<unsigned> m_literals; // point to m_trail
-        integer_domain<T> m_domain;
+        integer_domain<mpq> m_domain;
         bool is_fixed() const { return m_domain.is_fixed();}
         std::unordered_set<int> m_dependent_constraints; // the set of constraintualities involving the var
         void add_dependent_constraint(unsigned i) {
@@ -265,7 +260,7 @@ public: // for debugging
     
     bool lhs_is_int(const std::vector<monomial> & lhs) const {
         for (auto & p : lhs) {
-            if (numeric_traits<T>::is_int(p.coeff()) == false) return false;
+            if (numeric_traits<mpq>::is_int(p.coeff()) == false) return false;
         }
         return true;
     }
@@ -284,7 +279,7 @@ public:
     }
 
     std::vector<constraint> m_constraints;
-    std::vector<T> m_v; // the values of the variables
+    std::vector<mpq> m_v; // the values of the variables
     std::function<std::string (unsigned)> m_var_name_function;
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
     stacked_value<bool> m_decision_has_been_made;  // tracks the number of case splits
@@ -299,13 +294,13 @@ public:
                                 m_constraints_size(s.m_constraints_size) {}
         scope(unsigned trail_size,
               unsigned constraints_size) : m_trail_size(trail_size),
-                                               m_constraints_size(constraints_size) {}
+                                           m_constraints_size(constraints_size) {}
 
     };
 
     stacked_value<scope>          m_scope;
     std::unordered_map<unsigned, unsigned> m_user_vars_to_cut_solver_vars;
-    static T m_local_zero;
+    static mpq m_local_zero;
     std::unordered_set<constraint_index> m_explanation; // if this collection is not empty we have a conflict 
 
     unsigned add_var(unsigned user_var_index) {
@@ -317,51 +312,37 @@ public:
         return m_user_vars_to_cut_solver_vars[user_var_index] = j;      
     }
 
-    bool is_lower_bound(literal & l) const {
+    bool is_lower_bound(const literal & l) const {
         return l.m_is_lower;
     }
     
-    bool lower_for_var(unsigned j, T & lower) const {
-        bool ret = false;
-        for (unsigned i : m_var_infos[j].m_literals)
-            if (is_lower_bound(m_trail[i])) {
-                if (ret == false) {
-                    ret = true;
-                    lower = get_bound(m_trail[i]);
-                } else {
-                    lower = std::max(lower, get_bound(m_trail[i]));
-                }
-            }
-        return ret;
-    }
+    // bool lower_for_var(unsigned j, mpq & lower) const {
+    //     bool ret = false;
+    //     for (unsigned i : m_var_infos[j].m_literals)
+    //         if (is_lower_bound(m_trail[i])) {
+    //             if (ret == false) {
+    //                 ret = true;
+    //                 lower = get_bound(m_trail[i]);
+    //             } else {
+    //                 lower = std::max(lower, get_bound(m_trail[i]));
+    //             }
+    //         }
+    //     return ret;
+    // }
 
-    bool is_upper_bound(literal & l) const {
-        return !l.m_is_upper;
+    bool is_upper_bound(const literal & l) const {
+        return !l.m_is_lower;
     }
     
-    bool upper_for_var(unsigned j, T & upper) const {
-        bool ret = false;
-        for (unsigned i : m_var_infos[j].m_literals)
-            if (is_upper_bound(m_trail[i])) {
-                if (ret == false) {
-                    ret = true;
-                    upper = get_bound(m_trail[i]);
-                } else {
-                    upper = std::min(upper, get_bound(m_trail[i]));
-                }
-            }
-        return ret;
-    }
-
     // used for testing only
-    void add_lower_bound_for_user_var(unsigned user_var_index, const T& bound) {
+    void add_lower_bound_for_user_var(unsigned user_var_index, const mpq& bound) {
         unsigned j = m_user_vars_to_cut_solver_vars[user_var_index];
         auto & vi = m_var_infos[j];
         vi.m_domain.intersect_with_lower_bound(bound);
     }
 
     // used for testing only
-    void add_upper_bound_for_user_var(unsigned user_var_index, const T& bound) {
+    void add_upper_bound_for_user_var(unsigned user_var_index, const mpq& bound) {
         unsigned j = m_user_vars_to_cut_solver_vars[user_var_index];
         auto & vi = m_var_infos[j];
         vi.m_domain.intersect_with_upper_bound(bound);
@@ -383,7 +364,7 @@ public:
     }
 
     bool check_inconsistent() {
-        // TBD
+        // mpqBD
         return false;
     }
 
@@ -434,11 +415,11 @@ public:
     }
 
     
-    void trace_print_domain_change(std::ostream& out,unsigned j, const T& v, const monomial & p, unsigned constraint_index) const {
+    void trace_print_domain_change(std::ostream& out,unsigned j, const mpq& v, const monomial & p, unsigned constraint_index) const {
         out << "trail.size() = " << m_trail.size() << "\n";
         out << "change in domain of " << var_name(j) << ", v = " << v << ", domain becomes ";
         print_var_domain(out, j);
-        T lb;
+        mpq lb;
         bool r = lower(constraint_index, lb);
         if (r)
             out << "lower_of_constraint = " << lb << "\n";
@@ -446,21 +427,21 @@ public:
             out << "no lower bound for constraint\n";
     }
     
-    void propagate_monomial_on_lower(const monomial & p, const T& lower_val, unsigned constraint_index) {
+    void propagate_monomial_on_lower(const monomial & p, const mpq& lower_val, unsigned constraint_index) {
         unsigned j = p.var();
         if (is_pos(p.coeff())) {
-            T m;
+            mpq m;
             get_var_lower_bound(p.var(), m);
-            T v = floor(- lower_val / p.coeff()) + m;
+            mpq v = floor(- lower_val / p.coeff()) + m;
             bool change = m_var_infos[j].m_domain.intersect_with_upper_bound(v);
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, constraint_index););
                 add_bound(v, j, false, constraint_index);
             }
         } else {
-            T m;
+            mpq m;
             get_var_upper_bound(p.var(), m);
-            T v = ceil( - lower_val / p.coeff()) + m;
+            mpq v = ceil( - lower_val / p.coeff()) + m;
             bool change = m_var_infos[j].m_domain.intersect_with_lower_bound(v);
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, constraint_index););
@@ -469,18 +450,18 @@ public:
         }
     }
 
-    void propagate_monomial_on_right_side(const monomial & p, const T& rs, unsigned constraint_index) {
+    void propagate_monomial_on_right_side(const monomial & p, const mpq& rs, unsigned constraint_index) {
         unsigned j = p.var();
         if (is_pos(p.coeff())) {
-            T m;
-            T v = floor(rs / p.coeff());
+            mpq m;
+            mpq v = floor(rs / p.coeff());
             bool change = m_var_infos[j].m_domain.intersect_with_upper_bound(v);
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, constraint_index););
                 add_bound(v, j, false, constraint_index);
             }
         } else {
-            T v = ceil(rs / p.coeff());
+            mpq v = ceil(rs / p.coeff());
             bool change = m_var_infos[j].m_domain.intersect_with_lower_bound(v);
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, constraint_index););
@@ -509,7 +490,7 @@ public:
     }
 
     // b is the value of lower
-    void propagate_constraint_on_lower(unsigned i, const T & b) {
+    void propagate_constraint_on_lower(unsigned i, const mpq & b) {
         for (const auto & p: m_constraints[i].coeffs()) {
             propagate_monomial_on_lower(p, b, i);
         }
@@ -557,7 +538,7 @@ public:
         print_constraint(out, i); out << "\n";
         unsigned j;
         auto pairs = to_pairs(m_constraints[i].m_poly.m_coeffs);
-        auto it = linear_combination_iterator_on_std_vector<T>(pairs);
+        auto it = linear_combination_iterator_on_std_vector<mpq>(pairs);
         while (it.next(j)) {
             out << "domain of " << var_name(j) << " = ";
             print_var_domain(out, j);
@@ -567,10 +548,10 @@ public:
    
     void propagate_constraint_only_one_unlim(unsigned constraint_index, unsigned the_only_unlim) {
         const constraint& i = m_constraints[constraint_index];
-        T rs = - i.m_poly.m_a;
+        mpq rs = - i.m_poly.m_a;
         for (unsigned j = 0; j < i.m_poly.m_coeffs.size(); j++) {
             if (j == the_only_unlim) continue;
-            T m;
+            mpq m;
             lower_monomial(i.m_poly.m_coeffs[j], m);
             rs -= m;
         }
@@ -606,17 +587,12 @@ public:
         return -1;
     }
 
-    bool var_lower_bound_exists(var_info i) const {
-        const var_info & v = m_var_infos[i];
-        return v.m_domain.lower_bound_exists();
-    }
-    
-    bool get_var_lower_bound(var_index i, T & bound) const {
+    bool get_var_lower_bound(var_index i, mpq & bound) const {
         const var_info & v = m_var_infos[i];
         return v.m_domain.get_lower_bound(bound);
     }
 
-    bool get_var_upper_bound(var_index i, T & bound) const {
+    bool get_var_upper_bound(var_index i, mpq & bound) const {
         const var_info & v = m_var_infos[i];
         return v.m_domain.get_upper_bound(bound);
     }
@@ -651,9 +627,9 @@ public:
     
     // finds the lower bound of the monomial,
     // otherwise returns false
-    bool lower_monomial(const monomial & p, T & lb) const {
+    bool lower_monomial(const monomial & p, mpq & lb) const {
         lp_assert(p.coeff() != 0);
-        T var_bound;
+        mpq var_bound;
         if (p.coeff() > 0) {
             if (!get_var_lower_bound(p.var(), var_bound))
                 return false;
@@ -667,9 +643,9 @@ public:
         return true;
     }
 
-    bool upper_monomial(const monomial & p, T & lb) const {
+    bool upper_monomial(const monomial & p, mpq & lb) const {
         lp_assert(p.coeff() != 0);
-        T var_bound;
+        mpq var_bound;
         if (p.coeff() > 0) {
             if (!get_var_upper_bound(p.var(), var_bound))
                 return false;
@@ -686,18 +662,18 @@ public:
     
     // returns false if not limited from below
     // otherwise the answer is put into lb
-    bool lower(unsigned constraint_index, T & lb) const {
+    bool lower(unsigned constraint_index, mpq & lb) const {
         return lower(m_constraints[constraint_index].m_poly, lb);
     }
 
     // returns false if not limited from below
     // otherwise the answer is put into lb
-    T lower_val(unsigned constraint_index) const {
+    mpq lower_val(unsigned constraint_index) const {
         return lower_val(m_constraints[constraint_index]);
     }
     
-    T lower_val(const constraint & i) const {
-        T lb;
+    mpq lower_val(const constraint & i) const {
+        mpq lb;
 #if Z3DEBUG
         bool r =
 #endif
@@ -710,9 +686,9 @@ public:
         
     // returns false if not limited from below
     // otherwise the answer is put into lb
-    bool lower(const polynomial & f, T & lb) const {
+    bool lower(const polynomial & f, mpq & lb) const {
         lb = f.m_a;
-        T lm;
+        mpq lm;
         for (const auto & p : f.m_coeffs) {
             if (lower_monomial(p, lm)) {
                 lb += lm;
@@ -750,12 +726,12 @@ public:
             }
         }
         // if we are here then there is a lower bound for p
-        T bound = p.m_a;
+        mpq bound = p.m_a;
         for (const auto & t:  p.m_coeffs) {
             if (t.var() == j)
                 continue;
 
-            T l;
+            mpq l;
             lower_monomial(t, l);
             bound += l;
         }
@@ -771,18 +747,18 @@ public:
             }
         }
         // if we are here then there is an upper bound for p
-        T bound = p.m_a;
+        mpq bound = p.m_a;
         for (const auto & t:  p.m_coeffs) {
             if (t.var() == j)
                 continue;
-            T b;
+            mpq b;
             upper_monomial(t, b);
             bound += b;
         }
         return bound_result(bound, bound_type::UPPER);
     }
 
-    bool upper(const polynomial & p, T b) const {
+    bool upper(const polynomial & p, mpq b) const {
         for (const auto & t:  p.m_coeffs) {
             if (!upper_monomial_exists(t)) {
                 return false;
@@ -790,7 +766,7 @@ public:
         }
         // if we are here then there is an upper bound for p
         b = p.m_a;
-        T bb;
+        mpq bb;
         for (const auto & t:  p.m_coeffs) {
             upper_monomial(t, bb);
             b += bb;
@@ -802,9 +778,9 @@ public:
     
     
     // a is the coefficient before j
-    bound_result bound_on_polynomial(const polynomial & p, const T& a, var_index j) const {
+    bound_result bound_on_polynomial(const polynomial & p, const mpq& a, var_index j) const {
         lp_assert(!is_zero(a));
-        if (numeric_traits<T>::is_pos(a)) {
+        if (numeric_traits<mpq>::is_pos(a)) {
             bound_result r = upper_without(p, j);
             if (r.m_type == bound_type::UNDEF)
                 return r;
@@ -826,7 +802,7 @@ public:
 
     
     bound_result bound(const constraint & q, var_index j) const {
-        const T& a = q.m_poly.coeff(j);
+        const mpq& a = q.m_poly.coeff(j);
         return bound_on_polynomial(q.m_poly, a, j);
     }
 
@@ -868,12 +844,12 @@ public:
             print_polynomial(out, t.m_tight_ineq);
             out << "\n";
         }
-     }
+    }
     
 
     
     void print_polynomial(std::ostream & out, const polynomial & p) const {
-        std::vector<std::pair<T, unsigned>> pairs = to_pairs(p.m_coeffs);
+        std::vector<std::pair<mpq, unsigned>> pairs = to_pairs(p.m_coeffs);
         this->print_linear_combination_of_column_indices_std(pairs, out);
         if (!is_zero(p.m_a)) {
             if (p.m_a < 0) {
@@ -884,15 +860,15 @@ public:
         }
     }
 
-    // Trying to improve constraint "ie" by eliminating var j by using a  tight inequality 
-    // for j. The left side of the inequality is passed as a parameter.
+    // mpqrying to improve constraint "ie" by eliminating var j by using a  tight inequality 
+    // for j. mpqhe left side of the inequality is passed as a parameter.
     void resolve(polynomial & ie, unsigned j, bool sign_j_in_ti_is_pos, const polynomial & ti) const {
         lp_assert(ti.is_tight(j));
         lp_assert(is_pos(ti.coeff(j)) == sign_j_in_ti_is_pos);
         auto &coeffs = ie.m_coeffs;
         // todo: implement a more efficient version
         bool found = false;
-        T a;
+        mpq a;
         for (const auto & c : coeffs) {
             if (c.var() == j) {
                 a = c.coeff();
@@ -933,7 +909,7 @@ public:
             bound_result new_upper = bound(p, j);
             if (new_upper.m_type == bound_type::UNDEF)
                 return false;
-            T b;
+            mpq b;
             bool upper_bound_exists = get_var_upper_bound(j, b);
             return (!upper_bound_exists || new_upper.m_bound < b) &&
                 dom.intersection_with_upper_bound_is_empty(new_upper.m_bound);
@@ -943,7 +919,7 @@ public:
         bound_result new_lower = bound(p, j);
         if (new_lower.m_type == bound_type::UNDEF)
             return false;
-        T b;
+        mpq b;
         bool lower_bound_exists = get_var_lower_bound(j, b);
         return (!lower_bound_exists || new_lower.m_bound > b) &&
             dom.intersection_with_lower_bound_is_empty(new_lower.m_bound);
@@ -958,7 +934,7 @@ public:
         if (dom.is_empty())
             return false;
         if (br.m_type == bound_type::UPPER) {
-            T b;
+            mpq b;
             bool j_has_upper_bound = get_var_upper_bound(j, b);
             return (!j_has_upper_bound || br.m_bound < b) &&
                 !dom.intersection_with_upper_bound_is_empty(br.m_bound);
@@ -966,29 +942,19 @@ public:
 
         if (br.m_type == bound_type::UNDEF)
             return false;
-        T b;
+        mpq b;
         bool lower_bound_exists = get_var_lower_bound(j, b);
         return (!lower_bound_exists || br.m_bound > b) &&
             !dom.intersection_with_lower_bound_is_empty(br.m_bound);
     }
 
 
-    void add_bound(T v, unsigned j, bool is_lower, unsigned constraint_index) {
+    void add_bound(mpq v, unsigned j, bool is_lower, unsigned constraint_index) {
         push_literal_to_trail(make_implied_literal(j, is_lower, v, constraint_index));
     }
     
-    bool literal_is_correct(const literal &t ) const {
-        if (t.is_decided())
-            return true;
-        auto & i = m_constraints[t.m_constraint_index];
-        int sign_should_be = t.m_is_lower? -1: 1;
-        const T &a = i.coeff(t.m_var);
-        int sign = a > 0? 1: -1;
-        return sign == sign_should_be;
-    }
-
-    T value(const polynomial & p) const {
-        T ret= p.m_a;
+    mpq value(const polynomial & p) const {
+        mpq ret= p.m_a;
         for (const auto & t:p.m_coeffs)
             ret += t.coeff() * m_v[t.var()];
         return ret;
@@ -1052,7 +1018,7 @@ public:
         unsigned the_only_unlim;
         int r = lower_analize(in, the_only_unlim);
         if (r == 0) {
-            T b;
+            mpq b;
             lower(in.m_poly, b);
             if (is_pos(b)) {
                 TRACE("cs_inconsistent", trace_print_constraint(tout, i););
@@ -1135,28 +1101,19 @@ public:
         return lbool::l_true;
     }
 
-    // returns -1 if consistent, or the index of an incostistent constraint
-    int inconsistent() const {
-        for (int i=0;i<m_constraints.size();i++)
-            if (lower(i) > 0)
-                return i;
-
-        return -1;
-    }
-    
     bool decision_is_redundant_for_constraint(const polynomial& i, const literal & l) const {
-        const T & coeff = i.coeff(l.m_var);
+        const mpq & coeff = i.coeff(l.m_var);
         if (is_zero(coeff))
             return true;
         return is_pos(coeff)? ! l.m_is_lower: l.m_is_lower;
     }
 
-    bool is_divizible(const T & a, const T & b) const {
+    bool is_divizible(const mpq & a, const mpq & b) const {
         lp_assert(!is_zero(b));
         return is_zero(a % b);
     }
     
-    void create_div_ndiv_parts_for_tightening(const polynomial & p, const T & coeff, polynomial & div_part, polynomial & ndiv_part) {
+    void create_div_ndiv_parts_for_tightening(const polynomial & p, const mpq & coeff, polynomial & div_part, polynomial & ndiv_part) {
         for (const auto &m : p.m_coeffs) {
             if (is_divizible(m.coeff(), coeff)){
                 div_part.m_coeffs.push_back(m);
@@ -1172,18 +1129,18 @@ public:
               print_polynomial(tout, ndiv_part););
     }
 
-    void decide_lower_neg(polynomial &ndiv_part, T & c, literal &l) {
-        ndiv_part += -c * m_trail[l.m_expl_index].m_tight_ineq;
+    void decide_lower_neg(polynomial &ndiv_part, const mpq & c, literal &l) {
+        ndiv_part.add( -c, m_trail[l.m_expl_index].m_tight_ineq);
         lp_assert(is_zero(ndiv_part.coeff(l.var())));
         TRACE("tight", tout << "Decided-Lower-Neg, "; tout << "ndiv_part = ";
               print_polynomial(tout, ndiv_part); tout << "\n";);
     }
 
-    void decided_lower(const T & a, const T & c, polynomial &div_part, polynomial &ndiv_part, const literal &l) {
-        T k = is_pos(a)?ceil( c / a): floor(c / a);
+    void decided_lower(const mpq & a, const mpq & c, polynomial &div_part, polynomial &ndiv_part, const literal &l) {
+        mpq k = is_pos(a)?ceil( c / a): floor(c / a);
         ndiv_part += monomial(-c, l.var()); // it will be moved to div_part
-        T a_k = a * k;
-        T m = a_k - c;
+        mpq a_k = a * k;
+        mpq m = a_k - c;
         TRACE("tight", tout << "c = " << c << ", a = " << a <<
               ", c / a = " << c/a << ", k = " <<
               k << ", a * k = " << a * k << ", m = " << m << "\n"; );  
@@ -1193,7 +1150,7 @@ public:
         lp_assert(lex.var() == l.var());
         for (const monomial & n : lex.m_tight_ineq.m_coeffs) {
             if (n.var() == l.var()) {
-                lp_assert(n.coeff() == one_of_type<T>());
+                lp_assert(n.coeff() == one_of_type<mpq>());
                 div_part += monomial(a_k, l.var());
             } else {
                 ndiv_part += monomial(m * n.coeff(), n.var());
@@ -1209,13 +1166,13 @@ public:
               tout << "\n";);
     }
 
-    void decided_upper(const T & a, const T & c, polynomial &div_part, polynomial &r, const literal &l) {
+    void decided_upper(const mpq & a, const mpq & c, polynomial &div_part, polynomial &r, const literal &l) {
         // we would like to have c - ak > 0, or ak < c
-        T k = is_pos(a)? floor( c / a): ceil(c / a);
+        mpq k = is_pos(a)? floor( c / a): ceil(c / a);
         r += monomial(-c, l.var()); // it will be moved to div_part
         
-        T a_k = a * k;
-        T m = c - a_k;
+        mpq a_k = a * k;
+        mpq m = c - a_k;
         TRACE("tight", tout << "c = " << c << ", a = " << a <<
               ", c / a = " << c/a << ", k = " <<
               k << ", a * k = " << a * k << ", m = " << m << "\n"; );  
@@ -1225,7 +1182,7 @@ public:
         lp_assert(lex.var() == l.var());
         for (const monomial & n : lex.m_tight_ineq.m_coeffs) {
             if (n.var() == l.var()) {
-                lp_assert(n.coeff() == -one_of_type<T>());
+                lp_assert(n.coeff() == -one_of_type<mpq>());
                 div_part += monomial(a_k, l.var());
             } else {
                 r += monomial(m * n.coeff(), n.var());
@@ -1241,7 +1198,7 @@ public:
               tout << "\n";);
     }
 
-    void tighten_on_literal(polynomial & p, const T & a, polynomial & div_part, polynomial &ndiv_part, int trail_index) {
+    void tighten_on_literal(polynomial & p, const mpq & a, polynomial & div_part, polynomial &ndiv_part, int trail_index) {
         TRACE("tight",
               tout << "trail_index = " << trail_index << ", ";
               print_literal(tout, m_trail[trail_index]););
@@ -1256,7 +1213,7 @@ public:
         } else { 
             lp_assert(l.is_decided());
             create_tight_ineq_under_literal(l.m_expl_index);
-            T c = ndiv_part.coeff(l.var());
+            mpq c = ndiv_part.coeff(l.var());
             if (l.m_is_lower) {
                 if (is_neg(c)) {
                     decide_lower_neg(ndiv_part, c, l);
@@ -1276,7 +1233,7 @@ public:
     }
     
     // see page 88 of Cutting to chaze
-    void tighten(polynomial & p, unsigned j_of_var, const T& a, unsigned trail_index) {
+    void tighten(polynomial & p, unsigned j_of_var, const mpq& a, unsigned trail_index) {
         polynomial div_part, ndiv_part;
         ndiv_part.m_a = p.m_a;
         TRACE("tight",
@@ -1290,7 +1247,7 @@ public:
         while (ndiv_part.number_of_monomials() > 0) {
             tighten_on_literal(p, a, div_part, ndiv_part, k--);
         }
-        T abs_a = abs(a);
+        mpq abs_a = abs(a);
         p.clear();
         for (const auto & m : div_part.m_coeffs) {
             p.m_coeffs.push_back(monomial(m.coeff() / abs_a, m.var()));
@@ -1305,7 +1262,7 @@ public:
             l.m_tight_ineq.m_coeffs.push_back(monomial(l.var()));
             l.m_tight_ineq.m_a = -l.m_bound;
         } else {
-            l.m_tight_ineq.m_coeffs.push_back(monomial(-one_of_type<T>(), l.var()));
+            l.m_tight_ineq.m_coeffs.push_back(monomial(-one_of_type<mpq>(), l.var()));
             l.m_tight_ineq.m_a = l.m_bound;
         }
     }
@@ -1323,9 +1280,9 @@ public:
         lp_assert(c.m_is_ineq);
         polynomial &p = l.m_tight_ineq = c.m_poly;
         unsigned j = l.m_var;
-        const T& a = p.coeff(j);
+        const mpq& a = p.coeff(j);
         lp_assert(!is_zero(a));
-        if (a == one_of_type<T>() || a == - one_of_type<T>()) {
+        if (a == one_of_type<mpq>() || a == - one_of_type<mpq>()) {
             return;
         }
         tighten(p, j, a, trail_index);
@@ -1380,7 +1337,7 @@ public:
     bool resolve_conflict_for_inequality(const polynomial & confl_ineq) {
         polynomial p = confl_ineq;
 #if Z3DEBUG
-        T b;
+        mpq b;
         lp_assert(lower(p, b) && is_pos(b));
 #endif
         bool done = false;
@@ -1471,7 +1428,7 @@ public:
     
     void decide_var_on_bound(unsigned j, bool decide_on_lower) {
         push();    
-        T b;
+        mpq b;
         std::vector<monomial> lhs;
         if (decide_on_lower) {
             m_var_infos[j].m_domain.get_lower_bound(b);
@@ -1530,7 +1487,7 @@ public:
 
     bool consistent(const constraint & i) const {
         // an option could be to check that upper(i.m_poly) <= 0
-        bool ret = value(i.m_poly) <= zero_of_type<T>();
+        bool ret = value(i.m_poly) <= zero_of_type<mpq>();
         if (!ret) {
             TRACE("cut_solver_state_inconsistent", 
                   tout << "inconsistent constraint "; print_constraint(tout,i); tout <<"\n";
@@ -1575,7 +1532,7 @@ public:
         TRACE("simplify_lemma_int", tout << "p = "; print_polynomial(tout, p););
         auto & ms = p.m_coeffs;
         lp_assert(ms.size());
-        T g;
+        mpq g;
         if (ms.size() == 1) {
             g = abs(ms[0].coeff());
         } else {
@@ -1585,7 +1542,7 @@ public:
             }
             lp_assert(is_pos(g));
         }
-        if (g != one_of_type<T>()) {
+        if (g != one_of_type<mpq>()) {
             for (auto & m : ms)
                 m.coeff() /= g;
             p.m_a = ceil(p.m_a /g);
@@ -1599,7 +1556,7 @@ public:
     }
     
     unsigned add_ineq(const std::vector<monomial> & lhs,
-                      const T& free_coeff,
+                      const mpq& free_coeff,
                       svector<constraint_index> origins) {
         lp_assert(lhs_is_int(lhs));
         lp_assert(is_int(free_coeff));
@@ -1624,9 +1581,9 @@ public:
         return constraint_index;
     }
 };
-template <typename T>
-inline typename cut_solver<T>::polynomial operator*(const T & a, const typename cut_solver<T>::polynomial & p) {
-    typename cut_solver<T>::polynomial ret;
+
+inline cut_solver::polynomial operator*(const mpq & a, cut_solver::polynomial & p) {
+    cut_solver::polynomial ret;
     ret.m_a = p.m_a * a;
     
     for (const auto & t: p.m_coeffs)

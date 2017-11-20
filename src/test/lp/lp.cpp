@@ -3162,7 +3162,7 @@ void test_integer_domain() {
     }
 }
 
-void test_bound_of_cut_solver(cut_solver<int>& cs, unsigned ineq_index)  {
+void test_bound_of_cut_solver(cut_solver& cs, unsigned ineq_index)  {
     std::cout << "test_bound_of_cut_solver\n";
     std::vector<int> coeffs;
     auto q = cs.get_constraint(ineq_index);
@@ -3180,10 +3180,10 @@ void test_bound_of_cut_solver(cut_solver<int>& cs, unsigned ineq_index)  {
 }
 
 
-void test_resolve_with_tight_constraint(cut_solver<int>& cs,
-                                        lp::cut_solver<int>::polynomial&i ,
+void test_resolve_with_tight_constraint(cut_solver& cs,
+                                        lp::cut_solver::polynomial&i ,
                                         unsigned int j,
-                                        cut_solver<int>::polynomial& ti) {
+                                        cut_solver::polynomial& ti) {
     
     // std::cout << "resolve constraint ";
     // cs.print_polynomial(std::cout, i);
@@ -3191,30 +3191,30 @@ void test_resolve_with_tight_constraint(cut_solver<int>& cs,
     // cs.print_polynomial(std::cout, ti);
     // std::cout << std::endl;
     // bool j_coeff_is_one = ti.coeff(j) == 1;
-    // cut_solver<int>::polynomial result;
+    // cut_solver::polynomial result;
     // cs.resolve(i, j,  j_coeff_is_one, ti);
     // std::cout << "resolve result is ";
     // cs.print_polynomial(std::cout, i);
     // std::cout << std::endl;
 }
 
-typedef cut_solver<int>::monomial mono;
+typedef cut_solver::monomial mono;
 
-void test_resolve(cut_solver<int>& cs, unsigned constraint_index, unsigned i0)  {
+void test_resolve(cut_solver& cs, unsigned constraint_index, unsigned i0)  {
     var_index x = 0;
     var_index y = 1;
     var_index z = 2;
     std::cout << "test_resolve\n";
     
-    cut_solver<int>::polynomial i; i += mono(2, x);i += mono(-3,y);
+    cut_solver::polynomial i; i += mono(2, x);i += mono(-3,y);
     i+= mono(4, z);
     i.m_a = 5;
-    cut_solver<int>::polynomial ti; ti += mono(1, x); ti+= mono(1,y);ti.m_a = 3;
+    cut_solver::polynomial ti; ti += mono(1, x); ti+= mono(1,y);ti.m_a = 3;
     test_resolve_with_tight_constraint(cs, i, x, ti);
     test_resolve_with_tight_constraint(cs, i, y ,ti);
  }
 
-void test_improves(cut_solver<int>& cs, unsigned constraint_index, unsigned i0) {
+void test_improves(cut_solver& cs, unsigned constraint_index, unsigned i0) {
     var_index x = 0;
     var_index y = 1;
     std::cout << "test_improves\n";
@@ -3253,7 +3253,7 @@ void test_improves(cut_solver<int>& cs, unsigned constraint_index, unsigned i0) 
 
 void test_cut_solver() {
     lp_settings settings;
-    cut_solver<int> cs([](unsigned i)
+    cut_solver cs([](unsigned i)
                        {
                            if (i == 0) return std::string("x");
                            if (i == 1) return  std::string("y");
@@ -3264,57 +3264,57 @@ void test_cut_solver() {
     unsigned x = 0;
     unsigned y = 1;
     unsigned z = 2;
-    term.push_back(mono(8, x));
-    term.push_back(mono(-3, y));
-    term.push_back(mono(-2, z));
+    term.push_back(mono(mpq(8), x));
+    term.push_back(mono(mpq(-3), y));
+    term.push_back(mono(mpq(-2), z));
     svector<unsigned> expl;
-    unsigned constraint_index = cs.add_ineq(term, 5, expl);
+    unsigned constraint_index = cs.add_ineq(term, mpq(5), expl);
 
     cs.print_constraint(std::cout, constraint_index);
     std::cout << std::endl;
     
     term.clear();
-    term.push_back(mono(1,x));
-    term.push_back(mono(-2,y));
-    unsigned constraint_index0 = cs.add_ineq(term, 2, expl);
+    term.push_back(mono(mpq(1),x));
+    term.push_back(mono(mpq(-2),y));
+    unsigned constraint_index0 = cs.add_ineq(term, mpq(2), expl);
     cs.print_constraint(std::cout, constraint_index0);
     std::cout <<std::endl;
     
     auto & i = cs.m_constraints[constraint_index0];
     std::cout << "add monomial y" << std::endl;
-    /*
-    i.m_poly += mono(1, y);
-    cs.print_constraint(std::cout, constraint_index0);
-    std::cout << std::endl;
-    std::cout << "add monomial y" << std::endl;
-    i.m_poly += mono(1, y);
-    cs.print_constraint(std::cout, constraint_index0);
-    std::cout << "\nadd monomial -y" << std::endl;
-    i.m_poly += mono(-1, y);
-    cs.print_constraint(std::cout, constraint_index0);
-    int l;
-    auto constraint = cs.m_constraints[constraint_index];
-    cs.add_lower_bound_for_user_var(x, 1);
-    cs.add_lower_bound_for_user_var(y, 1);
-    bool has_lower = cs.lower(constraint.m_poly, l);
-    if (has_lower) {
-        std::cout << "\nlower = " << l << std::endl;
-    } else {
-        std::cout << "\nno lower" << std::endl;
-    }
-    cs.add_upper_bound_for_user_var(y, 1);
-    has_lower = cs.lower(constraint.m_poly, l);
-    if (has_lower) {
-        std::cout << "\nlower = " << l << std::endl;
-    } else {
-        std::cout << "\nno lower" << std::endl;
-    }
+    
+    // i.m_poly.add(mono(mpq(1), y));
+    // cs.print_constraint(std::cout, constraint_index0);
+    // std::cout << std::endl;
+    // std::cout << "add monomial y" << std::endl;
+    // i.m_poly += mono(mpq(1), y);
+    // cs.print_constraint(std::cout, constraint_index0);
+    // std::cout << "\nadd monomial -y" << std::endl;
+    // i.m_poly += mono(mpq(-1), y);
+    // cs.print_constraint(std::cout, constraint_index0);
+    // int l;
+    // auto constraint = cs.m_constraints[constraint_index];
+    // cs.add_lower_bound_for_user_var(x, mpq(1));
+    // cs.add_lower_bound_for_user_var(y, mpq(1));
+    // bool has_lower = cs.lower(constraint.m_poly, l);
+    // if (has_lower) {
+    //     std::cout << "\nlower = " << l << std::endl;
+    // } else {
+    //     std::cout << "\nno lower" << std::endl;
+    // }
+    // cs.add_upper_bound_for_user_var(y, 1);
+    // has_lower = cs.lower(constraint.m_poly, l);
+    // if (has_lower) {
+    //     std::cout << "\nlower = " << l << std::endl;
+    // } else {
+    //     std::cout << "\nno lower" << std::endl;
+    // }
 
-    test_bound_of_cut_solver(cs, constraint_index);
+    // test_bound_of_cut_solver(cs, constraint_index);
 
-    test_resolve(cs, constraint_index, constraint_index0);
-    test_improves(cs, constraint_index, constraint_index0);
-    */
+    // test_resolve(cs, constraint_index, constraint_index0);
+    // test_improves(cs, constraint_index, constraint_index0);
+    
 }
 
 
