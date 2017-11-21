@@ -3166,7 +3166,7 @@ void test_bound_of_cut_solver(cut_solver& cs, unsigned ineq_index)  {
     std::cout << "test_bound_of_cut_solver\n";
     std::vector<int> coeffs;
     auto q = cs.get_constraint(ineq_index);
-    for (auto t: q.m_poly.m_coeffs)
+    for (auto t: q.poly().m_coeffs)
         coeffs.push_back(t.var());
     auto br = cs.bound(ineq_index, coeffs[0]);
 	std::cout << "bound for " << cs.get_column_name(coeffs[0]) << " is ";
@@ -3268,7 +3268,7 @@ void test_cut_solver() {
     term.push_back(mono(mpq(-3), y));
     term.push_back(mono(mpq(-2), z));
     svector<unsigned> expl;
-    unsigned constraint_index = cs.add_ineq(term, mpq(5), expl);
+    unsigned constraint_index = cs.add_ineq(term, mpq(5, 1), expl);
 
     cs.print_constraint(std::cout, constraint_index);
     std::cout << std::endl;

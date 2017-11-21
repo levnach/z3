@@ -121,51 +121,57 @@ public: // for debugging
             const mpq & a = coeff(j);
             return a == 1 || a == -1;
         }
-
-
     };
-
-
-        
     
-    struct constraint { // we only have less or equal, which is enough for integral variables
-        bool                      m_is_lemma;
-        bool                      m_is_ineq;
-        const polynomial                m_poly;
+    class constraint { // we only have less or equal for the inequality sign, which is enough for integral variables
+        bool                        m_is_lemma;
+        bool                        m_is_ineq;
+        const polynomial            m_poly;
         mpq                         m_d; // the divider for the case of a divisibility constraint
-        svector<constraint_index> m_origins; // these indices come from the client
-        constraint(const std::vector<monomial>& term, const mpq& a, bool is_lemma,
-                   const svector<constraint_index> & origin):
-            m_is_lemma(is_lemma),
-            m_is_ineq(true),
-            m_poly(term, a),
-            m_origins(origin)
-        {}
+        const svector<constraint_index>   m_origins; // these indices come from the client
+    public :
+        const polynomial & poly() const { return m_poly; }
+        const svector<constraint_index> & origins() const { return m_origins;}
+        bool is_lemma() const { return m_is_lemma; }
+        bool is_ineq() const { return m_is_ineq; }
+        const mpq & divider() const { return m_d; }
 
-        constraint(const polynomial & p, bool is_lemma):
-            m_is_lemma(is_lemma),
-            m_is_ineq(true),
-            m_poly(p)
-        {}
+    public :
+        static constraint make_ineq_assert(
+            const std::vector<monomial>& term,
+            const mpq& a,
+            const svector<constraint_index> & origin) {
+            return constraint(origin, polynomial(term, a), false, true);
+        }
+    
+    public :
+        static constraint make_ineq_lemma(const polynomial &p) {
+            return constraint(svector<constraint_index>(), p, true, true);
+        }
+
+        static constraint make_div_lemma(const polynomial &p, const mpq & div) {
+            auto c =  constraint(svector<constraint_index>(), p, true, true);
+            c.m_d = div;
+            return c;
+        }
+
         
-        constraint(const std::vector<monomial>& term, const mpq& a, const mpq & divider,
+        constraint(const svector<constraint_index> & origin,
+                   const polynomial & p,
                    bool is_lemma,
-                   const svector<constraint_index> & origin):
+                   bool is_ineq):
             m_is_lemma(is_lemma),
-            m_is_ineq(false), // it is a division constraint
-            m_poly(term, a),
-            m_d(divider),
+            m_is_ineq(is_ineq),
+            m_poly(p),
             m_origins(origin)
         {}
-
+    public:
         constraint() {}
 
         const mpq & coeff(var_index j) const {
             return m_poly.coeff(j);
         }
-
         const std::vector<monomial>& coeffs() const { return m_poly.m_coeffs;}
-        
         bool is_simple() const {
             return m_poly.m_coeffs.size() == 1 &&
                 (m_poly.m_coeffs[0].coeff() == one_of_type<mpq>()
@@ -177,15 +183,13 @@ public: // for debugging
             return a == 1 || a == -1;
         }
         
-
-        bool is_ineq() const { return m_is_ineq;}
     };
 
-    struct literal {
+    class literal {
         bool          m_is_decided;
         unsigned      m_var;        
         bool          m_is_lower;
-        mpq             m_bound;
+        mpq           m_bound;
         int           m_expl_index; // if m_is_decided, then m_expl_index points to trail, otherwise it points to m_constraints
         polynomial    m_tight_ineq;
         literal(bool is_decided, unsigned var_index, bool is_lower, const mpq & bound, int expl_index):
@@ -197,7 +201,12 @@ public: // for debugging
         {
             m_tight_ineq.m_a = zero_of_type<mpq>();
         }
-        
+    public:
+        const polynomial & tight_ineq () const { return m_tight_ineq; }
+        polynomial& tight_ineq () { return m_tight_ineq; }
+        const mpq & bound() const { return m_bound; }
+        bool is_lower() const { return m_is_lower; }
+        int expl_index() const { return m_expl_index; }
         literal() {}
 
         bool is_decided() const { return m_is_decided; }
@@ -205,15 +214,15 @@ public: // for debugging
         bool is_implied() const { return !m_is_decided;}
 
         unsigned var() const { return m_var; }
+        static literal make_implied_literal(unsigned var_index, bool is_lower, const mpq & bound, int expl_index) {
+            return literal(false, var_index, is_lower, bound, expl_index);
+        }
+        static literal make_decided_literal(unsigned var_index, bool is_lower, const mpq & bound, int expl_index) {
+            return literal(true, var_index, is_lower, bound, expl_index);
+        }
     };    
 
-    literal make_implied_literal(unsigned var_index, bool is_lower, const mpq & bound, int expl_index) {
-        return literal(false, var_index, is_lower, bound, expl_index);
-    }
 
-    literal make_decided_literal(unsigned var_index, bool is_lower, const mpq & bound, int expl_index) {
-        return literal(true, var_index, is_lower, bound, expl_index);
-    }
 
     
     enum class bound_type {
@@ -239,6 +248,7 @@ public: // for debugging
             }
             out << m_bound;
         }
+        const mpq & bound() const { return m_bound; }
     };
     
     class var_info {
@@ -310,7 +320,7 @@ public:
         return m_constraints[i];
     }
 
-    std::vector<constraint> m_constraints;
+    vector<constraint> m_constraints;
     std::vector<mpq> m_v; // the values of the variables
     std::function<std::string (unsigned)> m_var_name_function;
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
@@ -345,7 +355,7 @@ public:
     }
 
     bool is_lower_bound(const literal & l) const {
-        return l.m_is_lower;
+        return l.is_lower();
     }
     
     // bool lower_for_var(unsigned j, mpq & lower) const {
@@ -363,7 +373,7 @@ public:
     // }
 
     bool is_upper_bound(const literal & l) const {
-        return !l.m_is_lower;
+        return !l.is_lower();
     }
     
     // used for testing only
@@ -434,7 +444,7 @@ public:
 
     unsigned find_large_enough_j(unsigned i) {
         unsigned r = 0;
-        for (const auto & p : m_constraints[i].m_poly.m_coeffs) {
+        for (const auto & p : m_constraints[i].poly().m_coeffs) {
             r = std::max(r, p.var() + 1);
         }
         return r;
@@ -533,7 +543,7 @@ public:
             if (literal_index >= upper_end_of_trail)
                 continue;
             const literal& l = m_trail[literal_index];
-            if (l.m_var == j && l.m_is_lower == is_lower) {
+            if (l.var() == j && l.is_lower() == is_lower) {
                 TRACE("ba_int",
                       tout << "found lower bound expl\n";
                       print_literal(tout, l); tout << "\n";);
@@ -545,7 +555,7 @@ public:
     }
 
     void add_constraint_origins_to_explanation(unsigned constraint_index) {
-        for (auto j : m_constraints[constraint_index].m_origins)
+        for (auto j : m_constraints[constraint_index].origins())
             m_explanation.insert(j);
     }
 
@@ -556,7 +566,7 @@ public:
         TRACE("ba_int", print_constraint(tout, in););
         for (const auto & p: in.coeffs()){
             unsigned literal_index = find_lower_bound_literal(is_pos(p.coeff()), p.var(), upper_end_of_trail);
-            unsigned l_constraint_index = m_trail[literal_index].m_expl_index;
+            unsigned l_constraint_index = m_trail[literal_index].expl_index();
             if (!m_constraints[l_constraint_index].is_simple()) 
                 fill_conflict_explanation(l_constraint_index, literal_index);
             else
@@ -567,7 +577,7 @@ public:
     void trace_print_constraint(std::ostream& out, unsigned i) {
         print_constraint(out, i); out << "\n";
         unsigned j;
-        auto pairs = to_pairs(m_constraints[i].m_poly.m_coeffs);
+        auto pairs = to_pairs(m_constraints[i].poly().m_coeffs);
         auto it = linear_combination_iterator_on_std_vector<mpq>(pairs);
         while (it.next(j)) {
             out << "domain of " << var_name(j) << " = ";
@@ -578,17 +588,17 @@ public:
    
     void propagate_constraint_only_one_unlim(unsigned constraint_index, unsigned the_only_unlim) {
         const constraint& i = m_constraints[constraint_index];
-        mpq rs = - i.m_poly.m_a;
-        for (unsigned j = 0; j < i.m_poly.m_coeffs.size(); j++) {
+        mpq rs = - i.poly().m_a;
+        for (unsigned j = 0; j < i.poly().m_coeffs.size(); j++) {
             if (j == the_only_unlim) continue;
             mpq m;
-            lower_monomial(i.m_poly.m_coeffs[j], m);
+            lower_monomial(i.poly().m_coeffs[j], m);
             rs -= m;
         }
 
-        // we cannot get a conflict here because the monomial i.m_poly.m_coeffs[the_only_unlim]
+        // we cannot get a conflict here because the monomial i.poly().m_coeffs[the_only_unlim]
         // is unlimited from below and we are adding an upper bound for it
-        propagate_monomial_on_right_side(i.m_poly.m_coeffs[the_only_unlim], rs, constraint_index);
+        propagate_monomial_on_right_side(i.poly().m_coeffs[the_only_unlim], rs, constraint_index);
     }
 
     bool conflict() const { return m_explanation.size() > 0; }
@@ -693,7 +703,7 @@ public:
     // returns false if not limited from below
     // otherwise the answer is put into lb
     bool lower(unsigned constraint_index, mpq & lb) const {
-        return lower(m_constraints[constraint_index].m_poly, lb);
+        return lower(m_constraints[constraint_index].poly(), lb);
     }
 
     // returns false if not limited from below
@@ -707,7 +717,7 @@ public:
 #if Z3DEBUG
         bool r =
 #endif
-            lower(i.m_poly, lb);
+            lower(i.poly(), lb);
         lp_assert(r);
         return lb;
     }
@@ -734,8 +744,8 @@ public:
     // if there is only one lower unlimited then the index is put into the_only_unlimited
     int lower_analize(const constraint & f, unsigned & the_only_unlimited) const {
         int ret = 0;
-        for (unsigned j = 0; j < f.m_poly.m_coeffs.size(); j++) {
-            if (!lower_monomial_exists(f.m_poly.m_coeffs[j])) {
+        for (unsigned j = 0; j < f.poly().m_coeffs.size(); j++) {
+            if (!lower_monomial_exists(f.poly().m_coeffs[j])) {
                 if (ret == 1)
                     return 2;
                 ret ++;
@@ -832,8 +842,8 @@ public:
 
     
     bound_result bound(const constraint & q, var_index j) const {
-        const mpq& a = q.m_poly.coeff(j);
-        return bound_on_polynomial(q.m_poly, a, j);
+        const mpq& a = q.poly().coeff(j);
+        return bound_on_polynomial(q.poly(), a, j);
     }
 
     bound_result bound(unsigned constraint_index, var_index j) const {
@@ -846,32 +856,32 @@ public:
     }
 
     void print_constraint(std::ostream & out, const constraint & i ) const {
-        out << (i.m_is_lemma? "lemma ": "assert ");
-        if (!i.m_is_ineq) {
-            out << i.m_d << " | ";
+        out << (i.is_lemma()? "lemma ": "assert ");
+        if (!i.is_ineq()) {
+            out << i.divider() << " | ";
         }
-        print_polynomial(out, i.m_poly) ;
-        if (i.m_is_ineq) {
+        print_polynomial(out, i.poly()) ;
+        if (i.is_ineq()) {
             out << " <= 0";
         }
         out << "\n";
     }
 
     void print_literal(std::ostream & out, const literal & t) const {
-        out << (t.m_is_decided? "decided ": "implied ");
-        out << get_column_name(t.m_var) << " ";
-        if (t.m_is_lower)
+        out << (t.is_decided()? "decided ": "implied ");
+        out << get_column_name(t.var()) << " ";
+        if (t.is_lower())
             out << ">= ";
         else
             out << "<= ";
-        out << t.m_bound;
+        out << t.bound();
 
-        if (t.m_is_decided == false) {
-            out << " by constraint " << t.m_expl_index << " "; print_constraint(out, m_constraints[t.m_expl_index]);
+        if (t.is_decided() == false) {
+            out << " by constraint " << t.expl_index() << " "; print_constraint(out, m_constraints[t.expl_index()]);
         }
-        if (!t.m_tight_ineq.is_empty()) {
-            out << " m_tight_ineq = ";
-            print_polynomial(out, t.m_tight_ineq);
+        if (!t.tight_ineq().is_empty()) {
+            out << " tight_ineq() = ";
+            print_polynomial(out, t.tight_ineq());
             out << "\n";
         }
     }
@@ -941,8 +951,8 @@ public:
                 return false;
             mpq b;
             bool upper_bound_exists = get_var_upper_bound(j, b);
-            return (!upper_bound_exists || new_upper.m_bound < b) &&
-                dom.intersection_with_upper_bound_is_empty(new_upper.m_bound);
+            return (!upper_bound_exists || new_upper.bound() < b) &&
+                dom.intersection_with_upper_bound_is_empty(new_upper.bound());
         }
 
         lp_assert(is_neg(a));
@@ -951,8 +961,8 @@ public:
             return false;
         mpq b;
         bool lower_bound_exists = get_var_lower_bound(j, b);
-        return (!lower_bound_exists || new_lower.m_bound > b) &&
-            dom.intersection_with_lower_bound_is_empty(new_lower.m_bound);
+        return (!lower_bound_exists || new_lower.bound() > b) &&
+            dom.intersection_with_lower_bound_is_empty(new_lower.bound());
     }
 
 
@@ -966,21 +976,21 @@ public:
         if (br.m_type == bound_type::UPPER) {
             mpq b;
             bool j_has_upper_bound = get_var_upper_bound(j, b);
-            return (!j_has_upper_bound || br.m_bound < b) &&
-                !dom.intersection_with_upper_bound_is_empty(br.m_bound);
+            return (!j_has_upper_bound || br.bound() < b) &&
+                !dom.intersection_with_upper_bound_is_empty(br.bound());
         }
 
         if (br.m_type == bound_type::UNDEF)
             return false;
         mpq b;
         bool lower_bound_exists = get_var_lower_bound(j, b);
-        return (!lower_bound_exists || br.m_bound > b) &&
-            !dom.intersection_with_lower_bound_is_empty(br.m_bound);
+        return (!lower_bound_exists || br.bound() > b) &&
+            !dom.intersection_with_lower_bound_is_empty(br.bound());
     }
 
 
     void add_bound(mpq v, unsigned j, bool is_lower, unsigned constraint_index) {
-        push_literal_to_trail(make_implied_literal(j, is_lower, v, constraint_index));
+        push_literal_to_trail(literal::make_implied_literal(j, is_lower, v, constraint_index));
     }
     
     mpq value(const polynomial & p) const {
@@ -993,7 +1003,7 @@ public:
     void pop_constraints() {
         for (unsigned j = m_constraints.size(); j-- > m_scope().m_constraints_size;) {
             const constraint & i = m_constraints[j];
-            for (const auto & p: i.m_poly.m_coeffs) {
+            for (const auto & p: i.poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(j);
             }
             m_constraints.pop_back();
@@ -1037,7 +1047,7 @@ public:
         int r = lower_analize(in, the_only_unlim);
         if (r == 0) {
             mpq b;
-            lower(in.m_poly, b);
+            lower(in.poly(), b);
             if (is_pos(b)) {
                 TRACE("cs_inconsistent", trace_print_constraint(tout, i););
                 return false;
@@ -1120,10 +1130,10 @@ public:
     }
 
     bool decision_is_redundant_for_constraint(const polynomial& i, const literal & l) const {
-        const mpq & coeff = i.coeff(l.m_var);
+        const mpq & coeff = i.coeff(l.var());
         if (is_zero(coeff))
             return true;
-        return is_pos(coeff)? ! l.m_is_lower: l.m_is_lower;
+        return is_pos(coeff)? ! l.is_lower(): l.is_lower();
     }
 
     bool is_divizible(const mpq & a, const mpq & b) const {
@@ -1148,7 +1158,7 @@ public:
     }
 
     void decide_lower_neg(polynomial &ndiv_part, const mpq & c, literal &l) {
-        ndiv_part.add( -c, m_trail[l.m_expl_index].m_tight_ineq);
+        ndiv_part.add( -c, m_trail[l.expl_index()].tight_ineq());
         lp_assert(is_zero(ndiv_part.coeff(l.var())));
         TRACE("tight", tout << "Decided-Lower-Neg, "; tout << "ndiv_part = ";
               print_polynomial(tout, ndiv_part); tout << "\n";);
@@ -1163,10 +1173,10 @@ public:
               ", c / a = " << c/a << ", k = " <<
               k << ", a * k = " << a * k << ", m = " << m << "\n"; );  
         lp_assert(!is_neg(m));
-        create_tight_ineq_under_literal(l.m_expl_index);
-        const literal & lex = m_trail[l.m_expl_index];
+        create_tight_ineq_under_literal(l.expl_index());
+        const literal & lex = m_trail[l.expl_index()];
         lp_assert(lex.var() == l.var());
-        for (const monomial & n : lex.m_tight_ineq.m_coeffs) {
+        for (const monomial & n : lex.tight_ineq().m_coeffs) {
             if (n.var() == l.var()) {
                 lp_assert(n.coeff() == one_of_type<mpq>());
                 div_part += monomial(a_k, l.var());
@@ -1174,7 +1184,7 @@ public:
                 ndiv_part += monomial(m * n.coeff(), n.var());
             }
         }
-        ndiv_part += m * lex.m_tight_ineq.m_a;
+        ndiv_part += m * lex.tight_ineq().m_a;
         TRACE("tight", tout << "Decided-Lower ";
               tout << "div_part = ";
               print_polynomial(tout, div_part);
@@ -1195,10 +1205,10 @@ public:
               ", c / a = " << c/a << ", k = " <<
               k << ", a * k = " << a * k << ", m = " << m << "\n"; );  
         lp_assert(!is_neg(m));
-        create_tight_ineq_under_literal(l.m_expl_index);
-        const literal & lex = m_trail[l.m_expl_index];
+        create_tight_ineq_under_literal(l.expl_index());
+        const literal & lex = m_trail[l.expl_index()];
         lp_assert(lex.var() == l.var());
-        for (const monomial & n : lex.m_tight_ineq.m_coeffs) {
+        for (const monomial & n : lex.tight_ineq().m_coeffs) {
             if (n.var() == l.var()) {
                 lp_assert(n.coeff() == -one_of_type<mpq>());
                 div_part += monomial(a_k, l.var());
@@ -1206,7 +1216,7 @@ public:
                 r += monomial(m * n.coeff(), n.var());
             }
         }
-        r += m * lex.m_tight_ineq.m_a;
+        r += m * lex.tight_ineq().m_a;
         TRACE("tight", tout << "Decided-Lower ";
               tout << "div_part = ";
               print_polynomial(tout, div_part);
@@ -1221,25 +1231,25 @@ public:
               tout << "trail_index = " << trail_index << ", ";
               print_literal(tout, m_trail[trail_index]););
         literal & l = m_trail[trail_index];
-        if (l.m_tight_ineq.number_of_monomials() == 0) {
+        if (l.tight_ineq().number_of_monomials() == 0) {
             create_tight_ineq_under_literal(trail_index);
         }
         if (l.is_implied()) { // Resolve-Implied
-            resolve(ndiv_part, l.m_var, !l.m_is_lower, l.m_tight_ineq);
+            resolve(ndiv_part, l.var(), !l.is_lower(), l.tight_ineq());
             TRACE("tight", tout << "after resolve ndiv_part = "; print_polynomial(tout, ndiv_part);
                   tout << "\n";);
         } else { 
             lp_assert(l.is_decided());
-            create_tight_ineq_under_literal(l.m_expl_index);
+            create_tight_ineq_under_literal(l.expl_index());
             mpq c = ndiv_part.coeff(l.var());
-            if (l.m_is_lower) {
+            if (l.is_lower()) {
                 if (is_neg(c)) {
                     decide_lower_neg(ndiv_part, c, l);
                 } else { 
                     decided_lower(a, c, div_part, ndiv_part, l);
                 }
             } else {
-                lp_assert(!l.m_is_lower);
+                lp_assert(!l.is_lower());
                 if (is_pos(c)) { // Decided-Upper-Pos
                     lp_assert(false);
                 } else { 
@@ -1276,28 +1286,28 @@ public:
     }
 
     void create_tight_ineq_for_decided_literal(literal &l ) {
-        if (!l.m_is_lower) {
-            l.m_tight_ineq.m_coeffs.push_back(monomial(l.var()));
-            l.m_tight_ineq.m_a = -l.m_bound;
+        if (!l.is_lower()) {
+            l.tight_ineq().m_coeffs.push_back(monomial(l.var()));
+            l.tight_ineq().m_a = -l.bound();
         } else {
-            l.m_tight_ineq.m_coeffs.push_back(monomial(-one_of_type<mpq>(), l.var()));
-            l.m_tight_ineq.m_a = l.m_bound;
+            l.tight_ineq().m_coeffs.push_back(monomial(-one_of_type<mpq>(), l.var()));
+            l.tight_ineq().m_a = l.bound();
         }
     }
     
     void create_tight_ineq_under_literal(unsigned trail_index) {
         literal & l = m_trail[trail_index];
-        if (l.m_tight_ineq.number_of_monomials() > 0) {
+        if (l.tight_ineq().number_of_monomials() > 0) {
             return;
         }
-        if (l.m_is_decided) {
+        if (l.is_decided()) {
             create_tight_ineq_for_decided_literal(l);
             return;
         }
-        const constraint & c = m_constraints[l.m_expl_index];
-        lp_assert(c.m_is_ineq);
-        polynomial &p = l.m_tight_ineq = c.m_poly;
-        unsigned j = l.m_var;
+        const constraint & c = m_constraints[l.expl_index()];
+        lp_assert(c.is_ineq());
+        polynomial &p = l.tight_ineq() = c.poly();
+        unsigned j = l.var();
         const mpq& a = p.coeff(j);
         lp_assert(!is_zero(a));
         if (a == one_of_type<mpq>() || a == - one_of_type<mpq>()) {
@@ -1321,7 +1331,7 @@ public:
         lp_assert(m_trail.size() == trail_index);
         TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, var););
         add_lemma(p);
-        add_bound(br.m_bound, var, br.m_type == bound_type::LOWER, m_constraints.size() - 1);
+        add_bound(br.bound(), var, br.m_type == bound_type::LOWER, m_constraints.size() - 1);
         m_changed_vars.insert(var);
         restrict_var_domain_with_bound_result(var, br);
         TRACE("int_backjump", tout << "var info after restricton = ";
@@ -1344,7 +1354,7 @@ public:
         } else { // the literal is implied
             create_tight_ineq_under_literal(trail_index);
             // applying Resolve rool
-            resolve(p, l.var(), !l.m_is_lower, l.m_tight_ineq);
+            resolve(p, l.var(), !l.is_lower(), l.tight_ineq());
             TRACE("int_resolve_confl",
                   tout << "p = ";
                   print_polynomial(tout, p););
@@ -1376,7 +1386,7 @@ public:
         TRACE("int_resolve_confl", tout << "inconstistent_constraint = ";
               print_constraint(tout, i););
         if (i.is_ineq()) {
-            return resolve_conflict_for_inequality(i.m_poly);
+            return resolve_conflict_for_inequality(i.poly());
         } else {
             lp_assert(false); // not implemented
             return false;
@@ -1450,7 +1460,7 @@ public:
     unsigned find_literal_index(unsigned j, bool is_lower) const {
         for (unsigned k = m_trail.size(); k-- > 0;){
             const auto & l = m_trail[k];
-            if (!l.m_is_decided && l.m_var == j && l.m_is_lower == is_lower)
+            if (!l.is_decided() && l.var() == j && l.is_lower() == is_lower)
                 return k;
         }
         TRACE("find_literal", tout << "cannot find deciding literal for " << var_name(j)<<  " j = " << j << " is_lower = " << is_lower << std::endl;);
@@ -1471,13 +1481,13 @@ public:
             m_var_infos[j].intersect_with_lower_bound(b);
         }
         m_decision_has_been_made = true;
-        push_literal_to_trail(make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
+        push_literal_to_trail(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
     }
 
     bool propagate_simple_constraint(unsigned constraint_index) {
         const constraint & t = m_constraints[constraint_index];
         TRACE("cut_solver_state_simpe_constraint",   print_constraint(tout, t); tout << std::endl;);
-        var_index j = t.m_poly.m_coeffs[0].var();
+        var_index j = t.poly().m_coeffs[0].var();
         
         bound_result br = bound(t, j);
         TRACE("cut_solver_state_simpe_constraint", tout << "bound result = {"; br.print(tout); tout << "}\n";
@@ -1486,8 +1496,8 @@ public:
               );
         
         if (improves(j, br)) {
-            literal l = make_implied_literal(j, br.m_type == bound_type::LOWER, br.m_bound, constraint_index);
-            l.m_tight_ineq = t.m_poly;
+            literal l = literal::make_implied_literal(j, br.m_type == bound_type::LOWER, br.bound(), constraint_index);
+            l.tight_ineq() = t.poly();
             push_literal_to_trail(l);
             restrict_var_domain_with_bound_result(j, br);
             TRACE("cut_solver_state_simpe_constraint", tout <<"improved domain = ";
@@ -1518,12 +1528,12 @@ public:
     }
 
     bool consistent(const constraint & i) const {
-        // an option could be to check that upper(i.m_poly) <= 0
-        bool ret = value(i.m_poly) <= zero_of_type<mpq>();
+        // an option could be to check that upper(i.poly()) <= 0
+        bool ret = value(i.poly()) <= zero_of_type<mpq>();
         if (!ret) {
             TRACE("cut_solver_state_inconsistent", 
                   tout << "inconsistent constraint "; print_constraint(tout,i); tout <<"\n";
-                  tout << "value = " << value(i.m_poly) << '\n';
+                  tout << "value = " << value(i.poly()) << '\n';
                   );
         }
         return ret;
@@ -1584,7 +1594,7 @@ public:
     
     void add_lemma(polynomial& p) {
         simplify_lemma(p);
-        m_constraints.push_back(constraint(p, true));
+        m_constraints.push_back(constraint::make_ineq_lemma(p));
     }
     
     unsigned add_ineq(const std::vector<monomial> & lhs,
@@ -1596,7 +1606,7 @@ public:
         unsigned constraint_index = m_constraints.size();
         for (auto & p : lhs)
             local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
-        m_constraints.push_back(constraint(local_lhs, free_coeff, false, origins)); // false means it is not a lemma
+        m_constraints.push_back(constraint::make_ineq_assert(local_lhs, free_coeff,origins)); 
         TRACE("ba_int",
               tout << "explanation :";
               for (auto i: origins) {
