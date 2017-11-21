@@ -241,20 +241,52 @@ public: // for debugging
         }
     };
     
-    struct var_info {
+    class var_info {
         unsigned m_user_var_index;
-        var_info(unsigned user_var_index) : m_user_var_index(user_var_index) {}
-        std::vector<unsigned> m_literals; // point to m_trail
+        svector<unsigned> m_literals; // point to m_trail
         integer_domain<mpq> m_domain;
-        bool is_fixed() const { return m_domain.is_fixed();}
         std::unordered_set<int> m_dependent_constraints; // the set of constraintualities involving the var
+    public:
+        var_info(unsigned user_var_index) : m_user_var_index(user_var_index) {}
+        const integer_domain<mpq> & domain() const { return m_domain; }
+        unsigned user_var() const {
+            return m_user_var_index;
+        }
         void add_dependent_constraint(unsigned i) {
             m_dependent_constraints.insert(i);
         }
         void remove_depended_constraint(unsigned i) {
             m_dependent_constraints.erase(i);
         }
-    };
+        bool intersect_with_lower_bound(const mpq & b) {
+
+            return m_domain.intersect_with_lower_bound(b);
+        }
+        bool intersect_with_upper_bound(const mpq & b) {
+            return m_domain.intersect_with_upper_bound(b);
+        }
+        bool is_fixed() const { return m_domain.is_fixed();}
+        bool get_upper_bound(mpq & b) const { return m_domain.get_upper_bound(b); }
+        bool get_lower_bound(mpq & b) const { return m_domain.get_lower_bound(b); }
+        void print_var_domain(std::ostream &out) const { m_domain.print(out); }
+        const svector<unsigned> & literals() const { return m_literals; }
+        const std::unordered_set<int> & dependent_constraints() const { return m_dependent_constraints; }
+        bool lower_bound_exists() const { return m_domain.lower_bound_exists();}
+        bool upper_bound_exists() const { return m_domain.upper_bound_exists();}
+        void push() {
+            m_domain.push();
+        }
+        void pop() {
+            m_domain.pop();
+        }
+        void add_literal(unsigned j) { m_literals.push_back(j); }
+        void remove_literal(unsigned literal_index) {
+            auto it = std::find (m_literals.begin(), m_literals.end(), literal_index);
+            lp_assert(it != m_literals.end());
+            m_literals.erase(it);
+        }
+        
+    }; // end of var_info
 
     std::vector<var_info> m_var_infos;
     
@@ -264,10 +296,10 @@ public: // for debugging
         }
         return true;
     }
-    
+
 public:
     std::string get_column_name(unsigned j) const {
-        return m_var_name_function(m_var_infos[j].m_user_var_index);
+        return m_var_name_function(m_var_infos[j].user_var());
     }
 
     constraint & get_constraint(unsigned i) {
@@ -337,15 +369,13 @@ public:
     // used for testing only
     void add_lower_bound_for_user_var(unsigned user_var_index, const mpq& bound) {
         unsigned j = m_user_vars_to_cut_solver_vars[user_var_index];
-        auto & vi = m_var_infos[j];
-        vi.m_domain.intersect_with_lower_bound(bound);
+        m_var_infos[j].intersect_with_lower_bound(bound);
     }
 
     // used for testing only
     void add_upper_bound_for_user_var(unsigned user_var_index, const mpq& bound) {
         unsigned j = m_user_vars_to_cut_solver_vars[user_var_index];
-        auto & vi = m_var_infos[j];
-        vi.m_domain.intersect_with_upper_bound(bound);
+        m_var_infos[j].intersect_with_upper_bound(bound);
     }
 
     
@@ -382,7 +412,7 @@ public:
     }
 
     void restrict_var_domain_with_bound_result(var_index j, const bound_result & br) {
-        auto & d = m_var_infos[j].m_domain;
+        auto & d = m_var_infos[j];
         if (br.m_type == bound_type::UPPER) {
             d.intersect_with_upper_bound(br.m_bound);
         } else {
@@ -399,7 +429,7 @@ public:
         unsigned literal_index = m_trail.size();
         m_trail.push_back(l);
         TRACE("ba_int", print_literal(tout, l););
-        m_var_infos[l.m_var].m_literals.push_back(literal_index);
+        m_var_infos[l.var()].add_literal(literal_index);
     }
 
     unsigned find_large_enough_j(unsigned i) {
@@ -433,7 +463,7 @@ public:
             mpq m;
             get_var_lower_bound(p.var(), m);
             mpq v = floor(- lower_val / p.coeff()) + m;
-            bool change = m_var_infos[j].m_domain.intersect_with_upper_bound(v);
+            bool change = m_var_infos[j].intersect_with_upper_bound(v);
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, constraint_index););
                 add_bound(v, j, false, constraint_index);
@@ -442,7 +472,7 @@ public:
             mpq m;
             get_var_upper_bound(p.var(), m);
             mpq v = ceil( - lower_val / p.coeff()) + m;
-            bool change = m_var_infos[j].m_domain.intersect_with_lower_bound(v);
+            bool change = m_var_infos[j].intersect_with_lower_bound(v);
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, constraint_index););
                 add_bound(v, j, true , constraint_index);
@@ -455,14 +485,14 @@ public:
         if (is_pos(p.coeff())) {
             mpq m;
             mpq v = floor(rs / p.coeff());
-            bool change = m_var_infos[j].m_domain.intersect_with_upper_bound(v);
+            bool change = m_var_infos[j].intersect_with_upper_bound(v);
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, constraint_index););
                 add_bound(v, j, false, constraint_index);
             }
         } else {
             mpq v = ceil(rs / p.coeff());
-            bool change = m_var_infos[j].m_domain.intersect_with_lower_bound(v);
+            bool change = m_var_infos[j].intersect_with_lower_bound(v);
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, constraint_index););
                 add_bound(v, j, true , constraint_index);
@@ -471,7 +501,7 @@ public:
     }
 
     void print_var_info(std::ostream & out, const var_info & vi) const {
-        out << m_var_name_function(vi.m_user_var_index) << " ";
+        out << m_var_name_function(vi.user_var()) << " ";
         print_var_domain(out, vi);
     }
 
@@ -482,11 +512,11 @@ public:
 
     
     void print_var_domain(std::ostream & out, unsigned j) const {
-        m_var_infos[j].m_domain.print(out);
+        m_var_infos[j].print_var_domain(out);
     }
 
     void print_var_domain(std::ostream & out, const var_info & vi) const {
-        vi.m_domain.print(out);
+        vi.print_var_domain(out);
     }
 
     // b is the value of lower
@@ -497,9 +527,9 @@ public:
     }
 
     unsigned find_lower_bound_literal(bool is_lower, unsigned j, unsigned & upper_end_of_trail) const {
-        TRACE("ba_int", tout << get_column_name(j) << "\n"; tout << "literal's size = " << m_var_infos[j].m_literals.size() << "\n";);
-        for (unsigned k = m_var_infos[j].m_literals.size(); k--;) {
-            unsigned literal_index = m_var_infos[j].m_literals[k];
+        TRACE("ba_int", tout << get_column_name(j) << "\n"; tout << "literal's size = " << m_var_infos[j].literals().size() << "\n";);
+        for (unsigned k = m_var_infos[j].literals().size(); k--;) {
+            unsigned literal_index = m_var_infos[j].literals()[k];
             if (literal_index >= upper_end_of_trail)
                 continue;
             const literal& l = m_trail[literal_index];
@@ -565,7 +595,7 @@ public:
 
     // returns -1 if there is no conflict and the index of the conflict constraint otherwise
     int  propagate_on_constraints_of_var(var_index j) {
-        for (unsigned i : m_var_infos[j].m_dependent_constraints) {
+        for (unsigned i : m_var_infos[j].dependent_constraints()) {
             if (!propagate_constraint(i))
                 return i;
         }
@@ -589,23 +619,23 @@ public:
 
     bool get_var_lower_bound(var_index i, mpq & bound) const {
         const var_info & v = m_var_infos[i];
-        return v.m_domain.get_lower_bound(bound);
+        return v.get_lower_bound(bound);
     }
 
     bool get_var_upper_bound(var_index i, mpq & bound) const {
         const var_info & v = m_var_infos[i];
-        return v.m_domain.get_upper_bound(bound);
+        return v.get_upper_bound(bound);
     }
 
     bool lower_monomial_exists(const monomial & p) const {
         lp_assert(p.coeff() != 0);
 
         if (p.coeff() > 0) {
-            if (!m_var_infos[p.var()].m_domain.lower_bound_exists())
+            if (!m_var_infos[p.var()].lower_bound_exists())
                 return false;
         }
         else {
-            if (!m_var_infos[p.var()].m_domain.upper_bound_exists())
+            if (!m_var_infos[p.var()].upper_bound_exists())
                 return false;
         }
         return true;
@@ -614,11 +644,11 @@ public:
     bool upper_monomial_exists(const monomial & p) const {
         lp_assert(p.coeff() != 0);
         if (p.coeff() > 0) {
-            if (!m_var_infos[p.var()].m_domain.upper_bound_exists())
+            if (!m_var_infos[p.var()].upper_bound_exists())
                 return false;
         }
         else {
-            if (!m_var_infos[p.var()].m_domain.lower_bound_exists())
+            if (!m_var_infos[p.var()].lower_bound_exists())
                 return false;
         }
         return true;
@@ -902,7 +932,7 @@ public:
         auto a = p.coeff(j);
         if (is_zero(a))
             return false;
-        const auto& dom = m_var_infos[j].m_domain;
+        const auto& dom = m_var_infos[j].domain();
         if (dom.is_empty())
             return false;
         if (is_pos(a)) {
@@ -930,7 +960,7 @@ public:
     bool improves(var_index j, const bound_result & br) const {
         if (br.m_type == bound_type::UNDEF)
             return false;
-        const auto& dom = m_var_infos[j].m_domain;
+        const auto& dom = m_var_infos[j].domain();
         if (dom.is_empty())
             return false;
         if (br.m_type == bound_type::UPPER) {
@@ -969,18 +999,6 @@ public:
             m_constraints.pop_back();
         }
         lp_assert(m_constraints.size() == m_scope().m_constraints_size);
-    }
-
-    void pop_var_domains(unsigned k) {
-        for (auto & v : m_var_infos) {
-            v.m_domain.pop(k);
-        }
-    }
-
-    void push_var_domains() {
-        for (auto & v : m_var_infos) {
-            v.m_domain.push();
-        }
     }
 
     bool flip_coin() {
@@ -1232,7 +1250,7 @@ public:
         
     }
     
-    // see page 88 of Cutting to chaze
+    // see page 88 of Cutting to Chase
     void tighten(polynomial & p, unsigned j_of_var, const mpq& a, unsigned trail_index) {
         polynomial div_part, ndiv_part;
         ndiv_part.m_a = p.m_a;
@@ -1376,17 +1394,31 @@ public:
           }*/
     }
 
+    void push_var_infos() {
+        for (var_info & vi : m_var_infos)
+            vi.push();
+    }
+    void pop_var_infos() {
+        for (var_info & vi : m_var_infos)
+            vi.pop();
+    }
+    
     void print_scope(std::ostream& out) const {
         out << "trail_size = " << m_scope().m_trail_size << ", constraints_size = " << m_scope().m_constraints_size << "\n";
     }
 
     void pop(unsigned k) {
         TRACE("trace_push_pop_in_cut_solver", tout << "before pop\n";print_state(tout););
-        m_scope.pop(k);
+        m_scope.pop(k);        
         TRACE("trace_push_pop_in_cut_solver", tout << "scope = ";print_scope(tout); tout << "\n";);
+        pop_var_infos();
+
+        for (unsigned j = m_trail.size(); j-- > m_scope().m_trail_size; ) {
+            m_var_infos[m_trail[j].var()].remove_literal(j);
+        }
+            
         m_trail.resize(m_scope().m_trail_size);
         pop_constraints();
-        pop_var_domains(k);
         m_decision_has_been_made.pop(k);
         TRACE("trace_push_pop_in_cut_solver", tout << "after pop\n";print_state(tout););
     }
@@ -1395,8 +1427,8 @@ public:
         TRACE("trace_push_pop_in_cut_solver", print_state(tout););
         m_scope = scope(m_trail.size(), m_constraints.size());
         m_scope.push();
-        push_var_domains();
         m_decision_has_been_made.push();
+        push_var_infos();
     }
 
     cut_solver(std::function<std::string (unsigned)> var_name_function,
@@ -1431,15 +1463,15 @@ public:
         mpq b;
         std::vector<monomial> lhs;
         if (decide_on_lower) {
-            m_var_infos[j].m_domain.get_lower_bound(b);
-            m_var_infos[j].m_domain.intersect_with_upper_bound(b);
+            m_var_infos[j].domain().get_lower_bound(b);
+            m_var_infos[j].intersect_with_upper_bound(b);
         }
         else {
-            m_var_infos[j].m_domain.get_upper_bound(b);
-            m_var_infos[j].m_domain.intersect_with_lower_bound(b);
+            m_var_infos[j].domain().get_upper_bound(b);
+            m_var_infos[j].intersect_with_lower_bound(b);
         }
         m_decision_has_been_made = true;
-        m_trail.push_back(make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
+        push_literal_to_trail(make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
     }
 
     bool propagate_simple_constraint(unsigned constraint_index) {
@@ -1449,7 +1481,7 @@ public:
         
         bound_result br = bound(t, j);
         TRACE("cut_solver_state_simpe_constraint", tout << "bound result = {"; br.print(tout); tout << "}\n";
-              tout << "domain of " << get_column_name(j) << " = "; m_var_infos[j].m_domain.print(tout);
+              tout << "domain of " << get_column_name(j) << " = "; m_var_infos[j].domain().print(tout);
               tout << "\n";
               );
         
@@ -1459,7 +1491,7 @@ public:
             push_literal_to_trail(l);
             restrict_var_domain_with_bound_result(j, br);
             TRACE("cut_solver_state_simpe_constraint", tout <<"improved domain = ";
-                  m_var_infos[j].m_domain.print(tout);
+                  m_var_infos[j].domain().print(tout);
                   tout<<"\n";
                   tout << "literal = "; print_literal(tout, l);
                   tout <<"\n";
@@ -1502,7 +1534,7 @@ public:
         // the current limitation is that we only deal with bounded vars.
         // the search should be randomized.
         for (unsigned j = 0; j < m_var_infos.size(); j++) {
-            const auto & d = m_var_infos[j].m_domain;
+            const auto & d = m_var_infos[j].domain();
             lp_assert(d.lower_bound_exists() && d.upper_bound_exists());
             if (!d.is_fixed())
                 return j;

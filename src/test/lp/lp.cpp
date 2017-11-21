@@ -3221,7 +3221,7 @@ void test_improves(cut_solver& cs, unsigned constraint_index, unsigned i0) {
     auto q = cs.get_constraint(constraint_index);
     std::cout << "constraint = "; cs.print_constraint(std::cout, q); std::cout << std::endl;
     std::cout << "domain of x = ";
-    cs.m_var_infos[x].m_domain.print(std::cout);
+    cs.m_var_infos[x].print_var_domain(std::cout);
     std::cout << std::endl;
     if (cs.improves(x, q)) {
         std::cout << "improves x\n";
@@ -3230,7 +3230,7 @@ void test_improves(cut_solver& cs, unsigned constraint_index, unsigned i0) {
     }
 
     std::cout << "domain of y = ";
-    cs.m_var_infos[y].m_domain.print(std::cout);
+    cs.m_var_infos[y].print_var_domain(std::cout);
     std::cout << std::endl;
 
 
