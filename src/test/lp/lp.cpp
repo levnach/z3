@@ -3166,7 +3166,7 @@ void test_bound_of_cut_solver(cut_solver& cs, unsigned ineq_index)  {
     std::cout << "test_bound_of_cut_solver\n";
     std::vector<int> coeffs;
     auto q = cs.get_constraint(ineq_index);
-    for (auto t: q.poly().m_coeffs)
+    for (auto t: q->poly().m_coeffs)
         coeffs.push_back(t.var());
     auto br = cs.bound(ineq_index, coeffs[0]);
 	std::cout << "bound for " << cs.get_column_name(coeffs[0]) << " is ";
@@ -3219,7 +3219,7 @@ void test_improves(cut_solver& cs, unsigned constraint_index, unsigned i0) {
     var_index y = 1;
     std::cout << "test_improves\n";
     auto q = cs.get_constraint(constraint_index);
-    std::cout << "constraint = "; cs.print_constraint(std::cout, q); std::cout << std::endl;
+    std::cout << "constraint = "; cs.print_constraint(std::cout, *q); std::cout << std::endl;
     std::cout << "domain of x = ";
     cs.m_var_infos[x].print_var_domain(std::cout);
     std::cout << std::endl;
@@ -3270,18 +3270,18 @@ void test_cut_solver() {
     svector<unsigned> expl;
     unsigned constraint_index = cs.add_ineq(term, mpq(5, 1), expl);
 
-    cs.print_constraint(std::cout, constraint_index);
+    cs.print_constraint(std::cout, *cs.get_constraint(constraint_index));
     std::cout << std::endl;
     
     term.clear();
     term.push_back(mono(mpq(1),x));
     term.push_back(mono(mpq(-2),y));
     unsigned constraint_index0 = cs.add_ineq(term, mpq(2), expl);
-    cs.print_constraint(std::cout, constraint_index0);
+    cs.print_constraint(std::cout, *cs.get_constraint(constraint_index0));
     std::cout <<std::endl;
     
-    auto & i = cs.m_constraints[constraint_index0];
-    std::cout << "add monomial y" << std::endl;
+    // auto & i = cs.m_constraints[constraint_index0];
+    // std::cout << "add monomial y" << std::endl;
     
     // i.m_poly.add(mono(mpq(1), y));
     // cs.print_constraint(std::cout, constraint_index0);
