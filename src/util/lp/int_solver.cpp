@@ -406,7 +406,7 @@ unsigned int_solver::row_of_basic_column(unsigned j) const {
 // template <typename T>
 // void int_solver::fill_cut_solver_for_constraint(constraint_index ci, cut_solver<T> & cs) {
 //     const lar_base_constraint* c = m_lar_solver->constraints()[ci];
-//     std::vector<std::pair<T, var_index>> coeffs;
+//     vector<std::pair<T, var_index>> coeffs;
 //     T rs;
 //     get_int_coeffs_from_constraint(c, coeffs, rs);
 //     vector<constraint_index> explanation;
@@ -420,7 +420,7 @@ typedef cut_solver::monomial mono;
 // it produces an inequality coeff*x <= rs
 template <typename T>
 void int_solver::get_int_coeffs_from_constraint(const lar_base_constraint* c,
-                                                std::vector<mono>& coeffs, T & rs) {
+                                                vector<mono>& coeffs, T & rs) {
     lp_assert(c->m_kind != EQ); // it is not implemented, we need to create two inequalities in this case
     int sign = ((int)c->m_kind > 0) ? -1 : 1;
     vector<std::pair<T, var_index>> lhs = c->get_left_side_coefficients();
@@ -1176,7 +1176,7 @@ bool int_solver::is_term(unsigned j) const {
 }
 
 void int_solver::add_constraint_to_cut_solver(unsigned ci, const lar_base_constraint * c) {
-    std::vector<mono> coeffs;
+    vector<mono> coeffs;
     mpq rs;
     get_int_coeffs_from_constraint<mpq>(c, coeffs, rs);
     svector<constraint_index> explanation;

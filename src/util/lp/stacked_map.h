@@ -132,7 +132,7 @@ public:
     }
     
     unsigned size() const {
-        return m_map.size();
+        return static_cast<unsigned>(m_map.size());
     }
 
     bool contains(const A & key) const {

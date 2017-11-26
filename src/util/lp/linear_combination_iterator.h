@@ -19,7 +19,7 @@ struct linear_combination_iterator_on_vector : linear_combination_iterator<T> {
     vector<std::pair<T, unsigned>> & m_vector;
     int m_offset;
     bool next(T & a, unsigned & i) {
-        if(m_offset >= m_vector.size())
+        if(static_cast<unsigned>(m_offset) >= m_vector.size())
             return false;
         auto & p = m_vector[m_offset];
         a = p.first;
@@ -29,7 +29,7 @@ struct linear_combination_iterator_on_vector : linear_combination_iterator<T> {
     }
 
     bool next(unsigned & i) {
-        if(m_offset >= m_vector.size())
+        if(static_cast<unsigned>(m_offset) >= m_vector.size())
             return false;
         auto & p = m_vector[m_offset];
         i = p.second;

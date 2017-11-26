@@ -13,7 +13,6 @@
 #include "util/lp/int_set.h"
 #include "util/lp/linear_combination_iterator_on_std_vector.h"
 #include "util/lp/stacked_vector.h"
-#include "util/lp/linear_combination_iterator_on_std_vector.h"
 namespace lp {
 enum
 class lbool { l_false, l_true, l_undef };
@@ -34,8 +33,8 @@ public: // for debugging
         std::pair<mpq, var_index> to_pair() const { return std::make_pair(coeff(), var());}
     };
 
-    std::vector<std::pair<mpq, var_index>> to_pairs(const std::vector<monomial>& ms) const {
-        std::vector<std::pair<mpq, var_index>> ret;
+    vector<std::pair<mpq, var_index>> to_pairs(const vector<monomial>& ms) const {
+        vector<std::pair<mpq, var_index>> ret;
         for (const auto p : ms)
             ret.push_back(p.to_pair());
         return ret;
@@ -43,10 +42,10 @@ public: // for debugging
     
     struct polynomial {
         // the polynomial evaluates to m_coeffs + m_a
-        std::vector<monomial> m_coeffs;
+        vector<monomial> m_coeffs;
         mpq                     m_a; // the free coefficient
-        polynomial(const std::vector<monomial>& p, const mpq & a) : m_coeffs(p), m_a(a) {}
-        polynomial(const std::vector<monomial>& p) : polynomial(p, 0) {}
+        polynomial(const vector<monomial>& p, const mpq & a) : m_coeffs(p), m_a(a) {}
+        polynomial(const vector<monomial>& p) : polynomial(p, 0) {}
         polynomial(): m_a(zero_of_type<mpq>()) {}
         polynomial(const polynomial & p) : m_coeffs(p.m_coeffs), m_a(p.m_a) {} 
             
@@ -138,7 +137,7 @@ public: // for debugging
 
     public :
         static constraint * make_ineq_assert(
-            const std::vector<monomial>& term,
+            const vector<monomial>& term,
             const mpq& a,
             const svector<constraint_index> & origin) {
             return new constraint(origin, polynomial(term, a), false, true);
@@ -171,7 +170,7 @@ public: // for debugging
         const mpq & coeff(var_index j) const {
             return m_poly.coeff(j);
         }
-        const std::vector<monomial>& coeffs() const { return m_poly.m_coeffs;}
+        const vector<monomial>& coeffs() const { return m_poly.m_coeffs;}
         bool is_simple() const {
             return m_poly.m_coeffs.size() == 1 &&
                 (m_poly.m_coeffs[0].coeff() == one_of_type<mpq>()
@@ -307,9 +306,9 @@ public: // for debugging
         
     }; // end of var_info
 
-    std::vector<var_info> m_var_infos;
+    vector<var_info> m_var_infos;
     
-    bool lhs_is_int(const std::vector<monomial> & lhs) const {
+    bool lhs_is_int(const vector<monomial> & lhs) const {
         for (auto & p : lhs) {
             if (numeric_traits<mpq>::is_int(p.coeff()) == false) return false;
         }
@@ -336,12 +335,12 @@ public:
     
     
     vector<constraint*> m_constraints;
-    std::vector<mpq> m_v; // the values of the variables
+    vector<mpq> m_v; // the values of the variables
     std::function<std::string (unsigned)> m_var_name_function;
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
     unsigned m_number_of_decisions; // the number of decisions in the current trail
     int_set m_changed_vars;
-    std::vector<literal>          m_trail;
+    vector<literal>          m_trail;
     lp_settings & m_settings;
     struct scope {
         unsigned m_trail_size;
@@ -595,7 +594,7 @@ public:
         print_constraint(out, *i); out << "\n";
         unsigned j;
         auto pairs = to_pairs(i->poly().m_coeffs);
-        auto it = linear_combination_iterator_on_std_vector<mpq>(pairs);
+        auto it = linear_combination_iterator_on_vector<mpq>(pairs);
         while (it.next(j)) {
             out << "domain of " << var_name(j) << " = ";
             print_var_domain(out, j);
@@ -909,7 +908,7 @@ public:
 
     
     void print_polynomial(std::ostream & out, const polynomial & p) const {
-        std::vector<std::pair<mpq, unsigned>> pairs = to_pairs(p.m_coeffs);
+        vector<std::pair<mpq, unsigned>> pairs = to_pairs(p.m_coeffs);
         this->print_linear_combination_of_column_indices_std(pairs, out);
         if (!is_zero(p.m_a)) {
             if (p.m_a < 0) {
@@ -1548,7 +1547,7 @@ public:
     void decide_var_on_bound(unsigned j, bool decide_on_lower) {
         push();    
         mpq b;
-        std::vector<monomial> lhs;
+        vector<monomial> lhs;
         if (decide_on_lower) {
             m_var_infos[j].domain().get_lower_bound(b);
             m_var_infos[j].intersect_with_upper_bound(b);
@@ -1686,12 +1685,12 @@ public:
         m_constraints.push_back(constraint::make_ineq_lemma(p));
     }
     
-    unsigned add_ineq(const std::vector<monomial> & lhs,
+    unsigned add_ineq(const vector<monomial> & lhs,
                       const mpq& free_coeff,
                       svector<constraint_index> origins) {
         lp_assert(lhs_is_int(lhs));
         lp_assert(is_int(free_coeff));
-        std::vector<monomial> local_lhs;
+        vector<monomial> local_lhs;
         for (auto & p : lhs)
             local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
         constraint * c = constraint::make_ineq_assert(local_lhs, free_coeff,origins);
@@ -1718,7 +1717,7 @@ inline cut_solver::polynomial operator*(const mpq & a, cut_solver::polynomial & 
     ret.m_a = p.m_a * a;
     
     for (const auto & t: p.m_coeffs)
-        ret.m_coeffs.emplace_back(a * t.coeff(), t.var());
+        ret.m_coeffs.push_back(cut_solver::monomial(a * t.coeff(), t.var()));
     
     return ret;
 }

@@ -3260,7 +3260,7 @@ void test_cut_solver() {
                            if (i == 2) return std::string("z");
                            return std::to_string(i);
                        }, [](unsigned, std::ostream&){}, settings);
-    std::vector<mono> term;
+    vector<mono> term;
     unsigned x = 0;
     unsigned y = 1;
     unsigned z = 2;
