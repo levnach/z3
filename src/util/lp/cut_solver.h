@@ -120,6 +120,7 @@ public: // for debugging
             const mpq & a = coeff(j);
             return a == 1 || a == -1;
         }
+        const vector<monomial> & coeffs() const { return m_coeffs; }
     };
     
     class constraint { // we only have less or equal for the inequality sign, which is enough for integral variables
@@ -1029,6 +1030,15 @@ public:
 
     void add_bound(mpq v, unsigned j, bool is_lower, ccns * c) {
         push_literal_to_trail(literal::make_implied_literal(j, is_lower, v, c));
+        if (j == 3 && is_lower) {
+            TRACE("add_bound_int",
+                  tout << "index = " << m_trail.size() -1;
+                  tout << ", literal = ";print_literal(tout, m_trail.back());
+                  tout << "\nbound = " << v;
+                  tout << "\n";
+                  print_var_domain(tout, j);
+                  tout << "\n";);
+        }
     }
     
     mpq value(const polynomial & p) const {
@@ -1381,11 +1391,13 @@ public:
               tout << "p = ";
               print_polynomial(tout, p);
               tout<<"\n";
+              tout << "ddd = " << ++lp_settings::ddd << "\n";
               );
         if (!improves(l.var(), br)) {
             TRACE("int_backjump", br.print(tout);
-                  tout << "improves is false\n";);
-            if (num_of_dec_in_prefix == 0) {
+                  tout << "\nimproves is false" << ", ddd = " << lp_settings::ddd << "\n";);
+            // start here: should finish resolving a conflict here..!!!!!!!!!!!!!!
+            if (num_of_dec_in_prefix == 0) {  
                 add_lemma(p);
                 fill_conflict_explanation(m_constraints.back(), trail_index - 1);
                 mpq b;
@@ -1422,14 +1434,29 @@ public:
     // returns true iff resolved
     bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index, unsigned& num_of_dec_in_prefix) {
         lp_assert(lower_is_pos(p));
+        #if Z3DEBUG
+        mpq ll = lower_no_check(p);
+        #endif
         const literal & l = m_trail[trail_index];
-        TRACE("int_resolve_confl", tout << "p = ";
+        TRACE("int_resolve_confl", tout <<
+              "num_of_dec_in_prefix = " << num_of_dec_in_prefix << "\n" <<
+              "p = ";
               print_polynomial(tout, p);
-              tout << "\nl = ";  print_literal(tout, l););
+              tout << "\nl = ";  print_literal(tout, l);
+              tout << ", lower(p) = " << lower_no_check(p) << "\n";
+              for (auto & m : p.coeffs()) {
+                  tout <<  var_name(m.var()) << " ";
+                  print_var_domain(tout, m.var());
+                  tout << " ";
+              }
+              tout << "\n";
+              );
         if (l.is_decided()) {
             num_of_dec_in_prefix--;
-            if (decision_is_redundant_for_constraint(p, l))
+            if (decision_is_redundant_for_constraint(p, l)) {
                 pop(); // skip decision
+                return num_of_dec_in_prefix == 0;
+            }
             else {
                 return backjump(p, trail_index, num_of_dec_in_prefix);
             }
@@ -1440,10 +1467,20 @@ public:
             TRACE("int_resolve_confl",
                   tout << "trail_index = " << trail_index;
                   tout << ", p = ";
-                  print_polynomial(tout, p););
-            lp_assert(lower_is_pos(p));
+                  print_polynomial(tout, p);
+                  tout << ", lower(p) = " << lower_no_check(p) <<
+                  ", lower(l.tight_ineq()) = " << lower_no_check(l.tight_ineq()) << "\n";
+                  tout << "tight ineq var domains" << "\n";
+                  for (auto & m : l.tight_ineq().coeffs()) {
+                      tout <<  "var = " << l.var() << " " << var_name(m.var()) << " ";
+                      print_var_domain(tout, m.var());
+                      tout << " ";
+                  }
+                  tout << "\n";
+                  );
+            lp_assert(lower_no_check(p) >= ll); // we just make it tighter
         }
-        return false;
+        return false; // not done
     }
 
     bool lower_is_pos(const polynomial & p) const {
@@ -1452,6 +1489,14 @@ public:
         lp_assert(r);
         return is_pos(b);
     }
+
+    mpq lower_no_check(const polynomial & p) const {
+        mpq b;
+        bool r = lower(p, b);
+        lp_assert(r);
+        return b;
+    }
+
     
     bool resolve_conflict_for_inequality(const polynomial & confl_ineq) {
         polynomial p = confl_ineq;
