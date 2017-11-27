@@ -1401,17 +1401,14 @@ public:
             return true;
         }
         
-        unsigned var = l.var(); // l is going away in the pop!
-        pop();
-        TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, var););
+        TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
         add_lemma(p);
-        add_bound(br.bound(), var, br.m_type == bound_type::LOWER, m_constraints.back());
-        m_changed_vars.insert(var);
-        restrict_var_domain_with_bound_result(var, br);
-        if (m_var_infos[var].domain().is_empty())
-            std::cout << "empty" << std::endl;
+        add_bound(br.bound(), l.var(), br.m_type == bound_type::LOWER, m_constraints.back());
+        m_changed_vars.insert(l.var());
+        restrict_var_domain_with_bound_result(l.var(), br);
+        lp_assert(!m_var_infos[l.var()].domain().is_empty());
         TRACE("int_backjump", tout << "var info after restricton = ";
-              print_var_info(tout, var);
+              print_var_info(tout, l.var());
               tout << "new literal = "; print_literal(tout, m_trail.back()););
         return true;  // we are done resolving
     }
