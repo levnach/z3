@@ -1391,28 +1391,14 @@ public:
               tout << "p = ";
               print_polynomial(tout, p);
               tout<<"\n";
-              tout << "ddd = " << ++lp_settings::ddd << "\n";
               );
         if (!improves(l.var(), br)) {
             TRACE("int_backjump", br.print(tout);
-                  tout << "\nimproves is false" << ", ddd = " << lp_settings::ddd << "\n";);
-            // start here: should finish resolving a conflict here..!!!!!!!!!!!!!!
-            if (num_of_dec_in_prefix == 0) {  
-                add_lemma(p);
-                fill_conflict_explanation(m_constraints.back(), trail_index - 1);
-                mpq b;
-                bool lb = lower(m_constraints.back()->poly(), b);
-                lp_assert(lb);
-                TRACE("fill_conflict_explanation_final", trace_print_constraint(tout, m_constraints.back()); tout << "lower = " << b << "\n"; );
-
-                m_changed_vars.insert(l.var());
-                pop();
-                lb = lower(m_constraints.back()->poly(), b);
-                lp_assert(lb);
-                TRACE("fill_conflict_explanation_final", tout << "after pop\n"; trace_print_constraint(tout, m_constraints.back()); tout << "lower = " << b << "\n";);
-                return true;
-            }
-            return false;
+                  tout << "\nimproves is false";);
+            m_changed_vars.insert(l.var());
+            pop();
+            add_lemma(p);
+            return true;
         }
         
         unsigned var = l.var(); // l is going away in the pop!
@@ -1743,7 +1729,12 @@ public:
     
     void add_lemma(polynomial& p) {
         simplify_lemma(p);
-        m_constraints.push_back(constraint::make_ineq_lemma(m_max_constraint_id++, p));
+        constraint *c = constraint::make_ineq_lemma(m_max_constraint_id++, p);
+        m_constraints.push_back(c);
+        for (const auto & m : p.coeffs()) {
+            m_var_infos[m.var()].add_dependent_constraint(c);
+        }
+        
     }
     
     unsigned add_ineq(const vector<monomial> & lhs,
