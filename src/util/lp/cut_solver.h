@@ -588,20 +588,33 @@ public:
     }
 
     void add_constraint_origins_to_explanation(ccns * c) {
+        TRACE("fill_conflict_explanation",
+              for (auto j : c->origins())
+                  tout<<"origin = " << j;);
+        
         for (auto j : c->origins())
             m_explanation.insert(j);
     }
 
+    void dumb_explain() {
+        for (auto c: m_constraints) {
+            add_constraint_origins_to_explanation(c);
+        }
+    }
+    
     void fill_conflict_explanation(ccns * c, unsigned upper_end_of_trail) {
+        print_constraint(std::cout, *c);
+        dumb_explain();
+        return;
         // it is a depth search in the DAG of constraint: the chidlren of a constraint are those constraints that provide its lower bound
         add_constraint_origins_to_explanation(c);
         TRACE("fill_conflict_explanation", trace_print_constraint(tout, c););
         for (const auto & p: c->coeffs()){
             unsigned literal_index = find_lower_bound_literal(is_pos(p.coeff()), p.var(), upper_end_of_trail);
             auto *c = m_trail[literal_index].cnstr();
-            if (!c->is_simple()) 
+            if (!c->is_simple())  
                 fill_conflict_explanation(c, literal_index);
-            else
+            else 
                 add_constraint_origins_to_explanation(c);
         }
     }
