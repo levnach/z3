@@ -603,7 +603,6 @@ public:
     }
     
     void fill_conflict_explanation(ccns * c, unsigned upper_end_of_trail) {
-        print_constraint(std::cout, *c);
         dumb_explain();
         return;
         // it is a depth search in the DAG of constraint: the chidlren of a constraint are those constraints that provide its lower bound
@@ -1391,7 +1390,7 @@ public:
     }
 
     // returns true iff resolved
-    bool backjump(polynomial &p,unsigned trail_index, unsigned num_of_dec_in_prefix) {
+    bool backjump(polynomial &p,unsigned trail_index) {
         const literal &l = m_trail[trail_index];
         lp_assert(l.is_decided());
         bound_result br = bound_on_polynomial(p,
@@ -1428,15 +1427,13 @@ public:
 
 
     // returns true iff resolved
-    bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index, unsigned& num_of_dec_in_prefix) {
+    bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index) {
         lp_assert(lower_is_pos(p));
         #if Z3DEBUG
         mpq ll = lower_no_check(p);
         #endif
         const literal & l = m_trail[trail_index];
-        TRACE("int_resolve_confl", tout <<
-              "num_of_dec_in_prefix = " << num_of_dec_in_prefix << "\n" <<
-              "p = ";
+        TRACE("int_resolve_confl", tout << "p = ";
               print_polynomial(tout, p);
               tout << "\nl = ";  print_literal(tout, l);
               tout << ", lower(p) = " << lower_no_check(p) << "\n";
@@ -1448,13 +1445,12 @@ public:
               tout << "\n";
               );
         if (l.is_decided()) {
-            num_of_dec_in_prefix--;
             if (decision_is_redundant_for_constraint(p, l)) {
                 pop(); // skip decision
-                return num_of_dec_in_prefix == 0;
+                return m_number_of_decisions == 0;
             }
             else {
-                return backjump(p, trail_index, num_of_dec_in_prefix);
+                return backjump(p, trail_index);
             }
         } else { // the literal is implied
             create_tight_ineq_under_literal(trail_index);
@@ -1499,9 +1495,8 @@ public:
         lp_assert(lower_is_pos(p));
         bool done = false;
         unsigned j = m_trail.size() - 1;
-        unsigned num_of_dec = m_number_of_decisions;
         while (!done) {
-            done = resolve_conflict_for_inequality_on_trail_element(p, j--, num_of_dec);
+            done = resolve_conflict_for_inequality_on_trail_element(p, j--);
             if (j >= m_trail.size()) {
                 lp_assert(m_trail.size());
                 j = m_trail.size() - 1;
