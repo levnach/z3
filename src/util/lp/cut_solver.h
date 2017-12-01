@@ -124,12 +124,12 @@ public: // for debugging
     };
     
     class constraint { // we only have less or equal for the inequality sign, which is enough for integral variables
-        int                         m_id;  
-        bool                        m_is_ineq;
-        const polynomial            m_poly;
-        mpq                         m_d; // the divider for the case of a divisibility constraint
-        const svector<constraint_index>   m_assert_origins; // these indices come from the client
-        svector<const constraint*> m_lemma_origins;
+        int                              m_id;  
+        bool                             m_is_ineq;
+        const polynomial                 m_poly;
+        mpq                              m_d; // the divider for the case of a divisibility constraint
+        const svector<constraint_index>  m_assert_origins; // these indices come from the client
+        svector<const constraint*>       m_lemma_origins;
     public :
         unsigned id() const { return m_id; }
         const polynomial & poly() const { return m_poly; }
@@ -612,15 +612,9 @@ public:
         }
     }
 
-    void dumb_explain() {
-        for (auto c: m_constraints) {
-            add_constraint_origins_to_explanation(c);
-        }
-    }
+
     
     void fill_conflict_explanation(ccns * c, unsigned upper_end_of_trail) {
-        dumb_explain();
-        return;
         // it is a depth search in the DAG of constraint: the chidlren of a constraint are those constraints that provide its lower bound
         add_constraint_origins_to_explanation(c);
         TRACE("fill_conflict_explanation", trace_print_constraint(tout, c););
@@ -1453,10 +1447,12 @@ public:
     // returns true iff resolved
     bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index, svector<ccns*> & lemma_origins) {
         lp_assert(lower_is_pos(p));
-        #if Z3DEBUG
+#if Z3DEBUG
         mpq ll = lower_no_check(p);
-        #endif
+#endif
         const literal & l = m_trail[trail_index];
+        
+        lemma_origins.append(collect_origin_constraints(l.cnstr()));
         TRACE("int_resolve_confl", tout << "p = ";
               print_polynomial(tout, p);
               tout << "\nl = ";  print_literal(tout, l);
@@ -1514,9 +1510,9 @@ public:
     }
 
     
-    bool resolve_conflict_for_inequality(const polynomial & confl_ineq,
-                                         svector<ccns*> conflict_origins) {
-        polynomial p = confl_ineq;
+    bool resolve_conflict_for_inequality(ccns * i) {
+        svector<ccns*> conflict_origins = collect_origin_constraints(i);
+        polynomial p = i->poly();
         lp_assert(lower_is_pos(p));
         bool done = false;
         unsigned j = m_trail.size() - 1;
@@ -1530,8 +1526,10 @@ public:
         return false;
     }
 
-    svector<ccns*> collect_initial_conflict_origin(ccns* i) {
+    svector<ccns*> collect_origin_constraints(ccns* i) {
         svector<ccns*> ret;
+        if (i == nullptr)
+            return ret; // an empty vector
         if (i->is_assert()) {
             ret.push_back(i);
         } else {
@@ -1546,7 +1544,7 @@ public:
         TRACE("int_resolve_confl", tout << "inconstistent_constraint = ";
               print_constraint(tout, *i););
         if (i->is_ineq()) {
-            return resolve_conflict_for_inequality(i->poly(), collect_initial_conflict_origin(i));
+            return resolve_conflict_for_inequality(i);
         } else {
             lp_assert(false); // not implemented
             return false;
