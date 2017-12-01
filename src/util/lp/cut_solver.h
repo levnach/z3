@@ -1447,13 +1447,10 @@ public:
     // returns true iff resolved
     bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index, svector<ccns*> & lemma_origins) {
         lp_assert(lower_is_pos(p));
-#if Z3DEBUG
-        mpq ll = lower_no_check(p);
-#endif
         const literal & l = m_trail[trail_index];
         
         lemma_origins.append(collect_origin_constraints(l.cnstr()));
-        TRACE("int_resolve_confl", tout << "p = ";
+        TRACE("int_resolve_confl", tout << "trail_index = " << trail_index <<", p = ";
               print_polynomial(tout, p);
               tout << "\nl = ";  print_literal(tout, l);
               tout << ", lower(p) = " << lower_no_check(p) << "\n";
@@ -1462,11 +1459,13 @@ public:
                   print_var_domain(tout, m.var());
                   tout << " ";
               }
-              tout << "\n";
+              tout << "\nm_number_of_decisions = " << m_number_of_decisions << "\n";
               );
         if (l.is_decided()) {
             if (decision_is_redundant_for_constraint(p, l)) {
                 pop(); // skip decision
+                TRACE("int_resolve_confl", tout << "skip decision";
+                      if (m_number_of_decisions == 0) tout << ", done resolving";);
                 return m_number_of_decisions == 0;
             }
             else {
@@ -1477,20 +1476,20 @@ public:
             // applying Resolve rool
             resolve(p, l.var(), !l.is_lower(), l.tight_ineq());
             TRACE("int_resolve_confl",
-                  tout << "trail_index = " << trail_index;
-                  tout << ", p = ";
+                  tout << "new p = ";
                   print_polynomial(tout, p);
-                  tout << ", lower(p) = " << lower_no_check(p) <<
+                  tout <<"\ntight_ineq = "; print_polynomial(tout, l.tight_ineq());
+                  tout << "\n, lower(p) = " << lower_no_check(p) <<
                   ", lower(l.tight_ineq()) = " << lower_no_check(l.tight_ineq()) << "\n";
                   tout << "tight ineq var domains" << "\n";
                   for (auto & m : l.tight_ineq().coeffs()) {
-                      tout <<  "var = " << l.var() << " " << var_name(m.var()) << " ";
+                      tout <<  "var = " << m.var() << " " << var_name(m.var()) << " ";
                       print_var_domain(tout, m.var());
                       tout << " ";
                   }
                   tout << "\n";
                   );
-            lp_assert(lower_no_check(p) >= ll); // we just make it tighter
+            lp_assert(lower_is_pos(p));
         }
         return false; // not done
     }
