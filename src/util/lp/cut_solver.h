@@ -347,21 +347,17 @@ public:
         return m_var_name_function(m_var_infos[j].user_var());
     }
 
-    constraint * get_constraint(unsigned i) {
-        return m_constraints[i];
-    }
-    
-    ccns * get_constraint(unsigned i) const {
-        return m_constraints[i];
-    }
 
     ~cut_solver() {
-        for (constraint * c : m_constraints)
+        for (constraint * c : m_asserts)
+            delete c;
+        for (constraint * c : m_lemmas)
             delete c;
     }
     
     
-    vector<constraint*>                            m_constraints;
+    svector<constraint*>                           m_asserts;
+    svector<constraint*>                           m_lemmas;
     vector<mpq>                                    m_v; // the values of the variables
     std::function<std::string (unsigned)>          m_var_name_function;
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
@@ -373,13 +369,17 @@ public:
     unsigned                                       m_max_constraint_id;
     struct scope {
         unsigned m_trail_size;
-        unsigned m_constraints_size;
+        unsigned m_asserts_size;
+        unsigned m_lemmas_size;
         scope() {}
         scope(const scope& s) : m_trail_size(s.m_trail_size),
-                                m_constraints_size(s.m_constraints_size) {}
+                                m_asserts_size(s.m_asserts_size),
+                                m_lemmas_size(s.m_lemmas_size) {}
         scope(unsigned trail_size,
-              unsigned constraints_size) : m_trail_size(trail_size),
-                                           m_constraints_size(constraints_size) {}
+              unsigned constraints_size,
+              unsigned lemmas_size) : m_trail_size(trail_size),
+                                      m_asserts_size(constraints_size),
+                                      m_lemmas_size(lemmas_size) {}
 
     };
 
@@ -487,7 +487,7 @@ public:
 
     unsigned find_large_enough_j(unsigned i) {
         unsigned r = 0;
-        for (const auto & p : m_constraints[i]->poly().m_coeffs) {
+        for (const auto & p : m_asserts[i]->poly().m_coeffs) {
             r = std::max(r, p.var() + 1);
         }
         return r;
@@ -900,7 +900,7 @@ public:
     }
 
     bound_result bound(unsigned constraint_index, var_index j) const {
-        return bound(m_constraints[constraint_index], j);
+        return bound(m_asserts[constraint_index], j);
     }
 
     
@@ -1071,15 +1071,25 @@ public:
     }
 
     void pop_constraints() {
-        while (m_constraints.size() > m_scope().m_constraints_size) {
-            ccns * i = m_constraints.back();;
+        while (m_asserts.size() > m_scope().m_asserts_size) {
+            ccns * i = m_asserts.back();;
             for (const auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
             delete i;
-            m_constraints.pop_back();
+            m_asserts.pop_back();
         }
-        lp_assert(m_constraints.size() == m_scope().m_constraints_size);
+        lp_assert(m_asserts.size() == m_scope().m_asserts_size);
+
+        while (m_lemmas.size() > m_scope().m_lemmas_size) {
+            ccns * i = m_lemmas.back();;
+            for (const auto & p: i->poly().m_coeffs) {
+                m_var_infos[p.var()].remove_depended_constraint(i);
+            }
+            delete i;
+            m_lemmas.pop_back();
+        }
+        lp_assert(m_lemmas.size() == m_scope().m_lemmas_size);
     }
 
     bool flip_coin() {
@@ -1139,8 +1149,8 @@ public:
         }
     }
     void print_state(std::ostream & out) const {
-        out << "constraints total " << m_constraints.size() << "\n";
-        for (const auto  i: m_constraints) {
+        out << "constraints total " << m_asserts.size() << "\n";
+        for (const auto  i: m_asserts) {
             print_constraint(out, *i);
         }
         out << "end of constraints\n";
@@ -1432,8 +1442,8 @@ public:
         }
         
         TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
-        add_lemma(p, lemma_origins);
-        add_bound(br.bound(), l.var(), br.m_type == bound_type::LOWER, m_constraints.back());
+        constraint * c = add_lemma(p, lemma_origins);
+        add_bound(br.bound(), l.var(), br.m_type == bound_type::LOWER, c);
         m_changed_vars.insert(l.var());
         restrict_var_domain_with_bound_result(l.var(), br);
         lp_assert(!m_var_infos[l.var()].domain().is_empty());
@@ -1571,7 +1581,7 @@ public:
     }
     
     void print_scope(std::ostream& out) const {
-        out << "trail_size = " << m_scope().m_trail_size << ", constraints_size = " << m_scope().m_constraints_size << "\n";
+        out << "trail_size = " << m_scope().m_trail_size << ", constraints_size = " << m_scope().m_asserts_size << "\n";
     }
 
     void pop(unsigned k) {
@@ -1596,7 +1606,7 @@ public:
 
     void push() {
         TRACE("trace_push_pop_in_cut_solver", print_state(tout););
-        m_scope = scope(m_trail.size(), m_constraints.size());
+        m_scope = scope(m_trail.size(), m_asserts.size(), m_lemmas.size());
         m_scope.push();
         push_var_infos();
     }
@@ -1646,7 +1656,7 @@ public:
     }
 
     bool propagate_simple_constraint(unsigned constraint_index) {
-        ccns * t = m_constraints[constraint_index];
+        ccns * t = m_asserts[constraint_index];
         TRACE("cut_solver_state_simpe_constraint",   print_constraint(tout, *t); tout << std::endl;);
         var_index j = t->poly().m_coeffs[0].var();
         
@@ -1680,8 +1690,8 @@ public:
 
     bool propagate_simple_constraints() {
         bool ret = false;
-        for (unsigned i = 0; i < m_constraints.size(); i++) {
-            if (m_constraints[i]->is_simple() && propagate_simple_constraint(i)){
+        for (unsigned i = 0; i < m_asserts.size(); i++) {
+            if (m_asserts[i]->is_simple() && propagate_simple_constraint(i)){
                 ret = true;
             }
         }
@@ -1735,7 +1745,7 @@ public:
             return false; // ignore the variables values and only return true if every variable is fixed
         }
     
-        for (ccns* i : m_constraints) {
+        for (ccns* i : m_asserts) {
             if (!consistent(i))
                 return false;
         }
@@ -1765,15 +1775,15 @@ public:
         TRACE("simplify_lemma_int", tout << "p = "; print_polynomial(tout, p););
     }
     
-    void add_lemma(polynomial& p, const svector<const constraint*>& lemma_origins) {
+    constraint * add_lemma(polynomial& p, const svector<const constraint*>& lemma_origins) {
         lp_assert(lemma_origins.size());
         simplify_lemma(p);
         constraint *c = constraint::make_ineq_lemma(m_max_constraint_id++, p, lemma_origins);
-        m_constraints.push_back(c);
+        m_lemmas.push_back(c);
         for (const auto & m : p.coeffs()) {
             m_var_infos[m.var()].add_dependent_constraint(c);
         }
-        
+        return c;
     }
     
     unsigned add_ineq(const vector<monomial> & lhs,
@@ -1785,7 +1795,7 @@ public:
         for (auto & p : lhs)
             local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
         constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, local_lhs, free_coeff,origins);
-        m_constraints.push_back(c); 
+        m_asserts.push_back(c); 
         TRACE("add_ineq_int",
               tout << "explanation :";
               for (auto i: origins) {
@@ -1793,13 +1803,13 @@ public:
                   tout << "\n";
               });
 
-        TRACE("add_ineq_int", tout << "m_constraints[" << m_constraints.size() - 1 << "] =  ";
-              print_constraint(tout, *m_constraints.back()); tout << "\n";);
+        TRACE("add_ineq_int", tout << "m_asserts[" << m_asserts.size() - 1 << "] =  ";
+              print_constraint(tout, *m_asserts.back()); tout << "\n";);
         
         for (auto & p : local_lhs)
             m_var_infos[p.var()].add_dependent_constraint(c);
         
-        return m_constraints.size() - 1;
+        return m_asserts.size() - 1;
     }
 };
 

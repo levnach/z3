@@ -1868,7 +1868,6 @@ void test_replace_column() {
 
 void setup_args_parser(argument_parser & parser) {
     parser.add_option_with_help_string("-dji", "test integer_domain");
-    parser.add_option_with_help_string("-cs", "test cut_solver");
     parser.add_option_with_help_string("-xyz_sample", "run a small interactive scenario");
     parser.add_option_with_after_string_with_help("--density", "the percentage of non-zeroes in the matrix below which it is not dense");
     parser.add_option_with_after_string_with_help("--harris_toler", "harris tolerance");
@@ -3162,22 +3161,6 @@ void test_integer_domain() {
     }
 }
 
-void test_bound_of_cut_solver(cut_solver& cs, unsigned ineq_index)  {
-    std::cout << "test_bound_of_cut_solver\n";
-    std::vector<int> coeffs;
-    auto q = cs.get_constraint(ineq_index);
-    for (auto t: q->poly().m_coeffs)
-        coeffs.push_back(t.var());
-    auto br = cs.bound(ineq_index, coeffs[0]);
-	std::cout << "bound for " << cs.get_column_name(coeffs[0]) << " is ";
-    br.print(std::cout);
-    std::cout << std::endl;
-
-    br = cs.bound(ineq_index, coeffs[1]);
-    std::cout << "bound for " << cs.get_column_name(coeffs[1]) << " is ";
-    br.print(std::cout);
-    std::cout << std::endl;
-}
 
 
 void test_resolve_with_tight_constraint(cut_solver& cs,
@@ -3214,110 +3197,6 @@ void test_resolve(cut_solver& cs, unsigned constraint_index, unsigned i0)  {
     test_resolve_with_tight_constraint(cs, i, y ,ti);
  }
 
-void test_improves(cut_solver& cs, unsigned constraint_index, unsigned i0) {
-    var_index x = 0;
-    var_index y = 1;
-    std::cout << "test_improves\n";
-    auto q = cs.get_constraint(constraint_index);
-    std::cout << "constraint = "; cs.print_constraint(std::cout, *q); std::cout << std::endl;
-    std::cout << "domain of x = ";
-    cs.m_var_infos[x].print_var_domain(std::cout);
-    std::cout << std::endl;
-    if (cs.improves(x, q)) {
-        std::cout << "improves x\n";
-    } else {
-        std::cout << "does not improve x\n";
-    }
-
-    std::cout << "domain of y = ";
-    cs.m_var_infos[y].print_var_domain(std::cout);
-    std::cout << std::endl;
-
-
-    if (cs.improves(y, q)) {
-        std::cout << "improves y\n";
-    } else {
-        std::cout << "does not improve y\n";
-    }
-    /*
-    q.m_poly.m_a = -10;
-    std::cout << "constraint = "; cs.print_constraint(std::cout, constraint_index); std::cout << std::endl;
-    if (cs.improves(x, q)) {
-        std::cout << "improves x\n";		
-    }
-    else {
-        std::cout << "does not improve x\n";
-    }
-    */
-}
-
-void test_cut_solver() {
-    lp_settings settings;
-    cut_solver cs([](unsigned i)
-                       {
-                           if (i == 0) return std::string("x");
-                           if (i == 1) return  std::string("y");
-                           if (i == 2) return std::string("z");
-                           return std::to_string(i);
-                       }, [](unsigned, std::ostream&){}, settings);
-    vector<mono> term;
-    unsigned x = 0;
-    unsigned y = 1;
-    unsigned z = 2;
-    term.push_back(mono(mpq(8), x));
-    term.push_back(mono(mpq(-3), y));
-    term.push_back(mono(mpq(-2), z));
-    svector<unsigned> expl;
-    unsigned constraint_index = cs.add_ineq(term, mpq(5, 1), expl);
-
-    cs.print_constraint(std::cout, *cs.get_constraint(constraint_index));
-    std::cout << std::endl;
-    
-    term.clear();
-    term.push_back(mono(mpq(1),x));
-    term.push_back(mono(mpq(-2),y));
-    unsigned constraint_index0 = cs.add_ineq(term, mpq(2), expl);
-    cs.print_constraint(std::cout, *cs.get_constraint(constraint_index0));
-    std::cout <<std::endl;
-    
-    // auto & i = cs.m_constraints[constraint_index0];
-    // std::cout << "add monomial y" << std::endl;
-    
-    // i.m_poly.add(mono(mpq(1), y));
-    // cs.print_constraint(std::cout, constraint_index0);
-    // std::cout << std::endl;
-    // std::cout << "add monomial y" << std::endl;
-    // i.m_poly += mono(mpq(1), y);
-    // cs.print_constraint(std::cout, constraint_index0);
-    // std::cout << "\nadd monomial -y" << std::endl;
-    // i.m_poly += mono(mpq(-1), y);
-    // cs.print_constraint(std::cout, constraint_index0);
-    // int l;
-    // auto constraint = cs.m_constraints[constraint_index];
-    // cs.add_lower_bound_for_user_var(x, mpq(1));
-    // cs.add_lower_bound_for_user_var(y, mpq(1));
-    // bool has_lower = cs.lower(constraint.m_poly, l);
-    // if (has_lower) {
-    //     std::cout << "\nlower = " << l << std::endl;
-    // } else {
-    //     std::cout << "\nno lower" << std::endl;
-    // }
-    // cs.add_upper_bound_for_user_var(y, 1);
-    // has_lower = cs.lower(constraint.m_poly, l);
-    // if (has_lower) {
-    //     std::cout << "\nlower = " << l << std::endl;
-    // } else {
-    //     std::cout << "\nno lower" << std::endl;
-    // }
-
-    // test_bound_of_cut_solver(cs, constraint_index);
-
-    // test_resolve(cs, constraint_index, constraint_index0);
-    // test_improves(cs, constraint_index, constraint_index0);
-    
-}
-
-
 
 void test_lp_local(int argn, char**argv) {
     
@@ -3339,10 +3218,7 @@ void test_lp_local(int argn, char**argv) {
         test_integer_domain();
         return finalize(0);
     }
-    if (args_parser.option_is_used("-cs")) {
-        test_cut_solver();
-        return finalize(0);
-    }
+
     if (args_parser.option_is_used("--test_mpq")) {
         test_rationals();
         return finalize(0);
