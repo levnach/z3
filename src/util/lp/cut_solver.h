@@ -271,18 +271,12 @@ public: // for debugging
         const mpq & bound() const { return m_bound; }
     };
 
-    struct ccns_comp {
-        bool operator () (ccns* lhs, ccns * rhs) const {
-            return lhs->id() < rhs->id();
-        }
-    };
-
     struct ccns_hash {
-        size_t operator() (const ccns* c) const { return c->id(); }
+        size_t operator() (ccns* c) const { return c->id(); }
     };
 
     struct ccns_equal {
-        bool operator() (const ccns * a, const ccns * b) const { return a->id() == b->id(); }
+        bool operator() (ccns * a, ccns * b) const { return a->id() == b->id(); }
     };
 
 
@@ -290,7 +284,7 @@ public: // for debugging
         unsigned m_user_var_index;
         svector<unsigned> m_literals; // point to m_trail
         integer_domain<mpq> m_domain;
-        std::unordered_set<ccns*, ccns_hash, ccns_equal> m_dependent_constraints; // the set of constraintualities involving the var
+        std::unordered_set<ccns*, ccns_hash, ccns_equal> m_dependent_constraints; // the set of constraints using the var
     public:
         var_info(unsigned user_var_index) : m_user_var_index(user_var_index) {}
 
