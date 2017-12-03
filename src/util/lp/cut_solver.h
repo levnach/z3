@@ -277,12 +277,20 @@ public: // for debugging
         }
     };
 
+    struct ccns_hash {
+        size_t operator() (const ccns* c) const { return c->id(); }
+    };
+
+    struct ccns_equal {
+        bool operator() (const ccns * a, const ccns * b) const { return a->id() == b->id(); }
+    };
+
 
     class var_info {
         unsigned m_user_var_index;
         svector<unsigned> m_literals; // point to m_trail
         integer_domain<mpq> m_domain;
-        std::set<ccns*, ccns_comp> m_dependent_constraints; // the set of constraintualities involving the var
+        std::unordered_set<ccns*, ccns_hash, ccns_equal> m_dependent_constraints; // the set of constraintualities involving the var
     public:
         var_info(unsigned user_var_index) : m_user_var_index(user_var_index) {}
 
@@ -308,7 +316,7 @@ public: // for debugging
         bool get_lower_bound(mpq & b) const { return m_domain.get_lower_bound(b); }
         void print_var_domain(std::ostream &out) const { m_domain.print(out); }
         const svector<unsigned> & literals() const { return m_literals; }
-        const std::set<ccns*, ccns_comp> & dependent_constraints() const { return m_dependent_constraints; }
+        const std::unordered_set<ccns*, ccns_hash, ccns_equal> & dependent_constraints() const { return m_dependent_constraints; }
         bool lower_bound_exists() const { return m_domain.lower_bound_exists();}
         bool upper_bound_exists() const { return m_domain.upper_bound_exists();}
         void push() {
@@ -1149,8 +1157,13 @@ public:
         }
     }
     void print_state(std::ostream & out) const {
-        out << "constraints total " << m_asserts.size() << "\n";
+        out << "asserts total " << m_asserts.size() << "\n";
         for (const auto  i: m_asserts) {
+            print_constraint(out, *i);
+        }
+        out << "end of constraints\n";
+        out << "lemmas total " << m_lemmas.size() << "\n";
+        for (const auto  i: m_lemmas) {
             print_constraint(out, *i);
         }
         out << "end of constraints\n";
@@ -1621,9 +1634,18 @@ public:
                    m_max_constraint_id(0)
     {}
 
+    bool check_unbounded_vars() const {
+        for (const var_info & vi : m_var_infos) {
+            if (! (vi.lower_bound_exists() && vi.upper_bound_exists()))
+                return false;
+        }
+        return true;
+    }
+    
     // returns -1 if there is no conflict and the index of the conflict constraint otherwise
     ccns* propagate() {
         propagate_simple_constraints();
+        lp_assert(check_unbounded_vars());
         return propagate_constraints_for_changed_vars();
     }
 
