@@ -243,11 +243,10 @@ public: // for debugging
     };    
 
 
-
-    
     enum class bound_type {
         LOWER, UPPER, UNDEF
     };
+
     struct bound_result {
         mpq m_bound;
         bound_type m_type;
@@ -284,7 +283,8 @@ public: // for debugging
         unsigned m_user_var_index;
         svector<unsigned> m_literals; // point to m_trail
         integer_domain<mpq> m_domain;
-        std::unordered_set<ccns*, ccns_hash, ccns_equal> m_dependent_constraints; // the set of constraints using the var
+        // the map of constraints using the var: bound_type = UNDEF stands for a div constraint
+        std::unordered_map<ccns*, bound_type, ccns_hash, ccns_equal> m_dependent_constraints;
     public:
         var_info(unsigned user_var_index) : m_user_var_index(user_var_index) {}
 
@@ -292,14 +292,16 @@ public: // for debugging
         unsigned user_var() const {
             return m_user_var_index;
         }
-        void add_dependent_constraint(ccns* i) {
-            m_dependent_constraints.insert(i);
+        void add_dependent_constraint(ccns* i, bound_type bt) {
+            lp_assert(m_dependent_constraints.find(i) == m_dependent_constraints.end());
+            m_dependent_constraints[i] = bt;
         }
         void remove_depended_constraint(ccns* i) {
+            auto it = m_dependent_constraints.find(i);
+            lp_assert(it != m_dependent_constraints.end());
             m_dependent_constraints.erase(i);
         }
         bool intersect_with_lower_bound(const mpq & b) {
-
             return m_domain.intersect_with_lower_bound(b);
         }
         bool intersect_with_upper_bound(const mpq & b) {
@@ -310,7 +312,7 @@ public: // for debugging
         bool get_lower_bound(mpq & b) const { return m_domain.get_lower_bound(b); }
         void print_var_domain(std::ostream &out) const { m_domain.print(out); }
         const svector<unsigned> & literals() const { return m_literals; }
-        const std::unordered_set<ccns*, ccns_hash, ccns_equal> & dependent_constraints() const { return m_dependent_constraints; }
+        const std::unordered_map<ccns*, bound_type, ccns_hash, ccns_equal> & dependent_constraints() const { return m_dependent_constraints; }
         bool lower_bound_exists() const { return m_domain.lower_bound_exists();}
         bool upper_bound_exists() const { return m_domain.upper_bound_exists();}
         void push() {
@@ -332,7 +334,6 @@ public: // for debugging
             lp_assert(it != m_literals.end());
             m_literals.erase(it);
         }
-        
     }; // end of var_info
 
     vector<var_info> m_var_infos;
@@ -369,6 +370,7 @@ public:
     vector<literal>                                m_trail;
     lp_settings &                                  m_settings;
     unsigned                                       m_max_constraint_id;
+    std::set<unsigned>                             m_U; // the set of conflicting cores
     struct scope {
         unsigned m_trail_size;
         unsigned m_asserts_size;
@@ -421,19 +423,6 @@ public:
         return !l.is_lower();
     }
     
-    // used for testing only
-    void add_lower_bound_for_user_var(unsigned user_var_index, const mpq& bound) {
-        unsigned j = m_user_vars_to_cut_solver_vars[user_var_index];
-        m_var_infos[j].intersect_with_lower_bound(bound);
-    }
-
-    // used for testing only
-    void add_upper_bound_for_user_var(unsigned user_var_index, const mpq& bound) {
-        unsigned j = m_user_vars_to_cut_solver_vars[user_var_index];
-        m_var_infos[j].intersect_with_upper_bound(bound);
-    }
-
-    
     bool  at_base_lvl() const { return m_number_of_decisions == 0; }
 
     void simplify_problem() {
@@ -466,6 +455,15 @@ public:
         return true;
     }
 
+    void find_new_conflicting_cores_under_constraint(var_index j, ccns* c) {
+        lp_assert(false);
+    }
+
+    void find_new_conflicting_cores(var_index j) {
+        for (auto p: m_var_infos[j].dependent_constraints())
+            find_new_conflicting_cores_under_constraint(j, p.first);
+    }
+
     void restrict_var_domain_with_bound_result(var_index j, const bound_result & br) {
         auto & d = m_var_infos[j];
         if (br.m_type == bound_type::UPPER) {
@@ -476,8 +474,15 @@ public:
         if (d.is_fixed()) {
             if (j >= m_v.size())
                 m_v.resize(j + 1);
-            d.get_upper_bound(m_v[j]);
+            d.get_upper_bound(m_v[j]); // sets the value of the variable
+            find_new_conflicting_cores(j);
         }
+    }
+
+    void add_changed_var(unsigned j) {
+        if (j >= m_changed_vars.data_size())
+            m_changed_vars.resize(j + 1);
+        m_changed_vars.insert(j);
     }
 
     void push_literal_to_trail(const literal & l) {
@@ -485,6 +490,7 @@ public:
         m_trail.push_back(l);
         TRACE("ba_int", print_literal(tout, l););
         m_var_infos[l.var()].add_literal(literal_index);
+        add_changed_var(l.var());
     }
 
     unsigned find_large_enough_j(unsigned i) {
@@ -661,8 +667,8 @@ public:
     // returns -1 if there is no conflict and the index of the conflict constraint otherwise
     ccns* propagate_on_constraints_of_var(var_index j) {
         for (auto i : m_var_infos[j].dependent_constraints()) {
-            if (!propagate_constraint(i))
-                return i;
+            if (!propagate_constraint(i.first))
+                return i.first;
         }
         return nullptr;
     }
@@ -1193,7 +1199,6 @@ public:
             return false;
         TRACE("decide_int", tout << "going to decide " << var_name(j) << " var index = " << j << "\n";
               tout << "domain = "; print_var_domain(tout, j); tout << ", m_number_of_decisions="<<m_number_of_decisions<< "\n";);
-        m_changed_vars.insert(j);
         decide_var_on_bound(j, flip_coin());
         return true;
     }
@@ -1442,7 +1447,6 @@ public:
         if (!improves(l.var(), br)) {
             TRACE("int_backjump", br.print(tout);
                   tout << "\nimproves is false";);
-            m_changed_vars.insert(l.var());
             pop();
             add_lemma(p, lemma_origins);
             return true;
@@ -1451,7 +1455,6 @@ public:
         TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
         constraint * c = add_lemma(p, lemma_origins);
         add_bound(br.bound(), l.var(), br.m_type == bound_type::LOWER, c);
-        m_changed_vars.insert(l.var());
         restrict_var_domain_with_bound_result(l.var(), br);
         lp_assert(!m_var_infos[l.var()].domain().is_empty());
         TRACE("int_backjump", tout << "var info after restricton = ";
@@ -1628,19 +1631,17 @@ public:
                    m_max_constraint_id(0)
     {}
 
-    bool check_unbounded_vars() const {
-        for (const var_info & vi : m_var_infos) {
-            if (! (vi.lower_bound_exists() && vi.upper_bound_exists()))
-                return false;
-        }
-        return true;
+    void handle_conflicting_cores() {
     }
     
     // returns -1 if there is no conflict and the index of the conflict constraint otherwise
     ccns* propagate() {
         propagate_simple_constraints();
-        lp_assert(check_unbounded_vars());
-        return propagate_constraints_for_changed_vars();
+        ccns* conflict_constraint = propagate_constraints_for_changed_vars();
+        if (conflict_constraint != nullptr)
+            return conflict_constraint;
+        handle_conflicting_cores();
+        return nullptr;
     }
 
     // walk the trail backward and find the last implied bound on j (of the right kind)
@@ -1671,8 +1672,7 @@ public:
         push_literal_to_trail(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
     }
 
-    bool propagate_simple_constraint(unsigned constraint_index) {
-        ccns * t = m_asserts[constraint_index];
+    bool propagate_simple_constraint(ccns *t) {
         TRACE("cut_solver_state_simpe_constraint",   print_constraint(tout, *t); tout << std::endl;);
         var_index j = t->poly().m_coeffs[0].var();
         
@@ -1693,9 +1693,6 @@ public:
                   tout << "literal = "; print_literal(tout, l);
                   tout <<"\n";
                   );
-            if (j >= m_changed_vars.data_size())
-                m_changed_vars.resize(j + 1);
-            m_changed_vars.insert(j);
             return true;
         }
         
@@ -1706,8 +1703,13 @@ public:
 
     bool propagate_simple_constraints() {
         bool ret = false;
-        for (unsigned i = 0; i < m_asserts.size(); i++) {
-            if (m_asserts[i]->is_simple() && propagate_simple_constraint(i)){
+        for (auto c: m_asserts) {
+            if (c->is_simple() && propagate_simple_constraint(c)){
+                ret = true;
+            }
+        }
+        for (auto c : m_lemmas) {
+            if (c->is_simple() && propagate_simple_constraint(c)){
                 ret = true;
             }
         }
@@ -1797,8 +1799,11 @@ public:
         constraint *c = constraint::make_ineq_lemma(m_max_constraint_id++, p, lemma_origins);
         m_lemmas.push_back(c);
         for (const auto & m : p.coeffs()) {
-            m_var_infos[m.var()].add_dependent_constraint(c);
+            m_var_infos[m.var()].add_dependent_constraint(c, is_pos(m.coeff())? bound_type::UPPER: bound_type::LOWER);
+            add_changed_var(m.var());
         }
+        TRACE("add_lemma_int",  trace_print_constraint(tout, c););
+        
         return c;
     }
     
@@ -1822,9 +1827,10 @@ public:
         TRACE("add_ineq_int", tout << "m_asserts[" << m_asserts.size() - 1 << "] =  ";
               print_constraint(tout, *m_asserts.back()); tout << "\n";);
         
-        for (auto & p : local_lhs)
-            m_var_infos[p.var()].add_dependent_constraint(c);
-        
+        for (auto & p : local_lhs) {
+            m_var_infos[p.var()].add_dependent_constraint(c, is_pos(p.coeff())? bound_type::UPPER : bound_type::LOWER);
+            add_changed_var(p.var());
+        }
         return m_asserts.size() - 1;
     }
 };
