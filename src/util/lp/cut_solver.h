@@ -334,6 +334,30 @@ public: // for debugging
             lp_assert(it != m_literals.end());
             m_literals.erase(it);
         }
+
+        bool is_cc(const constraint*&lower, const constraint*&upper) const {
+            if (lower_bound_exists() && upper_bound_exists())
+                return false;
+            if (domain().is_empty())
+                return false;
+
+            unsigned upper_bounds = 0;
+            unsigned lower_bounds = 0;
+            for (auto& p : m_dependent_constraints) {
+                if (p.second == bound_type::UPPER) {
+                    upper_bounds++;
+                    upper = p.first;
+                    if (lower_bounds) return true;
+                } else if (p.second == bound_type::LOWER) {
+                    lower_bounds++;
+                    lower = p.first;
+                    if (upper_bounds)
+                        return true;
+                }
+            }
+            return false;
+        }
+        
     }; // end of var_info
 
     vector<var_info> m_var_infos;
@@ -1631,7 +1655,26 @@ public:
                    m_max_constraint_id(0)
     {}
 
+
+    int find_conflicting_core(const constraint* &lower, const constraint* & upper) const {
+        for (unsigned j = 0; j < m_var_infos.size(); j++) {
+            if (m_var_infos[j].is_cc(lower, upper))
+                return j;
+        }
+        return -1;
+    }
+    
     void handle_conflicting_cores() {
+        const constraint* lower;
+        const constraint* upper;
+        int j = find_conflicting_core(lower, upper);
+        if (j >=0) {
+            std::cout << "confl core = "; print_var_info(std::cout, j);
+            std::cout << "lower = "; print_constraint(std::cout, *lower);
+            std::cout << "upper = "; print_constraint(std::cout, *upper);
+            
+            lp_assert( false); // not implemented
+        }
     }
     
     // returns -1 if there is no conflict and the index of the conflict constraint otherwise
@@ -1646,7 +1689,7 @@ public:
 
     // walk the trail backward and find the last implied bound on j (of the right kind)
     unsigned find_literal_index(unsigned j, bool is_lower) const {
-        for (unsigned k = m_trail.size(); k-- > 0;){
+        for (unsigned k = m_trail.size(); k-- > 0;) {
             const auto & l = m_trail[k];
             if (!l.is_decided() && l.var() == j && l.is_lower() == is_lower)
                 return k;
@@ -1735,8 +1778,7 @@ public:
         for (unsigned j = 0; j < m_var_infos.size(); j++) {
             const auto & d = m_var_infos[j].domain();
             lp_assert(!d.is_empty());
-            lp_assert(d.lower_bound_exists() && d.upper_bound_exists());
-            if (!d.is_fixed())
+            if (!d.is_fixed() && (d.lower_bound_exists() && d.upper_bound_exists()))
                 return j;
         }
         return -1;
@@ -1752,9 +1794,10 @@ public:
     }
     
     bool all_vars_are_fixed() const {
-        if (there_is_var_with_empty_domain())
-            return false;
-        return find_non_fixed_var() == -1;
+        for (unsigned j = 0; j < m_var_infos.size(); j++)
+            if (! m_var_infos[j].is_fixed())
+                return false;
+        return true;
     }
 
     bool consistent() const {
