@@ -564,9 +564,10 @@ public:
         }
     }
 
-    void add_changed_var(unsigned j) {
+    void add_changed_var(unsigned j, ccns* constraint_to_avoid) {
         for (auto & p: m_var_infos[j].dependent_constraints()) {
-            m_active_set.add_constraint(p.first);
+            if (p.first != constraint_to_avoid)
+                m_active_set.add_constraint(p.first);
         }
     }
 
@@ -575,7 +576,7 @@ public:
         m_trail.push_back(l);
         TRACE("ba_int", print_literal(tout, l););
         m_var_infos[l.var()].add_literal(literal_index);
-        add_changed_var(l.var());
+        add_changed_var(l.var(), l.cnstr());
     }
 
     unsigned find_large_enough_j(unsigned i) {
