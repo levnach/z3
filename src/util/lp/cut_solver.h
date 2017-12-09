@@ -130,7 +130,11 @@ public: // for debugging
         mpq                              m_d; // the divider for the case of a divisibility constraint
         const svector<constraint_index>  m_assert_origins; // these indices come from the client
         svector<const constraint*>       m_lemma_origins;
+        bool                             m_active;
     public :
+        void set_active_flag() {m_active = true;}
+        void remove_active_flag() { m_active = false; }
+        bool is_active() const { return m_active; }
         unsigned id() const { return m_id; }
         const polynomial & poly() const { return m_poly; }
         const svector<constraint_index> & assert_origins() const { return m_assert_origins;}
@@ -167,7 +171,8 @@ public: // for debugging
             m_id(id),
             m_is_ineq(is_ineq),
             m_poly(p),
-            m_assert_origins(assert_origin) { // creates an assert
+            m_assert_origins(assert_origin),
+            m_active(false) { // creates an assert
             lp_assert(assert_origin.size() > 0);
         }
 
@@ -179,7 +184,8 @@ public: // for debugging
             m_id(id),
             m_is_ineq(is_ineq),
             m_poly(p),
-            m_lemma_origins(lemma_origin) { // creates a lemma
+            m_lemma_origins(lemma_origin),
+            m_active(false) { // creates a lemma
             lp_assert(lemma_origin.size() > 0);
         }
         
@@ -284,7 +290,7 @@ public: // for debugging
         svector<unsigned> m_literals; // point to m_trail
         integer_domain<mpq> m_domain;
         // the map of constraints using the var: bound_type = UNDEF stands for a div constraint
-        std::unordered_map<ccns*, bound_type, ccns_hash, ccns_equal> m_dependent_constraints;
+        std::unordered_map<constraint*, bound_type, ccns_hash, ccns_equal> m_dependent_constraints;
     public:
         var_info(unsigned user_var_index) : m_user_var_index(user_var_index) {}
 
@@ -292,11 +298,11 @@ public: // for debugging
         unsigned user_var() const {
             return m_user_var_index;
         }
-        void add_dependent_constraint(ccns* i, bound_type bt) {
+        void add_dependent_constraint(constraint* i, bound_type bt) {
             lp_assert(m_dependent_constraints.find(i) == m_dependent_constraints.end());
             m_dependent_constraints[i] = bt;
         }
-        void remove_depended_constraint(ccns* i) {
+        void remove_depended_constraint(constraint* i) {
             auto it = m_dependent_constraints.find(i);
             lp_assert(it != m_dependent_constraints.end());
             m_dependent_constraints.erase(i);
@@ -312,7 +318,8 @@ public: // for debugging
         bool get_lower_bound(mpq & b) const { return m_domain.get_lower_bound(b); }
         void print_var_domain(std::ostream &out) const { m_domain.print(out); }
         const svector<unsigned> & literals() const { return m_literals; }
-        const std::unordered_map<ccns*, bound_type, ccns_hash, ccns_equal> & dependent_constraints() const { return m_dependent_constraints; }
+        std::unordered_map<constraint*, bound_type, ccns_hash, ccns_equal> & dependent_constraints() { return m_dependent_constraints; }
+        const std::unordered_map<constraint*, bound_type, ccns_hash, ccns_equal> & dependent_constraints() const { return m_dependent_constraints; }
         bool lower_bound_exists() const { return m_domain.lower_bound_exists();}
         bool upper_bound_exists() const { return m_domain.upper_bound_exists();}
         void push() {
@@ -335,28 +342,6 @@ public: // for debugging
             m_literals.erase(it);
         }
 
-        bool is_cc(const constraint*&lower, const constraint*&upper) const {
-            if (lower_bound_exists() && upper_bound_exists())
-                return false;
-            if (domain().is_empty())
-                return false;
-
-            unsigned upper_bounds = 0;
-            unsigned lower_bounds = 0;
-            for (auto& p : m_dependent_constraints) {
-                if (p.second == bound_type::UPPER) {
-                    upper_bounds++;
-                    upper = p.first;
-                    if (lower_bounds) return true;
-                } else if (p.second == bound_type::LOWER) {
-                    lower_bounds++;
-                    lower = p.first;
-                    if (upper_bounds)
-                        return true;
-                }
-            }
-            return false;
-        }
         
     }; // end of var_info
 
@@ -370,6 +355,39 @@ public: // for debugging
     }
 
 public:
+
+    bool all_fixed_except_j(const polynomial & p, var_index j) const {
+        for (auto &m : p.coeffs())
+            if (m.var() != j && m_var_infos[m.var()].is_fixed() == false)
+                return false;
+        return true;
+    }
+    
+    bool is_cc(var_index j, const constraint*&lower, const constraint*&upper) const {
+        const var_info & vj = m_var_infos[j];
+        if (vj.lower_bound_exists() && vj.upper_bound_exists())
+            return false;
+        if (vj.domain().is_empty())
+            return false;
+
+        unsigned upper_bounds = 0;
+        unsigned lower_bounds = 0;
+        for (auto p : vj.dependent_constraints()) {
+            if (p.first->is_simple() || !all_fixed_except_j(p.first->poly(), j)) continue;
+            if (p.second == bound_type::UPPER) {
+                upper_bounds++;
+                upper = p.first;
+                if (lower_bounds) return true;
+            } else if (p.second == bound_type::LOWER) {
+                lower_bounds++;
+                lower = p.first;
+                if (upper_bounds)
+                    return true;
+            }
+        }
+        return false;
+    }
+
     std::string get_column_name(unsigned j) const {
         return m_var_name_function(m_var_infos[j].user_var());
     }
@@ -381,7 +399,50 @@ public:
         for (constraint * c : m_lemmas)
             delete c;
     }
-    
+
+    class active_set {
+        svector<constraint*> m_cs[2]; // 0 for simple constraints, and 1 for non-simple
+    public:
+        void clear() { m_cs[0].clear(); m_cs[1].clear(); }
+        bool is_empty() const { return m_cs[0].size() == 0 && m_cs[1].size() == 0; }
+        void print(std::ostream & out) const {
+            out << "active simple constraints " << m_cs[0].size() << ", active non-simple constraints " << m_cs[1].size() << std::endl;
+        }
+        unsigned idx(constraint* c) const { return c->is_simple() ? 0 : 1; }
+        void add_constraint(constraint* c) {
+            if (c->is_active()) return;
+            m_cs[idx(c)].push_back(c);
+            c->set_active_flag();
+        }
+
+        constraint* remove_random_constraint(unsigned k, unsigned rand) {
+            auto & cs = m_cs[k];
+            if (cs.size() == 0)
+                return nullptr;
+            unsigned j = rand % cs.size();
+            constraint * c = cs[j];
+            c->remove_active_flag();
+            if (j != cs.size() - 1) {
+                cs[j] = cs.back();
+            }
+            cs.pop_back();
+            return c;
+        }
+        
+        // It removes a simple constraint if any from the set and returns .
+        // Returns nullptr if there are no constraints.
+        constraint * remove_random_constraint(unsigned rand) {
+            return m_cs[0].size() > 0?remove_random_constraint(0, rand) : remove_random_constraint(1, rand);
+        }
+
+        void erase(constraint *c) {
+            // not efficient
+            auto & cs = m_cs[idx(c)];
+            auto it = std::find(cs.begin(), cs.end(), c);
+            if (it != cs.end())
+                cs.erase(it);
+        }
+    };
     
     svector<constraint*>                           m_asserts;
     svector<constraint*>                           m_lemmas;
@@ -390,7 +451,7 @@ public:
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
      // the number of decisions in the current trail
     unsigned                                       m_number_of_decisions;
-    int_set                                        m_changed_vars;
+    active_set                                     m_active_set;
     vector<literal>                                m_trail;
     lp_settings &                                  m_settings;
     unsigned                                       m_max_constraint_id;
@@ -480,7 +541,7 @@ public:
     }
 
     void find_new_conflicting_cores_under_constraint(var_index j, ccns* c) {
-        lp_assert(false);
+        // lp_assert(false);
     }
 
     void find_new_conflicting_cores(var_index j) {
@@ -504,9 +565,9 @@ public:
     }
 
     void add_changed_var(unsigned j) {
-        if (j >= m_changed_vars.data_size())
-            m_changed_vars.resize(j + 1);
-        m_changed_vars.insert(j);
+        for (auto & p: m_var_infos[j].dependent_constraints()) {
+            m_active_set.add_constraint(p.first);
+        }
     }
 
     void push_literal_to_trail(const literal & l) {
@@ -697,21 +758,6 @@ public:
         return nullptr;
     }
     
-    // returns nullptr if there is no conflict, or the conflict constraint otherwise
-    ccns* propagate_constraints_for_changed_vars() {
-        TRACE("cut_solver_state", tout << "changed vars size = " << m_changed_vars.size() << "\n";);
-        while (!m_changed_vars.is_empty()) {
-            unsigned j = m_changed_vars.m_index.back();
-            ccns *i = propagate_on_constraints_of_var(j);
-            if (i != nullptr) {
-                m_changed_vars.clear();
-                return i;
-            }
-            m_changed_vars.erase(j);
-        }
-        return nullptr;
-    }
-
     bool get_var_lower_bound(var_index i, mpq & bound) const {
         const var_info & v = m_var_infos[i];
         return v.get_lower_bound(bound);
@@ -1084,15 +1130,6 @@ public:
 
     void add_bound(mpq v, unsigned j, bool is_lower, ccns * c) {
         push_literal_to_trail(literal::make_implied_literal(j, is_lower, v, c));
-        if (j == 3 && is_lower) {
-            TRACE("add_bound_int",
-                  tout << "index = " << m_trail.size() -1;
-                  tout << ", literal = ";print_literal(tout, m_trail.back());
-                  tout << "\nbound = " << v;
-                  tout << "\n";
-                  print_var_domain(tout, j);
-                  tout << "\n";);
-        }
     }
     
     mpq value(const polynomial & p) const {
@@ -1104,18 +1141,20 @@ public:
 
     void pop_constraints() {
         while (m_asserts.size() > m_scope().m_asserts_size) {
-            ccns * i = m_asserts.back();;
-            for (const auto & p: i->poly().m_coeffs) {
+            constraint * i = m_asserts.back();;
+            for (auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
+            if (i->is_active())
+                m_active_set.erase(i);
             delete i;
             m_asserts.pop_back();
         }
         lp_assert(m_asserts.size() == m_scope().m_asserts_size);
 
         while (m_lemmas.size() > m_scope().m_lemmas_size) {
-            ccns * i = m_lemmas.back();;
-            for (const auto & p: i->poly().m_coeffs) {
+            constraint * i = m_lemmas.back();;
+            for (auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
             delete i;
@@ -1157,7 +1196,7 @@ public:
     bool propagate_constraint(ccns* in) {
         TRACE("ba_int", trace_print_constraint(tout, in););
         if (in->is_simple())
-            return true;
+            return propagate_simple_constraint(in);
         // consider a special case for constraint with just two variables
         unsigned the_only_unlim;
         int r = lower_analize(in, the_only_unlim);
@@ -1247,7 +1286,7 @@ public:
                     return lbool::l_false; 
             }
         }
-        while (m_changed_vars.size());
+        while (m_active_set.is_empty() == false);
         
         if(!all_vars_are_fixed())
             return lbool::l_undef;
@@ -1538,11 +1577,12 @@ public:
         return false; // not done
     }
 
+    bool lower_is_pos(ccns* c) const { return lower_is_pos(c->poly()); }
+    
     bool lower_is_pos(const polynomial & p) const {
         mpq b;
         bool r = lower(p, b);
-        lp_assert(r);
-        return is_pos(b);
+        return r && is_pos(b);
     }
 
     mpq lower_no_check(const polynomial & p) const {
@@ -1658,7 +1698,7 @@ public:
 
     int find_conflicting_core(const constraint* &lower, const constraint* & upper) const {
         for (unsigned j = 0; j < m_var_infos.size(); j++) {
-            if (m_var_infos[j].is_cc(lower, upper))
+            if (is_cc(j, lower, upper))
                 return j;
         }
         return -1;
@@ -1672,15 +1712,24 @@ public:
             std::cout << "confl core = "; print_var_info(std::cout, j);
             std::cout << "lower = "; print_constraint(std::cout, *lower);
             std::cout << "upper = "; print_constraint(std::cout, *upper);
-            
-            lp_assert( false); // not implemented
+            lp_assert(false); // not implemented
         }
     }
+
+    // returns nullptr if there is no conflict, or a conflict constraint otherwise
+    ccns* propagate_constraints_on_active_set() {
+        constraint *c;
+        while ((c = m_active_set.remove_random_constraint(m_settings.random_next())) != nullptr) {
+            if (!propagate_constraint(c))
+                return c;
+        }
+        return nullptr;
+    }
+
     
     // returns -1 if there is no conflict and the index of the conflict constraint otherwise
     ccns* propagate() {
-        propagate_simple_constraints();
-        ccns* conflict_constraint = propagate_constraints_for_changed_vars();
+        ccns* conflict_constraint = propagate_constraints_on_active_set();;
         if (conflict_constraint != nullptr)
             return conflict_constraint;
         handle_conflicting_cores();
@@ -1740,25 +1789,9 @@ public:
         }
         
         TRACE("cut_solver_state", tout <<"no improvement\n";);
-        return false;
+        return !lower_is_pos(t); 
     }
     
-
-    bool propagate_simple_constraints() {
-        bool ret = false;
-        for (auto c: m_asserts) {
-            if (c->is_simple() && propagate_simple_constraint(c)){
-                ret = true;
-            }
-        }
-        for (auto c : m_lemmas) {
-            if (c->is_simple() && propagate_simple_constraint(c)){
-                ret = true;
-            }
-        }
-        return ret;
-    }
-
     bool consistent(ccns * i) const {
         // an option could be to check that upper(i.poly()) <= 0
         bool ret = value(i->poly()) <= zero_of_type<mpq>();
@@ -1841,9 +1874,9 @@ public:
         simplify_lemma(p);
         constraint *c = constraint::make_ineq_lemma(m_max_constraint_id++, p, lemma_origins);
         m_lemmas.push_back(c);
+        m_active_set.add_constraint(c);
         for (const auto & m : p.coeffs()) {
             m_var_infos[m.var()].add_dependent_constraint(c, is_pos(m.coeff())? bound_type::UPPER: bound_type::LOWER);
-            add_changed_var(m.var());
         }
         TRACE("add_lemma_int",  trace_print_constraint(tout, c););
         
@@ -1859,7 +1892,8 @@ public:
         for (auto & p : lhs)
             local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
         constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, local_lhs, free_coeff,origins);
-        m_asserts.push_back(c); 
+        m_asserts.push_back(c);
+        m_active_set.add_constraint(c);
         TRACE("add_ineq_int",
               tout << "explanation :";
               for (auto i: origins) {
@@ -1872,7 +1906,6 @@ public:
         
         for (auto & p : local_lhs) {
             m_var_infos[p.var()].add_dependent_constraint(c, is_pos(p.coeff())? bound_type::UPPER : bound_type::LOWER);
-            add_changed_var(p.var());
         }
         return m_asserts.size() - 1;
     }
