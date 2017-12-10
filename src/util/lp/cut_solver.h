@@ -1231,6 +1231,8 @@ public:
             print_constraint(out, *i);
         }
         out << "end of constraints\n";
+        out << "active set\n";
+        m_active_set.print(out);
         out << "trail\n";
         print_trail(out);
         out << "end of trail\n";
@@ -1258,7 +1260,7 @@ public:
     }
 
     bool decide() {
-        int j = find_non_fixed_var();
+        int j = find_var_for_deciding();
         if (j < 0)
             return false;
         TRACE("decide_int", tout << "going to decide " << var_name(j) << " var index = " << j << "\n";
@@ -1805,7 +1807,7 @@ public:
         return ret;
     }
 
-    int find_non_fixed_var() const {
+    int find_var_for_deciding() const {
         // it is a very non efficient implementation for now.
         // the current limitation is that we only deal with bounded vars.
         // the search should be randomized.
@@ -1835,7 +1837,7 @@ public:
     }
 
     bool consistent() const {
-        if (find_non_fixed_var() != -1) {
+        if (!all_vars_are_fixed()) {
             // this check could be removed if we use upper bound to check if an constraint holds
             return false; // ignore the variables values and only return true if every variable is fixed
         }
