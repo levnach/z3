@@ -45,7 +45,7 @@ public: // for debugging
         vector<monomial> m_coeffs;
         mpq                     m_a; // the free coefficient
         polynomial(const vector<monomial>& p, const mpq & a) : m_coeffs(p), m_a(a) {}
-        polynomial(const vector<monomial>& p) : polynomial(p, 0) {}
+        polynomial(const vector<monomial>& p) : polynomial(p, zero_of_type<mpq>()) {}
         polynomial(): m_a(zero_of_type<mpq>()) {}
         polynomial(const polynomial & p) : m_coeffs(p.m_coeffs), m_a(p.m_a) {} 
             
@@ -173,7 +173,6 @@ public: // for debugging
             m_poly(p),
             m_assert_origins(assert_origin),
             m_active(false) { // creates an assert
-            lp_assert(assert_origin.size() > 0);
         }
 
         constraint(
@@ -186,7 +185,6 @@ public: // for debugging
             m_poly(p),
             m_lemma_origins(lemma_origin),
             m_active(false) { // creates a lemma
-            lp_assert(lemma_origin.size() > 0);
         }
         
     public:
@@ -401,22 +399,22 @@ public:
     }
 
     class active_set {
-        svector<constraint*> m_cs[2]; // 0 for simple constraints, and 1 for non-simple
+        svector<constraint*> m_cs;
     public:
-        void clear() { m_cs[0].clear(); m_cs[1].clear(); }
-        bool is_empty() const { return m_cs[0].size() == 0 && m_cs[1].size() == 0; }
+        void clear() {  m_cs.clear(); }
+        bool is_empty() const { return m_cs.size() == 0; }
         void print(std::ostream & out) const {
-            out << "active simple constraints " << m_cs[0].size() << ", active non-simple constraints " << m_cs[1].size() << std::endl;
+            out << "active constraint " << m_cs.size() << std::endl;
         }
-        unsigned idx(constraint* c) const { return c->is_simple() ? 0 : 1; }
         void add_constraint(constraint* c) {
+            lp_assert(!c->is_simple());
             if (c->is_active()) return;
-            m_cs[idx(c)].push_back(c);
+            m_cs.push_back(c);
             c->set_active_flag();
         }
 
-        constraint* remove_random_constraint(unsigned k, unsigned rand) {
-            auto & cs = m_cs[k];
+        constraint* remove_random_constraint(unsigned rand) {
+            auto & cs = m_cs;
             if (cs.size() == 0)
                 return nullptr;
             unsigned j = rand % cs.size();
@@ -429,21 +427,16 @@ public:
             return c;
         }
         
-        // It removes a simple constraint if any from the set and returns .
-        // Returns nullptr if there are no constraints.
-        constraint * remove_random_constraint(unsigned rand) {
-            return m_cs[0].size() > 0?remove_random_constraint(0, rand) : remove_random_constraint(1, rand);
-        }
-
         void erase(constraint *c) {
             // not efficient
-            auto & cs = m_cs[idx(c)];
+            auto & cs = m_cs;
             auto it = std::find(cs.begin(), cs.end(), c);
             if (it != cs.end())
                 cs.erase(it);
         }
     };
     
+    // fields
     svector<constraint*>                           m_asserts;
     svector<constraint*>                           m_lemmas;
     vector<mpq>                                    m_v; // the values of the variables
@@ -451,11 +444,13 @@ public:
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
      // the number of decisions in the current trail
     unsigned                                       m_number_of_decisions;
-    active_set                                     m_active_set;
+    active_set                                     m_active_set;  // should it participate in push()/ pop() ? todo
     vector<literal>                                m_trail;
     lp_settings &                                  m_settings;
     unsigned                                       m_max_constraint_id;
     std::set<unsigned>                             m_U; // the set of conflicting cores
+    unsigned                                       m_bound_var_index;
+    stacked_value<ccns*>                           m_conflict;
     struct scope {
         unsigned m_trail_size;
         unsigned m_asserts_size;
@@ -529,7 +524,22 @@ public:
 
     void cleanup() {  }
 
+    bool all_constraints_hold() const {
+        for (auto c : m_asserts) {
+            if (is_pos(value(c->poly())))
+                return false;
+        }
+        for (auto c : m_lemmas) {
+            if (is_pos(value(c->poly())))
+                return false;
+        }
+        return true;
+    }
+    
     lbool final_check() {
+        lp_assert(all_vars_are_fixed());
+        lp_assert(all_constraints_hold());
+        lp_assert(at_base_lvl());
         // there are no more case splits, and all clauses are satisfied.
         // prepare the model for external consumption.
         return lbool::l_true;
@@ -564,10 +574,12 @@ public:
         }
     }
 
-    void add_changed_var(unsigned j, ccns* constraint_to_avoid) {
+    void add_changed_var(unsigned j) {
         for (auto & p: m_var_infos[j].dependent_constraints()) {
-            if (p.first != constraint_to_avoid)
-                m_active_set.add_constraint(p.first);
+            auto c = p.first;
+            if (!c->is_simple()) {
+                m_active_set.add_constraint(c);
+            }
         }
     }
 
@@ -576,7 +588,7 @@ public:
         m_trail.push_back(l);
         TRACE("ba_int", print_literal(tout, l););
         m_var_infos[l.var()].add_literal(literal_index);
-        add_changed_var(l.var(), l.cnstr());
+        add_changed_var(l.var());
     }
 
     unsigned find_large_enough_j(unsigned i) {
@@ -1158,6 +1170,8 @@ public:
             for (auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
+            if (i->is_active())
+                m_active_set.erase(i);
             delete i;
             m_lemmas.pop_back();
         }
@@ -1188,7 +1202,55 @@ public:
         }
     }
 
+    bool every_var_has_no_bounds() const {
+        for (auto & vi : m_var_infos)
+            if (vi.lower_bound_exists() || vi.upper_bound_exists())
+                return false;
+        return true;
+    }
+
+
+    vector<monomial> create_upper_bound_poly(unsigned k) {
+        vector<monomial> p;
+        unsigned j = m_var_infos.size() - 1;
+        lp_assert(m_var_infos[j].user_var() == m_bound_var_index);
+        p.push_back(monomial(one_of_type<mpq>(), k));  
+        p.push_back(monomial(-one_of_type<mpq>(), j));
+        return p;
+    }
+
+    polynomial create_lower_bound_poly(unsigned k) {
+        vector<monomial> p;
+        unsigned j = m_var_infos.size() - 1;
+        lp_assert(m_var_infos[j].user_var() == m_bound_var_index);
+        p.push_back(monomial(-one_of_type<mpq>(), k));  
+        p.push_back(monomial(one_of_type<mpq>(), j));
+        return polynomial(p);
+    }
+
+    unsigned find_unused_index() const {
+        for (unsigned j = m_var_infos.size(); ; j++)
+            if (m_user_vars_to_cut_solver_vars.find(j) == m_user_vars_to_cut_solver_vars.end())
+                return j;
+        
+    }
+
+    // introduce one var x >= 0 such that |y|<=x for every other var y
+    void introduce_bounds() {
+        m_bound_var_index = find_unused_index();
+        add_var(m_bound_var_index);
+        
+        for (unsigned k = 0; k < m_var_infos.size() - 1; k ++) {
+            auto p = create_lower_bound_poly(k);
+            add_lemma(p, svector<ccns*>());
+            p = create_upper_bound_poly(k);
+            add_lemma(p, svector<ccns*>());
+        }
+    }
+    
     void init_search() {
+        if (false && every_var_has_no_bounds())
+            introduce_bounds();
         lp_assert(m_explanation.size() == 0);
     }
 
@@ -1679,6 +1741,7 @@ public:
         m_trail.resize(m_scope().m_trail_size);
         pop_constraints();
         TRACE("trace_push_pop_in_cut_solver", tout << "after pop\n";print_state(tout););
+        m_conflict.pop(k);
     }
 
     void push() {
@@ -1686,6 +1749,7 @@ public:
         m_scope = scope(m_trail.size(), m_asserts.size(), m_lemmas.size());
         m_scope.push();
         push_var_infos();
+        m_conflict.push();
     }
 
     cut_solver(std::function<std::string (unsigned)> var_name_function,
@@ -1695,7 +1759,8 @@ public:
                    m_print_constraint_function(print_constraint_function),
                    m_number_of_decisions(0),
                    m_settings(settings),
-                   m_max_constraint_id(0)
+                   m_max_constraint_id(0),
+                   m_conflict(nullptr)
     {}
 
 
@@ -1721,6 +1786,8 @@ public:
 
     // returns nullptr if there is no conflict, or a conflict constraint otherwise
     ccns* propagate_constraints_on_active_set() {
+        if (m_conflict != nullptr)
+            return m_conflict;
         constraint *c;
         while ((c = m_active_set.remove_random_constraint(m_settings.random_next())) != nullptr) {
             if (!propagate_constraint(c))
@@ -1873,16 +1940,20 @@ public:
     }
     
     constraint * add_lemma(polynomial& p, const svector<const constraint*>& lemma_origins) {
-        lp_assert(lemma_origins.size());
         simplify_lemma(p);
         constraint *c = constraint::make_ineq_lemma(m_max_constraint_id++, p, lemma_origins);
         m_lemmas.push_back(c);
-        m_active_set.add_constraint(c);
         for (const auto & m : p.coeffs()) {
             m_var_infos[m.var()].add_dependent_constraint(c, is_pos(m.coeff())? bound_type::UPPER: bound_type::LOWER);
         }
+        if (c->is_simple()) {
+            if (!propagate_simple_constraint(c))
+                if (m_conflict == nullptr)
+                    m_conflict = c;
+        } else {
+            m_active_set.add_constraint(c);
+        }
         TRACE("add_lemma_int",  trace_print_constraint(tout, c););
-        
         return c;
     }
     
@@ -1895,8 +1966,15 @@ public:
         for (auto & p : lhs)
             local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
         constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, local_lhs, free_coeff,origins);
-        m_asserts.push_back(c);
-        m_active_set.add_constraint(c);
+        m_asserts.push_back(c); 
+        if (c->is_simple()) {
+            if (!propagate_simple_constraint(c))
+                if (m_conflict == nullptr)
+                    m_conflict = c;
+        } else {
+            m_active_set.add_constraint(c);
+        }
+        
         TRACE("add_ineq_int",
               tout << "explanation :";
               for (auto i: origins) {
