@@ -399,13 +399,17 @@ public:
     }
 
     class active_set {
-        svector<constraint*> m_cs;
+        stacked_vector<constraint*> m_cs;
     public:
-        void clear() {  m_cs.clear(); }
-        bool is_empty() const { return m_cs.size() == 0; }
-        void print(std::ostream & out) const {
-            out << "active constraint " << m_cs.size() << std::endl;
+        const vector<constraint*> & cs() const { return m_cs(); }
+        void push() {
+            m_cs.push();
         }
+        void pop(unsigned k) {
+            m_cs.pop(k);
+        }
+        bool is_empty() const { return m_cs.size() == 0; }
+
         void add_constraint(constraint* c) {
             lp_assert(!c->is_simple());
             if (c->is_active()) return;
@@ -414,25 +418,21 @@ public:
         }
 
         constraint* remove_random_constraint(unsigned rand) {
-            auto & cs = m_cs;
-            if (cs.size() == 0)
+            if (m_cs.size() == 0)
                 return nullptr;
-            unsigned j = rand % cs.size();
-            constraint * c = cs[j];
+            unsigned j = rand % m_cs.size();
+            constraint * c = m_cs[j];
             c->remove_active_flag();
-            if (j != cs.size() - 1) {
-                cs[j] = cs.back();
+            unsigned last = m_cs.size() - 1;
+            if (j != last) {
+                m_cs[j] = m_cs[last];
             }
-            cs.pop_back();
+            m_cs.pop_back();
             return c;
         }
         
-        void erase(constraint *c) {
-            // not efficient
-            auto & cs = m_cs;
-            auto it = std::find(cs.begin(), cs.end(), c);
-            if (it != cs.end())
-                cs.erase(it);
+        unsigned size() const {
+            return m_cs.size();
         }
     };
     
@@ -518,7 +518,8 @@ public:
     }
 
     bool check_inconsistent() {
-        // mpqBD
+        if (at_base_lvl())
+            return all_constraints_hold();
         return false;
     }
 
@@ -526,12 +527,19 @@ public:
 
     bool all_constraints_hold() const {
         for (auto c : m_asserts) {
-            if (is_pos(value(c->poly())))
+            if (is_pos(value(c->poly()))) {
+                TRACE("all_constraints_hold_int", tout << "constraint does not hold\n";
+                      print_constraint(tout, *c); tout << "value = " << value(c->poly()) << std::endl;);
+                
                 return false;
+            }
         }
         for (auto c : m_lemmas) {
-            if (is_pos(value(c->poly())))
+            if (is_pos(value(c->poly()))) {
+                TRACE("all_constraints_hold_int", tout << "constraint does not hold\n";
+                      print_constraint(tout, *c););
                 return false;
+            }
         }
         return true;
     }
@@ -559,6 +567,14 @@ public:
             find_new_conflicting_cores_under_constraint(j, p.first);
     }
 
+    void set_value_for_fixed_var_and_check_for_conf_cores(unsigned j) {
+        lp_assert(m_var_infos[j].is_fixed());
+        if (j >= m_v.size())
+                m_v.resize(j + 1);
+        m_var_infos[j].domain().get_upper_bound(m_v[j]); // sets the value of the variable
+        find_new_conflicting_cores(j);
+    }
+    
     void restrict_var_domain_with_bound_result(var_index j, const bound_result & br) {
         auto & d = m_var_infos[j];
         if (br.m_type == bound_type::UPPER) {
@@ -567,15 +583,14 @@ public:
             d.intersect_with_lower_bound(br.m_bound);
         }
         if (d.is_fixed()) {
-            if (j >= m_v.size())
-                m_v.resize(j + 1);
-            d.get_upper_bound(m_v[j]); // sets the value of the variable
-            find_new_conflicting_cores(j);
+            set_value_for_fixed_var_and_check_for_conf_cores(j);
         }
     }
 
     void add_changed_var(unsigned j) {
+        TRACE("add_changed_var_int", tout <<  "j = " << j << "\n";);
         for (auto & p: m_var_infos[j].dependent_constraints()) {
+            TRACE("add_changed_var_int", print_constraint(tout, *p.first); tout << "simple = " << p.first->is_simple() << "\n";);
             auto c = p.first;
             if (!c->is_simple()) {
                 m_active_set.add_constraint(c);
@@ -626,6 +641,8 @@ public:
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, c););
                 add_bound(v, j, false, c);
+                if (m_var_infos[j].is_fixed())
+                    set_value_for_fixed_var_and_check_for_conf_cores(j);
             }
         } else {
             mpq m;
@@ -635,6 +652,8 @@ public:
             if (change) {
                 TRACE("ba_int", trace_print_domain_change(tout, j, v, p, c););
                 add_bound(v, j, true , c);
+                if (m_var_infos[j].is_fixed())
+                    set_value_for_fixed_var_and_check_for_conf_cores(j);
             }
         }
     }
@@ -735,7 +754,7 @@ public:
     }
 
     void trace_print_constraint(std::ostream& out, ccns* i) {
-        print_constraint(out, *i); out << "\n";
+        print_constraint(out, *i); out << " active = " << i->is_active() << "\n";
         unsigned j;
         auto pairs = to_pairs(i->poly().m_coeffs);
         auto it = linear_combination_iterator_on_vector<mpq>(pairs);
@@ -1004,7 +1023,7 @@ public:
         if (i.is_ineq()) {
             out << " <= 0";
         }
-        out << "\n";
+        out << " active = " << i.is_active() << "\n";
     }
 
     void print_literal(std::ostream & out, const literal & t) const {
@@ -1019,13 +1038,14 @@ public:
         if (t.is_decided() == false) {
             out << " by constraint ";
             print_constraint(out, *(t.cnstr()));
+            out << "\n";
         } else {
             out << " decided on trail element " << t.trail_index();
             if (!m_trail[t.trail_index()].tight_ineq().is_empty()) {
                 tout << " with tight ineq ";
                 print_polynomial(out, m_trail[t.trail_index()].tight_ineq());
             }
-            tout << "\n";
+            out << "\n";
         }
         if (!t.tight_ineq().is_empty()) {
             out << " tight_ineq() = ";
@@ -1158,8 +1178,6 @@ public:
             for (auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
-            if (i->is_active())
-                m_active_set.erase(i);
             delete i;
             m_asserts.pop_back();
         }
@@ -1170,8 +1188,6 @@ public:
             for (auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
-            if (i->is_active())
-                m_active_set.erase(i);
             delete i;
             m_lemmas.pop_back();
         }
@@ -1192,7 +1208,8 @@ public:
             lbool r = bounded_search();
             if (r != lbool::l_undef) {
                 TRACE("check_int", tout << "return " << (r == lbool::l_true ? "true" : "false") << "\n";
-                      print_state(tout););
+                      print_state(tout);
+                      );
                 return r;
             }
             restart();
@@ -1293,8 +1310,10 @@ public:
             print_constraint(out, *i);
         }
         out << "end of constraints\n";
-        out << "active set\n";
-        m_active_set.print(out);
+        out << "active constraints " << m_active_set.size() << std::endl;
+        for (auto c: m_active_set.cs())
+                print_constraint(out, *c);
+        out << "end of active constraints\n";
         out << "trail\n";
         print_trail(out);
         out << "end of trail\n";
@@ -1307,17 +1326,20 @@ public:
     }
     lbool bounded_search() {
         lbool is_sat = propagate_and_backjump_step();
-        if (is_sat != lbool::l_undef)
+        if (is_sat != lbool::l_undef) {
+            TRACE("decide_int", tout << "returning " << (int)is_sat << "\n";);
             return is_sat;
-
+        }
         gc();
         
         if (!decide()) {
+            TRACE("decide_int", tout << "going to final_check()\n";);
             lbool is_sat = final_check();
             if (is_sat != lbool::l_undef) {
                 return is_sat;
             }
         }
+        TRACE("decide_int", tout << "returning undef\n";);
         return lbool::l_undef;
     }
 
@@ -1337,6 +1359,7 @@ public:
             TRACE("cs_dec", tout << "trail = \n"; print_trail(tout); tout << "end of trail\n";);
 
             if (incostistent_constraint != nullptr) {
+                TRACE("decide_int", tout << "incostistent_constraint ";print_constraint(tout, *incostistent_constraint););
                 if (at_base_lvl()) {
                     fill_conflict_explanation(incostistent_constraint, m_trail.size());
                     mpq b;
@@ -1356,6 +1379,8 @@ public:
         if(!all_vars_are_fixed())
             return lbool::l_undef;
 
+        lp_assert(all_constraints_hold());
+        
         return lbool::l_true;
     }
 
@@ -1723,6 +1748,18 @@ public:
         out << "trail_size = " << m_scope().m_trail_size << ", constraints_size = " << m_scope().m_asserts_size << "\n";
     }
 
+    void pop_active_set(unsigned k) {
+        for (auto cc : m_active_set.cs()) {
+            constraint * c = const_cast<constraint*>(cc);
+            c->remove_active_flag();
+        }
+        m_active_set.pop(k);
+        for (auto cc : m_active_set.cs()) {
+            constraint * c = const_cast<constraint*>(cc);
+            c->set_active_flag();
+        }
+    }
+
     void pop(unsigned k) {
         TRACE("trace_push_pop_in_cut_solver", tout << "before pop\n";print_state(tout););
         m_scope.pop(k);        
@@ -1739,6 +1776,7 @@ public:
         }
             
         m_trail.resize(m_scope().m_trail_size);
+        pop_active_set(k);
         pop_constraints();
         TRACE("trace_push_pop_in_cut_solver", tout << "after pop\n";print_state(tout););
         m_conflict.pop(k);
@@ -1750,6 +1788,7 @@ public:
         m_scope.push();
         push_var_infos();
         m_conflict.push();
+        m_active_set.push();
     }
 
     cut_solver(std::function<std::string (unsigned)> var_name_function,
@@ -1830,6 +1869,11 @@ public:
             m_var_infos[j].domain().get_upper_bound(b);
             m_var_infos[j].intersect_with_lower_bound(b);
         }
+        if (j >= m_v.size())
+            m_v.resize(j + 1);
+        m_v[j] = b;
+        TRACE("decide_int", print_var_info(tout, j););
+        add_changed_var(j);
         m_number_of_decisions++;
         push_literal_to_trail(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
     }
