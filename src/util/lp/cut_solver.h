@@ -1748,16 +1748,22 @@ public:
         out << "trail_size = " << m_scope().m_trail_size << ", constraints_size = " << m_scope().m_asserts_size << "\n";
     }
 
-    void pop_active_set(unsigned k) {
-        for (auto cc : m_active_set.cs()) {
-            constraint * c = const_cast<constraint*>(cc);
+    void remove_active_flag_from_constraints_in_active_set() {
+        for (auto c : m_active_set.cs()) {
             c->remove_active_flag();
         }
-        m_active_set.pop(k);
-        for (auto cc : m_active_set.cs()) {
-            constraint * c = const_cast<constraint*>(cc);
+    }
+
+    void set_active_flag_for_constraints_in_active_set() {
+        for (auto c : m_active_set.cs()) {
             c->set_active_flag();
         }
+    }
+    
+    void pop_active_set(unsigned k) {
+        remove_active_flag_from_constraints_in_active_set();
+        m_active_set.pop(k);
+        set_active_flag_for_constraints_in_active_set();
     }
 
     void pop(unsigned k) {
