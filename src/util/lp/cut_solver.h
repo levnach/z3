@@ -42,7 +42,7 @@ public: // for debugging
     
     struct polynomial {
         // the polynomial evaluates to m_coeffs + m_a
-        vector<monomial> m_coeffs;
+        vector<monomial>        m_coeffs;
         mpq                     m_a; // the free coefficient
         polynomial(const vector<monomial>& p, const mpq & a) : m_coeffs(p), m_a(a) {}
         polynomial(const vector<monomial>& p) : polynomial(p, zero_of_type<mpq>()) {}
@@ -444,12 +444,12 @@ public:
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
      // the number of decisions in the current trail
     unsigned                                       m_number_of_decisions;
-    active_set                                     m_active_set;  // should it participate in push()/ pop() ? todo
+    active_set                                     m_active_set;
     vector<literal>                                m_trail;
     lp_settings &                                  m_settings;
     unsigned                                       m_max_constraint_id;
     std::set<unsigned>                             m_U; // the set of conflicting cores
-    unsigned                                       m_bound_var_index;
+    unsigned                                       m_art_var;
     stacked_value<ccns*>                           m_conflict;
     struct scope {
         unsigned m_trail_size;
@@ -1227,21 +1227,21 @@ public:
     }
 
 
-    vector<monomial> create_upper_bound_poly(unsigned k) {
+    polynomial create_upper_bound_poly(unsigned k) {
         vector<monomial> p;
         unsigned j = m_var_infos.size() - 1;
-        lp_assert(m_var_infos[j].user_var() == m_bound_var_index);
+        lp_assert(m_var_infos[j].user_var() == m_art_var);
         p.push_back(monomial(one_of_type<mpq>(), k));  
         p.push_back(monomial(-one_of_type<mpq>(), j));
-        return p;
+        return polynomial(p);
     }
 
     polynomial create_lower_bound_poly(unsigned k) {
         vector<monomial> p;
         unsigned j = m_var_infos.size() - 1;
-        lp_assert(m_var_infos[j].user_var() == m_bound_var_index);
+        lp_assert(m_var_infos[j].user_var() == m_art_var);
         p.push_back(monomial(-one_of_type<mpq>(), k));  
-        p.push_back(monomial(one_of_type<mpq>(), j));
+        p.push_back(monomial(-one_of_type<mpq>(), j));
         return polynomial(p);
     }
 
@@ -1254,8 +1254,8 @@ public:
 
     // introduce one var x >= 0 such that |y|<=x for every other var y
     void introduce_bounds() {
-        m_bound_var_index = find_unused_index();
-        add_var(m_bound_var_index);
+        m_art_var = find_unused_index();
+        unsigned j = add_var(m_art_var); // j is the index of var_info of x
         
         for (unsigned k = 0; k < m_var_infos.size() - 1; k ++) {
             auto p = create_lower_bound_poly(k);
@@ -1263,10 +1263,14 @@ public:
             p = create_upper_bound_poly(k);
             add_lemma(p, svector<ccns*>());
         }
+        vector<monomial> v;
+        v.push_back(monomial(- one_of_type<mpq>(), j));
+        polynomial p(v);
+        add_lemma(p, svector<ccns*>()); // x >= 0
     }
     
     void init_search() {
-        if (false && every_var_has_no_bounds())
+        if (every_var_has_no_bounds())
             introduce_bounds();
         lp_assert(m_explanation.size() == 0);
     }
