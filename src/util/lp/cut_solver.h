@@ -754,7 +754,7 @@ public:
     }
 
     void trace_print_constraint(std::ostream& out, ccns* i) {
-        print_constraint(out, *i); out << " active = " << i->is_active() << "\n";
+        print_constraint(out, *i);
         unsigned j;
         auto pairs = to_pairs(i->poly().m_coeffs);
         auto it = linear_combination_iterator_on_vector<mpq>(pairs);
@@ -1038,7 +1038,6 @@ public:
         if (t.is_decided() == false) {
             out << " by constraint ";
             print_constraint(out, *(t.cnstr()));
-            out << "\n";
         } else {
             out << " decided on trail element " << t.trail_index();
             if (!m_trail[t.trail_index()].tight_ineq().is_empty()) {
@@ -1383,6 +1382,8 @@ public:
 
                     return lbool::l_false;
                 }
+                if (++lp_settings::ddd % 1000 == 0)
+                    std::cout << "ddd=" << lp_settings::ddd << std::endl;
                 resolve_conflict(incostistent_constraint);
                 if (m_explanation.size() > 0) // it means that we found a conflict at the base level during resolve_conflict()
                     return lbool::l_false; 
@@ -1640,7 +1641,7 @@ public:
         TRACE("int_resolve_confl", tout << "trail_index = " << trail_index <<", p = ";
               print_polynomial(tout, p);
               tout << "\nl = ";  print_literal(tout, l);
-              tout << ", lower(p) = " << lower_no_check(p) << "\n";
+              tout << "lower(p) = " << lower_no_check(p) << "\n";
               for (auto & m : p.coeffs()) {
                   tout <<  var_name(m.var()) << " ";
                   print_var_domain(tout, m.var());
@@ -1665,10 +1666,16 @@ public:
             TRACE("int_resolve_confl",
                   tout << "new p = ";
                   print_polynomial(tout, p);
+                  mpq rr;
+                  bool bb = lower(p, rr);
+                  if (!bb) {
+                      tout << "\nlower(p) is not defined";
+                  } else {
+                      tout << "\nlower(p) = " << rr;
+                  }
+                  
                   tout <<"\ntight_ineq = "; print_polynomial(tout, l.tight_ineq());
-                  tout << "\n, lower(p) = " << lower_no_check(p) <<
-                  ", lower(l.tight_ineq()) = " << lower_no_check(l.tight_ineq()) << "\n";
-                  tout << "tight ineq var domains" << "\n";
+                  tout << "\nvar domains" << "\n";
                   for (auto & m : l.tight_ineq().coeffs()) {
                       tout <<  "var = " << m.var() << " " << var_name(m.var()) << " ";
                       print_var_domain(tout, m.var());
@@ -1980,8 +1987,8 @@ public:
     }
 
 
-    void simplify_lemma(polynomial & p) {
-        TRACE("simplify_lemma_int", tout << "p = "; print_polynomial(tout, p););
+    void simplify_ineq(polynomial & p) const {
+        TRACE("simplify_ineq_int", tout << "p = "; print_polynomial(tout, p););
         auto & ms = p.m_coeffs;
         lp_assert(ms.size());
         mpq g;
@@ -1999,11 +2006,11 @@ public:
                 m.coeff() /= g;
             p.m_a = ceil(p.m_a /g);
         }
-        TRACE("simplify_lemma_int", tout << "p = "; print_polynomial(tout, p););
+        TRACE("simplify_ineq_int", tout << "p = "; print_polynomial(tout, p););
     }
     
     constraint * add_lemma(polynomial& p, const svector<const constraint*>& lemma_origins) {
-        simplify_lemma(p);
+        simplify_ineq(p);
         constraint *c = constraint::make_ineq_lemma(m_max_constraint_id++, p, lemma_origins);
         m_lemmas.push_back(c);
         for (const auto & m : p.coeffs()) {
