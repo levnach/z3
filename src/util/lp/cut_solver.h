@@ -139,7 +139,7 @@ public: // for debugging
         const polynomial & poly() const { return m_poly; }
         const svector<constraint_index> & assert_origins() const { return m_assert_origins;}
         const svector<const constraint*> & lemma_origins() const { return m_lemma_origins;}
-        bool is_lemma() const { return m_lemma_origins.size() > 0; }
+        bool is_lemma() const { return !is_assert(); }
         bool is_assert() const { return m_assert_origins.size() > 0; }
         bool is_ineq() const { return m_is_ineq; }
         const mpq & divider() const { return m_d; }
@@ -1347,13 +1347,23 @@ public:
         return lbool::l_undef;
     }
 
+    bool pick_lower_bound(unsigned j) {
+        var_info & vi = m_var_infos[j];
+        if (vi.lower_bound_exists() && vi.upper_bound_exists())
+            return flip_coin();
+        if (vi.lower_bound_exists())
+            return true;
+        lp_assert(vi.upper_bound_exists());
+        return false;
+    }
+    
     bool decide() {
         int j = find_var_for_deciding();
         if (j < 0)
             return false;
         TRACE("decide_int", tout << "going to decide " << var_name(j) << " var index = " << j << "\n";
               tout << "domain = "; print_var_domain(tout, j); tout << ", m_number_of_decisions="<<m_number_of_decisions<< "\n";);
-        decide_var_on_bound(j, flip_coin());
+        decide_var_on_bound(j, pick_lower_bound(j));
         return true;
     }
 
@@ -1710,7 +1720,6 @@ public:
         if (i->is_assert()) {
             ret.push_back(i);
         } else {
-            lp_assert(i->lemma_origins().size());
             ret = i->lemma_origins();
         }
         return ret;
@@ -1935,7 +1944,7 @@ public:
         for (unsigned j = 0; j < m_var_infos.size(); j++) {
             const auto & d = m_var_infos[j].domain();
             lp_assert(!d.is_empty());
-            if (!d.is_fixed() && (d.lower_bound_exists() && d.upper_bound_exists()))
+            if (!d.is_fixed() && (d.lower_bound_exists() || d.upper_bound_exists()))
                 return j;
         }
         return -1;
