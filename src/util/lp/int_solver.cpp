@@ -482,7 +482,6 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
         return lia_move::ok;
 
     // lp_assert(non_basic_columns_are_at_bounds());
-    TRACE("gomory_cut", tout << m_branch_cut_counter+1 << ", " << settings().m_int_branch_cut_gomory_threshold << std::endl;);
     if (++m_branch_cut_counter > 0) { // testing cut_solver
         auto check_res = m_cut_solver.check();
         switch (check_res) {

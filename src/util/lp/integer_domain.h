@@ -940,5 +940,27 @@ public:
         get_upper_bound(u);
         return l==u;
     }
+
+
+    bool improves_with_lower_bound(const T & v) const {
+        T b;
+        bool lower_bound_exists = get_lower_bound(b);
+        return (!lower_bound_exists || v > b) &&
+            !intersection_with_lower_bound_is_empty(v);
+    }
+
+    bool improves_with_upper_bound(const T & v) const {
+        T b;
+        bool upper_bound_exists = get_upper_bound(b);
+        return (!upper_bound_exists || v < b) &&
+            !intersection_with_upper_bound_is_empty(v);
+    }
+    
+    // returns true if adding the bound b narrows the domain, but does not make it empty
+    bool improves(const T & v, bool is_lower_bound) const {
+        if (is_lower_bound)
+            return improves_with_lower_bound(v);
+        return improves_with_upper_bound(v);
+    }
 };
 }

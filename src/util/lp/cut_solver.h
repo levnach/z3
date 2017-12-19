@@ -122,14 +122,13 @@ public: // for debugging
         }
         const vector<monomial> & coeffs() const { return m_coeffs; }
     };
-    
     class constraint { // we only have less or equal for the inequality sign, which is enough for integral variables
         int                              m_id;  
         bool                             m_is_ineq;
         const polynomial                 m_poly;
         mpq                              m_d; // the divider for the case of a divisibility constraint
         const svector<constraint_index>  m_assert_origins; // these indices come from the client
-        svector<const constraint*>       m_lemma_origins;
+        std::unordered_set<const constraint*>       m_lemma_origins;  //todo use ccns_* here
         bool                             m_active;
     public :
         void set_active_flag() {m_active = true;}
@@ -138,7 +137,7 @@ public: // for debugging
         unsigned id() const { return m_id; }
         const polynomial & poly() const { return m_poly; }
         const svector<constraint_index> & assert_origins() const { return m_assert_origins;}
-        const svector<const constraint*> & lemma_origins() const { return m_lemma_origins;}
+        const std::unordered_set<const constraint*> & lemma_origins() const { return m_lemma_origins;}
         bool is_lemma() const { return !is_assert(); }
         bool is_assert() const { return m_assert_origins.size() > 0; }
         bool is_ineq() const { return m_is_ineq; }
@@ -183,8 +182,10 @@ public: // for debugging
             m_id(id),
             m_is_ineq(is_ineq),
             m_poly(p),
-            m_lemma_origins(lemma_origin),
             m_active(false) { // creates a lemma
+            for (auto c: lemma_origin) {
+                m_lemma_origins.insert(c);
+            }
         }
         
     public:
@@ -371,14 +372,18 @@ public:
         unsigned upper_bounds = 0;
         unsigned lower_bounds = 0;
         for (auto p : vj.dependent_constraints()) {
-            if (p.first->is_simple() || !all_fixed_except_j(p.first->poly(), j)) continue;
+            constraint* c = p.first;
+            const mpq& coeff = c->poly().coeff(j);
+            if (coeff == one_of_type<mpq>() || coeff == - one_of_type<mpq>())
+                continue;
+            if (c->is_simple() || !all_fixed_except_j(c->poly(), j)) continue;
             if (p.second == bound_type::UPPER) {
                 upper_bounds++;
-                upper = p.first;
+                upper = c;
                 if (lower_bounds) return true;
             } else if (p.second == bound_type::LOWER) {
                 lower_bounds++;
-                lower = p.first;
+                lower = c;
                 if (upper_bounds)
                     return true;
             }
@@ -601,7 +606,7 @@ public:
     void push_literal_to_trail(const literal & l) {
         unsigned literal_index = m_trail.size();
         m_trail.push_back(l);
-        TRACE("ba_int", print_literal(tout, l););
+        TRACE("push_literal_int", print_literal(tout, l););
         m_var_infos[l.var()].add_literal(literal_index);
         add_changed_var(l.var());
     }
@@ -781,15 +786,6 @@ public:
 
     bool conflict() const { return m_explanation.size() > 0; }
 
-    // returns -1 if there is no conflict and the index of the conflict constraint otherwise
-    ccns* propagate_on_constraints_of_var(var_index j) {
-        for (auto i : m_var_infos[j].dependent_constraints()) {
-            if (!propagate_constraint(i.first))
-                return i.first;
-        }
-        return nullptr;
-    }
-    
     bool get_var_lower_bound(var_index i, mpq & bound) const {
         const var_info & v = m_var_infos[i];
         return v.get_lower_bound(bound);
@@ -1120,20 +1116,14 @@ public:
             bound_result new_upper = bound(p, j);
             if (new_upper.m_type == bound_type::UNDEF)
                 return false;
-            mpq b;
-            bool upper_bound_exists = get_var_upper_bound(j, b);
-            return (!upper_bound_exists || new_upper.bound() < b) &&
-                dom.intersection_with_upper_bound_is_empty(new_upper.bound());
+            return dom.improves_with_upper_bound(new_upper.bound());
         }
 
         lp_assert(is_neg(a));
         bound_result new_lower = bound(p, j);
         if (new_lower.m_type == bound_type::UNDEF)
             return false;
-        mpq b;
-        bool lower_bound_exists = get_var_lower_bound(j, b);
-        return (!lower_bound_exists || new_lower.bound() > b) &&
-            dom.intersection_with_lower_bound_is_empty(new_lower.bound());
+        return dom.improves_with_lower_bound(new_lower.bound());
     }
 
 
@@ -1287,7 +1277,9 @@ public:
             mpq b;
             lower(in->poly(), b);
             if (is_pos(b)) {
-                TRACE("cs_inconsistent", trace_print_constraint(tout, in););
+                TRACE("cs_inconsistent", tout << "incostistent constraint ";
+                      trace_print_constraint(tout, in);
+                      tout << "\nlevel = " << m_number_of_decisions << std::endl;);
                 return false;
             } else {
                 propagate_constraint_on_lower(in, b);
@@ -1382,8 +1374,10 @@ public:
 
                     return lbool::l_false;
                 }
-                if (++lp_settings::ddd % 1000 == 0)
-                    std::cout << "ddd=" << lp_settings::ddd << std::endl;
+                // std::cout << "ddd=" << ++lp_settings::ddd << std::endl;
+                // if (lp_settings::ddd > 1000)
+                //     lp_assert(false); // debug !!!!!
+
                 resolve_conflict(incostistent_constraint);
                 if (m_explanation.size() > 0) // it means that we found a conflict at the base level during resolve_conflict()
                     return lbool::l_false; 
@@ -1615,12 +1609,13 @@ public:
         if (!improves(l.var(), br)) {
             TRACE("int_backjump", br.print(tout);
                   tout << "\nimproves is false";);
-            pop();
+            do pop(); while(m_trail.size() > trail_index);
+            lp_assert(m_trail.size() == trail_index);
+            TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
             add_lemma(p, lemma_origins);
             return true;
         }
         
-        TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
         constraint * c = add_lemma(p, lemma_origins);
         add_bound(br.bound(), l.var(), br.m_type == bound_type::LOWER, c);
         restrict_var_domain_with_bound_result(l.var(), br);
@@ -1628,6 +1623,7 @@ public:
         TRACE("int_backjump", tout << "var info after restricton = ";
               print_var_info(tout, l.var());
               tout << "new literal = "; print_literal(tout, m_trail.back()););
+        lp_assert(!lower_is_pos(p));
         return true;  // we are done resolving
     }
 
@@ -1638,6 +1634,7 @@ public:
         const literal & l = m_trail[trail_index];
         
         lemma_origins.append(collect_origin_constraints(l.cnstr()));
+        TRACE("lemma_origins", tout << "lemma_origins.size()="<< lemma_origins.size()<<"\n";);
         TRACE("int_resolve_confl", tout << "trail_index = " << trail_index <<", p = ";
               print_polynomial(tout, p);
               tout << "\nl = ";  print_literal(tout, l);
@@ -1727,7 +1724,8 @@ public:
         if (i->is_assert()) {
             ret.push_back(i);
         } else {
-            ret = i->lemma_origins();
+            for( auto c: i->lemma_origins())
+                ret.push_back(c);
         }
         return ret;
     }
@@ -1836,16 +1834,28 @@ public:
         }
         return -1;
     }
+
+    void list_confl_cores() {
+        const constraint* lower; const constraint* upper;
+        for (unsigned j = 0; j < m_var_infos.size(); j++) {
+            if (is_cc(j, lower, upper)) {
+                std::cout << "confl core = "; print_var_info(std::cout, j);
+                std::cout << "lower = "; print_constraint(std::cout, *lower);
+                std::cout << "upper = "; print_constraint(std::cout, *upper);
+            }
+        }
+    }
     
     void handle_conflicting_cores() {
         const constraint* lower;
         const constraint* upper;
         int j = find_conflicting_core(lower, upper);
+       
         if (j >=0) {
             std::cout << "confl core = "; print_var_info(std::cout, j);
             std::cout << "lower = "; print_constraint(std::cout, *lower);
             std::cout << "upper = "; print_constraint(std::cout, *upper);
-            lp_assert(false); // not implemented
+            //            lp_assert(false); // not implemented
         }
     }
 
@@ -1855,8 +1865,9 @@ public:
             return m_conflict;
         constraint *c;
         while ((c = m_active_set.remove_random_constraint(m_settings.random_next())) != nullptr) {
-            if (!propagate_constraint(c))
+            if (!propagate_constraint(c)) {
                 return c;
+            }
         }
         return nullptr;
     }
@@ -1898,7 +1909,7 @@ public:
         if (j >= m_v.size())
             m_v.resize(j + 1);
         m_v[j] = b;
-        TRACE("decide_int", print_var_info(tout, j););
+        TRACE("decide_var_on_bound", tout<< "j="<< j<<" ";print_var_info(tout, j););
         add_changed_var(j);
         m_number_of_decisions++;
         push_literal_to_trail(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
@@ -1945,10 +1956,11 @@ public:
     }
 
     int find_var_for_deciding() const {
-        // it is a very non efficient implementation for now.
-        // the current limitation is that we only deal with bounded vars.
-        // the search should be randomized.
-        for (unsigned j = 0; j < m_var_infos.size(); j++) {
+        unsigned j = m_settings.random_next() % m_var_infos.size();
+        
+        for (unsigned k = 0; k < m_var_infos.size(); k++, j++) {
+            if (j == m_var_infos.size())
+                j = 0;
             const auto & d = m_var_infos[j].domain();
             lp_assert(!d.is_empty());
             if (!d.is_fixed() && (d.lower_bound_exists() || d.upper_bound_exists()))
