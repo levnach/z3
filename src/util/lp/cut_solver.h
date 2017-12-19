@@ -122,14 +122,26 @@ public: // for debugging
         }
         const vector<monomial> & coeffs() const { return m_coeffs; }
     };
+
+    class constraint; // forward definition
+    struct ccns_hash {
+        size_t operator() (const constraint* c) const;
+    };
+
+    struct ccns_equal {
+        bool operator() (const constraint * a, const constraint * b) const;
+    };
+
+
     class constraint { // we only have less or equal for the inequality sign, which is enough for integral variables
-        int                              m_id;  
-        bool                             m_is_ineq;
-        const polynomial                 m_poly;
-        mpq                              m_d; // the divider for the case of a divisibility constraint
-        const svector<constraint_index>  m_assert_origins; // these indices come from the client
-        std::unordered_set<const constraint*>       m_lemma_origins;  //todo use ccns_* here
-        bool                             m_active;
+        int                                              m_id;  
+        bool                                             m_is_ineq;
+        const polynomial                                 m_poly;
+        mpq                                              m_d; // the divider for the case of a divisibility constraint
+        const svector<constraint_index>                  m_assert_origins; // these indices come from the client
+        std::unordered_set<const constraint*,
+                           ccns_hash, ccns_equal>        m_lemma_origins;  //todo use ccns_* here
+        bool                                             m_active;
     public :
         void set_active_flag() {m_active = true;}
         void remove_active_flag() { m_active = false; }
@@ -137,7 +149,7 @@ public: // for debugging
         unsigned id() const { return m_id; }
         const polynomial & poly() const { return m_poly; }
         const svector<constraint_index> & assert_origins() const { return m_assert_origins;}
-        const std::unordered_set<const constraint*> & lemma_origins() const { return m_lemma_origins;}
+        const std::unordered_set<const constraint*,  ccns_hash, ccns_equal> & lemma_origins() const { return m_lemma_origins;}
         bool is_lemma() const { return !is_assert(); }
         bool is_assert() const { return m_assert_origins.size() > 0; }
         bool is_ineq() const { return m_is_ineq; }
@@ -273,14 +285,6 @@ public: // for debugging
             out << m_bound;
         }
         const mpq & bound() const { return m_bound; }
-    };
-
-    struct ccns_hash {
-        size_t operator() (ccns* c) const { return c->id(); }
-    };
-
-    struct ccns_equal {
-        bool operator() (ccns * a, ccns * b) const { return a->id() == b->id(); }
     };
 
 
@@ -1264,28 +1268,30 @@ public:
         lp_assert(m_explanation.size() == 0);
     }
 
-
+    enum class propagate_return { PROGRESS, NOTHING, CONFLICT };
+    
     // returns true if there is no conflict and false otherwise
-    bool propagate_constraint(ccns* in) {
-        TRACE("ba_int", trace_print_constraint(tout, in););
-        if (in->is_simple())
-            return propagate_simple_constraint(in);
+    bool propagate_constraint(ccns* c) {
+        lp_assert(c->is_ineq());
+        TRACE("ba_int", trace_print_constraint(tout, c););
+        if (c->is_simple())
+            return propagate_simple_constraint(c);
         // consider a special case for constraint with just two variables
         unsigned the_only_unlim;
-        int r = lower_analize(in, the_only_unlim);
+        int r = lower_analize(c, the_only_unlim);
         if (r == 0) {
             mpq b;
-            lower(in->poly(), b);
+            lower(c->poly(), b);
             if (is_pos(b)) {
                 TRACE("cs_inconsistent", tout << "incostistent constraint ";
-                      trace_print_constraint(tout, in);
+                      trace_print_constraint(tout, c);
                       tout << "\nlevel = " << m_number_of_decisions << std::endl;);
                 return false;
             } else {
-                propagate_constraint_on_lower(in, b);
+                propagate_constraint_on_lower(c, b);
             }
         } else if (r == 1) {
-            propagate_constraint_only_one_unlim(in, the_only_unlim);
+            propagate_constraint_only_one_unlim(c, the_only_unlim);
         }
         return true;
     }
