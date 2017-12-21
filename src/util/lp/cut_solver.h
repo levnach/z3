@@ -741,9 +741,10 @@ public:
             print_var_info(std::cout, j);
         }
 
-        if (vlits != literals)
+        if (vlits != literals) {
+            TRACE("var_info_is_correct", tout << "vlits != literals";);
             return false;
-
+        }
         std::unordered_set<constraint*, ccns_hash, ccns_equal> deps;
         for (const auto c: m_asserts) {
             if (!is_zero(c->coeff(j)))
@@ -755,13 +756,17 @@ public:
         }
 
         for (auto p : v.dependent_constraints()) {
-            if (deps.find(p.first) == deps.end())
+            if (deps.find(p.first) == deps.end()) {
+                TRACE("var_info_is_correct", tout << "deps.find(p.first) == deps.end()";);
                 return false;
+            }
         }
 
         for (auto p: deps) {
-            if (v.dependent_constraints().find(p) == v.dependent_constraints().end())
-                return false;
+            if (v.dependent_constraints().find(p) == v.dependent_constraints().end()) {
+                TRACE("var_info_is_correct", tout << "v.dependent_constraints().find(p) == v.dependent_constraints().end()";);
+                 return false;
+            }
         }
             
         return true;
@@ -2151,8 +2156,8 @@ public:
         if (improves(j, br)) {
             literal l = literal::make_implied_literal(j, br.m_type == bound_type::LOWER, br.bound(), t);
             l.tight_ineq() = t->poly();
-            push_literal_to_trail(l);
             restrict_var_domain_with_bound_result(j, br);
+            push_literal_to_trail(l);
             TRACE("cut_solver_state_simple_constraints", tout <<"improved domain = ";
                   m_var_infos[j].domain().print(tout);
                   tout<<"\n";
@@ -2272,7 +2277,8 @@ public:
         for (auto & p : lhs)
             local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
         constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, local_lhs, free_coeff,origins);
-        m_asserts.push_back(c); 
+        m_asserts.push_back(c);
+        add_constraint_to_dependend_for_its_vars(c);
         if (c->is_simple()) {
             if (propagate_simple_constraint(c) == propagate_result::CONFLICT)
                 if (m_conflict == nullptr)
@@ -2291,11 +2297,15 @@ public:
         TRACE("add_ineq_int", tout << "m_asserts[" << m_asserts.size() - 1 << "] =  ";
               print_constraint(tout, *m_asserts.back()); tout << "\n";);
         
-        for (auto & p : local_lhs) {
-            m_var_infos[p.var()].add_dependent_constraint(c, is_pos(p.coeff())? bound_type::UPPER : bound_type::LOWER);
-        }
         return m_asserts.size() - 1;
     }
+
+    void add_constraint_to_dependend_for_its_vars(constraint * c) {
+        for (auto & p : c->poly().coeffs()) {
+            m_var_infos[p.var()].add_dependent_constraint(c, is_pos(p.coeff())? bound_type::UPPER : bound_type::LOWER);
+        }
+    }
+    
 };
 
 inline cut_solver::polynomial operator*(const mpq & a, cut_solver::polynomial & p) {
