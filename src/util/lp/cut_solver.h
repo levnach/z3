@@ -407,6 +407,8 @@ public:
     }
 
     std::string get_column_name(unsigned j) const {
+        if (m_var_infos[j].user_var() == m_art_var)
+            return std::string("s");
         return m_var_name_function(m_var_infos[j].user_var());
     }
 
@@ -471,6 +473,7 @@ public:
     std::set<unsigned>                             m_U; // the set of conflicting cores
     unsigned                                       m_art_var;
     stacked_value<ccns*>                           m_conflict;
+    unsigned                                       m_bounded_search_calls; 
     struct scope {
         unsigned m_trail_size;
         unsigned m_asserts_size;
@@ -539,7 +542,7 @@ public:
 
     bool check_inconsistent() {
         if (at_base_lvl())
-            return all_constraints_hold();
+            return !all_constraints_hold();
         return false;
     }
 
@@ -850,7 +853,7 @@ public:
             mpq v = floor(- lower_val / p.coeff()) + m;
             if (new_upper_bound_is_relevant(j, v)) {
                 m_var_infos[j].intersect_with_upper_bound(v);
-                TRACE("ba_int", trace_print_domain_change(tout, j, v, p, c););
+                TRACE("ba_int_change", trace_print_domain_change(tout, j, v, p, c););
                 add_bound(v, j, false, c);
                 if (m_var_infos[j].is_fixed())
                     set_value_for_fixed_var_and_check_for_conf_cores(j);
@@ -862,7 +865,7 @@ public:
             mpq v = ceil( - lower_val / p.coeff()) + m;
             if (new_lower_bound_is_relevant(j, v)) {
                 m_var_infos[j].intersect_with_lower_bound(v);
-                TRACE("ba_int", trace_print_domain_change(tout, j, v, p, c););
+                TRACE("ba_int_change", trace_print_domain_change(tout, j, v, p, c););
                 add_bound(v, j, true , c);
                 if (m_var_infos[j].is_fixed())
                     set_value_for_fixed_var_and_check_for_conf_cores(j);
@@ -880,7 +883,7 @@ public:
             bool change = new_upper_bound_is_relevant(j, v);
             if (change) {
                 m_var_infos[j].intersect_with_upper_bound(v);
-                TRACE("ba_int", trace_print_domain_change(tout, j, v, p, c););
+                TRACE("ba_int_change", trace_print_domain_change(tout, j, v, p, c););
                 add_bound(v, j, false, c);
                 return propagate_result::PROGRESS;
             }
@@ -889,7 +892,7 @@ public:
             bool change = new_lower_bound_is_relevant(j, v);
             if (change) {
                 m_var_infos[j].intersect_with_lower_bound(v);
-                TRACE("ba_int", trace_print_domain_change(tout, j, v, p, c););
+                TRACE("ba_int_change", trace_print_domain_change(tout, j, v, p, c););
                 add_bound(v, j, true , c);
                 return propagate_result::PROGRESS;
             }
@@ -898,7 +901,10 @@ public:
     }
 
     void print_var_info(std::ostream & out, const var_info & vi) const {
-        out << m_var_name_function(vi.user_var()) << " ";
+        if (vi.user_var() == m_art_var)
+            out << "s" << " ";
+        else
+            out << m_var_name_function(vi.user_var()) << " ";
         print_var_domain(out, vi);
     }
 
@@ -929,14 +935,14 @@ public:
     }
 
     unsigned find_lower_bound_literal(bool is_lower, unsigned j, unsigned & upper_end_of_trail) const {
-        TRACE("ba_int", tout << get_column_name(j) << "\n"; tout << "literal's size = " << m_var_infos[j].literals().size() << "\n";);
+        TRACE("ba_int_confl", tout << var_name(j) << "\n"; tout << "literal's size = " << m_var_infos[j].literals().size() << "\n";);
         for (unsigned k = m_var_infos[j].literals().size(); k--;) {
             unsigned literal_index = m_var_infos[j].literals()[k];
             if (literal_index >= upper_end_of_trail)
                 continue;
             const literal& l = m_trail[literal_index];
             if (l.var() == j && l.is_lower() == is_lower) {
-                TRACE("ba_int",
+                TRACE("ba_int_confl",
                       tout << "found lower bound expl\n";
                       print_literal(tout, l); tout << "\n";);
                 return literal_index;
@@ -1240,12 +1246,21 @@ public:
         if (i.is_ineq()) {
             out << " <= 0";
         }
-        out << " active = " << i.is_active() << "\n";
+        out << " active = " << i.is_active() << " ";
+        mpq b;
+        if (lower(&i, b)) {
+            out << ", lower = " << b;
+            if (is_pos(b))
+                out << " INF";
+        } else {
+            out << ", no lower";
+        }
+        out << std::endl;
     }
 
     void print_literal(std::ostream & out, const literal & t) const {
         out << (t.is_decided()? "decided ": "implied ");
-        out << get_column_name(t.var()) << " ";
+        out << var_name(t.var()) << " ";
         if (t.is_lower())
             out << ">= ";
         else
@@ -1416,6 +1431,7 @@ public:
         while (true) {
             TRACE("cs_ch", tout << "inside loop\n";);
             lbool r = bounded_search();
+            TRACE("cs_ch", print_state(tout););
             lp_assert(solver_is_in_correct_state());
             if (r != lbool::l_undef) {
                 TRACE("check_int", tout << "return " << (r == lbool::l_true ? "true" : "false") << "\n";
@@ -1541,9 +1557,11 @@ public:
             print_var_info(out, v);
         }
         out << "end of var_infos\n";
-        out << "end of state dump" << std::endl;
+        out << "level = " << m_number_of_decisions << "\n";
+        out << "end of state dump, bounded_search_calls = "  <<  m_bounded_search_calls << std::endl;
     }
     lbool bounded_search() {
+        m_bounded_search_calls++;
         lbool is_sat = propagate_and_backjump_step();
         if (is_sat != lbool::l_undef) {
             TRACE("decide_int", tout << "returning " << (int)is_sat << "\n";);
@@ -1601,7 +1619,7 @@ public:
                 // std::cout << "ddd=" << ++lp_settings::ddd << std::endl;
                 // if (lp_settings::ddd > 1000)
                 //     lp_assert(false); // debug !!!!!
-
+                handle_conflicting_cores(); // testing only
                 resolve_conflict(incostistent_constraint);
                 if (m_explanation.size() > 0) // it means that we found a conflict at the base level during resolve_conflict()
                     return lbool::l_false; 
@@ -1824,7 +1842,7 @@ public:
                                               l.var());
         
         TRACE("int_backjump", br.print(tout);
-              tout << "; var info of " << get_column_name(l.var()) << ": ";
+              tout << "; var info of " << var_name(l.var()) << ": ";
               print_var_info(tout, l.var());
               tout << "p = ";
               print_polynomial(tout, p);
@@ -1844,7 +1862,7 @@ public:
         add_bound(br.bound(), l.var(), br.m_type == bound_type::LOWER, c);
         restrict_var_domain_with_bound_result(l.var(), br);
         lp_assert(!m_var_infos[l.var()].domain().is_empty());
-        TRACE("int_backjump", tout << "var info after restricton = ";
+        TRACE("int_backjump", tout << "done resolving:\nvar info after restricton = ";
               print_var_info(tout, l.var());
               tout << "new literal = "; print_literal(tout, m_trail.back()););
         lp_assert(!lower_is_pos(p));
@@ -1873,11 +1891,13 @@ public:
         if (l.is_decided()) {
             if (decision_is_redundant_for_constraint(p, l)) {
                 pop(); // skip decision
+                lp_assert(m_trail.size() == trail_index);
                 TRACE("int_resolve_confl", tout << "skip decision";
                       if (m_number_of_decisions == 0) tout << ", done resolving";);
                 return m_number_of_decisions == 0;
             }
             else {
+                handle_conflicting_cores();
                 return backjump(p, trail_index, lemma_origins);
             }
         } else { // the literal is implied
@@ -2048,7 +2068,8 @@ public:
                    m_number_of_decisions(0),
                    m_settings(settings),
                    m_max_constraint_id(0),
-                   m_conflict(nullptr)
+                   m_conflict(nullptr),
+                   m_bounded_search_calls(0)
     {}
 
 
@@ -2080,16 +2101,21 @@ public:
             std::cout << "confl core = "; print_var_info(std::cout, j);
             std::cout << "lower = "; print_constraint(std::cout, *lower);
             std::cout << "upper = "; print_constraint(std::cout, *upper);
-            //            lp_assert(false); // not implemented
+            lp_assert(false); // not implemented
         }
     }
 
+    constraint* find_constraint_to_propagate(unsigned rand) {
+        handle_conflicting_cores();
+        return m_active_set.remove_random_constraint(rand);
+    }
+    
     // returns nullptr if there is no conflict, or a conflict constraint otherwise
     ccns* propagate_constraints_on_active_set() {
         if (m_conflict != nullptr)
             return m_conflict;
         constraint *c;
-        while ((c = m_active_set.remove_random_constraint(m_settings.random_next())) != nullptr) {
+        while ((c = find_constraint_to_propagate(m_settings.random_next())) != nullptr) {
             auto r = propagate_constraint(c);
             if (r == propagate_result::CONFLICT) {
                 return c;
@@ -2149,7 +2175,7 @@ public:
         
         bound_result br = bound(t, j);
         TRACE("cut_solver_state_simple_constraints", tout << "bound result = {"; br.print(tout); tout << "}\n";
-              tout << "domain of " << get_column_name(j) << " = "; m_var_infos[j].domain().print(tout);
+              tout << "domain of " << var_name(j) << " = "; m_var_infos[j].domain().print(tout);
               tout << "\n";
               );
         
@@ -2251,6 +2277,7 @@ public:
     }
     
     constraint * add_lemma(polynomial& p, const svector<const constraint*>& lemma_origins) {
+        lp_assert(!is_pos(p.coeff(9) ));
         simplify_ineq(p);
         constraint *c = constraint::make_ineq_lemma(m_max_constraint_id++, p, lemma_origins);
         m_lemmas.push_back(c);
