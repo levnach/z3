@@ -17,20 +17,8 @@
 namespace lp {
 enum class lbool { l_false, l_true, l_undef };
 
-class cut_solver : public column_namer {
-public: // for debugging
-    enum class propagate_result { PROGRESS, NOTHING, CONFLICT };
-    std::string propagate_result_to_string(propagate_result r) const {
-        switch(r) {
-        case propagate_result::NOTHING: return "NOTHING";
-        case propagate_result::PROGRESS: return "PROGRESS";
-        case propagate_result::CONFLICT: return "CONFLICT";
-        default:
-            lp_assert(false);
-            return "invalid input";
-        }
-        
-    }
+    class cut_solver;
+
     struct monomial {
         mpq           m_coeff; // the coefficient of the monomial
         var_index   m_var; // the variable index
@@ -45,14 +33,8 @@ public: // for debugging
         std::pair<mpq, var_index> to_pair() const { return std::make_pair(coeff(), var());}
     };
 
-    vector<std::pair<mpq, var_index>> to_pairs(const vector<monomial>& ms) const {
-        vector<std::pair<mpq, var_index>> ret;
-        for (const auto p : ms)
-            ret.push_back(p.to_pair());
-        return ret;
-    }
-    
     struct polynomial {
+        static mpq m_local_zero;
         // the polynomial evaluates to m_coeffs + m_a
         vector<monomial>        m_coeffs;
         mpq                     m_a; // the free coefficient
@@ -128,6 +110,7 @@ public: // for debugging
             }
             return m_coeffs.size() == s.size();
         }
+        // TBD: what is "j" is it a variable?
         bool is_tight(unsigned j) const {
             const mpq & a = coeff(j);
             return a == 1 || a == -1;
@@ -135,6 +118,41 @@ public: // for debugging
         const vector<monomial> & coeffs() const { return m_coeffs; }
     };
 
+    struct pp_poly {
+        cut_solver const& s;
+        polynomial const& p;
+        pp_poly(cut_solver const& s, polynomial const& p): s(s), p(p) {}
+    };
+
+    std::ostream& operator<<(std::ostream& out, pp_poly const& p);
+    
+class cut_solver : public column_namer {
+public: // for debugging
+    enum class propagate_result { PROGRESS, NOTHING, CONFLICT };
+    std::string propagate_result_to_string(propagate_result r) const {
+        switch(r) {
+        case propagate_result::NOTHING: return "NOTHING";
+        case propagate_result::PROGRESS: return "PROGRESS";
+        case propagate_result::CONFLICT: return "CONFLICT";
+        default:
+            lp_assert(false);
+            return "invalid input";
+        }        
+    }
+
+    typedef polynomial polynomial;
+    typedef monomial monomial;
+
+    vector<std::pair<mpq, var_index>> to_pairs(const vector<monomial>& ms) const {
+        vector<std::pair<mpq, var_index>> ret;
+        for (const auto p : ms)
+            ret.push_back(p.to_pair());
+        return ret;
+    }    
+
+    // TBD: there is some overlap of const constraint and ccns.
+    // svector<ccns*> could be another definition. Do we need a const_ptr_vector type?
+    
     class constraint; // forward definition
     struct ccns_hash {
         size_t operator() (const constraint* c) const;
@@ -261,6 +279,8 @@ public: // for debugging
         bool is_decided() const { return m_trail_index != -1; }
 
         bool is_implied() const { return !is_decided();}
+
+        // TBD: would be nice with a designated type for variables?
 
         unsigned var() const { return m_var; }
         static literal make_implied_literal(unsigned var_index, bool is_lower, const mpq & bound, ccns * c) {
@@ -491,7 +511,6 @@ public:
 
     stacked_value<scope>          m_scope;
     std::unordered_map<unsigned, unsigned> m_user_vars_to_cut_solver_vars;
-    static mpq m_local_zero;
     std::unordered_set<constraint_index> m_explanation; // if this collection is not empty we have a conflict 
 
     unsigned add_var(unsigned user_var_index) {
@@ -609,6 +628,7 @@ public:
         }
     }
 
+    // TBD: is 'j' a variable or what?
     void add_changed_var(unsigned j) {
         TRACE("add_changed_var_int", tout <<  "j = " << j << "\n";);
         for (auto & p: m_var_infos[j].dependent_constraints()) {
@@ -624,6 +644,7 @@ public:
         unsigned k = m_var_infos.size();
         svector<bool> bound_is_set(k, false); // bound_is_set[j] = false means not set
         vector<mpq> bound_vals(k);
+        // TBD: for (const literal& l : m_trail) ?
         for (unsigned j = 0; j < m_trail.size(); j++) {
             const literal &l = m_trail[j];
             if (!l.is_lower())
@@ -642,6 +663,7 @@ public:
             }
         }
 
+        // TBD: for (var_info const& vi : m_var_infos) ? 
         for (unsigned j = 0; j < m_var_infos.size(); j++) {
             mpq b;
             if (!m_var_infos[j].get_lower_bound(b)) {
@@ -1241,7 +1263,7 @@ public:
         if (!i.is_ineq()) {
             out << i.divider() << " | ";
         }
-        print_polynomial(out, i.poly()) ;
+        out << pp_poly(*this, i.poly());
         if (i.is_ineq()) {
             out << " <= 0";
         }
@@ -1272,20 +1294,15 @@ public:
         } else {
             out << " decided on trail element " << t.trail_index();
             if (!m_trail[t.trail_index()].tight_ineq().is_empty()) {
-                out << " with tight ineq ";
-                print_polynomial(out, m_trail[t.trail_index()].tight_ineq());
+                out << " with tight ineq " << pp_poly(*this, m_trail[t.trail_index()].tight_ineq());
             }
             out << "\n";
         }
         if (!t.tight_ineq().is_empty()) {
-            out << " tight_ineq() = ";
-            print_polynomial(out, t.tight_ineq());
-            out << "\n";
+            out << " tight_ineq() = " << pp_poly(*this, t.tight_ineq()) << "\n";
         } 
     }
-    
-
-    
+       
     void print_polynomial(std::ostream & out, const polynomial & p) const {
         vector<std::pair<mpq, unsigned>> pairs = to_pairs(p.m_coeffs);
         this->print_linear_combination_of_column_indices_std(pairs, out);
@@ -1301,8 +1318,8 @@ public:
     // mpqrying to improve constraint "ie" by eliminating var j by using a  tight inequality 
     // for j. mpqhe left side of the inequality is passed as a parameter.
     bool resolve(polynomial & ie, unsigned j, bool sign_j_in_ti_is_pos, const polynomial & ti) const {
-        TRACE("resolve_int", tout << "ie = " ; print_polynomial(tout, ie);
-              tout << ", j = " << j << "(" << var_name(j) << ")" << ", sign_j_in_ti_is_pos = " << sign_j_in_ti_is_pos << ", ti = ";  print_polynomial(tout, ti); tout << "\n";);
+        TRACE("resolve_int", tout << "ie = " << pp_poly(*this, ie);
+              tout << ", j = " << j << "(" << var_name(j) << ")" << ", sign_j_in_ti_is_pos = " << sign_j_in_ti_is_pos << ", ti = " << pp_poly(*this, ti) << "\n";);
         lp_assert(ti.is_tight(j));
         lp_assert(is_pos(ti.coeff(j)) == sign_j_in_ti_is_pos);
         auto &coeffs = ie.m_coeffs;
@@ -1336,7 +1353,7 @@ public:
         }
 
         ie.m_a += a * ti.m_a;
-        TRACE("resolve_int", tout << "ie = "; print_polynomial(tout, ie);tout << "\n";);
+        TRACE("resolve_int", tout << "ie = " << pp_poly(*this, ie) << "\n";);
         return true;
     }
 
@@ -1655,18 +1672,17 @@ public:
         }
 
         TRACE("tight",
-              tout << "div_part = ";
-              print_polynomial(tout, div_part);
-              tout << "\nndiv_part = ";
-              print_polynomial(tout, ndiv_part););
+              tout << "div_part = " << pp_poly(*this, div_part) << "\n";
+              tout << "ndiv_part = " << pp_poly(*this, ndiv_part) << "\n";);
     }
 
+
+    // TBD: just call decided_upper_pos(ndiv_part, -c, l, lemma_origins) ?
     void decided_lower_neg(polynomial &ndiv_part, const mpq & c,
                            literal &l, svector<ccns*> & lemma_origins) {
         ndiv_part.add( -c, m_trail[l.trail_index()].tight_ineq());
         lp_assert(is_zero(ndiv_part.coeff(l.var())));
-        TRACE("tight", tout << "ndiv_part = ";
-              print_polynomial(tout, ndiv_part); tout << "\n";);
+        TRACE("tight", tout << "ndiv_part = " << pp_poly(*this, ndiv_part) << "\n";);
     }
 
     void decided_upper_pos(polynomial &ndiv_part, const mpq & c,
@@ -1674,9 +1690,7 @@ public:
         lp_assert(is_pos(c));
         ndiv_part.add(c, m_trail[l.trail_index()].tight_ineq());
         lp_assert(is_zero(ndiv_part.coeff(l.var())));
-        TRACE("tight",
-              tout << "ndiv_part = ";
-              print_polynomial(tout, ndiv_part); tout << "\n";);
+        TRACE("tight", tout << "ndiv_part = " << pp_poly(*this, ndiv_part) << "\n";);
     }
 
     void decided_lower(const mpq & a, const mpq & c, polynomial &div_part,
@@ -1702,12 +1716,8 @@ public:
         }
         ndiv_part += m * lex.tight_ineq().m_a;
         TRACE("tight", tout << "Decided-Lower ";
-              tout << "div_part = ";
-              print_polynomial(tout, div_part);
-              tout << "\n";
-              tout << "ndiv_part = ";
-              print_polynomial(tout, ndiv_part);
-              tout << "\n";);
+              tout << "div_part = " << pp_poly(*this, div_part) << "\n";
+              tout << "ndiv_part = " << pp_poly(*this, ndiv_part) << "\n";);
     }
 
     void decided_upper(const mpq & a, const mpq & c, polynomial &div_part, polynomial &r,
@@ -1735,12 +1745,8 @@ public:
         }
         r += m * lex.tight_ineq().m_a;
         TRACE("tight", tout << "Decided-Lower ";
-              tout << "div_part = ";
-              print_polynomial(tout, div_part);
-              tout << "\n";
-              tout << "r = ";
-              print_polynomial(tout, r);
-              tout << "\n";);
+              tout << "div_part = " << pp_poly(*this, div_part) << "\n";
+              tout << "r = " << pp_poly(*this, r) << "\n";);
     }
 
     void tighten_on_literal(polynomial & p, const mpq & a,
@@ -1757,16 +1763,15 @@ public:
               print_literal(tout, m_trail[trail_index]););
         if (l.is_implied()) { // Resolve-Implied
             resolve(ndiv_part, l.var(), !l.is_lower(), l.tight_ineq());
-            TRACE("tight", tout << "after resolve ndiv_part = "; print_polynomial(tout, ndiv_part);
-                  tout << "\n";);
+            TRACE("tight", tout << "after resolve ndiv_part = " << pp_poly(*this, ndiv_part) << "\n";);
         } else { 
             lp_assert(l.is_decided());
             create_tight_ineq_under_literal(l.trail_index(), lemma_origins);
             TRACE("tight",
-              tout << "trail_index = " << trail_index << ", ";
+                  tout << "trail_index = " << trail_index << ", ";
                   print_literal(tout, m_trail[trail_index]); tout << "\n";
-                  tout << "div_part = "; print_polynomial(tout, div_part); tout << "\n";
-                  tout << "ndiv_part = "; print_polynomial(tout, ndiv_part); tout << "\n";
+                  tout << "div_part = " << pp_poly(*this, div_part) << "\n";
+                  tout << "ndiv_part = " << pp_poly(*this, ndiv_part) << "\n";
                   tout << "a = " << a << "\n";
                   );
             mpq c = ndiv_part.coeff(l.var());
@@ -1928,7 +1933,17 @@ public:
         
         lemma_origins.append(collect_origin_constraints(l.cnstr()));
         TRACE("lemma_origins", tout << "lemma_origins.size()="<< lemma_origins.size()<<"\n";);
-        TRACE("int_resolve_conflxxx", trace_resolve_print(tout, p, l, trail_index););
+        TRACE("int_resolve_conflxxx", tout << "trail_index = " << trail_index <<", p = ";
+              print_polynomial(tout, p);
+              tout << "\nl = ";  print_literal(tout, l);
+              tout << "lower(p) = " << lower_no_check(p) << "\n";
+              for (auto & m : p.coeffs()) {
+                  tout <<  var_name(m.var()) << " ";
+                  print_var_domain(tout, m.var());
+                  tout << " ";
+              }
+              tout << "\nm_number_of_decisions = " << m_number_of_decisions << "\n";
+              );
         if (l.is_decided()) {
             if (decision_is_redundant_for_constraint(p, l)) {
                 pop(); // skip decision
@@ -2379,12 +2394,12 @@ public:
     
 };
 
-inline cut_solver::polynomial operator*(const mpq & a, cut_solver::polynomial & p) {
-    cut_solver::polynomial ret;
+inline polynomial operator*(const mpq & a, polynomial & p) {
+    polynomial ret;
     ret.m_a = p.m_a * a;
     
     for (const auto & t: p.m_coeffs)
-        ret.m_coeffs.push_back(cut_solver::monomial(a * t.coeff(), t.var()));
+        ret.m_coeffs.push_back(monomial(a * t.coeff(), t.var()));
     
     return ret;
 }
