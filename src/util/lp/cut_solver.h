@@ -354,9 +354,7 @@ public: // for debugging
             auto it = std::find (m_literals.begin(), m_literals.end(), literal_index);
             lp_assert(it != m_literals.end());
             m_literals.erase(it);
-        }
-
-        
+        }        
     }; // end of var_info
 
     vector<var_info> m_var_infos;
@@ -473,7 +471,8 @@ public:
     std::set<unsigned>                             m_U; // the set of conflicting cores
     unsigned                                       m_art_var;
     stacked_value<ccns*>                           m_conflict;
-    unsigned                                       m_bounded_search_calls; 
+    unsigned                                       m_bounded_search_calls;
+    vector<polynomial>                             m_debug_resolve_ineqs;
     struct scope {
         unsigned m_trail_size;
         unsigned m_asserts_size;
@@ -1301,7 +1300,7 @@ public:
 
     // mpqrying to improve constraint "ie" by eliminating var j by using a  tight inequality 
     // for j. mpqhe left side of the inequality is passed as a parameter.
-    void resolve(polynomial & ie, unsigned j, bool sign_j_in_ti_is_pos, const polynomial & ti) const {
+    bool resolve(polynomial & ie, unsigned j, bool sign_j_in_ti_is_pos, const polynomial & ti) const {
         TRACE("resolve_int", tout << "ie = " ; print_polynomial(tout, ie);
               tout << ", j = " << j << "(" << var_name(j) << ")" << ", sign_j_in_ti_is_pos = " << sign_j_in_ti_is_pos << ", ti = ";  print_polynomial(tout, ti); tout << "\n";);
         lp_assert(ti.is_tight(j));
@@ -1320,16 +1319,16 @@ public:
 
         if (!found) {
             TRACE("resolve_int", tout << " no change\n";);
-            return;
+            return false;
         }
 
         if (is_neg(a)) {
             if (!sign_j_in_ti_is_pos)
-                return;
+                return false;
             a = -a;
         } else {
             if (sign_j_in_ti_is_pos)
-                return;
+                return false;
         }
 
         for (auto & c : ti.m_coeffs) {
@@ -1338,6 +1337,7 @@ public:
 
         ie.m_a += a * ti.m_a;
         TRACE("resolve_int", tout << "ie = "; print_polynomial(tout, ie);tout << "\n";);
+        return true;
     }
 
     // returns true iff p imposes a better bound on j
@@ -1441,7 +1441,8 @@ public:
             }
             restart();
             simplify_problem();
-            if (check_inconsistent()) return lbool::l_false;
+            if (check_inconsistent())
+                return lbool::l_false;
             gc();
         }
     }
@@ -1616,9 +1617,6 @@ public:
 
                     return lbool::l_false;
                 }
-                // std::cout << "ddd=" << ++lp_settings::ddd << std::endl;
-                // if (lp_settings::ddd > 1000)
-                //     lp_assert(false); // debug !!!!!
                 handle_conflicting_cores(); // testing only
                 resolve_conflict(incostistent_constraint);
                 if (m_explanation.size() > 0) // it means that we found a conflict at the base level during resolve_conflict()
@@ -1850,11 +1848,14 @@ public:
               );
         if (!improves(l.var(), br)) {
             TRACE("int_backjump", br.print(tout);
-                  tout << "\nimproves is false";);
-            do pop(); while(m_trail.size() > trail_index);
+                  tout << "\nimproves is false\n";);
+            do { pop(); } while(m_trail.size() > trail_index);
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
             add_lemma(p, lemma_origins);
+            if (m_var_infos[l.var()].user_var() == m_art_var) {
+                std::cout << "backjump on s "; print_constraint(std::cout, *m_lemmas.back());
+            }
             return true;
         }
         
@@ -1866,10 +1867,60 @@ public:
               print_var_info(tout, l.var());
               tout << "new literal = "; print_literal(tout, m_trail.back()););
         lp_assert(!lower_is_pos(p));
+        lp_assert(debug_resolve_polys_are_satisfied());
+        if (m_var_infos[l.var()].user_var() == m_art_var) {
+                std::cout << "backjump on s "; print_constraint(std::cout, *m_lemmas.back());
+        }
         return true;  // we are done resolving
     }
 
+    bool debug_resolve_polys_are_satisfied() const {
+        for (const polynomial & p : m_debug_resolve_ineqs) {
+            if (lower_is_pos(p)) {
+                std::cout << "this ineq is not satisfied "; print_polynomial(std::cout, p);
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    void ctrace_resolve_print(bool resolved, const polynomial& p, const literal &l) const {
+        CTRACE("int_resolve_confl", resolved, 
+               tout << "new p = ";
+               print_polynomial(tout, p);
+               mpq rr;
+               bool bb = lower(p, rr);
+               if (!bb) {
+                   tout << "\nlower(p) is not defined";
+               } else {
+                   tout << "\nlower(p) = " << rr;
+               }
+                  
+               tout <<"\ntight_ineq = "; print_polynomial(tout, l.tight_ineq());
+               tout << "\nvar domains" << "\n";
+               for (auto & m : l.tight_ineq().coeffs()) {
+                   tout <<  "var = " << m.var() << " " << var_name(m.var()) << " ";
+                   print_var_domain(tout, m.var());
+                   tout << " ";
+               }
+               tout << "\n";
+               );
+    }
 
+    void trace_resolve_print(std::ostream& out, const polynomial & p, const literal & l, unsigned trail_index) {
+        out << "trail_index = " << trail_index <<", p = ";
+        print_polynomial(out, p);
+        out << "\nl = ";  print_literal(out, l);
+        out << "lower(p) = " << lower_no_check(p) << "\n";
+        for (auto & m : p.coeffs()) {
+            out <<  var_name(m.var()) << " ";
+            print_var_domain(out, m.var());
+            out << " ";
+        }
+        out << "\nm_number_of_decisions = " << m_number_of_decisions << "\n";
+    }
+
+    
     // returns true iff resolved
     bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index, svector<ccns*> & lemma_origins) {
         lp_assert(lower_is_pos(p));
@@ -1877,17 +1928,7 @@ public:
         
         lemma_origins.append(collect_origin_constraints(l.cnstr()));
         TRACE("lemma_origins", tout << "lemma_origins.size()="<< lemma_origins.size()<<"\n";);
-        TRACE("int_resolve_confl", tout << "trail_index = " << trail_index <<", p = ";
-              print_polynomial(tout, p);
-              tout << "\nl = ";  print_literal(tout, l);
-              tout << "lower(p) = " << lower_no_check(p) << "\n";
-              for (auto & m : p.coeffs()) {
-                  tout <<  var_name(m.var()) << " ";
-                  print_var_domain(tout, m.var());
-                  tout << " ";
-              }
-              tout << "\nm_number_of_decisions = " << m_number_of_decisions << "\n";
-              );
+        TRACE("int_resolve_conflxxx", trace_resolve_print(tout, p, l, trail_index););
         if (l.is_decided()) {
             if (decision_is_redundant_for_constraint(p, l)) {
                 pop(); // skip decision
@@ -1902,28 +1943,17 @@ public:
             }
         } else { // the literal is implied
             create_tight_ineq_under_literal(trail_index, lemma_origins);
+            #if DEBUG
+            m_debug_resolve_ineqs.push_back(l.tight_ineq());
+            #endif
             // applying Resolve rool
-            resolve(p, l.var(), !l.is_lower(), l.tight_ineq());
-            TRACE("int_resolve_confl",
-                  tout << "new p = ";
-                  print_polynomial(tout, p);
-                  mpq rr;
-                  bool bb = lower(p, rr);
-                  if (!bb) {
-                      tout << "\nlower(p) is not defined";
-                  } else {
-                      tout << "\nlower(p) = " << rr;
-                  }
-                  
-                  tout <<"\ntight_ineq = "; print_polynomial(tout, l.tight_ineq());
-                  tout << "\nvar domains" << "\n";
-                  for (auto & m : l.tight_ineq().coeffs()) {
-                      tout <<  "var = " << m.var() << " " << var_name(m.var()) << " ";
-                      print_var_domain(tout, m.var());
-                      tout << " ";
-                  }
-                  tout << "\n";
-                  );
+#if TRACE
+            bool resolved =
+#endif
+                resolve(p, l.var(), !l.is_lower(), l.tight_ineq());
+#if TRACE
+            ctrace_resolve_print(resolved, p, l);
+#endif
             lp_assert(lower_is_pos(p));
         }
         return false; // not done
@@ -1951,6 +1981,7 @@ public:
         lp_assert(lower_is_pos(p));
         bool done = false;
         unsigned j = m_trail.size() - 1;
+        m_debug_resolve_ineqs.clear();
         while (!done) {
             done = resolve_conflict_for_inequality_on_trail_element(p, j--, conflict_origins);
             if (j >= m_trail.size()) {
@@ -2093,6 +2124,7 @@ public:
     }
     
     void handle_conflicting_cores() {
+        return;
         const constraint* lower;
         const constraint* upper;
         int j = find_conflicting_core(lower, upper);
@@ -2149,16 +2181,27 @@ public:
     }
     
     void decide_var_on_bound(unsigned j, bool decide_on_lower) {
-        push();    
-        mpq b;
+         mpq b;
         vector<monomial> lhs;
+
+        var_info & vi = m_var_infos[j];
+        if (vi.user_var() == m_art_var) {
+            vi.get_lower_bound(b);
+            vector<monomial> v;
+            v.push_back(monomial(- one_of_type<mpq>(), j));
+            polynomial p(v, 2 * b); // make the lower bound twice larger
+            add_lemma(p, svector<ccns*>()); // s >= 2b
+        }
+
+        push();    
+
         if (decide_on_lower) {
-            m_var_infos[j].domain().get_lower_bound(b);
-            m_var_infos[j].intersect_with_upper_bound(b);
+            vi.domain().get_lower_bound(b);
+            vi.intersect_with_upper_bound(b);
         }
         else {
-            m_var_infos[j].domain().get_upper_bound(b);
-            m_var_infos[j].intersect_with_lower_bound(b);
+            vi.domain().get_upper_bound(b);
+            vi.intersect_with_lower_bound(b);
         }
         if (j >= m_v.size())
             m_v.resize(j + 1);
@@ -2167,6 +2210,8 @@ public:
         add_changed_var(j);
         m_number_of_decisions++;
         push_literal_to_trail(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
+        if(vi.user_var() == m_art_var)
+            print_var_info(std::cout << " deciding ", vi);
     }
 
     propagate_result propagate_simple_constraint(ccns *t) {
@@ -2277,7 +2322,6 @@ public:
     }
     
     constraint * add_lemma(polynomial& p, const svector<const constraint*>& lemma_origins) {
-        lp_assert(!is_pos(p.coeff(9) ));
         simplify_ineq(p);
         constraint *c = constraint::make_ineq_lemma(m_max_constraint_id++, p, lemma_origins);
         m_lemmas.push_back(c);
