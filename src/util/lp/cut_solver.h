@@ -110,8 +110,8 @@ enum class lbool { l_false, l_true, l_undef };
             }
             return m_coeffs.size() == s.size();
         }
-        // TBD: what is "j" is it a variable?
-        bool is_tight(unsigned j) const {
+
+        bool var_coeff_is_unit(unsigned j) const {
             const mpq & a = coeff(j);
             return a == 1 || a == -1;
         }
@@ -628,7 +628,7 @@ public:
         }
     }
 
-    // TBD: is 'j' a variable or what?
+    // 'j' is a variable that changed
     void add_changed_var(unsigned j) {
         TRACE("add_changed_var_int", tout <<  "j = " << j << "\n";);
         for (auto & p: m_var_infos[j].dependent_constraints()) {
@@ -644,7 +644,7 @@ public:
         unsigned k = m_var_infos.size();
         svector<bool> bound_is_set(k, false); // bound_is_set[j] = false means not set
         vector<mpq> bound_vals(k);
-        // TBD: for (const literal& l : m_trail) ?
+        // TBD: for (const literal& l : m_trail) ? (j is needed for TRACE)
         for (unsigned j = 0; j < m_trail.size(); j++) {
             const literal &l = m_trail[j];
             if (!l.is_lower())
@@ -663,7 +663,7 @@ public:
             }
         }
 
-        // TBD: for (var_info const& vi : m_var_infos) ? 
+        // TBD: for (var_info const& vi : m_var_infos) ? j is needed for TRACE
         for (unsigned j = 0; j < m_var_infos.size(); j++) {
             mpq b;
             if (!m_var_infos[j].get_lower_bound(b)) {
@@ -1320,7 +1320,7 @@ public:
     bool resolve(polynomial & ie, unsigned j, bool sign_j_in_ti_is_pos, const polynomial & ti) const {
         TRACE("resolve_int", tout << "ie = " << pp_poly(*this, ie);
               tout << ", j = " << j << "(" << var_name(j) << ")" << ", sign_j_in_ti_is_pos = " << sign_j_in_ti_is_pos << ", ti = " << pp_poly(*this, ti) << "\n";);
-        lp_assert(ti.is_tight(j));
+        lp_assert(ti.var_coeff_is_unit(j));
         lp_assert(is_pos(ti.coeff(j)) == sign_j_in_ti_is_pos);
         auto &coeffs = ie.m_coeffs;
         // todo: implement a more efficient version
@@ -1677,15 +1677,7 @@ public:
     }
 
 
-    // TBD: just call decided_upper_pos(ndiv_part, -c, l, lemma_origins) ?
-    void decided_lower_neg(polynomial &ndiv_part, const mpq & c,
-                           literal &l, svector<ccns*> & lemma_origins) {
-        ndiv_part.add( -c, m_trail[l.trail_index()].tight_ineq());
-        lp_assert(is_zero(ndiv_part.coeff(l.var())));
-        TRACE("tight", tout << "ndiv_part = " << pp_poly(*this, ndiv_part) << "\n";);
-    }
-
-    void decided_upper_pos(polynomial &ndiv_part, const mpq & c,
+    void add_tight_ineq_of_literal(polynomial &ndiv_part, const mpq & c,
                            literal &l, svector<ccns*> & lemma_origins) {
         lp_assert(is_pos(c));
         ndiv_part.add(c, m_trail[l.trail_index()].tight_ineq());
@@ -1777,14 +1769,14 @@ public:
             mpq c = ndiv_part.coeff(l.var());
             if (l.is_lower()) {
                 if (is_neg(c)) {
-                    decided_lower_neg(ndiv_part, c, l, lemma_origins);
+                    add_tight_ineq_of_literal(ndiv_part, -c, l, lemma_origins);
                 } else { 
                     decided_lower(a, c, div_part, ndiv_part, l, lemma_origins);
                 }
             } else {
                 lp_assert(!l.is_lower());
                 if (is_pos(c)) { // Decided-Upper-Pos
-                    decided_upper_pos(ndiv_part, c, l, lemma_origins);
+                    add_tight_ineq_of_literal(ndiv_part, c, l, lemma_origins);
                 } else { 
                     decided_upper(a, c, div_part, ndiv_part, l, lemma_origins);
                 }
