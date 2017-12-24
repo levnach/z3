@@ -559,8 +559,17 @@ public:
     }
 
     bool check_inconsistent() {
-        if (at_base_lvl())
-            return !all_constraints_hold();
+        if (at_base_lvl()) {
+            // the last added lemmas can give the contradiction
+            for (unsigned j = m_lemmas.size(); --j; ) {
+                if (lower_is_pos(m_lemmas[j])) { //todo : check for m_art_var here
+                    TRACE("check_inconsistent_int", tout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";); 
+                    lp_assert(false);  // not implemented
+                    return true;
+                }
+                    
+            }
+        }
         return false;
     }
 
