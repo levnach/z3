@@ -140,8 +140,8 @@ public: // for debugging
         }        
     }
 
-    typedef polynomial polynomial;
-    typedef monomial monomial;
+    typedef lp::polynomial polynomial;
+    typedef lp::monomial monomial;
 
     vector<std::pair<mpq, var_index>> to_pairs(const vector<monomial>& ms) const {
         vector<std::pair<mpq, var_index>> ret;
@@ -424,8 +424,12 @@ public:
         return false;
     }
 
+    bool is_global_bound_var(unsigned j) const {
+        return m_var_infos[j].user_var() == static_cast<unsigned>(m_art_var);
+    }
+    
     std::string get_column_name(unsigned j) const {
-        if (m_var_infos[j].user_var() == m_art_var)
+        if (is_global_bound_var(j))
             return std::string("s");
         return m_var_name_function(m_var_infos[j].user_var());
     }
@@ -489,8 +493,9 @@ public:
     lp_settings &                                  m_settings;
     unsigned                                       m_max_constraint_id;
     std::set<unsigned>                             m_U; // the set of conflicting cores
-    unsigned                                       m_art_var;
     stacked_value<ccns*>                           m_conflict;
+    int                                            m_art_var;
+    bool                                           m_art_var_is_pushed;
     unsigned                                       m_bounded_search_calls;
     vector<polynomial>                             m_debug_resolve_ineqs;
     struct scope {
@@ -559,15 +564,15 @@ public:
     }
 
     bool check_inconsistent() {
-        if (at_base_lvl()) {
+        if (at_base_lvl() || (m_number_of_decisions == 1 && m_art_var != -1)) {
             // the last added lemmas can give the contradiction
             for (unsigned j = m_lemmas.size(); --j; ) {
+                std::cout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";
                 if (lower_is_pos(m_lemmas[j])) { //todo : check for m_art_var here
                     TRACE("check_inconsistent_int", tout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";); 
                     lp_assert(false);  // not implemented
                     return true;
                 }
-                    
             }
         }
         return false;
@@ -931,7 +936,7 @@ public:
     }
 
     void print_var_info(std::ostream & out, const var_info & vi) const {
-        if (vi.user_var() == m_art_var)
+        if (vi.user_var() == static_cast<unsigned>(m_art_var))
             out << "s" << " ";
         else
             out << m_var_name_function(vi.user_var()) << " ";
@@ -1484,7 +1489,7 @@ public:
     polynomial create_upper_bound_poly(unsigned k) {
         vector<monomial> p;
         unsigned j = m_var_infos.size() - 1;
-        lp_assert(m_var_infos[j].user_var() == m_art_var);
+        lp_assert(is_global_bound_var(j));
         p.push_back(monomial(one_of_type<mpq>(), k));  
         p.push_back(monomial(-one_of_type<mpq>(), j));
         return polynomial(p);
@@ -1493,7 +1498,7 @@ public:
     polynomial create_lower_bound_poly(unsigned k) {
         vector<monomial> p;
         unsigned j = m_var_infos.size() - 1;
-        lp_assert(m_var_infos[j].user_var() == m_art_var);
+        lp_assert(is_global_bound_var(j));
         p.push_back(monomial(-one_of_type<mpq>(), k));  
         p.push_back(monomial(-one_of_type<mpq>(), j));
         return polynomial(p);
@@ -1520,7 +1525,7 @@ public:
         vector<monomial> v;
         v.push_back(monomial(- one_of_type<mpq>(), j));
         polynomial p(v);
-        add_lemma(p, svector<ccns*>()); // x >= 0
+        add_lemma(p, svector<ccns*>());
     }
     
     void init_search() {
@@ -1607,7 +1612,7 @@ public:
         return lbool::l_undef;
     }
 
-    bool pick_lower_bound(unsigned j) {
+    bool pick_bound_kind(unsigned j) {
         var_info & vi = m_var_infos[j];
         if (vi.lower_bound_exists() && vi.upper_bound_exists())
             return flip_coin();
@@ -1623,7 +1628,7 @@ public:
             return false;
         TRACE("decide_int", tout << "going to decide " << var_name(j) << " var index = " << j << "\n";
               tout << "domain = "; print_var_domain(tout, j); tout << ", m_number_of_decisions="<<m_number_of_decisions<< "\n";);
-        decide_var_on_bound(j, pick_lower_bound(j));
+        decide_var_on_bound(j, pick_bound_kind(j));
         return true;
     }
 
@@ -1853,14 +1858,16 @@ public:
               tout<<"\n";
               );
         if (!improves(l.var(), br)) {
+            if (is_global_bound_var(l.var()))
+                m_art_var_is_pushed = true;
             TRACE("int_backjump", br.print(tout);
                   tout << "\nimproves is false\n";);
             do { pop(); } while(m_trail.size() > trail_index);
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
             add_lemma(p, lemma_origins);
-            if (m_var_infos[l.var()].user_var() == m_art_var) {
-                std::cout << "backjump on s "; print_constraint(std::cout, *m_lemmas.back());
+            if (is_global_bound_var(l.var())) {
+                std::cout << "backjump with push on s "; print_constraint(std::cout, *m_lemmas.back());
             }
             return true;
         }
@@ -1874,7 +1881,7 @@ public:
               tout << "new literal = "; print_literal(tout, m_trail.back()););
         lp_assert(!lower_is_pos(p));
         lp_assert(debug_resolve_polys_are_satisfied());
-        if (m_var_infos[l.var()].user_var() == m_art_var) {
+        if (is_global_bound_var(l.var())) {
                 std::cout << "backjump on s "; print_constraint(std::cout, *m_lemmas.back());
         }
         return true;  // we are done resolving
@@ -2116,7 +2123,9 @@ public:
                    m_settings(settings),
                    m_max_constraint_id(0),
                    m_conflict(nullptr),
-                   m_bounded_search_calls(0)
+                   m_art_var(-1),
+        m_art_var_is_pushed(false),
+        m_bounded_search_calls(0)
     {}
 
 
@@ -2201,14 +2210,19 @@ public:
         vector<monomial> lhs;
 
         var_info & vi = m_var_infos[j];
-        if (vi.user_var() == m_art_var) {
-            vi.get_lower_bound(b);
-            vector<monomial> v;
-            v.push_back(monomial(- one_of_type<mpq>(), j));
-            polynomial p(v, 2 * b); // make the lower bound twice larger
-            add_lemma(p, svector<ccns*>()); // s >= 2b
+        if (is_global_bound_var(j)) {
+            if (m_art_var_is_pushed) {
+                m_art_var_is_pushed = false;
+                vi.get_lower_bound(b);
+                std::cout << "double the bound of s to " << 2 * b << ", ddd = " << ++lp_settings::ddd << std::endl;
+                vector<monomial> v;
+                v.push_back(monomial(- one_of_type<mpq>(), j));
+                polynomial p(v, 2 * b); // make the lower bound twice larger
+                add_lemma(p, svector<ccns*>()); // s >= 2b
+            } else {
+                std::cout << "s is not pushed" << std::endl;
+            }
         }
-
         push();    
 
         if (decide_on_lower) {
@@ -2226,8 +2240,9 @@ public:
         add_changed_var(j);
         m_number_of_decisions++;
         push_literal_to_trail(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
-        if(vi.user_var() == m_art_var)
+        if(is_global_bound_var(j)) {
             print_var_info(std::cout << " deciding ", vi);
+        }
     }
 
     propagate_result propagate_simple_constraint(ccns *t) {
