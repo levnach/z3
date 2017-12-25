@@ -567,8 +567,14 @@ public:
         if (at_base_lvl() || (m_number_of_decisions == 1 && m_art_var != -1)) {
             // the last added lemmas can give the contradiction
             for (unsigned j = m_lemmas.size(); --j; ) {
-                std::cout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";
                 if (lower_is_pos(m_lemmas[j])) { //todo : check for m_art_var here
+                    TRACE("check_inconsistent_int", tout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";); 
+                    lp_assert(false);  // not implemented
+                    return true;
+                }
+            }
+            for (unsigned j = m_asserts.size(); --j; ) {
+                if (lower_is_pos(m_lemmas[j])) {
                     TRACE("check_inconsistent_int", tout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";); 
                     lp_assert(false);  // not implemented
                     return true;
@@ -774,11 +780,6 @@ public:
         std::unordered_set<unsigned> vlits;
         for (unsigned k : v.literals())
             vlits.insert(k);
-        lp_assert(vlits.size() == v.literals().size());
-        if (vlits != literals) {
-            print_var_info(std::cout, j);
-        }
-
         if (vlits != literals) {
             TRACE("var_info_is_correct", tout << "vlits != literals";);
             return false;
@@ -1866,9 +1867,6 @@ public:
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
             add_lemma(p, lemma_origins);
-            if (is_global_bound_var(l.var())) {
-                std::cout << "backjump with push on s "; print_constraint(std::cout, *m_lemmas.back());
-            }
             return true;
         }
         
@@ -1881,16 +1879,12 @@ public:
               tout << "new literal = "; print_literal(tout, m_trail.back()););
         lp_assert(!lower_is_pos(p));
         lp_assert(debug_resolve_polys_are_satisfied());
-        if (is_global_bound_var(l.var())) {
-                std::cout << "backjump on s "; print_constraint(std::cout, *m_lemmas.back());
-        }
         return true;  // we are done resolving
     }
 
     bool debug_resolve_polys_are_satisfied() const {
         for (const polynomial & p : m_debug_resolve_ineqs) {
             if (lower_is_pos(p)) {
-                std::cout << "this ineq is not satisfied "; print_polynomial(std::cout, p);
                 return false;
             }
         }
@@ -1954,10 +1948,13 @@ public:
               );
         if (l.is_decided()) {
             if (decision_is_redundant_for_constraint(p, l)) {
-                pop(); // skip decision
+                pop();
                 lp_assert(m_trail.size() == trail_index);
-                TRACE("int_resolve_confl", tout << "skip decision";
-                      if (m_number_of_decisions == 0) tout << ", done resolving";);
+                TRACE("int_resolve_confl", tout << "skip decision ";
+                      print_literal(tout, l);
+                      if (m_number_of_decisions == 0)
+                          tout << ", done resolving";);
+                lp_assert(lower_is_pos(p));
                 return m_number_of_decisions == 0;
             }
             else {
@@ -1970,14 +1967,20 @@ public:
             m_debug_resolve_ineqs.push_back(l.tight_ineq());
             #endif
             // applying Resolve rool
-#if TRACE
+#if Z3DEBUG
             bool resolved =
 #endif
                 resolve(p, l.var(), !l.is_lower(), l.tight_ineq());
-#if TRACE
+#if Z3DEBUG
             ctrace_resolve_print(resolved, p, l);
 #endif
             lp_assert(lower_is_pos(p));
+            if (p.coeffs().size() == 0) {
+                for (auto c : lemma_origins)
+                    for (unsigned j : c->assert_origins())
+                        m_explanation.insert(j);
+                return true;
+            }
         }
         return false; // not done
     }
@@ -2206,7 +2209,7 @@ public:
     }
     
     void decide_var_on_bound(unsigned j, bool decide_on_lower) {
-         mpq b;
+        mpq b;
         vector<monomial> lhs;
 
         var_info & vi = m_var_infos[j];
@@ -2214,13 +2217,10 @@ public:
             if (m_art_var_is_pushed) {
                 m_art_var_is_pushed = false;
                 vi.get_lower_bound(b);
-                std::cout << "double the bound of s to " << 2 * b << ", ddd = " << ++lp_settings::ddd << std::endl;
                 vector<monomial> v;
                 v.push_back(monomial(- one_of_type<mpq>(), j));
                 polynomial p(v, 2 * b); // make the lower bound twice larger
                 add_lemma(p, svector<ccns*>()); // s >= 2b
-            } else {
-                std::cout << "s is not pushed" << std::endl;
             }
         }
         push();    
@@ -2240,9 +2240,6 @@ public:
         add_changed_var(j);
         m_number_of_decisions++;
         push_literal_to_trail(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
-        if(is_global_bound_var(j)) {
-            print_var_info(std::cout << " deciding ", vi);
-        }
     }
 
     propagate_result propagate_simple_constraint(ccns *t) {
