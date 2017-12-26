@@ -118,41 +118,6 @@ enum class lbool { l_false, l_true, l_undef };
         const vector<monomial> & coeffs() const { return m_coeffs; }
     };
 
-    struct pp_poly {
-        cut_solver const& s;
-        polynomial const& p;
-        pp_poly(cut_solver const& s, polynomial const& p): s(s), p(p) {}
-    };
-
-    std::ostream& operator<<(std::ostream& out, pp_poly const& p);
-    
-class cut_solver : public column_namer {
-public: // for debugging
-    enum class propagate_result { PROGRESS, NOTHING, CONFLICT };
-    std::string propagate_result_to_string(propagate_result r) const {
-        switch(r) {
-        case propagate_result::NOTHING: return "NOTHING";
-        case propagate_result::PROGRESS: return "PROGRESS";
-        case propagate_result::CONFLICT: return "CONFLICT";
-        default:
-            lp_assert(false);
-            return "invalid input";
-        }        
-    }
-
-    typedef lp::polynomial polynomial;
-    typedef lp::monomial monomial;
-
-    vector<std::pair<mpq, var_index>> to_pairs(const vector<monomial>& ms) const {
-        vector<std::pair<mpq, var_index>> ret;
-        for (const auto p : ms)
-            ret.push_back(p.to_pair());
-        return ret;
-    }    
-
-    // TBD: there is some overlap of const constraint and ccns.
-    // svector<ccns*> could be another definition. Do we need a const_ptr_vector type?
-    
     class constraint; // forward definition
     struct ccns_hash {
         size_t operator() (const constraint* c) const;
@@ -249,6 +214,47 @@ public: // for debugging
         }
         
     };
+
+
+    struct pp_poly {
+        cut_solver const& s;
+        polynomial const& p;
+        pp_poly(cut_solver const& s, polynomial const& p): s(s), p(p) {}
+    };
+
+    struct pp_constraint {
+        cut_solver const& s;
+        constraint const& c;
+        pp_constraint(cut_solver const& s, constraint const& c): s(s), c(c) {}
+    };
+
+    std::ostream& operator<<(std::ostream& out, pp_poly const& p);
+    std::ostream& operator<<(std::ostream& out, pp_constraint const& p);
+    
+class cut_solver : public column_namer {
+public: // for debugging
+    enum class propagate_result { PROGRESS, NOTHING, CONFLICT };
+    std::string propagate_result_to_string(propagate_result r) const {
+        switch(r) {
+        case propagate_result::NOTHING: return "NOTHING";
+        case propagate_result::PROGRESS: return "PROGRESS";
+        case propagate_result::CONFLICT: return "CONFLICT";
+        default:
+            lp_assert(false);
+            return "invalid input";
+        }        
+    }
+
+    typedef lp::polynomial polynomial;
+    typedef lp::monomial monomial;
+
+    vector<std::pair<mpq, var_index>> to_pairs(const vector<monomial>& ms) const {
+        vector<std::pair<mpq, var_index>> ret;
+        for (const auto p : ms)
+            ret.push_back(p.to_pair());
+        return ret;
+    }    
+
 
     typedef const constraint ccns;
     
@@ -590,7 +596,7 @@ public:
         for (auto c : m_asserts) {
             if (is_pos(value(c->poly()))) {
                 TRACE("all_constraints_hold_int", tout << "constraint does not hold\n";
-                      print_constraint(tout, *c); tout << "value = " << value(c->poly()) << std::endl;);
+                      tout << pp_constraint(*this, *c) << "value = " << value(c->poly()) << std::endl;);
                 
                 return false;
             }
@@ -652,7 +658,7 @@ public:
     void add_changed_var(unsigned j) {
         TRACE("add_changed_var_int", tout <<  "j = " << j << "\n";);
         for (auto & p: m_var_infos[j].dependent_constraints()) {
-            TRACE("add_changed_var_int", print_constraint(tout, *p.first); tout << "simple = " << p.first->is_simple() << "\n";);
+            TRACE("add_changed_var_int", tout << pp_constraint(*this, *p.first) << "simple = " << p.first->is_simple() << "\n";);
             auto c = p.first;
             if (!c->is_simple()) {
                 m_active_set.add_constraint(c);
@@ -1304,8 +1310,7 @@ public:
         out << t.bound();
 
         if (t.is_decided() == false) {
-            out << " by constraint ";
-            print_constraint(out, *(t.cnstr()));
+            out << " by constraint " << pp_constraint(*this, *(t.cnstr()));
         } else {
             out << " decided on trail element " << t.trail_index();
             if (!m_trail[t.trail_index()].tight_ineq().is_empty()) {
@@ -1517,6 +1522,10 @@ public:
         m_art_var = find_unused_index();
         unsigned j = add_var(m_art_var); // j is the index of var_info of x
         
+        //
+        // TBD: should be add_ineq not add_lemma because they are persistent. 
+        // Lemmas should be reserved for consequences.
+        // 
         for (unsigned k = 0; k < m_var_infos.size() - 1; k ++) {
             auto p = create_lower_bound_poly(k);
             add_lemma(p, svector<ccns*>());
@@ -1639,7 +1648,7 @@ public:
             TRACE("cs_dec", tout << "trail = \n"; print_trail(tout); tout << "end of trail\n";);
 
             if (incostistent_constraint != nullptr) {
-                TRACE("decide_int", tout << "incostistent_constraint ";print_constraint(tout, *incostistent_constraint););
+                TRACE("decide_int", tout << "incostistent_constraint " << pp_constraint(*this, *incostistent_constraint););
                 if (at_base_lvl()) {
                     fill_conflict_explanation(incostistent_constraint, m_trail.size());
                     mpq b;
@@ -1807,8 +1816,7 @@ public:
         TRACE("tight",
               tout << "trail_index = " << trail_index;
               tout << ", var name = " << var_name(j_of_var) << ";";
-              tout << "p = ";
-              print_polynomial(tout, p););
+              tout << "p = " << pp_poly(*this, p) << "\n";);
         create_div_ndiv_parts_for_tightening(p, a, div_part, ndiv_part);
         int k = trail_index - 1;
         lp_assert(k >= 0);
@@ -1822,7 +1830,7 @@ public:
         }
         p.m_a = ceil(ndiv_part.m_a / abs_a);
         lp_assert(p.m_a >= ndiv_part.m_a / abs_a);
-        TRACE("tight", tout << "trail_index = " << trail_index << ", got tight p = "; print_polynomial(tout, p); tout << "\n";);
+        TRACE("tight", tout << "trail_index = " << trail_index << ", got tight p = " << pp_poly(*this, p) << "\n";);
     }
 
     void create_tight_ineq_under_literal(unsigned trail_index, svector<ccns*> & lemma_origins) {
@@ -1851,13 +1859,11 @@ public:
                                               p.coeff(l.var()),
                                               l.var());
         
+
         TRACE("int_backjump", br.print(tout);
               tout << "; var info of " << var_name(l.var()) << ": ";
               print_var_info(tout, l.var());
-              tout << "p = ";
-              print_polynomial(tout, p);
-              tout<<"\n";
-              );
+              tout << "p = " << pp_poly(*this, p) << "\n";);
         if (!improves(l.var(), br)) {
             if (is_global_bound_var(l.var()))
                 m_art_var_is_pushed = true;
@@ -1891,33 +1897,30 @@ public:
         return true;
     }
     
-    void ctrace_resolve_print(bool resolved, const polynomial& p, const literal &l) const {
-        CTRACE("int_resolve_confl", resolved, 
-               tout << "new p = ";
-               print_polynomial(tout, p);
-               mpq rr;
-               bool bb = lower(p, rr);
-               if (!bb) {
-                   tout << "\nlower(p) is not defined";
-               } else {
-                   tout << "\nlower(p) = " << rr;
-               }
-                  
-               tout <<"\ntight_ineq = "; print_polynomial(tout, l.tight_ineq());
-               tout << "\nvar domains" << "\n";
-               for (auto & m : l.tight_ineq().coeffs()) {
-                   tout <<  "var = " << m.var() << " " << var_name(m.var()) << " ";
-                   print_var_domain(tout, m.var());
-                   tout << " ";
-               }
-               tout << "\n";
-               );
+    void print_resolvent(std::ostream& out, const polynomial& p, const literal &l) const {
+        out << "new p = " << pp_poly(*this, p);
+        mpq rr;
+        bool bb = lower(p, rr);
+        if (!bb) {
+            out << "\nlower(p) is not defined\n";
+        } else {
+            out << "\nlower(p) = " << rr << "\n";
+        }
+        
+        out << "tight_ineq = " << pp_poly(*this, l.tight_ineq()) << "\n";
+        out << "constraint = " << pp_constraint(*this, *l.cnstr()) << "\n";
+        out << "var domains" << "\n";
+        for (auto & m : l.tight_ineq().coeffs()) {
+            out <<  "var = " << m.var() << " " << var_name(m.var()) << " ";
+            print_var_domain(out, m.var());
+            out << " ";
+        }
+        out << "\n";
     }
 
     void trace_resolve_print(std::ostream& out, const polynomial & p, const literal & l, unsigned trail_index) {
-        out << "trail_index = " << trail_index <<", p = ";
-        print_polynomial(out, p);
-        out << "\nl = ";  print_literal(out, l);
+        out << "trail_index = " << trail_index <<", p = " << pp_poly(*this, p) << "\n";
+        out << "l = ";  print_literal(out, l);
         out << "lower(p) = " << lower_no_check(p) << "\n";
         for (auto & m : p.coeffs()) {
             out <<  var_name(m.var()) << " ";
@@ -1935,9 +1938,8 @@ public:
         
         lemma_origins.append(collect_origin_constraints(l.cnstr()));
         TRACE("lemma_origins", tout << "lemma_origins.size()="<< lemma_origins.size()<<"\n";);
-        TRACE("int_resolve_conflxxx", tout << "trail_index = " << trail_index <<", p = ";
-              print_polynomial(tout, p);
-              tout << "\nl = ";  print_literal(tout, l);
+        TRACE("int_resolve_conflxxx", tout << "trail_index = " << trail_index <<", p = " << pp_poly(*this, p) << "\n";
+              tout << "l = ";  print_literal(tout, l);
               tout << "lower(p) = " << lower_no_check(p) << "\n";
               for (auto & m : p.coeffs()) {
                   tout <<  var_name(m.var()) << " ";
@@ -1961,19 +1963,14 @@ public:
                 handle_conflicting_cores();
                 return backjump(p, trail_index, lemma_origins);
             }
-        } else { // the literal is implied
+        } 
+        else { // the literal is implied
             create_tight_ineq_under_literal(trail_index, lemma_origins);
-            #if DEBUG
-            m_debug_resolve_ineqs.push_back(l.tight_ineq());
-            #endif
-            // applying Resolve rool
-#if Z3DEBUG
-            bool resolved =
-#endif
-                resolve(p, l.var(), !l.is_lower(), l.tight_ineq());
-#if Z3DEBUG
-            ctrace_resolve_print(resolved, p, l);
-#endif
+            DEBUG_CODE(m_debug_resolve_ineqs.push_back(l.tight_ineq()););
+            // applying Resolve rule
+            bool resolved = resolve(p, l.var(), !l.is_lower(), l.tight_ineq());            
+            (void)resolved;
+            CTRACE("int_resolve_confl", resolved, print_resolvent(tout, p, l););
             lp_assert(lower_is_pos(p));
             if (p.coeffs().size() == 0) {
                 for (auto c : lemma_origins)
@@ -2274,12 +2271,9 @@ public:
     bool consistent(ccns * i) const {
         // an option could be to check that upper(i.poly()) <= 0
         bool ret = value(i->poly()) <= zero_of_type<mpq>();
-        if (!ret) {
-            TRACE("cut_solver_state_inconsistent", 
-                  tout << "inconsistent constraint "; print_constraint(tout, *i); tout <<"\n";
-                  tout << "value = " << value(i->poly()) << '\n';
-                  );
-        }
+        CTRACE("cut_solver_state_inconsistent", !ret,
+               tout << "inconsistent constraint " << pp_constraint(*this, *i) << "\n";
+               tout << "value = " << value(i->poly()) << '\n';);
         return ret;
     }
 
@@ -2328,7 +2322,7 @@ public:
 
 
     void simplify_ineq(polynomial & p) const {
-        TRACE("simplify_ineq_int", tout << "p = "; print_polynomial(tout, p););
+        TRACE("simplify_ineq_int", tout << "p = " << pp_poly(*this, p) << "\n";);
         auto & ms = p.m_coeffs;
         lp_assert(ms.size());
         mpq g;
@@ -2346,7 +2340,7 @@ public:
                 m.coeff() /= g;
             p.m_a = ceil(p.m_a /g);
         }
-        TRACE("simplify_ineq_int", tout << "p = "; print_polynomial(tout, p););
+        TRACE("simplify_ineq_int", tout << "p = " << pp_poly(*this, p) << "\n";);
     }
     
     constraint * add_lemma(polynomial& p, const svector<const constraint*>& lemma_origins) {
