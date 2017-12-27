@@ -2274,9 +2274,13 @@ public:
     }
 
     int find_var_for_deciding() const {
+        if (m_global_bound_var != -1 && !m_var_infos[m_global_bound_var].is_fixed())
+            return m_global_bound_var;
         unsigned j = m_settings.random_next() % m_var_infos.size();
         
         for (unsigned k = 0; k < m_var_infos.size(); k++, j++) {
+            if (is_global_bound_var(j))
+                j++;
             if (j == m_var_infos.size())
                 j = 0;
             const auto & d = m_var_infos[j].domain();
