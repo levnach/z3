@@ -431,7 +431,7 @@ public:
     }
 
     bool is_global_bound_var(unsigned j) const {
-        return m_var_infos[j].user_var() == static_cast<unsigned>(m_art_var);
+        return j == static_cast<unsigned>(m_global_bound_var);
     }
     
     std::string get_column_name(unsigned j) const {
@@ -485,25 +485,7 @@ public:
             return m_cs.size();
         }
     };
-    
-    // fields
-    svector<constraint*>                           m_asserts;
-    svector<constraint*>                           m_lemmas;
-    vector<mpq>                                    m_v; // the values of the variables
-    std::function<std::string (unsigned)>          m_var_name_function;
-    std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
-     // the number of decisions in the current trail
-    unsigned                                       m_number_of_decisions;
-    active_set                                     m_active_set;
-    vector<literal>                                m_trail;
-    lp_settings &                                  m_settings;
-    unsigned                                       m_max_constraint_id;
-    std::set<unsigned>                             m_U; // the set of conflicting cores
-    stacked_value<ccns*>                           m_conflict;
-    int                                            m_art_var;
-    bool                                           m_art_var_is_pushed;
-    unsigned                                       m_bounded_search_calls;
-    vector<polynomial>                             m_debug_resolve_ineqs;
+
     struct scope {
         unsigned m_trail_size;
         unsigned m_asserts_size;
@@ -519,10 +501,28 @@ public:
                                       m_lemmas_size(lemmas_size) {}
 
     };
-
-    stacked_value<scope>          m_scope;
-    std::unordered_map<unsigned, unsigned> m_user_vars_to_cut_solver_vars;
-    std::unordered_set<constraint_index> m_explanation; // if this collection is not empty we have a conflict 
+    
+    // fields
+    svector<constraint*>                           m_asserts;
+    svector<constraint*>                           m_lemmas;
+    vector<mpq>                                    m_v; // the values of the variables
+    std::function<std::string (unsigned)>          m_var_name_function;
+    std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
+     // the number of decisions in the current trail
+    unsigned                                       m_number_of_decisions;
+    active_set                                     m_active_set;
+    vector<literal>                                m_trail;
+    lp_settings &                                  m_settings;
+    unsigned                                       m_max_constraint_id;
+    std::set<unsigned>                             m_U; // the set of conflicting cores
+    stacked_value<ccns*>                           m_conflict;
+    int                                            m_global_bound_var;
+    bool                                           m_global_bound_var_is_pushed;
+    unsigned                                       m_bounded_search_calls;
+    vector<polynomial>                             m_debug_resolve_ineqs;
+    stacked_value<scope>                           m_scope;
+    std::unordered_map<unsigned, unsigned>         m_user_vars_to_cut_solver_vars;
+    std::unordered_set<constraint_index>           m_explanation; // if this collection is not empty we have a conflict 
 
     unsigned add_var(unsigned user_var_index) {
         unsigned ret;
@@ -570,10 +570,10 @@ public:
     }
 
     bool check_inconsistent() {
-        if (at_base_lvl() || (m_number_of_decisions == 1 && m_art_var != -1)) {
+        if (at_base_lvl() || (m_number_of_decisions == 1 && m_global_bound_var != -1)) {
             // the last added lemmas can give the contradiction
             for (unsigned j = m_lemmas.size(); --j; ) {
-                if (lower_is_pos(m_lemmas[j])) { //todo : check for m_art_var here
+                if (lower_is_pos(m_lemmas[j])) { //todo : check for m_global_bound_var here
                     TRACE("check_inconsistent_int", tout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";); 
                     lp_assert(false);  // not implemented
                     return true;
@@ -943,7 +943,7 @@ public:
     }
 
     void print_var_info(std::ostream & out, const var_info & vi) const {
-        if (vi.user_var() == static_cast<unsigned>(m_art_var))
+        if (m_user_vars_to_cut_solver_vars.find(vi.user_var())->second == static_cast<unsigned>(m_global_bound_var))
             out << "s" << " ";
         else
             out << m_var_name_function(vi.user_var()) << " ";
@@ -1492,21 +1492,17 @@ public:
     }
 
 
-    polynomial create_upper_bound_poly(unsigned k) {
+    polynomial create_upper_bound_poly(unsigned j) {
         vector<monomial> p;
-        unsigned j = m_var_infos.size() - 1;
-        lp_assert(is_global_bound_var(j));
-        p.push_back(monomial(one_of_type<mpq>(), k));  
-        p.push_back(monomial(-one_of_type<mpq>(), j));
+        p.push_back(monomial(one_of_type<mpq>(), j));  
+        p.push_back(monomial(-one_of_type<mpq>(), m_global_bound_var));
         return polynomial(p);
     }
 
-    polynomial create_lower_bound_poly(unsigned k) {
+    polynomial create_lower_bound_poly(unsigned j) {
         vector<monomial> p;
-        unsigned j = m_var_infos.size() - 1;
-        lp_assert(is_global_bound_var(j));
-        p.push_back(monomial(-one_of_type<mpq>(), k));  
-        p.push_back(monomial(-one_of_type<mpq>(), j));
+        p.push_back(monomial(-one_of_type<mpq>(), j));  
+        p.push_back(monomial(-one_of_type<mpq>(), m_global_bound_var));
         return polynomial(p);
     }
 
@@ -1519,21 +1515,21 @@ public:
 
     // introduce one var x >= 0 such that |y|<=x for every other var y
     void introduce_bounds() {
-        m_art_var = find_unused_index();
-        unsigned j = add_var(m_art_var); // j is the index of var_info of x
+        auto k = find_unused_index();
+        m_global_bound_var = add_var(k);
         
         //
         // TBD: should be add_ineq not add_lemma because they are persistent. 
         // Lemmas should be reserved for consequences.
         // 
-        for (unsigned k = 0; k < m_var_infos.size() - 1; k ++) {
-            auto p = create_lower_bound_poly(k);
+        for (unsigned j = 0; j < m_var_infos.size() - 1; j ++) {
+            auto p = create_lower_bound_poly(j);
             add_lemma(p, svector<ccns*>());
-            p = create_upper_bound_poly(k);
+            p = create_upper_bound_poly(j);
             add_lemma(p, svector<ccns*>());
         }
         vector<monomial> v;
-        v.push_back(monomial(- one_of_type<mpq>(), j));
+        v.push_back(monomial(- one_of_type<mpq>(), m_global_bound_var));
         polynomial p(v);
         add_lemma(p, svector<ccns*>());
     }
@@ -1866,7 +1862,7 @@ public:
               tout << "p = " << pp_poly(*this, p) << "\n";);
         if (!improves(l.var(), br)) {
             if (is_global_bound_var(l.var()))
-                m_art_var_is_pushed = true;
+                m_global_bound_var_is_pushed = true;
             TRACE("int_backjump", br.print(tout);
                   tout << "\nimproves is false\n";);
             do { pop(); } while(m_trail.size() > trail_index);
@@ -2123,8 +2119,8 @@ public:
                    m_settings(settings),
                    m_max_constraint_id(0),
                    m_conflict(nullptr),
-                   m_art_var(-1),
-        m_art_var_is_pushed(false),
+                   m_global_bound_var(-1),
+        m_global_bound_var_is_pushed(false),
         m_bounded_search_calls(0)
     {}
 
@@ -2211,8 +2207,8 @@ public:
 
         var_info & vi = m_var_infos[j];
         if (is_global_bound_var(j)) {
-            if (m_art_var_is_pushed) {
-                m_art_var_is_pushed = false;
+            if (m_global_bound_var_is_pushed) {
+                m_global_bound_var_is_pushed = false;
                 vi.get_lower_bound(b);
                 vector<monomial> v;
                 v.push_back(monomial(- one_of_type<mpq>(), j));
