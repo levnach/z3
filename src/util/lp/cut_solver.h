@@ -572,16 +572,16 @@ public:
     bool check_inconsistent() {
         if (at_base_lvl() || (m_number_of_decisions == 1 && m_global_bound_var != -1)) {
             // the last added lemmas can give the contradiction
-            for (unsigned j = m_lemmas.size(); --j; ) {
+            for (unsigned j = m_lemmas.size(); j--; ) {
                 if (lower_is_pos(m_lemmas[j])) { //todo : check for m_global_bound_var here
                     TRACE("check_inconsistent_int", tout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";); 
                     lp_assert(false);  // not implemented
                     return true;
                 }
             }
-            for (unsigned j = m_asserts.size(); --j; ) {
-                if (lower_is_pos(m_lemmas[j])) {
-                    TRACE("check_inconsistent_int", tout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";); 
+            for (unsigned j = m_asserts.size(); j--; ) {
+                if (lower_is_pos(m_asserts[j])) {
+                    TRACE("check_inconsistent_int", tout << pp_poly(*this, m_asserts[j]->poly()) << "\n";); 
                     lp_assert(false);  // not implemented
                     return true;
                 }
@@ -1484,26 +1484,22 @@ public:
         }
     }
 
-    bool every_var_has_no_bounds() const {
-        for (auto & vi : m_var_infos)
-            if (vi.lower_bound_exists() || vi.upper_bound_exists())
-                return false;
-        return true;
-    }
-
-
-    polynomial create_upper_bound_poly(unsigned j) {
+    vector<monomial> create_upper_global_bound_poly(unsigned j) {
+        if (m_global_bound_var == -1)
+            add_global_bound_var();
         vector<monomial> p;
         p.push_back(monomial(one_of_type<mpq>(), j));  
         p.push_back(monomial(-one_of_type<mpq>(), m_global_bound_var));
-        return polynomial(p);
+        return p;
     }
 
-    polynomial create_lower_bound_poly(unsigned j) {
+    vector<monomial> create_lower_global_bound_poly(unsigned j) {
+        if (m_global_bound_var == -1)
+            add_global_bound_var();
         vector<monomial> p;
         p.push_back(monomial(-one_of_type<mpq>(), j));  
         p.push_back(monomial(-one_of_type<mpq>(), m_global_bound_var));
-        return polynomial(p);
+        return p;
     }
 
     unsigned find_unused_index() const {
@@ -1513,30 +1509,34 @@ public:
         
     }
 
-    // introduce one var x >= 0 such that |y|<=x for every other var y
-    void introduce_bounds() {
+    void add_global_bound_var() {
         auto k = find_unused_index();
         m_global_bound_var = add_var(k);
-        
-        //
-        // TBD: should be add_ineq not add_lemma because they are persistent. 
-        // Lemmas should be reserved for consequences.
-        // 
-        for (unsigned j = 0; j < m_var_infos.size() - 1; j ++) {
-            auto p = create_lower_bound_poly(j);
-            add_lemma(p, svector<ccns*>());
-            p = create_upper_bound_poly(j);
-            add_lemma(p, svector<ccns*>());
+        vector<monomial> p;
+        p.push_back(monomial(- one_of_type<mpq>(), m_global_bound_var));
+        // by add_ineq
+        add_ineq(p, zero_of_type<mpq>(), svector<unsigned>(), false); // false, so m_global_bound_var is not changed
+    }
+    
+    // introduce a var x >= 0 such that |y|<=x for every other unbounded var
+    void introduce_bounds() {
+        auto vi_size = m_var_infos.size();
+        for (unsigned j = 0; j < vi_size; j ++) {
+            var_info &vi = m_var_infos[j];
+            if (!vi.lower_bound_exists()) {
+                auto p = create_lower_global_bound_poly(j);
+                add_ineq(p, zero_of_type<mpq>(), svector<unsigned>(), false); // false, to not translate vars
+            }
+            if (!vi.upper_bound_exists()) {
+                auto p = create_upper_global_bound_poly(j);
+                add_ineq(p, zero_of_type<mpq>(), svector<unsigned>(), false); // false, to not translate vars
+                
+            }
         }
-        vector<monomial> v;
-        v.push_back(monomial(- one_of_type<mpq>(), m_global_bound_var));
-        polynomial p(v);
-        add_lemma(p, svector<ccns*>());
     }
     
     void init_search() {
-        if (every_var_has_no_bounds())
-            introduce_bounds();
+        introduce_bounds();
         lp_assert(m_explanation.size() == 0);
     }
 
@@ -2360,15 +2360,18 @@ public:
         TRACE("add_lemma_int",  trace_print_constraint(tout, c););
         return c;
     }
-    
+
     unsigned add_ineq(const vector<monomial> & lhs,
                       const mpq& free_coeff,
-                      svector<constraint_index> origins) {
-        lp_assert(lhs_is_int(lhs));
-        lp_assert(is_int(free_coeff));
+                      svector<constraint_index> origins, bool translate_to_local_vars) {
         vector<monomial> local_lhs;
-        for (auto & p : lhs)
-            local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
+        if (translate_to_local_vars) {
+            for (auto & p : lhs)
+                local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
+        } else {
+            local_lhs = lhs;
+        }
+        
         constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, local_lhs, free_coeff,origins);
         m_asserts.push_back(c);
         add_constraint_to_dependend_for_its_vars(c);
@@ -2391,6 +2394,14 @@ public:
               print_constraint(tout, *m_asserts.back()); tout << "\n";);
         
         return m_asserts.size() - 1;
+    }
+    
+    unsigned add_ineq(const vector<monomial> & lhs,
+                      const mpq& free_coeff,
+                      svector<constraint_index> origins) {
+        lp_assert(lhs_is_int(lhs));
+        lp_assert(is_int(free_coeff));
+        return add_ineq(lhs, free_coeff, origins, true); // true, to translate_to_local_vars
     }
 
     void add_constraint_to_dependend_for_its_vars(constraint * c) {
