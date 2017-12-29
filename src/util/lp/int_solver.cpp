@@ -6,6 +6,7 @@
 #include "util/lp/int_solver.h"
 #include "util/lp/lar_solver.h"
 #include "util/lp/cut_solver.h"
+#include "util/lp/lp_utils.h"
 #include <utility>
 namespace lp {
 
@@ -812,6 +813,8 @@ int_solver::int_solver(lar_solver* lar_slv) :
     m_branch_cut_counter(0),
     m_cut_solver([this](unsigned j) {return m_lar_solver->get_column_name(j);},
                  [this](unsigned j, std::ostream &o) {m_lar_solver->print_constraint(j, o);},
+                 [this]() {return m_lar_solver->A_r().column_count();},
+                 [this](unsigned j) {return get_value(j);},
                  settings()) {
     lp_assert(m_old_values_set.size() == 0);
     m_old_values_set.resize(lar_slv->A_r().column_count());

@@ -17,219 +17,218 @@
 namespace lp {
 enum class lbool { l_false, l_true, l_undef };
 
-    class cut_solver;
+class cut_solver;
 
-    struct monomial {
-        mpq           m_coeff; // the coefficient of the monomial
-        var_index   m_var; // the variable index
-    public:
-        monomial(const mpq& coeff, var_index var) : m_coeff(coeff), m_var(var) {}
-        // copy constructor
-        monomial(const monomial& m) : monomial(m.coeff(), m.var()) {}
-        monomial(var_index var) : monomial(one_of_type<mpq>(), var) {}
-        const mpq & coeff() const { return m_coeff; }
-        mpq & coeff() { return m_coeff; }
-        var_index var() const { return m_var; }
-        std::pair<mpq, var_index> to_pair() const { return std::make_pair(coeff(), var());}
-    };
+struct monomial {
+    mpq           m_coeff; // the coefficient of the monomial
+    var_index   m_var; // the variable index
+public:
+    monomial(const mpq& coeff, var_index var) : m_coeff(coeff), m_var(var) {}
+    // copy constructor
+    monomial(const monomial& m) : monomial(m.coeff(), m.var()) {}
+    monomial(var_index var) : monomial(one_of_type<mpq>(), var) {}
+    const mpq & coeff() const { return m_coeff; }
+    mpq & coeff() { return m_coeff; }
+    var_index var() const { return m_var; }
+    std::pair<mpq, var_index> to_pair() const { return std::make_pair(coeff(), var());}
+};
 
-    struct polynomial {
-        static mpq m_local_zero;
-        // the polynomial evaluates to m_coeffs + m_a
-        vector<monomial>        m_coeffs;
-        mpq                     m_a; // the free coefficient
-        polynomial(const vector<monomial>& p, const mpq & a) : m_coeffs(p), m_a(a) {}
-        polynomial(const vector<monomial>& p) : polynomial(p, zero_of_type<mpq>()) {}
-        polynomial(): m_a(zero_of_type<mpq>()) {}
-        polynomial(const polynomial & p) : m_coeffs(p.m_coeffs), m_a(p.m_a) {} 
+struct polynomial {
+    static mpq m_local_zero;
+    // the polynomial evaluates to m_coeffs + m_a
+    vector<monomial>        m_coeffs;
+    mpq                     m_a; // the free coefficient
+    polynomial(const vector<monomial>& p, const mpq & a) : m_coeffs(p), m_a(a) {}
+    polynomial(const vector<monomial>& p) : polynomial(p, zero_of_type<mpq>()) {}
+    polynomial(): m_a(zero_of_type<mpq>()) {}
+    polynomial(const polynomial & p) : m_coeffs(p.m_coeffs), m_a(p.m_a) {} 
             
-        const mpq & coeff(var_index j) const {
-            for (const auto & t : m_coeffs) {
-                if (j == t.var()) {
-                    return t.coeff();
-                }
+    const mpq & coeff(var_index j) const {
+        for (const auto & t : m_coeffs) {
+            if (j == t.var()) {
+                return t.coeff();
             }
-            return m_local_zero;
         }
+        return m_local_zero;
+    }
 
-        polynomial &  operator+=(const polynomial & p) {
-            m_a += p.m_a;
-            for (const auto & t: p.m_coeffs)
-                *this += monomial(t.coeff(), t.var());
-            return *this;
-        }
+    polynomial &  operator+=(const polynomial & p) {
+        m_a += p.m_a;
+        for (const auto & t: p.m_coeffs)
+            *this += monomial(t.coeff(), t.var());
+        return *this;
+    }
 
-        void add(const mpq & c, const polynomial &p) {
-            m_a += p.m_a * c;
+    void add(const mpq & c, const polynomial &p) {
+        m_a += p.m_a * c;
             
-            for (const auto & t: p.m_coeffs)
-                *this += monomial(c * t.coeff(), t.var());
-        }
+        for (const auto & t: p.m_coeffs)
+            *this += monomial(c * t.coeff(), t.var());
+    }
         
-        void clear() {
-            m_coeffs.clear();
-            m_a = zero_of_type<mpq>();
-        }
+    void clear() {
+        m_coeffs.clear();
+        m_a = zero_of_type<mpq>();
+    }
         
-        bool is_empty() const { return m_coeffs.size() == 0 && numeric_traits<mpq>::is_zero(m_a); }
+    bool is_empty() const { return m_coeffs.size() == 0 && numeric_traits<mpq>::is_zero(m_a); }
 
-        unsigned number_of_monomials() const { return m_coeffs.size();}
+    unsigned number_of_monomials() const { return m_coeffs.size();}
 
-        void add(const monomial &m ){
-            if (is_zero(m.coeff())) return;
-            for (unsigned k = 0; k < m_coeffs.size(); k++) {
-                auto & l = m_coeffs[k];
-                if (m.var() == l.var()) {
-                    l.coeff() += m.coeff();
-                    if (l.coeff() == 0)
-                        m_coeffs.erase(m_coeffs.begin() + k);
-                    return;
-                }
-            }
-            m_coeffs.push_back(m);
-            lp_assert(is_correct());
-        }
-        
-        polynomial & operator+=(const monomial &m ){
-            add(m);
-            return *this;
-        }
-
-        polynomial & operator+=(const mpq &c ){
-            m_a += c;
-            return *this;
-        }
-
-        
-        bool is_correct() const {
-            std::unordered_set<var_index> s;
-            for (auto & l : m_coeffs) {
+    void add(const monomial &m ){
+        if (is_zero(m.coeff())) return;
+        for (unsigned k = 0; k < m_coeffs.size(); k++) {
+            auto & l = m_coeffs[k];
+            if (m.var() == l.var()) {
+                l.coeff() += m.coeff();
                 if (l.coeff() == 0)
-                    return false;
-                s.insert(l.var());
+                    m_coeffs.erase(m_coeffs.begin() + k);
+                return;
             }
-            return m_coeffs.size() == s.size();
         }
+        m_coeffs.push_back(m);
+        lp_assert(is_correct());
+    }
+        
+    polynomial & operator+=(const monomial &m ){
+        add(m);
+        return *this;
+    }
 
-        bool var_coeff_is_unit(unsigned j) const {
-            const mpq & a = coeff(j);
-            return a == 1 || a == -1;
+    polynomial & operator+=(const mpq &c ){
+        m_a += c;
+        return *this;
+    }
+
+        
+    bool is_correct() const {
+        std::unordered_set<var_index> s;
+        for (auto & l : m_coeffs) {
+            if (l.coeff() == 0)
+                return false;
+            s.insert(l.var());
         }
-        const vector<monomial> & coeffs() const { return m_coeffs; }
-    };
+        return m_coeffs.size() == s.size();
+    }
 
-    class constraint; // forward definition
-    struct ccns_hash {
-        size_t operator() (const constraint* c) const;
-    };
+    bool var_coeff_is_unit(unsigned j) const {
+        const mpq & a = coeff(j);
+        return a == 1 || a == -1;
+    }
+    const vector<monomial> & coeffs() const { return m_coeffs; }
+};
 
-    struct ccns_equal {
-        bool operator() (const constraint * a, const constraint * b) const;
-    };
+class constraint; // forward definition
+struct ccns_hash {
+    size_t operator() (const constraint* c) const;
+};
 
+struct ccns_equal {
+    bool operator() (const constraint * a, const constraint * b) const;
+};
 
-    class constraint { // we only have less or equal for the inequality sign, which is enough for integral variables
-        int                                              m_id;  
-        bool                                             m_is_ineq;
-        const polynomial                                 m_poly;
-        mpq                                              m_d; // the divider for the case of a divisibility constraint
-        const svector<constraint_index>                  m_assert_origins; // these indices come from the client
-        std::unordered_set<const constraint*,
-                           ccns_hash, ccns_equal>        m_lemma_origins;  //todo use ccns_* here
-        bool                                             m_active;
-    public :
-        void set_active_flag() {m_active = true;}
-        void remove_active_flag() { m_active = false; }
-        bool is_active() const { return m_active; }
-        unsigned id() const { return m_id; }
-        const polynomial & poly() const { return m_poly; }
-        const svector<constraint_index> & assert_origins() const { return m_assert_origins;}
-        const std::unordered_set<const constraint*,  ccns_hash, ccns_equal> & lemma_origins() const { return m_lemma_origins;}
-        bool is_lemma() const { return !is_assert(); }
-        bool is_assert() const { return m_assert_origins.size() > 0; }
-        bool is_ineq() const { return m_is_ineq; }
-        const mpq & divider() const { return m_d; }
-    public :
-        static constraint * make_ineq_assert(
-            int id,
-            const vector<monomial>& term,
-            const mpq& a,
-            const svector<constraint_index> & origin) {
-            return new constraint(id, origin, polynomial(term, a), true);
-        }
+class constraint { // we only have less or equal for the inequality sign, which is enough for integral variables
+    int                                              m_id;  
+    bool                                             m_is_ineq;
+    const polynomial                                 m_poly;
+    mpq                                              m_d; // the divider for the case of a divisibility constraint
+    const svector<constraint_index>                  m_assert_origins; // these indices come from the client
+    std::unordered_set<const constraint*,
+                       ccns_hash, ccns_equal>        m_lemma_origins;  //todo use ccns_* here
+    bool                                             m_active;
+public :
+    void set_active_flag() {m_active = true;}
+    void remove_active_flag() { m_active = false; }
+    bool is_active() const { return m_active; }
+    unsigned id() const { return m_id; }
+    const polynomial & poly() const { return m_poly; }
+    const svector<constraint_index> & assert_origins() const { return m_assert_origins;}
+    const std::unordered_set<const constraint*,  ccns_hash, ccns_equal> & lemma_origins() const { return m_lemma_origins;}
+    bool is_lemma() const { return !is_assert(); }
+    bool is_assert() const { return m_assert_origins.size() > 0; }
+    bool is_ineq() const { return m_is_ineq; }
+    const mpq & divider() const { return m_d; }
+public :
+    static constraint * make_ineq_assert(
+        int id,
+        const vector<monomial>& term,
+        const mpq& a,
+        const svector<constraint_index> & origin) {
+        return new constraint(id, origin, polynomial(term, a), true);
+    }
     
-    public :
-        static constraint * make_ineq_lemma(unsigned id, const polynomial &p, const svector<const constraint*>& lemma_origin) {
-            return new constraint(id, lemma_origin, p, true);
-        }
+public :
+    static constraint * make_ineq_lemma(unsigned id, const polynomial &p, const svector<const constraint*>& lemma_origin) {
+        return new constraint(id, lemma_origin, p, true);
+    }
 
-        static constraint * make_div_lemma(unsigned id, const polynomial &p, const mpq & div) {
-            constraint * c = new constraint(id, svector<const constraint*>(), p, true);
-            c->m_d = div;
-            return c;
-        }
+    static constraint * make_div_lemma(unsigned id, const polynomial &p, const mpq & div) {
+        constraint * c = new constraint(id, svector<const constraint*>(), p, true);
+        c->m_d = div;
+        return c;
+    }
 
-        constraint(
-            unsigned id,
-            const svector<constraint_index> & assert_origin,
-            const polynomial & p,
-            bool is_ineq):
-            m_id(id),
-            m_is_ineq(is_ineq),
-            m_poly(p),
-            m_assert_origins(assert_origin),
-            m_active(false) { // creates an assert
-        }
+    constraint(
+        unsigned id,
+        const svector<constraint_index> & assert_origin,
+        const polynomial & p,
+        bool is_ineq):
+        m_id(id),
+        m_is_ineq(is_ineq),
+        m_poly(p),
+        m_assert_origins(assert_origin),
+        m_active(false) { // creates an assert
+    }
 
-        constraint(
-            unsigned id,
-            const svector<const constraint*> & lemma_origin,
-            const polynomial & p,
-            bool is_ineq):
-            m_id(id),
-            m_is_ineq(is_ineq),
-            m_poly(p),
-            m_active(false) { // creates a lemma
-            for (auto c: lemma_origin) {
-                m_lemma_origins.insert(c);
-            }
+    constraint(
+        unsigned id,
+        const svector<const constraint*> & lemma_origin,
+        const polynomial & p,
+        bool is_ineq):
+        m_id(id),
+        m_is_ineq(is_ineq),
+        m_poly(p),
+        m_active(false) { // creates a lemma
+        for (auto c: lemma_origin) {
+            m_lemma_origins.insert(c);
         }
+    }
         
-    public:
-        constraint() {}
+public:
+    constraint() {}
 
-        const mpq & coeff(var_index j) const {
-            return m_poly.coeff(j);
-        }
-        const vector<monomial>& coeffs() const { return m_poly.m_coeffs;}
-        bool is_simple() const {
-            return m_poly.m_coeffs.size() == 1 &&
-                (m_poly.m_coeffs[0].coeff() == one_of_type<mpq>()
-                 || m_poly.m_coeffs[0].coeff() == -one_of_type<mpq>());
-        }
+    const mpq & coeff(var_index j) const {
+        return m_poly.coeff(j);
+    }
+    const vector<monomial>& coeffs() const { return m_poly.m_coeffs;}
+    bool is_simple() const {
+        return m_poly.m_coeffs.size() == 1 &&
+            (m_poly.m_coeffs[0].coeff() == one_of_type<mpq>()
+             || m_poly.m_coeffs[0].coeff() == -one_of_type<mpq>());
+    }
 
-        bool is_tight(unsigned j) const {
-            const mpq & a = m_poly.coeff(j);
-            return a == 1 || a == -1;
-        }
+    bool is_tight(unsigned j) const {
+        const mpq & a = m_poly.coeff(j);
+        return a == 1 || a == -1;
+    }
         
-    };
+};
 
 
-    struct pp_poly {
-        cut_solver const& s;
-        polynomial const& p;
-        pp_poly(cut_solver const& s, polynomial const& p): s(s), p(p) {}
-    };
+struct pp_poly {
+    cut_solver const& s;
+    polynomial const& p;
+    pp_poly(cut_solver const& s, polynomial const& p): s(s), p(p) {}
+};
 
-    struct pp_constraint {
-        cut_solver const& s;
-        constraint const& c;
-        pp_constraint(cut_solver const& s, constraint const& c): s(s), c(c) {}
-    };
+struct pp_constraint {
+    cut_solver const& s;
+    constraint const& c;
+    pp_constraint(cut_solver const& s, constraint const& c): s(s), c(c) {}
+};
 
-    std::ostream& operator<<(std::ostream& out, pp_poly const& p);
-    std::ostream& operator<<(std::ostream& out, pp_constraint const& p);
+std::ostream& operator<<(std::ostream& out, pp_poly const& p);
+std::ostream& operator<<(std::ostream& out, pp_constraint const& p);
     
 class cut_solver : public column_namer {
 public: // for debugging
@@ -300,7 +299,7 @@ public: // for debugging
 
     enum class bound_type {
         LOWER, UPPER, UNDEF
-    };
+            };
 
     struct bound_result {
         mpq m_bound;
@@ -327,17 +326,23 @@ public: // for debugging
 
 
     class var_info {
-        unsigned m_user_var_index;
+        unsigned m_internal_j; // it is just the index into m_var_infos of this var_info
         svector<unsigned> m_literals; // point to m_trail
         integer_domain<mpq> m_domain;
         // the map of constraints using the var: bound_type = UNDEF stands for a div constraint
         std::unordered_map<constraint*, bound_type, ccns_hash, ccns_equal> m_dependent_constraints;
     public:
-        var_info(unsigned user_var_index) : m_user_var_index(user_var_index) {}
+        var_info(unsigned user_var_index) : m_internal_j(user_var_index) {}
+        var_info() : m_internal_j(static_cast<unsigned>(-1)) {}
 
+        bool is_active() const { return m_internal_j != static_cast<unsigned>(-1); }
+        
         const integer_domain<mpq> & domain() const { return m_domain; }
-        unsigned user_var() const {
-            return m_user_var_index;
+        unsigned internal_j() const {
+            return m_internal_j;
+        }
+        unsigned & internal_j() {
+            return m_internal_j;
         }
         void add_dependent_constraint(constraint* i, bound_type bt) {
             lp_assert(m_dependent_constraints.find(i) == m_dependent_constraints.end());
@@ -363,13 +368,13 @@ public: // for debugging
         bool lower_bound_exists() const { return m_domain.lower_bound_exists();}
         bool upper_bound_exists() const { return m_domain.upper_bound_exists();}
         void push() {
-            TRACE("vi_pp", tout << "push m_user_var_index = " << m_user_var_index << ", domain = ";
+            TRACE("vi_pp", tout << "push m_internal_j = " << m_internal_j << ", domain = ";
                   print_var_domain(tout); tout << "\n";);
             m_domain.push();
         }
         void pop(unsigned k) {
             m_domain.pop(k);
-            TRACE("vi_pp", tout << "pop k=" << k << ", m_user_var_index = " << m_user_var_index << ", domain = ";
+            TRACE("vi_pp", tout << "pop k=" << k << ", m_internal_j = " << m_internal_j << ", domain = ";
                   print_var_domain(tout); tout << "\n";);
         }
         void add_literal(unsigned j) {
@@ -430,14 +435,8 @@ public:
         return false;
     }
 
-    bool is_global_bound_var(unsigned j) const {
-        return j == static_cast<unsigned>(m_global_bound_var);
-    }
-    
     std::string get_column_name(unsigned j) const {
-        if (is_global_bound_var(j))
-            return std::string("s");
-        return m_var_name_function(m_var_infos[j].user_var());
+        return m_var_name_function(m_var_infos[j].internal_j());
     }
 
 
@@ -508,7 +507,9 @@ public:
     vector<mpq>                                    m_v; // the values of the variables
     std::function<std::string (unsigned)>          m_var_name_function;
     std::function<void (unsigned, std::ostream &)> m_print_constraint_function;
-     // the number of decisions in the current trail
+    std::function<unsigned ()>                     m_number_of_variables_function;         
+    std::function<const impq & (unsigned)>         m_var_value_function;         
+    // the number of decisions in the current trail
     unsigned                                       m_number_of_decisions;
     active_set                                     m_active_set;
     vector<literal>                                m_trail;
@@ -516,8 +517,6 @@ public:
     unsigned                                       m_max_constraint_id;
     std::set<unsigned>                             m_U; // the set of conflicting cores
     stacked_value<ccns*>                           m_conflict;
-    int                                            m_global_bound_var;
-    bool                                           m_global_bound_var_is_pushed;
     unsigned                                       m_bounded_search_calls;
     vector<polynomial>                             m_debug_resolve_ineqs;
     stacked_value<scope>                           m_scope;
@@ -525,12 +524,14 @@ public:
     std::unordered_set<constraint_index>           m_explanation; // if this collection is not empty we have a conflict 
 
     unsigned add_var(unsigned user_var_index) {
-        unsigned ret;
-        if (try_get_value(m_user_vars_to_cut_solver_vars, user_var_index, ret))
-            return ret;
-        unsigned j = m_var_infos.size();
-        m_var_infos.push_back(var_info(user_var_index));
-        return m_user_vars_to_cut_solver_vars[user_var_index] = j;      
+        if (user_var_index >= m_var_infos.size()) {
+            m_var_infos.resize(m_number_of_variables_function());
+        }
+
+        lp_assert(user_var_index < m_number_of_variables_function());
+
+        m_var_infos[user_var_index].internal_j() = user_var_index;
+        return user_var_index; // it is the index of the var_info in m_var_infos
     }
 
     bool is_lower_bound(const literal & l) const {
@@ -570,10 +571,10 @@ public:
     }
 
     bool check_inconsistent() {
-        if (at_base_lvl() || (m_number_of_decisions == 1 && m_global_bound_var != -1)) {
+        if (at_base_lvl()) {
             // the last added lemmas can give the contradiction
             for (unsigned j = m_lemmas.size(); j--; ) {
-                if (lower_is_pos(m_lemmas[j])) { //todo : check for m_global_bound_var here
+                if (lower_is_pos(m_lemmas[j])) { 
                     TRACE("check_inconsistent_int", tout << pp_poly(*this, m_lemmas[j]->poly()) << "\n";); 
                     lp_assert(false);  // not implemented
                     return true;
@@ -637,7 +638,7 @@ public:
     void set_value_for_fixed_var_and_check_for_conf_cores(unsigned j) {
         lp_assert(m_var_infos[j].is_fixed());
         if (j >= m_v.size())
-                m_v.resize(j + 1);
+            m_v.resize(j + 1);
         m_var_infos[j].domain().get_upper_bound(m_v[j]); // sets the value of the variable
         find_new_conflicting_cores(j);
     }
@@ -810,7 +811,7 @@ public:
         for (auto p: deps) {
             if (v.dependent_constraints().find(p) == v.dependent_constraints().end()) {
                 TRACE("var_info_is_correct", tout << "v.dependent_constraints().find(p) == v.dependent_constraints().end()";);
-                 return false;
+                return false;
             }
         }
             
@@ -943,10 +944,7 @@ public:
     }
 
     void print_var_info(std::ostream & out, const var_info & vi) const {
-        if (m_user_vars_to_cut_solver_vars.find(vi.user_var())->second == static_cast<unsigned>(m_global_bound_var))
-            out << "s" << " ";
-        else
-            out << m_var_name_function(vi.user_var()) << " ";
+        out << m_var_name_function(vi.internal_j()) << " ";
         print_var_domain(out, vi);
     }
 
@@ -1484,24 +1482,6 @@ public:
         }
     }
 
-    vector<monomial> create_upper_global_bound_poly(unsigned j) {
-        if (m_global_bound_var == -1)
-            add_global_bound_var();
-        vector<monomial> p;
-        p.push_back(monomial(one_of_type<mpq>(), j));  
-        p.push_back(monomial(-one_of_type<mpq>(), m_global_bound_var));
-        return p;
-    }
-
-    vector<monomial> create_lower_global_bound_poly(unsigned j) {
-        if (m_global_bound_var == -1)
-            add_global_bound_var();
-        vector<monomial> p;
-        p.push_back(monomial(-one_of_type<mpq>(), j));  
-        p.push_back(monomial(-one_of_type<mpq>(), m_global_bound_var));
-        return p;
-    }
-
     unsigned find_unused_index() const {
         for (unsigned j = m_var_infos.size(); ; j++)
             if (m_user_vars_to_cut_solver_vars.find(j) == m_user_vars_to_cut_solver_vars.end())
@@ -1509,34 +1489,8 @@ public:
         
     }
 
-    void add_global_bound_var() {
-        auto k = find_unused_index();
-        m_global_bound_var = add_var(k);
-        vector<monomial> p;
-        p.push_back(monomial(- one_of_type<mpq>(), m_global_bound_var));
-        // by add_ineq
-        add_ineq(p, zero_of_type<mpq>(), svector<unsigned>(), false); // false, so m_global_bound_var is not changed
-    }
-    
-    // introduce a var x >= 0 such that |y|<=x for every other unbounded var
-    void introduce_bounds() {
-        auto vi_size = m_var_infos.size();
-        for (unsigned j = 0; j < vi_size; j ++) {
-            var_info &vi = m_var_infos[j];
-            if (!vi.lower_bound_exists()) {
-                auto p = create_lower_global_bound_poly(j);
-                add_ineq(p, zero_of_type<mpq>(), svector<unsigned>(), false); // false, to not translate vars
-            }
-            if (!vi.upper_bound_exists()) {
-                auto p = create_upper_global_bound_poly(j);
-                add_ineq(p, zero_of_type<mpq>(), svector<unsigned>(), false); // false, to not translate vars
-                
-            }
-        }
-    }
     
     void init_search() {
-        introduce_bounds();
         lp_assert(m_explanation.size() == 0);
     }
 
@@ -1558,7 +1512,7 @@ public:
                       tout << "\nlevel = " << m_number_of_decisions << std::endl;);
                 return propagate_result::CONFLICT;
             } else {
-               return propagate_constraint_on_lower(c, b);
+                return propagate_constraint_on_lower(c, b);
             }
         } else if (r == 1) {
             lp_assert(lower_is_pos(c->poly()) == false);
@@ -1585,7 +1539,7 @@ public:
         out << "end of constraints\n";
         out << "active constraints " << m_active_set.size() << std::endl;
         for (auto c: m_active_set.cs())
-                print_constraint(out, *c);
+            print_constraint(out, *c);
         out << "end of active constraints\n";
         out << "trail\n";
         print_trail(out);
@@ -1698,7 +1652,7 @@ public:
 
 
     void add_tight_ineq_of_literal(polynomial &ndiv_part, const mpq & c,
-                           literal &l, svector<ccns*> & lemma_origins) {
+                                   literal &l, svector<ccns*> & lemma_origins) {
         lp_assert(is_pos(c));
         ndiv_part.add(c, m_trail[l.trail_index()].tight_ineq());
         lp_assert(is_zero(ndiv_part.coeff(l.var())));
@@ -1861,8 +1815,6 @@ public:
               print_var_info(tout, l.var());
               tout << "p = " << pp_poly(*this, p) << "\n";);
         if (!improves(l.var(), br)) {
-            if (is_global_bound_var(l.var()))
-                m_global_bound_var_is_pushed = true;
             TRACE("int_backjump", br.print(tout);
                   tout << "\nimproves is false\n";);
             do { pop(); } while(m_trail.size() > trail_index);
@@ -2112,16 +2064,18 @@ public:
 
     cut_solver(std::function<std::string (unsigned)> var_name_function,
                std::function<void (unsigned, std::ostream &)> print_constraint_function,
+               std::function<unsigned ()>                     number_of_variables_function,         
+               std::function<const impq &(unsigned)>         var_value_function,         
                lp_settings & settings
                ) : m_var_name_function(var_name_function),
                    m_print_constraint_function(print_constraint_function),
+                   m_number_of_variables_function(number_of_variables_function),
+                   m_var_value_function(var_value_function),
                    m_number_of_decisions(0),
                    m_settings(settings),
                    m_max_constraint_id(0),
                    m_conflict(nullptr),
-                   m_global_bound_var(-1),
-        m_global_bound_var_is_pushed(false),
-        m_bounded_search_calls(0)
+                   m_bounded_search_calls(0)
     {}
 
 
@@ -2206,18 +2160,7 @@ public:
         vector<monomial> lhs;
 
         var_info & vi = m_var_infos[j];
-        if (is_global_bound_var(j)) {
-            if (m_global_bound_var_is_pushed) {
-                m_global_bound_var_is_pushed = false;
-                vi.get_lower_bound(b);
-                vector<monomial> v;
-                v.push_back(monomial(- one_of_type<mpq>(), j));
-                polynomial p(v, 2 * b); // make the lower bound twice larger
-                add_lemma(p, svector<ccns*>()); // s >= 2b
-            }
-        }
         push();    
-
         if (decide_on_lower) {
             vi.domain().get_lower_bound(b);
             vi.intersect_with_upper_bound(b);
@@ -2274,13 +2217,9 @@ public:
     }
 
     int find_var_for_deciding() const {
-        if (m_global_bound_var != -1 && !m_var_infos[m_global_bound_var].is_fixed())
-            return m_global_bound_var;
         unsigned j = m_settings.random_next() % m_var_infos.size();
         
         for (unsigned k = 0; k < m_var_infos.size(); k++, j++) {
-            if (is_global_bound_var(j))
-                j++;
             if (j == m_var_infos.size())
                 j = 0;
             const auto & d = m_var_infos[j].domain();
@@ -2288,6 +2227,9 @@ public:
             if (!d.is_fixed() && (d.lower_bound_exists() || d.upper_bound_exists()))
                 return j;
         }
+
+        // start using the rational solution for bounds and branches
+        
         return -1;
     }
 
@@ -2301,9 +2243,10 @@ public:
     }
     
     bool all_vars_are_fixed() const {
-        for (unsigned j = 0; j < m_var_infos.size(); j++)
-            if (! m_var_infos[j].is_fixed())
+        for (unsigned j = 0; j < m_var_infos.size(); j++) {
+            if (m_var_infos[j].is_active() && ! m_var_infos[j].is_fixed())
                 return false;
+        }
         return true;
     }
 
@@ -2363,16 +2306,17 @@ public:
 
     unsigned add_ineq(const vector<monomial> & lhs,
                       const mpq& free_coeff,
-                      svector<constraint_index> origins, bool translate_to_local_vars) {
-        vector<monomial> local_lhs;
-        if (translate_to_local_vars) {
-            for (auto & p : lhs)
-                local_lhs.push_back(monomial(p.coeff(), add_var(p.var())));
-        } else {
-            local_lhs = lhs;
+                      svector<constraint_index> origins) {
+        lp_assert(lhs_is_int(lhs));
+        lp_assert(is_int(free_coeff));
+        for (auto & p : lhs) {
+            if (p.var() >= m_var_infos.size()) {
+                m_var_infos.resize(m_number_of_variables_function());
+            }
+            m_var_infos[p.var()].internal_j() = p.var();
         }
         
-        constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, local_lhs, free_coeff,origins);
+        constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, lhs, free_coeff,origins);
         m_asserts.push_back(c);
         add_constraint_to_dependend_for_its_vars(c);
         if (c->is_simple()) {
@@ -2396,13 +2340,6 @@ public:
         return m_asserts.size() - 1;
     }
     
-    unsigned add_ineq(const vector<monomial> & lhs,
-                      const mpq& free_coeff,
-                      svector<constraint_index> origins) {
-        lp_assert(lhs_is_int(lhs));
-        lp_assert(is_int(free_coeff));
-        return add_ineq(lhs, free_coeff, origins, true); // true, to translate_to_local_vars
-    }
 
     void add_constraint_to_dependend_for_its_vars(constraint * c) {
         for (auto & p : c->poly().coeffs()) {
