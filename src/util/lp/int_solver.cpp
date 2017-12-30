@@ -482,8 +482,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
     if (!has_inf_int())
         return lia_move::ok;
 
-    // lp_assert(non_basic_columns_are_at_bounds());
-    if (++m_branch_cut_counter > 0) { // testing cut_solver
+    if (m_cut_solver.preprocess()) { // testing cut_solver
         auto check_res = m_cut_solver.check();
         switch (check_res) {
         case lbool::l_false:

@@ -2346,6 +2346,25 @@ public:
             m_var_infos[p.var()].add_dependent_constraint(c, is_pos(p.coeff())? bound_type::UPPER : bound_type::LOWER);
         }
     }
+
+    bool const var_has_no_bounds(const var_info& vi) const {
+        return !vi.lower_bound_exists() && !vi.upper_bound_exists();
+    }
+
+    bool eliminate_var(const var_info & vi) {
+        return false; // implement! todo
+    }
+    
+    bool preprocess() {
+        for (unsigned j = 0; j < m_var_infos.size(); j++) {
+            const var_info & vi = m_var_infos[j];
+            if (!vi.is_active()) continue;
+            if (var_has_no_bounds(vi))
+                if (!eliminate_var(vi))
+                    return false;
+        }
+        return true;
+    }
     
 };
 
@@ -2358,5 +2377,4 @@ inline polynomial operator*(const mpq & a, polynomial & p) {
     
     return ret;
 }
-
 }
