@@ -232,13 +232,12 @@ std::ostream& operator<<(std::ostream& out, pp_constraint const& p);
     
 class cut_solver : public column_namer {
 public: // for debugging
-    enum class propagate_result { PROGRESS, NOTHING, CONFLICT, TIMEOUT };
+    enum class propagate_result { PROGRESS, NOTHING, CONFLICT};
     std::string propagate_result_to_string(propagate_result r) const {
         switch(r) {
         case propagate_result::NOTHING: return "NOTHING";
         case propagate_result::PROGRESS: return "PROGRESS";
         case propagate_result::CONFLICT: return "CONFLICT";
-        case propagate_result::TIMEOUT: return "TIMEOUT";
         default:
             lp_assert(false);
             return "invalid input";
@@ -1150,7 +1149,10 @@ public:
         return lb;
     }
 
-    void pop() { pop(1); }
+    void pop() { pop_do_work(1, true); } // true to pop constraints
+
+    void pop_internal() { pop_do_work(1, false); } // false to not pop constraints
+        
         
     // returns false if not limited from below
     // otherwise the answer is put into lb
@@ -1824,7 +1826,7 @@ public:
         if (!improves(l.var(), br)) {
             TRACE("int_backjump", br.print(tout);
                   tout << "\nimproves is false\n";);
-            do { pop(); } while(m_trail.size() > trail_index);
+            do { pop_internal(); } while(m_trail.size() > trail_index);
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
             if (p_has_been_modified)
@@ -1895,7 +1897,7 @@ public:
 
     bool resolve_decided_literal(polynomial &p, unsigned trail_index, svector<ccns*> & lemma_origins, const literal& l, bool p_has_been_modified, constraint* orig_conflict) {
         if (decision_is_redundant_for_constraint(p, l)) {
-            pop();
+            pop_internal();
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_resolve_confl", tout << "skip decision "; print_literal(tout, l);  if (m_number_of_decisions == 0) tout << ", done resolving";);
             lp_assert(lower_is_pos(p));
@@ -2040,7 +2042,8 @@ public:
         set_active_flag_for_constraints_in_active_set();
     }
 
-    void pop(unsigned k) {
+
+    void pop_do_work(unsigned k, bool need_pop_constraints) {
         TRACE("trace_push_pop_in_cut_solver", tout << "before pop\n";print_state(tout););
         m_scope.pop(k);        
         TRACE("trace_push_pop_in_cut_solver", tout << "scope = ";print_scope(tout); tout << "\n";);
@@ -2057,10 +2060,19 @@ public:
             
         m_trail.resize(m_scope().m_trail_size);
         pop_active_set(k);
-        pop_constraints();
+        if (need_pop_constraints)
+            pop_constraints();
         TRACE("trace_push_pop_in_cut_solver", tout << "after pop\n";print_state(tout););
         m_conflict.pop(k);
         lp_assert(solver_is_in_correct_state());
+    }
+    
+    void pop_internal(unsigned k) {
+        pop_do_work(k, false); // false for popping constraints
+    }
+    
+    void pop(unsigned k) {
+        pop_do_work(k, true); // true for popping constraints
     }
 
     void push() {
