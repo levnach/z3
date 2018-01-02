@@ -232,12 +232,13 @@ std::ostream& operator<<(std::ostream& out, pp_constraint const& p);
     
 class cut_solver : public column_namer {
 public: // for debugging
-    enum class propagate_result { PROGRESS, NOTHING, CONFLICT };
+    enum class propagate_result { PROGRESS, NOTHING, CONFLICT, TIMEOUT };
     std::string propagate_result_to_string(propagate_result r) const {
         switch(r) {
         case propagate_result::NOTHING: return "NOTHING";
         case propagate_result::PROGRESS: return "PROGRESS";
         case propagate_result::CONFLICT: return "CONFLICT";
+        case propagate_result::TIMEOUT: return "TIMEOUT";
         default:
             lp_assert(false);
             return "invalid input";
@@ -516,7 +517,7 @@ public:
     lp_settings &                                  m_settings;
     unsigned                                       m_max_constraint_id;
     std::set<unsigned>                             m_U; // the set of conflicting cores
-    stacked_value<ccns*>                           m_conflict;
+    stacked_value<constraint*>                     m_conflict;
     unsigned                                       m_bounded_search_calls;
     vector<polynomial>                             m_debug_resolve_ineqs;
     stacked_value<scope>                           m_scope;
@@ -613,6 +614,7 @@ public:
     }
     
     lbool final_check() {
+        
         lp_assert(all_vars_are_fixed());
         lp_assert(all_constraints_hold());
         lp_assert(at_base_lvl());
@@ -1466,6 +1468,8 @@ public:
         while (true) {
             TRACE("cs_ch", tout << "inside loop\n";);
             lbool r = bounded_search();
+            if (m_settings.get_cancel_flag())
+                return lbool::l_undef;
             TRACE("cs_ch", print_state(tout););
             lp_assert(solver_is_in_correct_state());
             if (r != lbool::l_undef) {
@@ -1560,7 +1564,8 @@ public:
             return is_sat;
         }
         gc();
-        
+        if (m_settings.get_cancel_flag())
+            return lbool::l_undef;
         if (!decide()) {
             TRACE("decide_int", tout << "going to final_check()\n";);
             lbool is_sat = final_check();
@@ -1594,7 +1599,9 @@ public:
 
     lbool propagate_and_backjump_step() {
         do {
-            ccns* incostistent_constraint = propagate();
+            constraint* incostistent_constraint = propagate();
+            if (m_settings.get_cancel_flag())
+                return lbool::l_undef;
             TRACE("cs_dec", tout << "trail = \n"; print_trail(tout); tout << "end of trail\n";);
 
             if (incostistent_constraint != nullptr) {
@@ -1802,7 +1809,7 @@ public:
     }
 
     // returns true iff resolved
-    bool backjump(polynomial &p,unsigned trail_index, const svector<ccns*> & lemma_origins) {
+    bool backjump(polynomial &p,unsigned trail_index, const svector<ccns*> & lemma_origins, bool p_has_been_modified, constraint* orig_conflict) {
         const literal &l = m_trail[trail_index];
         lp_assert(l.is_decided());
         bound_result br = bound_on_polynomial(p,
@@ -1820,11 +1827,18 @@ public:
             do { pop(); } while(m_trail.size() > trail_index);
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
-            add_lemma(p, lemma_origins);
+            if (p_has_been_modified)
+                add_lemma(p, lemma_origins);
+            else
+                m_active_set.add_constraint(orig_conflict);
             return true;
         }
+        constraint *c;
+        if (p_has_been_modified)
+            c = add_lemma(p, lemma_origins);
+        else
+            m_active_set.add_constraint(c = orig_conflict);
         
-        constraint * c = add_lemma(p, lemma_origins);
         add_bound(br.bound(), l.var(), br.m_type == bound_type::LOWER, c);
         restrict_var_domain_with_bound_result(l.var(), br);
         lp_assert(!m_var_infos[l.var()].domain().is_empty());
@@ -1878,56 +1892,50 @@ public:
         out << "\nm_number_of_decisions = " << m_number_of_decisions << "\n";
     }
 
+
+    bool resolve_decided_literal(polynomial &p, unsigned trail_index, svector<ccns*> & lemma_origins, const literal& l, bool p_has_been_modified, constraint* orig_conflict) {
+        if (decision_is_redundant_for_constraint(p, l)) {
+            pop();
+            lp_assert(m_trail.size() == trail_index);
+            TRACE("int_resolve_confl", tout << "skip decision "; print_literal(tout, l);  if (m_number_of_decisions == 0) tout << ", done resolving";);
+            lp_assert(lower_is_pos(p));
+            return m_number_of_decisions == 0;
+        }
+        else {
+            handle_conflicting_cores();
+            return backjump(p, trail_index, lemma_origins, p_has_been_modified, orig_conflict);
+        }
+    }
+
+    bool resolve_implied_literal(polynomial & p, unsigned trail_index, svector<ccns*> & lemma_origins, const literal & l, bool &p_has_been_modified) {
+        create_tight_ineq_under_literal(trail_index, lemma_origins);
+        DEBUG_CODE(m_debug_resolve_ineqs.push_back(l.tight_ineq()););
+        // applying Resolve rule
+        bool resolved = resolve(p, l.var(), !l.is_lower(), l.tight_ineq());            
+        p_has_been_modified = p_has_been_modified || resolved;
+        CTRACE("int_resolve_confl", resolved, print_resolvent(tout, p, l););
+        lp_assert(lower_is_pos(p));
+        if (p.coeffs().size() == 0) {
+            for (auto c : lemma_origins)
+                for (unsigned j : c->assert_origins())
+                    m_explanation.insert(j);
+            return true;
+        }
+        return false;
+    }
     
     // returns true iff resolved
-    bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index, svector<ccns*> & lemma_origins) {
+    bool resolve_conflict_for_inequality_on_trail_element(polynomial & p, unsigned trail_index, svector<ccns*> & lemma_origins, bool & p_has_been_modified, constraint* orig_conflict) {
         lp_assert(lower_is_pos(p));
         const literal & l = m_trail[trail_index];
         
         lemma_origins.append(collect_origin_constraints(l.cnstr()));
-        TRACE("lemma_origins", tout << "lemma_origins.size()="<< lemma_origins.size()<<"\n";);
         TRACE("int_resolve_conflxxx", tout << "trail_index = " << trail_index <<", p = " << pp_poly(*this, p) << "\n";
               tout << "l = ";  print_literal(tout, l);
-              tout << "lower(p) = " << lower_no_check(p) << "\n";
-              for (auto & m : p.coeffs()) {
-                  tout <<  var_name(m.var()) << " ";
-                  print_var_domain(tout, m.var());
-                  tout << " ";
-              }
               tout << "\nm_number_of_decisions = " << m_number_of_decisions << "\n";
               );
-        if (l.is_decided()) {
-            if (decision_is_redundant_for_constraint(p, l)) {
-                pop();
-                lp_assert(m_trail.size() == trail_index);
-                TRACE("int_resolve_confl", tout << "skip decision ";
-                      print_literal(tout, l);
-                      if (m_number_of_decisions == 0)
-                          tout << ", done resolving";);
-                lp_assert(lower_is_pos(p));
-                return m_number_of_decisions == 0;
-            }
-            else {
-                handle_conflicting_cores();
-                return backjump(p, trail_index, lemma_origins);
-            }
-        } 
-        else { // the literal is implied
-            create_tight_ineq_under_literal(trail_index, lemma_origins);
-            DEBUG_CODE(m_debug_resolve_ineqs.push_back(l.tight_ineq()););
-            // applying Resolve rule
-            bool resolved = resolve(p, l.var(), !l.is_lower(), l.tight_ineq());            
-            (void)resolved;
-            CTRACE("int_resolve_confl", resolved, print_resolvent(tout, p, l););
-            lp_assert(lower_is_pos(p));
-            if (p.coeffs().size() == 0) {
-                for (auto c : lemma_origins)
-                    for (unsigned j : c->assert_origins())
-                        m_explanation.insert(j);
-                return true;
-            }
-        }
-        return false; // not done
+
+        return l.is_decided() ? resolve_decided_literal(p, trail_index, lemma_origins, l, p_has_been_modified, orig_conflict): resolve_implied_literal(p, trail_index, lemma_origins, l, p_has_been_modified);
     }
 
     bool lower_is_pos(ccns* c) const { return lower_is_pos(c->poly()); }
@@ -1946,15 +1954,17 @@ public:
     }
 
     
-    bool resolve_conflict_for_inequality(ccns * i) {
+    bool resolve_conflict_for_inequality(constraint * i) {
         svector<ccns*> conflict_origins = collect_origin_constraints(i);
         polynomial p = i->poly();
         lp_assert(lower_is_pos(p));
         bool done = false;
         unsigned j = m_trail.size() - 1;
         m_debug_resolve_ineqs.clear();
+        bool p_has_been_modified = false;
         while (!done) {
-            done = resolve_conflict_for_inequality_on_trail_element(p, j--, conflict_origins);
+            if (m_settings.get_cancel_flag()) return true; // done resolving
+            done = resolve_conflict_for_inequality_on_trail_element(p, j--, conflict_origins, p_has_been_modified, i);
             if (j >= m_trail.size()) {
                 lp_assert(m_trail.size());
                 j = m_trail.size() - 1;
@@ -1976,7 +1986,7 @@ public:
         return ret;
     }
     
-    bool resolve_conflict(ccns* i) {
+    bool resolve_conflict(constraint* i) {
         lp_assert(!at_base_lvl());
         TRACE("int_resolve_confl", tout << "inconstistent_constraint = ";
               print_constraint(tout, *i););
@@ -2118,12 +2128,15 @@ public:
     }
     
     // returns nullptr if there is no conflict, or a conflict constraint otherwise
-    ccns* propagate_constraints_on_active_set() {
+    constraint* propagate_constraints_on_active_set() {
         if (m_conflict != nullptr)
             return m_conflict;
         constraint *c;
         while ((c = find_constraint_to_propagate(m_settings.random_next())) != nullptr) {
             auto r = propagate_constraint(c);
+            if (m_settings.get_cancel_flag()) {
+                return nullptr;
+            }
             if (r == propagate_result::CONFLICT) {
                 return c;
             }
@@ -2133,8 +2146,8 @@ public:
 
     
     // returns -1 if there is no conflict and the index of the conflict constraint otherwise
-    ccns* propagate() {
-        ccns* conflict_constraint = propagate_constraints_on_active_set();;
+    constraint* propagate() {
+        constraint* conflict_constraint = propagate_constraints_on_active_set();;
         if (conflict_constraint != nullptr){
             lp_assert(lower_is_pos(conflict_constraint));
             return conflict_constraint;
