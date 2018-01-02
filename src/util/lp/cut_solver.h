@@ -2347,7 +2347,7 @@ public:
         }
     }
 
-    bool const var_has_no_bounds(const var_info& vi) const {
+    bool var_has_no_bounds(const var_info& vi) const {
         return !vi.lower_bound_exists() && !vi.upper_bound_exists();
     }
 
@@ -2356,8 +2356,7 @@ public:
     }
     
     bool preprocess() {
-        for (unsigned j = 0; j < m_var_infos.size(); j++) {
-            const var_info & vi = m_var_infos[j];
+        for (const var_info & vi : m_var_infos) {
             if (!vi.is_active()) continue;
             if (var_has_no_bounds(vi))
                 if (!eliminate_var(vi))
