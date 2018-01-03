@@ -489,15 +489,15 @@ public:
         unsigned m_trail_size;
         unsigned m_asserts_size;
         unsigned m_lemmas_size;
+        bool     m_external_state;
         scope() {}
-        scope(const scope& s) : m_trail_size(s.m_trail_size),
-                                m_asserts_size(s.m_asserts_size),
-                                m_lemmas_size(s.m_lemmas_size) {}
         scope(unsigned trail_size,
               unsigned constraints_size,
-              unsigned lemmas_size) : m_trail_size(trail_size),
-                                      m_asserts_size(constraints_size),
-                                      m_lemmas_size(lemmas_size) {}
+              unsigned lemmas_size,
+              bool external_state) : m_trail_size(trail_size),
+                                     m_asserts_size(constraints_size),
+                                     m_lemmas_size(lemmas_size),
+                                     m_external_state(external_state) {}
 
     };
     
@@ -1835,12 +1835,8 @@ public:
                 m_active_set.add_constraint(orig_conflict);
             return true;
         }
-        constraint *c;
-        if (p_has_been_modified)
-            c = add_lemma(p, lemma_origins);
-        else
-            m_active_set.add_constraint(c = orig_conflict);
         
+        constraint *c = p_has_been_modified? add_lemma(p, lemma_origins) : orig_conflict;
         add_bound(br.bound(), l.var(), br.m_type == bound_type::LOWER, c);
         restrict_var_domain_with_bound_result(l.var(), br);
         lp_assert(!m_var_infos[l.var()].domain().is_empty());
@@ -2075,9 +2071,9 @@ public:
         pop_do_work(k, true); // true for popping constraints
     }
 
-    void push() {
+    void push(bool external_state) {
         TRACE("trace_push_pop_in_cut_solver", print_state(tout););
-        m_scope = scope(m_trail.size(), m_asserts.size(), m_lemmas.size());
+        m_scope = scope(m_trail.size(), m_asserts.size(), m_lemmas.size(), external_state);
         m_scope.push();
         push_var_infos();
         m_conflict.push();
@@ -2185,7 +2181,7 @@ public:
         vector<monomial> lhs;
 
         var_info & vi = m_var_infos[j];
-        push();    
+        push(false);    
         if (decide_on_lower) {
             vi.domain().get_lower_bound(b);
             vi.intersect_with_upper_bound(b);
