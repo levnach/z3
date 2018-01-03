@@ -518,6 +518,7 @@ public:
     std::set<unsigned>                             m_U; // the set of conflicting cores
     stacked_value<constraint*>                     m_conflict;
     unsigned                                       m_bounded_search_calls;
+    unsigned                                       m_number_of_conflicts;
     vector<polynomial>                             m_debug_resolve_ineqs;
     stacked_value<scope>                           m_scope;
     std::unordered_map<unsigned, unsigned>         m_user_vars_to_cut_solver_vars;
@@ -1011,6 +1012,8 @@ public:
 
     
     void fill_conflict_explanation(ccns * c, unsigned upper_end_of_trail) {
+        if (cancel())
+            return;
         // it is a depth search in the DAG of constraint: the chidlren of a constraint are those constraints that provide its lower bound
         add_constraint_origins_to_explanation(c);
         TRACE("fill_conflict_explanation", trace_print_constraint(tout, c););
@@ -1470,7 +1473,7 @@ public:
         while (true) {
             TRACE("cs_ch", tout << "inside loop\n";);
             lbool r = bounded_search();
-            if (m_settings.get_cancel_flag())
+            if (cancel())
                 return lbool::l_undef;
             TRACE("cs_ch", print_state(tout););
             lp_assert(solver_is_in_correct_state());
@@ -1556,7 +1559,7 @@ public:
         }
         out << "end of var_infos\n";
         out << "level = " << m_number_of_decisions << "\n";
-        out << "end of state dump, bounded_search_calls = "  <<  m_bounded_search_calls << std::endl;
+        out << "end of state dump, bounded_search_calls = "  <<  m_bounded_search_calls << ", number_of_conflicts = " << m_number_of_conflicts << std::endl;
     }
     lbool bounded_search() {
         m_bounded_search_calls++;
@@ -1566,7 +1569,7 @@ public:
             return is_sat;
         }
         gc();
-        if (m_settings.get_cancel_flag())
+        if (cancel())
             return lbool::l_undef;
         if (!decide()) {
             TRACE("decide_int", tout << "going to final_check()\n";);
@@ -1599,14 +1602,26 @@ public:
         return true;
     }
 
+    bool cancel() {
+        if (m_settings.get_cancel_flag())
+            return true;
+
+        if (m_asserts.size() * 100 < m_trail.size())
+            return true;
+
+        return false;
+    }
+
+    
     lbool propagate_and_backjump_step() {
         do {
             constraint* incostistent_constraint = propagate();
-            if (m_settings.get_cancel_flag())
+            if (cancel())
                 return lbool::l_undef;
             TRACE("cs_dec", tout << "trail = \n"; print_trail(tout); tout << "end of trail\n";);
 
             if (incostistent_constraint != nullptr) {
+                m_number_of_conflicts++;
                 TRACE("decide_int", tout << "incostistent_constraint " << pp_constraint(*this, *incostistent_constraint););
                 if (at_base_lvl()) {
                     fill_conflict_explanation(incostistent_constraint, m_trail.size());
@@ -1965,7 +1980,7 @@ public:
         m_debug_resolve_ineqs.clear();
         bool p_has_been_modified = false;
         while (!done) {
-            if (m_settings.get_cancel_flag()) return true; // done resolving
+            if (cancel()) return true; // done resolving
             done = resolve_conflict_for_inequality_on_trail_element(p, j--, conflict_origins, p_has_been_modified, i);
             if (j >= m_trail.size()) {
                 lp_assert(m_trail.size());
@@ -2097,7 +2112,8 @@ public:
                    m_settings(settings),
                    m_max_constraint_id(0),
                    m_conflict(nullptr),
-                   m_bounded_search_calls(0)
+                   m_bounded_search_calls(0),
+                   m_number_of_conflicts(0)
     {}
 
 
@@ -2146,7 +2162,7 @@ public:
         constraint *c;
         while ((c = find_constraint_to_propagate(m_settings.random_next())) != nullptr) {
             auto r = propagate_constraint(c);
-            if (m_settings.get_cancel_flag()) {
+            if (cancel()) {
                 return nullptr;
             }
             if (r == propagate_result::CONFLICT) {
