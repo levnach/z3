@@ -1202,7 +1202,7 @@ void int_solver::pop(unsigned k) {
 }
 
 void int_solver::push() {
-    m_cut_solver.push();
+    m_cut_solver.push(true); // for external_state
 }
 
 }
