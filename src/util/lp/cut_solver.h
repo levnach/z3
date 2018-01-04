@@ -448,15 +448,9 @@ public:
     }
 
     class active_set {
-        stacked_vector<constraint*> m_cs;
+        vector<constraint*> m_cs;
     public:
-        const vector<constraint*> & cs() const { return m_cs(); }
-        void push() {
-            m_cs.push();
-        }
-        void pop(unsigned k) {
-            m_cs.pop(k);
-        }
+        const vector<constraint*> & cs() const { return m_cs; }
         bool is_empty() const { return m_cs.size() == 0; }
 
         void add_constraint(constraint* c) {
@@ -466,6 +460,14 @@ public:
             c->set_active_flag();
         }
 
+        void clear() {
+            for (constraint * c: m_cs) {
+                c->remove_active_flag();
+            }
+            m_cs.clear();
+        }
+        
+        
         constraint* remove_random_constraint(unsigned rand) {
             if (m_cs.size() == 0)
                 return nullptr;
@@ -1152,10 +1154,6 @@ public:
         return lb;
     }
 
-    void pop() { pop_do_work(1, true); } // true to pop constraints
-
-    void pop_internal() { pop_do_work(1, false); } // false to not pop constraints
-        
         
     // returns false if not limited from below
     // otherwise the answer is put into lb
@@ -1440,11 +1438,13 @@ public:
     }
 
     void pop_constraints() {
+        m_active_set.clear();
         while (m_asserts.size() > m_scope().m_asserts_size) {
             constraint * i = m_asserts.back();;
             for (auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
+            m_active_set.clear();
             delete i;
             m_asserts.pop_back();
         }
@@ -1464,7 +1464,12 @@ public:
     bool flip_coin() {
         return m_settings.random_next() % 2 == 0;
     }
-    
+
+    void pop_to_external_state() {
+        while (m_scope().m_external_state == false){
+            pop(1, true);
+        }
+    }
 
     lbool check() {
         init_search();
@@ -1473,8 +1478,10 @@ public:
         while (true) {
             TRACE("cs_ch", tout << "inside loop\n";);
             lbool r = bounded_search();
-            if (cancel())
+            if (cancel()) {
+                pop_to_external_state();
                 return lbool::l_undef;
+            }
             TRACE("cs_ch", print_state(tout););
             lp_assert(solver_is_in_correct_state());
             if (r != lbool::l_undef) {
@@ -1841,7 +1848,7 @@ public:
         if (!improves(l.var(), br)) {
             TRACE("int_backjump", br.print(tout);
                   tout << "\nimproves is false\n";);
-            do { pop_internal(); } while(m_trail.size() > trail_index);
+            do { pop(1, false); } while(m_trail.size() > trail_index);
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
             if (p_has_been_modified)
@@ -1908,7 +1915,7 @@ public:
 
     bool resolve_decided_literal(polynomial &p, unsigned trail_index, svector<ccns*> & lemma_origins, const literal& l, bool p_has_been_modified, constraint* orig_conflict) {
         if (decision_is_redundant_for_constraint(p, l)) {
-            pop_internal();
+            pop(1, false);
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_resolve_confl", tout << "skip decision "; print_literal(tout, l);  if (m_number_of_decisions == 0) tout << ", done resolving";);
             lp_assert(lower_is_pos(p));
@@ -2047,14 +2054,7 @@ public:
         }
     }
     
-    void pop_active_set(unsigned k) {
-        remove_active_flag_from_constraints_in_active_set();
-        m_active_set.pop(k);
-        set_active_flag_for_constraints_in_active_set();
-    }
-
-
-    void pop_do_work(unsigned k, bool need_pop_constraints) {
+    void pop(unsigned k, bool need_pop_constraints) {
         TRACE("trace_push_pop_in_cut_solver", tout << "before pop\n";print_state(tout););
         m_scope.pop(k);        
         TRACE("trace_push_pop_in_cut_solver", tout << "scope = ";print_scope(tout); tout << "\n";);
@@ -2070,7 +2070,6 @@ public:
         }
             
         m_trail.resize(m_scope().m_trail_size);
-        pop_active_set(k);
         if (need_pop_constraints)
             pop_constraints();
         TRACE("trace_push_pop_in_cut_solver", tout << "after pop\n";print_state(tout););
@@ -2078,21 +2077,12 @@ public:
         lp_assert(solver_is_in_correct_state());
     }
     
-    void pop_internal(unsigned k) {
-        pop_do_work(k, false); // false for popping constraints
-    }
-    
-    void pop(unsigned k) {
-        pop_do_work(k, true); // true for popping constraints
-    }
-
     void push(bool external_state) {
         TRACE("trace_push_pop_in_cut_solver", print_state(tout););
         m_scope = scope(m_trail.size(), m_asserts.size(), m_lemmas.size(), external_state);
         m_scope.push();
         push_var_infos();
         m_conflict.push();
-        m_active_set.push();
     }
 
     cut_solver(std::function<std::string (unsigned)> var_name_function,

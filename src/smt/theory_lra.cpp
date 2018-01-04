@@ -2780,6 +2780,10 @@ namespace smt {
             st.update("arith-make-feasible", m_solver->settings().st().m_make_feasible);
             st.update("arith-max-columns", m_solver->settings().st().m_max_cols);
             st.update("arith-max-rows", m_solver->settings().st().m_max_rows);
+            st.update("cut_solver-calls", m_solver->settings().st().m_cut_solver_calls);
+            st.update("cut_solver-true", m_solver->settings().st().m_cut_solver_true);
+            st.update("cut_solver-false", m_solver->settings().st().m_cut_solver_false);
+            st.update("cut_solver-undef", m_solver->settings().st().m_cut_solver_undef);
         }        
     };
     

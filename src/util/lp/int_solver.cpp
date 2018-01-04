@@ -465,8 +465,6 @@ void int_solver::copy_explanations_from_cut_solver(explanation &ex) {
 }
 
 
-bool m_cut_solver_failed = false;
-
 lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
     init_check_data();
     lp_assert(inf_int_set_is_correct());
@@ -485,22 +483,25 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
     if (!has_inf_int())
         return lia_move::ok;
 
-    if (!m_cut_solver_failed && m_cut_solver.preprocess()) { // testing cut_solver
+    if ((m_branch_cut_counter++) % settings().m_int_branch_cut_solver == 0 && m_cut_solver.preprocess()) { // testing cut_solver
         auto check_res = m_cut_solver.check();
+        settings().st().m_cut_solver_calls++;
         switch (check_res) {
         case lbool::l_false:
-            copy_explanations_from_cut_solver(ex);
+            copy_explanations_from_cut_solver(ex); 
+            settings().st().m_cut_solver_false++;
             return lia_move::conflict;
         case lbool::l_true:
+            settings().st().m_cut_solver_true++;
             return lia_move::ok;
         case lbool::l_undef:
-            m_cut_solver_failed = true;
+            settings().st().m_cut_solver_undef++;
             break;
         default:
             return lia_move::give_up;
         }
     }
-    if ((++m_branch_cut_counter) % settings().m_int_branch_cut_gomory_threshold == 0) {
+    if ((m_branch_cut_counter) % settings().m_int_branch_cut_gomory_threshold == 0) {
         if (move_non_basic_columns_to_bounds()) {
             lp_status st = m_lar_solver->find_feasible_solution();
             lp_assert(non_basic_columns_are_at_bounds());
@@ -1198,7 +1199,7 @@ void int_solver::notify_on_last_added_constraint() {
 }
 
 void int_solver::pop(unsigned k) {
-    m_cut_solver.pop(k);
+    m_cut_solver.pop(k, true); // true for external_state
 }
 
 void int_solver::push() {
