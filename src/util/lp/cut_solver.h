@@ -327,7 +327,6 @@ public: // for debugging
 
     class var_info {
         unsigned m_internal_j; // it is just the index into m_var_infos of this var_info
-        svector<unsigned> m_literals; // point to m_trail
         integer_domain<mpq> m_domain;
         // the map of constraints using the var: bound_type = UNDEF stands for a div constraint
         std::unordered_map<constraint*, bound_type, ccns_hash, ccns_equal> m_dependent_constraints;
@@ -362,7 +361,6 @@ public: // for debugging
         bool get_upper_bound(mpq & b) const { return m_domain.get_upper_bound(b); }
         bool get_lower_bound(mpq & b) const { return m_domain.get_lower_bound(b); }
         void print_var_domain(std::ostream &out) const { m_domain.print(out); }
-        const svector<unsigned> & literals() const { return m_literals; }
         std::unordered_map<constraint*, bound_type, ccns_hash, ccns_equal> & dependent_constraints() { return m_dependent_constraints; }
         const std::unordered_map<constraint*, bound_type, ccns_hash, ccns_equal> & dependent_constraints() const { return m_dependent_constraints; }
         bool lower_bound_exists() const { return m_domain.lower_bound_exists();}
@@ -377,15 +375,6 @@ public: // for debugging
             TRACE("vi_pp", tout << "pop k=" << k << ", m_internal_j = " << m_internal_j << ", domain = ";
                   print_var_domain(tout); tout << "\n";);
         }
-        void add_literal(unsigned j) {
-            lp_assert(std::find(m_literals.begin(), m_literals.end(), j) == m_literals.end());
-            m_literals.push_back(j);
-        }
-        void remove_literal(unsigned literal_index) {
-            auto it = std::find (m_literals.begin(), m_literals.end(), literal_index);
-            lp_assert(it != m_literals.end());
-            m_literals.erase(it);
-        }        
     }; // end of var_info
 
     vector<var_info> m_var_infos;
@@ -512,7 +501,6 @@ public:
     std::function<unsigned ()>                     m_number_of_variables_function;         
     std::function<const impq & (unsigned)>         m_var_value_function;         
     // the number of decisions in the current trail
-    unsigned                                       m_number_of_decisions;
     active_set                                     m_active_set;
     vector<literal>                                m_trail;
     lp_settings &                                  m_settings;
@@ -525,6 +513,7 @@ public:
     stacked_value<scope>                           m_scope;
     std::unordered_map<unsigned, unsigned>         m_user_vars_to_cut_solver_vars;
     std::unordered_set<constraint_index>           m_explanation; // if this collection is not empty we have a conflict 
+    unsigned                                       m_decision_level;
 
     unsigned add_var(unsigned user_var_index) {
         if (user_var_index >= m_var_infos.size()) {
@@ -559,7 +548,7 @@ public:
         return !l.is_lower();
     }
     
-    bool  at_base_lvl() const { return m_number_of_decisions == 0; }
+    bool  at_base_lvl() const { return m_decision_level == 0; }
 
     void simplify_problem() {
         // no-op
@@ -783,18 +772,6 @@ public:
     
     bool var_info_is_correct(unsigned j) const {
         const var_info & v = m_var_infos[j];
-        std::unordered_set<unsigned> literals;
-        for (unsigned k = 0; k < m_trail.size(); k++) {
-            if (m_trail[k].var() == j)
-                literals.insert(k);
-        }
-        std::unordered_set<unsigned> vlits;
-        for (unsigned k : v.literals())
-            vlits.insert(k);
-        if (vlits != literals) {
-            TRACE("var_info_is_correct", tout << "vlits != literals";);
-            return false;
-        }
         std::unordered_set<constraint*, ccns_hash, ccns_equal> deps;
         for (const auto c: m_asserts) {
             if (!is_zero(c->coeff(j)))
@@ -826,7 +803,6 @@ public:
         unsigned literal_index = m_trail.size();
         m_trail.push_back(l);
         TRACE("push_literal_int", print_literal(tout, l););
-        m_var_infos[l.var()].add_literal(literal_index);
         add_changed_var(l.var());
         lp_assert(var_info_is_correct(l.var()));
     }
@@ -866,9 +842,6 @@ public:
             return false;
         if (d.upper_bound_exists())
             return true;
-        TRACE("new_lower_bound_is_relevant", tout << "dc = " << m_var_infos[j].dependent_constraints().size() << ", lt = " << m_var_infos[j].literals().size(););
-        if (m_var_infos[j].dependent_constraints().size() * 2 < m_var_infos[j].literals().size())
-            return false;
 
         //        int delta = 2;
         return v >= lb + 2 * abs(lb);
@@ -884,9 +857,6 @@ public:
             return false;
         if (d.lower_bound_exists())
             return true;
-        TRACE("new_upper_bound_is_relevant", tout << "dc = " << m_var_infos[j].dependent_constraints().size() << ", lt = " << m_var_infos[j].literals().size(););
-        if (m_var_infos[j].dependent_constraints().size() * 2 < m_var_infos[j].literals().size())
-            return false; // the bound has been improved too many times
 
         //        delta = 2
         return v <= b - 2 * abs(b); // returns false if the improvement is small
@@ -978,8 +948,16 @@ public:
         return ret;
     }
 
-    unsigned find_lower_bound_literal(bool is_lower, unsigned j, unsigned & upper_end_of_trail) const {
-        TRACE("ba_int_confl", tout << var_name(j) << "\n"; tout << "literal's size = " << m_var_infos[j].literals().size() << "\n";);
+    unsigned find_literal(bool is_lower, unsigned j, unsigned upper_end_of_trail) const {
+		for (unsigned literal_index = upper_end_of_trail; literal_index--;) {
+			const literal& l = m_trail[literal_index];
+			if (l.var() == j && l.is_lower() == is_lower) {
+				TRACE("ba_int_confl",
+					tout << "found lower bound expl\n";
+				print_literal(tout, l); tout << "\n";);
+				return literal_index;
+			}
+		} /*
         for (unsigned k = m_var_infos[j].literals().size(); k--;) {
             unsigned literal_index = m_var_infos[j].literals()[k];
             if (literal_index >= upper_end_of_trail)
@@ -991,7 +969,7 @@ public:
                       print_literal(tout, l); tout << "\n";);
                 return literal_index;
             }
-        }
+        }*/
         lp_assert(false); // unreachable
         return 0;// to avoid the warning
     }
@@ -1020,7 +998,7 @@ public:
         add_constraint_origins_to_explanation(c);
         TRACE("fill_conflict_explanation", trace_print_constraint(tout, c););
         for (const auto & p: c->coeffs()){
-            unsigned literal_index = find_lower_bound_literal(is_pos(p.coeff()), p.var(), upper_end_of_trail);
+            unsigned literal_index = find_literal(is_pos(p.coeff()), p.var(), upper_end_of_trail);
             TRACE("fill_conflict_explanation", tout << "literal_index = " << literal_index; );
             auto *c = m_trail[literal_index].cnstr();
             if (!c->is_simple())  
@@ -1508,6 +1486,8 @@ public:
     
     void init_search() {
         lp_assert(m_explanation.size() == 0);
+        m_number_of_conflicts = 0;
+        m_bounded_search_calls = 0;
     }
 
     // returns true if there is no conflict and false otherwise
@@ -1525,7 +1505,7 @@ public:
             if (is_pos(b)) {
                 TRACE("cs_inconsistent", tout << "incostistent constraint ";
                       trace_print_constraint(tout, c);
-                      tout << "\nlevel = " << m_number_of_decisions << std::endl;);
+                      tout << "\nlevel = " << m_decision_level << std::endl;);
                 return propagate_result::CONFLICT;
             } else {
                 return propagate_constraint_on_lower(c, b);
@@ -1565,7 +1545,7 @@ public:
             print_var_info(out, v);
         }
         out << "end of var_infos\n";
-        out << "level = " << m_number_of_decisions << "\n";
+        out << "level = " << m_decision_level << "\n";
         out << "end of state dump, bounded_search_calls = "  <<  m_bounded_search_calls << ", number_of_conflicts = " << m_number_of_conflicts << std::endl;
     }
     lbool bounded_search() {
@@ -1604,7 +1584,7 @@ public:
         if (j < 0)
             return false;
         TRACE("decide_int", tout << "going to decide " << var_name(j) << " var index = " << j << "\n";
-              tout << "domain = "; print_var_domain(tout, j); tout << ", m_number_of_decisions="<<m_number_of_decisions<< "\n";);
+              tout << "domain = "; print_var_domain(tout, j); tout << ", m_decision_level="<<m_decision_level<< "\n";);
         decide_var_on_bound(j, pick_bound_kind(j));
         return true;
     }
@@ -1612,11 +1592,11 @@ public:
     bool cancel() {
         if (m_settings.get_cancel_flag())
             return true;
-
-        if (m_asserts.size() * 100 < m_trail.size())
+		unsigned bound = m_asserts.size() * 100;
+        if (m_trail.size() > bound || m_number_of_conflicts > bound)
             return true;
-
-        return false;
+		
+		return false;
     }
 
     
@@ -1909,7 +1889,7 @@ public:
             print_var_domain(out, m.var());
             out << " ";
         }
-        out << "\nm_number_of_decisions = " << m_number_of_decisions << "\n";
+        out << "\nm_decision_level = " << m_decision_level << "\n";
     }
 
 
@@ -1917,9 +1897,9 @@ public:
         if (decision_is_redundant_for_constraint(p, l)) {
             pop(1, false);
             lp_assert(m_trail.size() == trail_index);
-            TRACE("int_resolve_confl", tout << "skip decision "; print_literal(tout, l);  if (m_number_of_decisions == 0) tout << ", done resolving";);
+            TRACE("int_resolve_confl", tout << "skip decision "; print_literal(tout, l);  if (m_decision_level == 0) tout << ", done resolving";);
             lp_assert(lower_is_pos(p));
-            return m_number_of_decisions == 0;
+            return m_decision_level == 0;
         }
         else {
             handle_conflicting_cores();
@@ -1952,7 +1932,7 @@ public:
         lemma_origins.append(collect_origin_constraints(l.cnstr()));
         TRACE("int_resolve_conflxxx", tout << "trail_index = " << trail_index <<", p = " << pp_poly(*this, p) << "\n";
               tout << "l = ";  print_literal(tout, l);
-              tout << "\nm_number_of_decisions = " << m_number_of_decisions << "\n";
+              tout << "\nm_decision_level = " << m_decision_level << "\n";
               );
 
         return l.is_decided() ? resolve_decided_literal(p, trail_index, lemma_origins, l, p_has_been_modified, orig_conflict): resolve_implied_literal(p, trail_index, lemma_origins, l, p_has_been_modified);
@@ -2063,10 +2043,9 @@ public:
         for (unsigned j = m_trail.size(); j-- > m_scope().m_trail_size; ) {
             const literal & l = m_trail[j];
             if (l.is_decided()) {
-                lp_assert(m_number_of_decisions > 0);
-                m_number_of_decisions--;
+                lp_assert(m_decision_level > 0);
+                m_decision_level--;
             }
-            m_var_infos[l.var()].remove_literal(j);
         }
             
         m_trail.resize(m_scope().m_trail_size);
@@ -2094,12 +2073,10 @@ public:
                    m_print_constraint_function(print_constraint_function),
                    m_number_of_variables_function(number_of_variables_function),
                    m_var_value_function(var_value_function),
-                   m_number_of_decisions(0),
                    m_settings(settings),
                    m_max_constraint_id(0),
                    m_conflict(nullptr),
-                   m_bounded_search_calls(0),
-                   m_number_of_conflicts(0)
+                   m_decision_level(0)
     {}
 
 
@@ -2201,7 +2178,7 @@ public:
         m_v[j] = b;
         TRACE("decide_var_on_bound", tout<< "j="<< j<<" ";print_var_info(tout, j););
         add_changed_var(j);
-        m_number_of_decisions++;
+        m_decision_level++;
         push_literal_to_trail(literal::make_decided_literal(j, !decide_on_lower, b, find_literal_index(j, decide_on_lower)));
     }
 
