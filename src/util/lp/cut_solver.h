@@ -136,6 +136,7 @@ class constraint { // we only have less or equal for the inequality sign, which 
     std::unordered_set<const constraint*,
                        ccns_hash, ccns_equal>        m_lemma_origins;  //todo use ccns_* here
     bool                                             m_active;
+    //    bool                                             m_is_decision
 public :
     void set_active_flag() {m_active = true;}
     void remove_active_flag() { m_active = false; }
@@ -952,28 +953,16 @@ public:
     }
 
     unsigned find_literal(bool is_lower, unsigned j, unsigned upper_end_of_trail) const {
-        TRACE("find_literal_int", tout << "j = " << j << ", upper_end_of_trail = " << upper_end_of_trail << std::endl;); 
+        TRACE("find_literal_int", tout << "is_lower=" << is_lower << ", var name(" << j << ") = " << var_name(j) << " , upper_end_of_trail = " << upper_end_of_trail << std::endl;); 
         for (unsigned literal_index = upper_end_of_trail; literal_index--;) {
             const literal& l = m_trail[literal_index];
             if (l.var() == j && l.is_lower() == is_lower) {
                 TRACE("find_literal_int",
-                      tout << "found lower bound expl\n";
+                      tout << "found lower bound expl at literal_index = " << literal_index << std::endl;
                       print_literal(tout, l); tout << "\n";);
                 return literal_index;
             }
-        } /*
-            for (unsigned k = m_var_infos[j].literals().size(); k--;) {
-            unsigned literal_index = m_var_infos[j].literals()[k];
-            if (literal_index >= upper_end_of_trail)
-            continue;
-            const literal& l = m_trail[literal_index];
-            if (l.var() == j && l.is_lower() == is_lower) {
-            TRACE("ba_int_confl",
-            tout << "found lower bound expl\n";
-            print_literal(tout, l); tout << "\n";);
-            return literal_index;
-            }
-            }*/
+        }
         lp_assert(false); // unreachable
         return 0;// to avoid the warning
     }
@@ -995,23 +984,38 @@ public:
 
 
     
-    void fill_conflict_explanation(ccns * c, unsigned upper_end_of_trail) {
+    void fill_conflict_explanation(ccns * c, unsigned upper_end_of_trail, literal *l) {
+        TRACE("fill_conflict_explanation",
+              if (l == nullptr) {
+                  tout << "l = nullptr, " << pp_constraint(*this, *c) << std::endl;
+              } else {
+                  tout << "l = ";
+                  print_literal(tout, *l);
+                  tout << "c = " << pp_constraint(*this, *c) << std::endl;
+              }
+              );
         if (cancel())
             return;
+        if (l != nullptr)
+            l->visited() = true;
         // it is a depth search in the DAG of constraint: the chidlren of a constraint are those constraints that provide its lower bound
         add_constraint_origins_to_explanation(c);
         for (const auto & p: c->coeffs()){
-            unsigned literal_index = find_literal(is_pos(p.coeff()), p.var(), upper_end_of_trail);
-            if (m_trail[literal_index].visited())
+            bool ppos = is_pos(p.coeff());
+            if (l != nullptr && l->var() == p.var() && ppos != l->is_lower())
+                continue; // the constraint itself provides l->var() its bound
+            int literal_index = find_literal(is_pos(p.coeff()), p.var(), upper_end_of_trail);
+            literal *lr = &m_trail[literal_index];
+            if (lr->visited())
                 continue;
-            m_trail[literal_index].visited() = true;
             TRACE("fill_conflict_explanation", tout << "literal_index = " << literal_index << ", monomial=" << p.coeff() << var_name(p.var()); );
-            auto *cc = m_trail[literal_index].cnstr();
-            if (!cc->is_simple())  
-                fill_conflict_explanation(cc, literal_index);
+            auto *cc = lr->cnstr();
+            if (!cc->is_simple())
+                fill_conflict_explanation(cc, literal_index, lr);
             else 
                 add_constraint_origins_to_explanation(cc);
         }
+        TRACE("fill_conflict_explanation", tout <<  "done for c = " << pp_constraint(*this, *c) << std::endl;);
     }
 
     void trace_print_constraint(std::ostream& out, ccns* i) {
@@ -1619,7 +1623,7 @@ public:
                 TRACE("decide_int", tout << "incostistent_constraint " << pp_constraint(*this, *incostistent_constraint););
                 if (at_base_lvl()) {
                     clean_visited_on_trail();
-                    fill_conflict_explanation(incostistent_constraint, m_trail.size());
+                    fill_conflict_explanation(incostistent_constraint, m_trail.size(), nullptr);
                     mpq b;
                     bool lb = lower(incostistent_constraint->poly(), b);
                     lp_assert(lb);
@@ -2162,7 +2166,7 @@ public:
             if (!l.is_decided() && l.var() == j && l.is_lower() == is_lower)
                 return k;
         }
-        TRACE("find_literal", tout << "cannot find deciding literal for " << var_name(j)<<  " j = " << j << " is_lower = " << is_lower << std::endl;);
+        TRACE("find_literal", tout << "cannot find a reason for decide literal for " << var_name(j)<<  " j = " << j << " is_lower = " << is_lower << std::endl;);
         lp_assert(false); // unreacheable
         return 0;
     }
