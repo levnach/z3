@@ -446,14 +446,16 @@ public:
     }
 
     class active_set {
-        vector<constraint*> m_cs;
+        std::unordered_set<constraint*, ccns_hash, ccns_equal> m_cs;
     public:
-        const vector<constraint*> & cs() const { return m_cs; }
+
+        std::unordered_set<constraint*, ccns_hash, ccns_equal> cs() const { return m_cs;}
+        
         bool is_empty() const { return m_cs.size() == 0; }
 
         void add_constraint(constraint* c) {
             if (c->is_active()) return;
-            m_cs.push_back(c);
+            m_cs.insert(c);
             c->set_active_flag();
         }
 
@@ -469,18 +471,20 @@ public:
             if (m_cs.size() == 0)
                 return nullptr;
             unsigned j = rand % m_cs.size();
-            constraint * c = m_cs[j];
+            auto it = std::next(m_cs.begin(), j);
+            constraint * c = *it;
             c->remove_active_flag();
-            unsigned last = m_cs.size() - 1;
-            if (j != last) {
-                m_cs[j] = m_cs[last];
-            }
-            m_cs.pop_back();
+            m_cs.erase(it);
             return c;
         }
         
         unsigned size() const {
             return m_cs.size();
+        }
+
+        void remove_constraint(constraint * c) {
+            m_cs.erase(c);
+            c->remove_active_flag();
         }
     };
 
@@ -522,6 +526,7 @@ public:
     std::unordered_set<constraint_index>           m_explanation; // if this collection is not empty we have a conflict 
     unsigned                                       m_decision_level;
     bool                                           m_stuck_state;
+    bool                                           m_cancelled;
 
     unsigned add_var(unsigned user_var_index) {
         if (user_var_index >= m_var_infos.size()) {
@@ -1437,13 +1442,12 @@ public:
     }
 
     void pop_constraints() {
-        m_active_set.clear();
         while (m_asserts.size() > m_scope().m_asserts_size) {
             constraint * i = m_asserts.back();;
             for (auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
-            m_active_set.clear();
+            m_active_set.remove_constraint(i);
             delete i;
             m_asserts.pop_back();
         }
@@ -1454,6 +1458,7 @@ public:
             for (auto & p: i->poly().m_coeffs) {
                 m_var_infos[p.var()].remove_depended_constraint(i);
             }
+            m_active_set.remove_constraint(i);
             delete i;
             m_lemmas.pop_back();
         }
@@ -1475,7 +1480,7 @@ public:
         init_search();
         TRACE("check_int", tout << "starting check" << "\n";
               print_state(tout););
-        while (!m_stuck_state) {
+        while (!m_stuck_state && !cancel()) {
             TRACE("cs_ch", tout << "inside loop\n";);
             lbool r = bounded_search();
             if (cancel()) {
@@ -1513,6 +1518,7 @@ public:
         m_number_of_conflicts = 0;
         m_bounded_search_calls = 0;
         m_stuck_state = false;
+        m_cancelled = false;
     }
 
     // returns true if there is no conflict and false otherwise
@@ -1613,10 +1619,17 @@ public:
     }
 
     bool cancel() {
+        if (m_cancelled)
+            return true;
         if (m_settings.get_cancel_flag())
             return true;
-        unsigned bound = m_asserts.size() * 25 * m_settings.m_int_branch_cut_solver;
-        return (m_trail.size()  > bound || m_number_of_conflicts > bound);
+        unsigned bound = m_asserts.size() * 200 /  m_settings.m_int_branch_cut_solver;
+        if (m_trail.size()  > bound || m_number_of_conflicts > bound) {
+            std::cout << "cancelled m_settings.m_int_branch_cut_solver = " << m_settings.m_int_branch_cut_solver << ", m_asserts.size() = " << m_asserts.size() <<", m_trail.size() = " << m_trail.size() << ", m_number_of_conflicts = " << m_number_of_conflicts << ", bound = " << bound <<  std::endl;
+            m_cancelled = true;
+            return true;
+        }
+        return false;
     }
 
 

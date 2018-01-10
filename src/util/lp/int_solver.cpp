@@ -496,7 +496,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
             return lia_move::ok;
         case lbool::l_undef:
             settings().st().m_cut_solver_undef++;
-            settings().m_int_branch_cut_solver *= 1000000;
+            settings().m_int_branch_cut_solver = (settings().m_int_branch_cut_solver) * (settings().m_int_branch_cut_solver);
             break;
         default:
             return lia_move::give_up;
