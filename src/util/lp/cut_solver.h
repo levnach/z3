@@ -16,6 +16,15 @@
 
 namespace lp {
 enum class lbool { l_false, l_true, l_undef };
+inline std::string lbool_to_string(lbool l) {
+    switch(l) {
+    case lbool::l_true: return std::string("true");
+    case lbool::l_false: return std::string("false");
+    case lbool::l_undef: return std::string("undef");
+    default:
+        return std::string("what is it?");
+    }
+}
 
 class cut_solver;
 
@@ -134,7 +143,7 @@ class constraint { // we only have less or equal for the inequality sign, which 
     mpq                                              m_d; // the divider for the case of a divisibility constraint
     const svector<constraint_index>                  m_assert_origins; // these indices come from the client
     std::unordered_set<const constraint*,
-                       ccns_hash, ccns_equal>        m_lemma_origins;  //todo use ccns_* here
+                       ccns_hash, ccns_equal>        m_lemma_origins;
     bool                                             m_active;
     //    bool                                             m_is_decision
 public :
@@ -202,11 +211,6 @@ public:
         return m_poly.coeff(j);
     }
     const vector<monomial>& coeffs() const { return m_poly.m_coeffs;}
-    bool is_simple() const {
-        return m_poly.m_coeffs.size() == 1 &&
-            (m_poly.m_coeffs[0].coeff() == one_of_type<mpq>()
-             || m_poly.m_coeffs[0].coeff() == -one_of_type<mpq>());
-    }
 
     bool is_tight(unsigned j) const {
         const mpq & a = m_poly.coeff(j);
@@ -414,7 +418,7 @@ public:
             const mpq& coeff = c->poly().coeff(j);
             if (coeff == one_of_type<mpq>() || coeff == - one_of_type<mpq>())
                 continue;
-            if (c->is_simple() || !all_fixed_except_j(c->poly(), j)) continue;
+            if (!all_fixed_except_j(c->poly(), j)) continue;
             if (p.second == bound_type::UPPER) {
                 upper_bounds++;
                 upper = c;
@@ -448,7 +452,6 @@ public:
         bool is_empty() const { return m_cs.size() == 0; }
 
         void add_constraint(constraint* c) {
-            lp_assert(!c->is_simple());
             if (c->is_active()) return;
             m_cs.push_back(c);
             c->set_active_flag();
@@ -511,7 +514,6 @@ public:
     lp_settings &                                  m_settings;
     unsigned                                       m_max_constraint_id;
     std::set<unsigned>                             m_U; // the set of conflicting cores
-    stacked_value<constraint*>                     m_conflict;
     unsigned                                       m_bounded_search_calls;
     unsigned                                       m_number_of_conflicts;
     vector<polynomial>                             m_debug_resolve_ineqs;
@@ -519,6 +521,7 @@ public:
     std::unordered_map<unsigned, unsigned>         m_user_vars_to_cut_solver_vars;
     std::unordered_set<constraint_index>           m_explanation; // if this collection is not empty we have a conflict 
     unsigned                                       m_decision_level;
+    bool                                           m_stuck_state;
 
     unsigned add_var(unsigned user_var_index) {
         if (user_var_index >= m_var_infos.size()) {
@@ -610,8 +613,10 @@ public:
     }
     
     lbool final_check() {
-        
-        lp_assert(all_vars_are_fixed());
+        if (!all_vars_are_fixed()) {
+            m_stuck_state = true;
+            return lbool::l_undef; // we are stuck
+        }
         lp_assert(all_constraints_hold());
         lp_assert(at_base_lvl());
         // there are no more case splits, and all clauses are satisfied.
@@ -657,11 +662,8 @@ public:
     void add_changed_var(unsigned j) {
         TRACE("add_changed_var_int", tout <<  "j = " << j << "\n";);
         for (auto & p: m_var_infos[j].dependent_constraints()) {
-            TRACE("add_changed_var_int", tout << pp_constraint(*this, *p.first) << "simple = " << p.first->is_simple() << "\n";);
-            auto c = p.first;
-            if (!c->is_simple()) {
-                m_active_set.add_constraint(c);
-            }
+            TRACE("add_changed_var_int", tout << pp_constraint(*this, *p.first) << "\n";);
+            m_active_set.add_constraint(p.first);
         }
     }
 
@@ -985,6 +987,9 @@ public:
 
     
     void fill_conflict_explanation(ccns * c, unsigned upper_end_of_trail, literal *l) {
+        if (l == nullptr)
+            clean_visited_on_trail();
+
         TRACE("fill_conflict_explanation",
               if (l == nullptr) {
                   tout << "l = nullptr, " << pp_constraint(*this, *c) << std::endl;
@@ -1001,24 +1006,19 @@ public:
         // it is a depth search in the DAG of constraint: the chidlren of a constraint are those constraints that provide its lower bound
         add_constraint_origins_to_explanation(c);
         for (const auto & p: c->coeffs()){
-            bool ppos = is_pos(p.coeff());
-            if (l != nullptr && l->var() == p.var() && ppos != l->is_lower())
-                continue; // the constraint itself provides l->var() its bound
+            if (l != nullptr && l->var() == p.var())
+                continue; // the constraint "c" itself provides l->var() its bound
             int literal_index = find_literal(is_pos(p.coeff()), p.var(), upper_end_of_trail);
             literal *lr = &m_trail[literal_index];
             if (lr->visited())
                 continue;
             TRACE("fill_conflict_explanation", tout << "literal_index = " << literal_index << ", monomial=" << p.coeff() << var_name(p.var()); );
-            auto *cc = lr->cnstr();
-            if (!cc->is_simple())
-                fill_conflict_explanation(cc, literal_index, lr);
-            else 
-                add_constraint_origins_to_explanation(cc);
+            fill_conflict_explanation(lr->cnstr(), literal_index, lr);
         }
         TRACE("fill_conflict_explanation", tout <<  "done for c = " << pp_constraint(*this, *c) << std::endl;);
     }
 
-    void trace_print_constraint(std::ostream& out, ccns* i) {
+    void trace_print_constraint(std::ostream& out, ccns* i) const {
         print_constraint(out, *i);
         unsigned j;
         auto pairs = to_pairs(i->poly().m_coeffs);
@@ -1026,6 +1026,18 @@ public:
         while (it.next(j)) {
             out << "domain of " << var_name(j) << " = ";
             print_var_domain(out, j);
+        }
+        if (i->assert_origins().size()) {
+            out << "assert origins: " ;
+            for (auto o : i->assert_origins())
+                out << o << ", ";
+            out << "\n";
+        }
+        if (i->lemma_origins().size()) {
+            out << "lemma origins: " ;
+            for (auto o : i->lemma_origins())
+                out << o << ", ";
+            out << "\n";
         }
     }
 
@@ -1452,22 +1464,22 @@ public:
         return m_settings.random_next() % 2 == 0;
     }
 
-    void pop_to_external_state() {
-        while (m_scope().m_external_state == false){
+    void pop_to_base_level() {
+        while (!at_base_lvl()){
             pop(1, true);
         }
     }
+
 
     lbool check() {
         init_search();
         TRACE("check_int", tout << "starting check" << "\n";
               print_state(tout););
-        while (true) {
+        while (!m_stuck_state) {
             TRACE("cs_ch", tout << "inside loop\n";);
             lbool r = bounded_search();
             if (cancel()) {
-                pop_to_external_state();
-                return lbool::l_undef;
+                break;
             }
             TRACE("cs_ch", print_state(tout););
             lp_assert(solver_is_in_correct_state());
@@ -1479,10 +1491,13 @@ public:
             }
             restart();
             simplify_problem();
-            if (check_inconsistent())
+            if (check_inconsistent()) {
                 return lbool::l_false;
+            }
             gc();
         }
+        pop_to_base_level();
+        return lbool::l_undef;
     }
 
     unsigned find_unused_index() const {
@@ -1497,14 +1512,13 @@ public:
         lp_assert(m_explanation.size() == 0);
         m_number_of_conflicts = 0;
         m_bounded_search_calls = 0;
+        m_stuck_state = false;
     }
 
     // returns true if there is no conflict and false otherwise
     propagate_result propagate_constraint(ccns* c) {
         lp_assert(c->is_ineq());
         TRACE("ba_int", trace_print_constraint(tout, c););
-        if (c->is_simple())
-            return propagate_simple_constraint(c);
         // consider a special case for a constraint with just two variables
         unsigned the_only_unlim;
         int r = lower_analize(c, the_only_unlim);
@@ -1534,12 +1548,12 @@ public:
     void print_state(std::ostream & out) const {
         out << "asserts total " << m_asserts.size() << "\n";
         for (const auto  i: m_asserts) {
-            print_constraint(out, *i);
+            trace_print_constraint(out, i);
         }
         out << "end of constraints\n";
         out << "lemmas total " << m_lemmas.size() << "\n";
         for (const auto  i: m_lemmas) {
-            print_constraint(out, *i);
+            trace_print_constraint(out, i);
         }
         out << "end of constraints\n";
         out << "active constraints " << m_active_set.size() << std::endl;
@@ -1601,8 +1615,8 @@ public:
     bool cancel() {
         if (m_settings.get_cancel_flag())
             return true;
-        unsigned bound = m_asserts.size() * 100;
-        return (m_trail.size() > bound || m_number_of_conflicts > bound);
+        unsigned bound = m_asserts.size() * 25 * m_settings.m_int_branch_cut_solver;
+        return (m_trail.size()  > bound || m_number_of_conflicts > bound);
     }
 
 
@@ -1622,29 +1636,16 @@ public:
                 m_number_of_conflicts++;
                 TRACE("decide_int", tout << "incostistent_constraint " << pp_constraint(*this, *incostistent_constraint););
                 if (at_base_lvl()) {
-                    clean_visited_on_trail();
                     fill_conflict_explanation(incostistent_constraint, m_trail.size(), nullptr);
-                    mpq b;
-                    bool lb = lower(incostistent_constraint->poly(), b);
-                    lp_assert(lb);
-                    TRACE("fill_conflict_explanation_final", trace_print_constraint(tout, incostistent_constraint); tout << "lower = " << b;);
-
                     return lbool::l_false;
                 }
                 handle_conflicting_cores(); // testing only
                 resolve_conflict(incostistent_constraint);
-                if (m_explanation.size() > 0) // it means that we found a conflict at the base level during resolve_conflict()
-                    return lbool::l_false; 
             }
         }
-        while (m_active_set.is_empty() == false);
-        
-        if(!all_vars_are_fixed())
-            return lbool::l_undef;
+        while (!m_active_set.is_empty());
 
-        lp_assert(all_constraints_hold());
-        
-        return lbool::l_true;
+        return !all_vars_are_fixed()? lbool::l_undef :lbool::l_true;
     }
 
     bool decision_is_redundant_for_constraint(const polynomial& i, const literal & l) const {
@@ -1907,7 +1908,7 @@ public:
 
     bool resolve_decided_literal(polynomial &p, unsigned trail_index, svector<ccns*> & lemma_origins, const literal& l, bool p_has_been_modified, constraint* orig_conflict) {
         if (decision_is_redundant_for_constraint(p, l)) {
-            pop(1, false);
+            pop(1, false); // false to avoid popping out the constraints
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_resolve_confl", tout << "skip decision "; print_literal(tout, l);  if (m_decision_level == 0) tout << ", done resolving";);
             lp_assert(lower_is_pos(p));
@@ -2045,7 +2046,13 @@ public:
             c->set_active_flag();
         }
     }
+
+    void pop_external(unsigned k) {
+        pop_to_base_level();
+        pop(k, true);
+    }
     
+private:
     void pop(unsigned k, bool need_pop_constraints) {
         TRACE("trace_push_pop_in_cut_solver", tout << "before pop\n";print_state(tout););
         m_scope.pop(k);        
@@ -2064,18 +2071,24 @@ public:
         if (need_pop_constraints)
             pop_constraints();
         TRACE("trace_push_pop_in_cut_solver", tout << "after pop\n";print_state(tout););
-        m_conflict.pop(k);
         lp_assert(solver_is_in_correct_state());
     }
     
+public:
+    void push_external() {
+        push(true);
+    }
+   
+private:
     void push(bool external_state) {
         TRACE("trace_push_pop_in_cut_solver", print_state(tout););
         m_scope = scope(m_trail.size(), m_asserts.size(), m_lemmas.size(), external_state);
         m_scope.push();
         push_var_infos();
-        m_conflict.push();
     }
 
+public:
+    
     cut_solver(std::function<std::string (unsigned)> var_name_function,
                std::function<void (unsigned, std::ostream &)> print_constraint_function,
                std::function<unsigned ()>                     number_of_variables_function,         
@@ -2087,7 +2100,6 @@ public:
                    m_var_value_function(var_value_function),
                    m_settings(settings),
                    m_max_constraint_id(0),
-                   m_conflict(nullptr),
                    m_decision_level(0)
     {}
 
@@ -2132,8 +2144,6 @@ public:
     
     // returns nullptr if there is no conflict, or a conflict constraint otherwise
     constraint* propagate_constraints_on_active_set() {
-        if (m_conflict != nullptr)
-            return m_conflict;
         constraint *c;
         while ((c = find_constraint_to_propagate(m_settings.random_next())) != nullptr) {
             auto r = propagate_constraint(c);
@@ -2309,14 +2319,10 @@ public:
         for (const auto & m : p.coeffs()) {
             m_var_infos[m.var()].add_dependent_constraint(c, is_pos(m.coeff())? bound_type::UPPER: bound_type::LOWER);
         }
-        if (c->is_simple()) {
-            if (propagate_simple_constraint(c) == propagate_result::CONFLICT)
-                if (m_conflict == nullptr)
-                    m_conflict = c;
-        } else {
-            m_active_set.add_constraint(c);
-        }
+
+        m_active_set.add_constraint(c);
         TRACE("add_lemma_int",  trace_print_constraint(tout, c););
+
         return c;
     }
 
@@ -2335,13 +2341,7 @@ public:
         constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, lhs, free_coeff,origins);
         m_asserts.push_back(c);
         add_constraint_to_dependend_for_its_vars(c);
-        if (c->is_simple()) {
-            if (propagate_simple_constraint(c) == propagate_result::CONFLICT)
-                if (m_conflict == nullptr)
-                    m_conflict = c;
-        } else {
-            m_active_set.add_constraint(c);
-        }
+        m_active_set.add_constraint(c);
         
         TRACE("add_ineq_int",
               tout << "explanation :";
@@ -2366,21 +2366,6 @@ public:
     bool var_has_no_bounds(const var_info& vi) const {
         return !vi.lower_bound_exists() && !vi.upper_bound_exists();
     }
-
-    bool eliminate_var(const var_info & vi) {
-        return false; // implement! todo
-    }
-    
-    bool preprocess() {
-        for (const var_info & vi : m_var_infos) {
-            if (!vi.is_active()) continue;
-            if (var_has_no_bounds(vi))
-                if (!eliminate_var(vi))
-                    return false;
-        }
-        return true;
-    }
-    
 };
 
 inline polynomial operator*(const mpq & a, polynomial & p) {

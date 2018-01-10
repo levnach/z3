@@ -483,7 +483,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
     if (!has_inf_int())
         return lia_move::ok;
 
-    if ((m_branch_cut_counter++) % settings().m_int_branch_cut_solver == 0 && m_cut_solver.preprocess()) { // testing cut_solver
+    if ((m_branch_cut_counter++) % settings().m_int_branch_cut_solver == 0) { // testing cut_solver
         auto check_res = m_cut_solver.check();
         settings().st().m_cut_solver_calls++;
         switch (check_res) {
@@ -496,6 +496,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
             return lia_move::ok;
         case lbool::l_undef:
             settings().st().m_cut_solver_undef++;
+            settings().m_int_branch_cut_solver *= 1000000;
             break;
         default:
             return lia_move::give_up;
@@ -1199,11 +1200,11 @@ void int_solver::notify_on_last_added_constraint() {
 }
 
 void int_solver::pop(unsigned k) {
-    m_cut_solver.pop(k, true); // true for external_state
+    m_cut_solver.pop_external(k);
 }
 
 void int_solver::push() {
-    m_cut_solver.push(true); // for external_state
+    m_cut_solver.push_external();
 }
 
 }
