@@ -1625,7 +1625,6 @@ public:
             return true;
         unsigned bound = m_asserts.size() * 200 /  m_settings.m_int_branch_cut_solver;
         if (m_trail.size()  > bound || m_number_of_conflicts > bound) {
-            std::cout << "cancelled m_settings.m_int_branch_cut_solver = " << m_settings.m_int_branch_cut_solver << ", m_asserts.size() = " << m_asserts.size() <<", m_trail.size() = " << m_trail.size() << ", m_number_of_conflicts = " << m_number_of_conflicts << ", bound = " << bound <<  std::endl;
             m_cancelled = true;
             return true;
         }
