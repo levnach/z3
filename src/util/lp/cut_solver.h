@@ -489,18 +489,16 @@ public:
     };
 
     struct scope {
-        unsigned m_trail_size;
         unsigned m_asserts_size;
         unsigned m_lemmas_size;
-        bool     m_external_state;
+        unsigned m_trail_size;
         scope() {}
-        scope(unsigned trail_size,
-              unsigned constraints_size,
+        scope(unsigned asserts_size,
               unsigned lemmas_size,
-              bool external_state) : m_trail_size(trail_size),
-                                     m_asserts_size(constraints_size),
+              unsigned trail_size) : m_asserts_size(asserts_size),
                                      m_lemmas_size(lemmas_size),
-                                     m_external_state(external_state) {}
+                                     m_trail_size(trail_size)
+        {}
 
     };
     
@@ -521,24 +519,14 @@ public:
     unsigned                                       m_bounded_search_calls;
     unsigned                                       m_number_of_conflicts;
     vector<polynomial>                             m_debug_resolve_ineqs;
-    stacked_value<scope>                           m_scope;
+    vector<scope>                                  m_scopes;
     std::unordered_map<unsigned, unsigned>         m_user_vars_to_cut_solver_vars;
     std::unordered_set<constraint_index>           m_explanation; // if this collection is not empty we have a conflict 
     unsigned                                       m_decision_level;
     bool                                           m_stuck_state;
     bool                                           m_cancelled;
-
-    unsigned add_var(unsigned user_var_index) {
-        if (user_var_index >= m_var_infos.size()) {
-            m_var_infos.resize(m_number_of_variables_function());
-        }
-
-        lp_assert(user_var_index < m_number_of_variables_function());
-
-        m_var_infos[user_var_index].internal_j() = user_var_index;
-        return user_var_index; // it is the index of the var_info in m_var_infos
-    }
-
+    
+    
     bool is_lower_bound(const literal & l) const {
         return l.is_lower();
     }
@@ -644,15 +632,17 @@ public:
     }
 
     void set_value_for_fixed_var_and_check_for_conf_cores(unsigned j) {
-        lp_assert(m_var_infos[j].is_fixed());
-        if (j >= m_v.size())
+        if (m_v.size() <= j)
             m_v.resize(j + 1);
+        lp_assert(m_var_infos[j].is_fixed());
+        lp_assert(m_var_infos[j].is_active());
         m_var_infos[j].domain().get_upper_bound(m_v[j]); // sets the value of the variable
         find_new_conflicting_cores(j);
     }
     
     void restrict_var_domain_with_bound_result(var_index j, const bound_result & br) {
         auto & d = m_var_infos[j];
+        lp_assert(!d.is_fixed());
         if (br.m_type == bound_type::UPPER) {
             d.intersect_with_upper_bound(br.m_bound);
         } else {
@@ -672,6 +662,16 @@ public:
         }
     }
 
+    unsigned number_of_vars() const { return static_cast<unsigned>( m_var_infos.size()); }
+    
+    const mpq & var_value(unsigned j) const {
+        return m_v[j];
+    }
+
+    bool var_is_active(unsigned j) const {
+        return m_var_infos[j].is_active();
+    }
+    
     bool lower_bounds_on_trail_are_correct() const {
         unsigned k = m_var_infos.size();
         svector<bool> bound_is_set(k, false); // bound_is_set[j] = false means not set
@@ -763,11 +763,29 @@ public:
             return false;
         return true;
     }
+
+
+    bool lemmas_point_to_valid_assert() const {
+        std::unordered_set<ccns*> asserts;
+        for (ccns* c : m_asserts) {
+            asserts.insert(c);
+        }
+        
+        for (ccns * c : m_lemmas) {
+            for (ccns* o: c->lemma_origins())
+                if (asserts.find(o) == asserts.end())
+                    return false;
+        }
+        return true;
+    }
     
     bool solver_is_in_correct_state() const {
         if (!var_infos_are_correct())
             return false;
         if (!trail_is_correct())
+            return false;
+
+        if (!lemmas_point_to_valid_assert())
             return false;
         
         return true;
@@ -807,10 +825,36 @@ public:
                 return false;
             }
         }
-            
-        return true;
+
+        return var_bounds_are_correctly_explained_by_trail(j);
     }
 
+
+    bool var_bounds_are_correctly_explained_by_trail(unsigned j) const {
+        return var_upper_bound_is_correct_by_trail(j) && var_lower_bound_is_correct_by_trail(j);
+    }
+
+    bool var_upper_bound_is_correct_by_trail(unsigned j) const {
+        const var_info & v = m_var_infos[j];
+        mpq b;
+        if (v.get_upper_bound(b)) {
+            unsigned literal_index = find_explaining_literal_index(j, false);
+            return b == m_trail[literal_index].bound();
+        }
+        return find_explaining_literal_index(j, false) == -1;
+    }
+
+    bool var_lower_bound_is_correct_by_trail(unsigned j) const {
+        const var_info & v = m_var_infos[j];
+        mpq b;
+        if (v.get_lower_bound(b)) {
+            unsigned literal_index = find_explaining_literal_index(j, true);
+            return b == m_trail[literal_index].bound();
+        }
+        return find_explaining_literal_index(j, true) == -1;
+    }
+
+    
     void push_literal_to_trail(const literal & l) {
         m_trail.push_back(l);
         TRACE("push_literal_int", print_literal(tout, l););
@@ -883,7 +927,7 @@ public:
                 m_var_infos[j].intersect_with_upper_bound(v);
                 TRACE("ba_int_change", trace_print_domain_change(tout, j, v, p, c););
                 add_bound(v, j, false, c);
-                if (m_var_infos[j].is_fixed())
+                if (m_var_infos[j].is_fixed()) 
                     set_value_for_fixed_var_and_check_for_conf_cores(j);
                 return propagate_result::PROGRESS;
             }
@@ -933,11 +977,13 @@ public:
         print_var_domain(out, vi);
     }
 
-
     void print_var_info(std::ostream & out, unsigned j) const {
+        if (j < m_v.size()) {
+            out << "m_v[" << j << "] = " << m_v[j] << std::endl;
+        }
+        if (m_var_infos[j].is_active()) out << "active var ";
         print_var_info(out, m_var_infos[j]);
     }
-
     
     void print_var_domain(std::ostream & out, unsigned j) const {
         m_var_infos[j].print_var_domain(out);
@@ -980,7 +1026,9 @@ public:
                 add_constraint_origins_to_explanation(cs);
             }
         } else {
-               TRACE("fill_conflict_explanation",
+            
+            TRACE("add_constraint_origins_to_explanation",
+                  print_constraint(tout, *c);
                   for (auto j : c->assert_origins())
                       tout<<"origin = " << j;);
             
@@ -992,18 +1040,21 @@ public:
 
     
     void fill_conflict_explanation(ccns * c, unsigned upper_end_of_trail, literal *l) {
-        if (l == nullptr)
+        
+        if (l == nullptr) {
             clean_visited_on_trail();
-
-        TRACE("fill_conflict_explanation",
-              if (l == nullptr) {
-                  tout << "l = nullptr, " << pp_constraint(*this, *c) << std::endl;
-              } else {
-                  tout << "l = ";
-                  print_literal(tout, *l);
-                  tout << "c = " << pp_constraint(*this, *c) << std::endl;
-              }
-              );
+            
+            TRACE("fill_conflict_explanation_nullptr",
+                  tout << "trail_size = " << m_trail.size() << std::endl;
+                  if (l == nullptr) {
+                      tout << "l = nullptr, " << pp_constraint(*this, *c) << std::endl;
+                  } else {
+                      tout << "l = ";
+                      print_literal(tout, *l);
+                      tout << "c = " << pp_constraint(*this, *c) << std::endl;
+                  }
+                  );
+        }
         if (cancel())
             return;
         if (l != nullptr)
@@ -1304,6 +1355,21 @@ public:
         } else {
             out << ", no lower";
         }
+
+        bool all_vars_are_fixed = true;
+        for (const auto & p : i.poly().coeffs()) {
+            if (!m_var_infos[p.var()].is_fixed()) {
+                all_vars_are_fixed = false;
+                break;
+            }
+        }
+
+        if (all_vars_are_fixed) {
+            auto v = value(i.poly());
+            out << ", value = " << v;
+            if (is_pos(v))
+                out << " INF";
+        }
         out << std::endl;
     }
 
@@ -1441,44 +1507,20 @@ public:
         return ret;
     }
 
-    void pop_constraints() {
-        while (m_asserts.size() > m_scope().m_asserts_size) {
-            constraint * i = m_asserts.back();;
-            for (auto & p: i->poly().m_coeffs) {
-                m_var_infos[p.var()].remove_depended_constraint(i);
-            }
-            m_active_set.remove_constraint(i);
-            delete i;
-            m_asserts.pop_back();
-        }
-        lp_assert(m_asserts.size() == m_scope().m_asserts_size);
-
-        while (m_lemmas.size() > m_scope().m_lemmas_size) {
-            constraint * i = m_lemmas.back();;
-            for (auto & p: i->poly().m_coeffs) {
-                m_var_infos[p.var()].remove_depended_constraint(i);
-            }
-            m_active_set.remove_constraint(i);
-            delete i;
-            m_lemmas.pop_back();
-        }
-        lp_assert(m_lemmas.size() == m_scope().m_lemmas_size);
-    }
-
     bool flip_coin() {
         return m_settings.random_next() % 2 == 0;
     }
 
-    void pop_to_base_level() {
-        while (!at_base_lvl()){
-            pop(1, true);
+    void pop_to_external_level() {
+        while (m_decision_level > 0) {
+            pop();
         }
+        lp_assert(solver_is_in_correct_state());
     }
-
-
+    
     lbool check() {
         init_search();
-        TRACE("check_int", tout << "starting check" << "\n";
+        TRACE("check_int_state", tout << "starting check" << "\n";
               print_state(tout););
         while (!m_stuck_state && !cancel()) {
             TRACE("cs_ch", tout << "inside loop\n";);
@@ -1492,16 +1534,18 @@ public:
                 TRACE("check_int", tout << "return " << (r == lbool::l_true ? "true" : "false") << "\n";
                       print_state(tout);
                       );
+                pop_to_external_level();
                 return r;
             }
             restart();
             simplify_problem();
             if (check_inconsistent()) {
+                pop_to_external_level();
                 return lbool::l_false;
             }
             gc();
         }
-        pop_to_base_level();
+        pop_to_external_level();
         return lbool::l_undef;
     }
 
@@ -1519,6 +1563,8 @@ public:
         m_bounded_search_calls = 0;
         m_stuck_state = false;
         m_cancelled = false;
+        for (constraint * c : m_asserts)
+            m_active_set.add_constraint(c);
     }
 
     // returns true if there is no conflict and false otherwise
@@ -1554,12 +1600,12 @@ public:
     void print_state(std::ostream & out) const {
         out << "asserts total " << m_asserts.size() << "\n";
         for (const auto  i: m_asserts) {
-            trace_print_constraint(out, i);
+            print_constraint(out, *i);
         }
         out << "end of constraints\n";
         out << "lemmas total " << m_lemmas.size() << "\n";
         for (const auto  i: m_lemmas) {
-            trace_print_constraint(out, i);
+            print_constraint(out, *i);
         }
         out << "end of constraints\n";
         out << "active constraints " << m_active_set.size() << std::endl;
@@ -1571,7 +1617,8 @@ public:
         out << "end of trail\n";
         out << "var_infos\n";
         for (const auto & v: m_var_infos) {
-            print_var_info(out, v);
+            if (v.is_active())
+                print_var_info(out, v);
         }
         out << "end of var_infos\n";
         out << "level = " << m_decision_level << "\n";
@@ -1621,9 +1668,11 @@ public:
     bool cancel() {
         if (m_cancelled)
             return true;
-        if (m_settings.get_cancel_flag())
+        if (m_settings.get_cancel_flag()) {
+            m_cancelled = true;
             return true;
-        unsigned bound = m_asserts.size() * 200 /  m_settings.m_int_branch_cut_solver;
+        }
+        unsigned bound = m_asserts.size() * 200 /  (1 + m_settings.m_int_branch_cut_solver);
         if (m_trail.size()  > bound || m_number_of_conflicts > bound) {
             m_cancelled = true;
             return true;
@@ -1853,7 +1902,7 @@ public:
         if (!improves(l.var(), br)) {
             TRACE("int_backjump", br.print(tout);
                   tout << "\nimproves is false\n";);
-            do { pop(1, false); } while(m_trail.size() > trail_index);
+            while(m_trail.size() > trail_index) {  pop(); }
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_backjump", tout << "var info after pop = ";  print_var_info(tout, l.var()););
             if (p_has_been_modified)
@@ -1920,7 +1969,7 @@ public:
 
     bool resolve_decided_literal(polynomial &p, unsigned trail_index, svector<ccns*> & lemma_origins, const literal& l, bool p_has_been_modified, constraint* orig_conflict) {
         if (decision_is_redundant_for_constraint(p, l)) {
-            pop(1, false); // false to avoid popping out the constraints
+            do { pop();} while(m_trail.size() > trail_index);
             lp_assert(m_trail.size() == trail_index);
             TRACE("int_resolve_confl", tout << "skip decision "; print_literal(tout, l);  if (m_decision_level == 0) tout << ", done resolving";);
             lp_assert(lower_is_pos(p));
@@ -2039,12 +2088,16 @@ public:
             vi.push();
     }
     void pop_var_infos(unsigned k) {
-        for (var_info & vi : m_var_infos)
+        for (var_info & vi : m_var_infos) {
             vi.pop(k);
+        }
     }
-    
     void print_scope(std::ostream& out) const {
-        out << "trail_size = " << m_scope().m_trail_size << ", constraints_size = " << m_scope().m_asserts_size << "\n";
+        for (const scope & s : m_scopes) {
+            out <<  "asserts_size = " << s.m_asserts_size;
+            out << ", lemmas_size = " << s.m_lemmas_size << "\n";
+            out << ", trail_size = " << s.m_trail_size << "\n";
+        }
     }
 
     void remove_active_flag_from_constraints_in_active_set() {
@@ -2059,46 +2112,57 @@ public:
         }
     }
 
-    void pop_external(unsigned k) {
-        pop_to_base_level();
-        pop(k, true);
-    }
-    
 private:
-    void pop(unsigned k, bool need_pop_constraints) {
-        TRACE("trace_push_pop_in_cut_solver", tout << "before pop\n";print_state(tout););
-        m_scope.pop(k);        
-        TRACE("trace_push_pop_in_cut_solver", tout << "scope = ";print_scope(tout); tout << "\n";);
-        pop_var_infos(k);
-
-        for (unsigned j = m_trail.size(); j-- > m_scope().m_trail_size; ) {
-            const literal & l = m_trail[j];
-            if (l.is_decided()) {
-                lp_assert(m_decision_level > 0);
-                m_decision_level--;
-            }
-        }
-            
-        m_trail.resize(m_scope().m_trail_size);
-        if (need_pop_constraints)
-            pop_constraints();
-        TRACE("trace_push_pop_in_cut_solver", tout << "after pop\n";print_state(tout););
-        lp_assert(solver_is_in_correct_state());
-    }
-    
+  
 public:
-    void push_external() {
-        push(true);
-    }
-   
-private:
-    void push(bool external_state) {
-        TRACE("trace_push_pop_in_cut_solver", print_state(tout););
-        m_scope = scope(m_trail.size(), m_asserts.size(), m_lemmas.size(), external_state);
-        m_scope.push();
+    void push() {
+        m_scopes.push_back(scope(m_asserts.size(), m_lemmas.size(), m_trail.size()));
         push_var_infos();
     }
 
+    void pop() {
+        return pop(1);
+    }
+
+    void pop_constraints(unsigned n_asserts, unsigned n_lemmas) {
+        if (n_asserts >= m_asserts.size())
+            return; // only shrink the lemmas if asserts are shrunk
+        while (m_asserts.size() > n_asserts) {
+            constraint * i = m_asserts.back();;
+            for (auto & p: i->poly().m_coeffs) {
+                m_var_infos[p.var()].remove_depended_constraint(i);
+            }
+            m_active_set.remove_constraint(i);
+            delete i;
+            m_asserts.pop_back();
+        }
+
+        while (m_lemmas.size() > n_lemmas) {
+            constraint * i = m_lemmas.back();;
+            for (auto & p: i->poly().m_coeffs) {
+                m_var_infos[p.var()].remove_depended_constraint(i);
+            }
+            m_active_set.remove_constraint(i);
+            delete i;
+            m_lemmas.pop_back();
+        }
+    }
+
+    
+    void pop(unsigned k) {
+        unsigned new_scope_size = m_scopes.size() - k;
+        scope s = m_scopes[new_scope_size];
+        m_scopes.resize(new_scope_size);
+        for (unsigned j = m_trail.size(); j-- > s.m_trail_size; ) {
+            if (m_trail[j].is_decided())
+                m_decision_level--;
+        }
+        pop_constraints(s.m_asserts_size, s.m_lemmas_size);
+        m_trail.shrink(s.m_trail_size);
+        pop_var_infos(k);
+        lp_assert(solver_is_in_correct_state());
+    }
+    
 public:
     
     cut_solver(std::function<std::string (unsigned)> var_name_function,
@@ -2181,16 +2245,26 @@ public:
         return nullptr;
     }
 
+    int find_explaining_literal_index(unsigned j, bool is_lower) const {
+        for (unsigned k = m_trail.size(); k-- > 0;) {
+            const auto & l = m_trail[k];
+            if (l.var() == j && l.is_lower() == is_lower)
+                return k;
+        }
+        TRACE("find_literal", tout << "cannot find a reason for decide literal for " << var_name(j)<<  " j = " << j << " is_lower = " << is_lower << std::endl;);
+        return -1;
+    }
+    
+
     // walk the trail backward and find the last implied bound on j (of the right kind)
-    unsigned find_literal_index(unsigned j, bool is_lower) const {
+    int find_literal_index(unsigned j, bool is_lower) const {
         for (unsigned k = m_trail.size(); k-- > 0;) {
             const auto & l = m_trail[k];
             if (!l.is_decided() && l.var() == j && l.is_lower() == is_lower)
                 return k;
         }
         TRACE("find_literal", tout << "cannot find a reason for decide literal for " << var_name(j)<<  " j = " << j << " is_lower = " << is_lower << std::endl;);
-        lp_assert(false); // unreacheable
-        return 0;
+        return -1;
     }
     
     void decide_var_on_bound(unsigned j, bool decide_on_lower) {
@@ -2198,7 +2272,7 @@ public:
         vector<monomial> lhs;
 
         var_info & vi = m_var_infos[j];
-        push(false);    
+        push();    
         if (decide_on_lower) {
             vi.domain().get_lower_bound(b);
             vi.intersect_with_upper_bound(b);
@@ -2347,14 +2421,17 @@ public:
             if (p.var() >= m_var_infos.size()) {
                 m_var_infos.resize(m_number_of_variables_function());
             }
-            m_var_infos[p.var()].internal_j() = p.var();
+
+            if (!m_var_infos[p.var()].is_active()) {
+                m_var_infos[p.var()].internal_j() = p.var();
+            }
         }
         
         constraint * c = constraint::make_ineq_assert(m_max_constraint_id++, lhs, free_coeff,origins);
         m_asserts.push_back(c);
         add_constraint_to_dependend_for_its_vars(c);
         m_active_set.add_constraint(c);
-        
+
         TRACE("add_ineq_int",
               tout << "explanation :";
               for (auto i: origins) {

@@ -483,7 +483,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
     if (!has_inf_int())
         return lia_move::ok;
 
-    if ((m_branch_cut_counter++) % settings().m_int_branch_cut_solver == 0) { // testing cut_solver
+    if ((++m_branch_cut_counter) % settings().m_int_branch_cut_solver == 0) {
         auto check_res = m_cut_solver.check();
         settings().st().m_cut_solver_calls++;
         switch (check_res) {
@@ -493,10 +493,19 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
             return lia_move::conflict;
         case lbool::l_true:
             settings().st().m_cut_solver_true++;
+            for (unsigned j = 0; j < m_lar_solver->A_r().column_count() && j < m_cut_solver.number_of_vars(); j++) {
+                if (!is_int(j))
+                    std::cout << "column " << j << " is not int\n";
+                if (m_cut_solver.var_is_active(j))
+                    m_lar_solver->m_mpq_lar_core_solver.m_r_x[j] = m_cut_solver.var_value(j);
+                if (! m_lar_solver->column_value_is_int(j))
+                    std::cout << "val is not int for " << j << std::endl;
+            }
+
             return lia_move::ok;
         case lbool::l_undef:
             settings().st().m_cut_solver_undef++;
-            settings().m_int_branch_cut_solver = (settings().m_int_branch_cut_solver) * (settings().m_int_branch_cut_solver);
+            settings().m_int_branch_cut_solver *= (settings().m_int_branch_cut_solver); // take a square
             break;
         default:
             return lia_move::give_up;
@@ -1200,11 +1209,11 @@ void int_solver::notify_on_last_added_constraint() {
 }
 
 void int_solver::pop(unsigned k) {
-    m_cut_solver.pop_external(k);
+    m_cut_solver.pop(k);
 }
 
 void int_solver::push() {
-    m_cut_solver.push_external();
+    m_cut_solver.push();
 }
 
 }
