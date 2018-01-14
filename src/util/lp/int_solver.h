@@ -160,5 +160,6 @@ public:
     void copy_explanations_from_cut_solver(explanation &);
     void pop(unsigned);
     void push();
+    void copy_values_from_cut_solver();
 };
 }

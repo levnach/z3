@@ -479,7 +479,7 @@ public:
         }
         
         unsigned size() const {
-            return m_cs.size();
+            return static_cast<unsigned>(m_cs.size());
         }
 
         void remove_constraint(constraint * c) {

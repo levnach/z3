@@ -464,13 +464,23 @@ void int_solver::copy_explanations_from_cut_solver(explanation &ex) {
     m_cut_solver.m_explanation.clear();
 }
 
+void int_solver::copy_values_from_cut_solver() {
+    for (unsigned j = 0; j < m_lar_solver->A_r().column_count() && j < m_cut_solver.number_of_vars(); j++) {
+        if (!is_int(j))
+            std::cout << "column " << j << " is not int\n";
+        if (m_cut_solver.var_is_active(j))
+            m_lar_solver->m_mpq_lar_core_solver.m_r_x[j] = m_cut_solver.var_value(j);
+        if (! m_lar_solver->column_value_is_int(j))
+            std::cout << "val is not int for " << j << std::endl;
+    }
+}
 
 lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
     init_check_data();
     lp_assert(inf_int_set_is_correct());
-    // it is mostly a reimplementation of
+    // it is a reimplementation of 
     // final_check_status theory_arith<Ext>::check_int_feasibility()
-    // from theory_arith_int.h
+    // from theory_arith_int.h with the addition of cut_solver
     if (!has_inf_int()) 
         return lia_move::ok;
     if (settings().m_run_gcd_test)
@@ -493,15 +503,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
             return lia_move::conflict;
         case lbool::l_true:
             settings().st().m_cut_solver_true++;
-            for (unsigned j = 0; j < m_lar_solver->A_r().column_count() && j < m_cut_solver.number_of_vars(); j++) {
-                if (!is_int(j))
-                    std::cout << "column " << j << " is not int\n";
-                if (m_cut_solver.var_is_active(j))
-                    m_lar_solver->m_mpq_lar_core_solver.m_r_x[j] = m_cut_solver.var_value(j);
-                if (! m_lar_solver->column_value_is_int(j))
-                    std::cout << "val is not int for " << j << std::endl;
-            }
-
+            copy_values_from_cut_solver();
             return lia_move::ok;
         case lbool::l_undef:
             settings().st().m_cut_solver_undef++;
