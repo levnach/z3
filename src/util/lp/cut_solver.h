@@ -732,18 +732,59 @@ public:
         }
         return true;
     }
-
+    
+    struct test_bound_struct {
+        mpq m_l;
+        mpq m_u;
+        int m_el;
+        int m_eu;
+        test_bound_struct() :m_el(-1), m_eu(-1) {}
+    };
 
     
     bool var_infos_are_correct() const {
+        vector<test_bound_struct> bounds = get_bounds_from_trail();
         for (unsigned j = 0; j < m_var_infos.size(); j++)
-            if (!var_info_is_correct(j))
+            if (!var_info_is_correct(j, bounds[j]))
                 return false;
         return true;
     }
+
+    void get_bounds_from_trail_elem(unsigned j, vector<test_bound_struct>& bs) const {
+        const literal & l = *m_trail[j];
+        auto & t = bs[l.var()];
+        if (l.is_lower()) {
+            if (t.m_el == -1) {
+                t.m_el = j;
+                t.m_l = l.bound();
+            } else {
+                lp_assert(t.m_l < l.bound());
+                t.m_l = l.bound();
+                t.m_el = j;
+            }
+        } else {
+            if (t.m_eu == -1) {
+                t.m_eu = j;
+                t.m_u = l.bound();
+            } else {
+                lp_assert(t.m_u > l.bound());
+                t.m_u = l.bound();
+                t.m_eu = j;
+            }
+        }
+    }
+
+    vector<test_bound_struct> get_bounds_from_trail() const {
+        vector<test_bound_struct> ret(m_var_infos.size());
+        for (unsigned j = 0; j < m_trail.size(); j++) {
+            get_bounds_from_trail_elem(j, ret);
+        }
+        return ret;
+    }
     
-    bool var_info_is_correct(unsigned j) const {
+    bool var_info_is_correct(unsigned j, const test_bound_struct& t) const {
         const var_info & v = m_var_infos[j];
+        
         std::unordered_set<constraint*, ccns_hash, ccns_equal> deps;
         for (const auto c: m_asserts) {
             if (!is_zero(c->coeff(j)))
@@ -772,15 +813,15 @@ public:
             }
         }
 
-        return var_bounds_are_correctly_explained_by_trail(j);
+        return var_bounds_are_correctly_explained_by_trail(j, t);
     }
 
 
-    bool var_bounds_are_correctly_explained_by_trail(unsigned j) const {
-        return var_upper_bound_is_correct_by_trail(j) && var_lower_bound_is_correct_by_trail(j);
+    bool var_bounds_are_correctly_explained_by_trail(unsigned j, const test_bound_struct& t) const {
+        return var_upper_bound_is_correct_by_trail(j, t) && var_lower_bound_is_correct_by_trail(j, t);
     }
 
-    bool var_upper_bound_is_correct_by_trail(unsigned j) const {
+    bool var_upper_bound_is_correct_by_trail(unsigned j, const test_bound_struct& t) const {
         const var_info & v = m_var_infos[ j];
         mpq b; unsigned expl; 
         if (v.get_upper_bound_with_expl(b, expl)) {
@@ -789,10 +830,12 @@ public:
             TRACE("var_bound_is_correct_by_trail", tout<< "expl=" << expl << std::endl; print_var_info(tout, j); tout << "b=" << b<<", expl = " << expl << std::endl; print_literal(tout, l); tout << "return " << (b == l.bound() && !l.is_lower()););
             if (! (b == l.bound() && !l.is_lower() && j == l.var()))
                 return false;
+            if (! (t.m_eu == static_cast<int>(expl) && t.m_u == b))
+                return false;
             //            if( !run_over_trail_with_upper_bound(j, b))
             //  return false;
         }
-        return true;
+        return t.m_eu == -1;
     }
 
     // bool run_over_trail_with_upper_bound(unsigned j, const mpq & b) const {
@@ -801,23 +844,25 @@ public:
     //     run_over_trail_with_upper_bound_on_literal(j, b, 
     // }
     
-    bool var_lower_bound_is_correct_by_trail(unsigned j) const {
+    bool var_lower_bound_is_correct_by_trail(unsigned j, const test_bound_struct& t) const {
         const var_info & v = m_var_infos[j];
         mpq b;
         unsigned expl;
         if (v.get_lower_bound_with_expl(b, expl)) {
             literal & l = *m_trail[expl];
             TRACE("var_bound_is_correct_by_trail",  print_var_info(tout, j); tout << "b=" << b<<", expl = " << expl << std::endl; print_literal(tout, l); tout << "return " << (b == l.bound() && l.is_lower()););
+            if (! (t.m_el == static_cast<int>(expl) && t.m_l == b))
+                return false;
             return b == l.bound() && l.is_lower();
         }
-        return true;
+        
+        return t.m_el == -1;
     }
     
     void push_literal_to_trail(literal * l) {
         m_trail.push_back(l);
         TRACE("push_literal_int", print_literal(tout, l););
         add_changed_var(l->var());
-        lp_assert(var_info_is_correct(l->var()));
     }
 
     unsigned find_large_enough_j(unsigned i) {
@@ -1550,10 +1595,13 @@ public:
         lp_assert(lower_is_pos(c->poly()) == false);
         return confl;
     }
-    void print_trail(std::ostream & out) const {
+
+    void print_trail(std::ostream & out) const { print_trail(out, m_trail.size()); }
+    
+    void print_trail(std::ostream & out, unsigned last_index) const {
         out << "trail\n";
-        for (const auto & l : m_trail) {
-            print_literal(out, l);
+        for (unsigned j = 0; j <= last_index && j < m_trail.size(); j++ ) {
+            print_literal(out, m_trail[j]);
         }
         out << "end of trail\n";
     }
@@ -2026,7 +2074,7 @@ public:
         bool resolved = resolve(p, l.var(), !l.is_lower(), l.tight_ineq());            
         p_has_been_modified = p_has_been_modified || resolved;
         CTRACE("int_resolve_confl", resolved, print_resolvent(tout, p, l););
-        CTRACE("int_resolve_confl", !lower_is_pos(p), print_trail(tout););
+        CTRACE("int_resolve_confl", !lower_is_pos(p), print_trail(tout, trail_index););
         lp_assert(solver_is_in_correct_state());
         lp_assert(lower_is_pos(p));
         if (p.coeffs().size() == 0) {
@@ -2045,7 +2093,7 @@ public:
         
         TRACE("int_resolve_conflxxx", tout << "trail_index = " << trail_index <<", p = " << pp_poly(*this, p) << "\n";
               tout << "\nm_decision_level = " << m_decision_level << "\n";
-              print_literal(std::cout, l);
+              print_literal(tout, l);
 
               );
         lemma_origins.append(collect_origin_constraints(l.cnstr()));
@@ -2110,7 +2158,7 @@ public:
         auto i = confl.m_constraint;
         lp_assert(!at_base_lvl());
         TRACE("int_resolve_confl", tout << "inconstistent_constraint = ";
-              print_constraint(tout, *i););
+              print_constraint(tout, *i); print_state(tout););
         if (i->is_ineq()) {
             return resolve_conflict_for_inequality(i);
         } else {

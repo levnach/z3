@@ -3147,6 +3147,7 @@ void test_integer_domain() {
     integer_domain<unsigned> d;
     unsigned l0 = 0, l1 = 1, l2 = 3;
     unsigned u0 = 10, u1 = 9, u2 = 8;
+    d.push();
     d.intersect_with_lower_bound(l0, e0);
     unsigned b;
     unsigned e;
@@ -3174,7 +3175,9 @@ void test_integer_domain() {
     r = d.get_lower_bound_with_expl(b, e);
     lp_assert(r && b == l1 && e == e2);
     d.print(std::cout);
-   
+    d.pop(2);
+    d.print(std::cout);
+    lp_assert(d.has_neg_inf() && d.has_pos_inf());
     // integer_domain<int> d;
     // std::vector<integer_domain<int>> stack;
     // for (int i = 0; i < 10000; i++) {
