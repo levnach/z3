@@ -1867,7 +1867,7 @@ void test_replace_column() {
 
 
 void setup_args_parser(argument_parser & parser) {
-    parser.add_option_with_help_string("-dji", "test integer_domain");
+    parser.add_option_with_help_string("-intd", "test integer_domain");
     parser.add_option_with_help_string("-xyz_sample", "run a small interactive scenario");
     parser.add_option_with_after_string_with_help("--density", "the percentage of non-zeroes in the matrix below which it is not dense");
     parser.add_option_with_after_string_with_help("--harris_toler", "harris tolerance");
@@ -3096,17 +3096,17 @@ void get_random_interval(bool& neg_inf, bool& pos_inf, int& x, int &y) {
 }
 
 void test_integer_domain_intersection(integer_domain<int> & d) {
-    int x, y; bool neg_inf, pos_inf;
-    get_random_interval(neg_inf, pos_inf, x, y);
-    if (neg_inf) {
-        if (!pos_inf) {
-            d.intersect_with_upper_bound(y);
-        }
-    }
-    else if (pos_inf)
-        d.intersect_with_lower_bound(x);
-    else 
-        d.intersect_with_interval(x, y);
+    // int x, y; bool neg_inf, pos_inf;
+    // get_random_interval(neg_inf, pos_inf, x, y);
+    // if (neg_inf) {
+    //     if (!pos_inf) {
+    //         d.intersect_with_upper_bound(y);
+    //     }
+    // }
+    // else if (pos_inf)
+    //     d.intersect_with_lower_bound(x);
+    // else 
+    //     d.intersect_with_interval(x, y);
 }
 
 void test_integer_domain_union(integer_domain<int> & d) {
@@ -3137,28 +3137,66 @@ void test_integer_domain_randomly(integer_domain<int> & d) {
 }
 
 void test_integer_domain() {
-    integer_domain<int> d;
-    std::vector<integer_domain<int>> stack;
-    for (int i = 0; i < 10000; i++) {
-        test_integer_domain_randomly(d);
-        stack.push_back(d);
-        d.push();
-        if (i > 0 && i%100 == 0) {
-            if (stack.size() == 0) continue;
-            unsigned k = my_random() % stack.size();
-            if (k == 0)
-                k = 1;
-            d.pop(k);
-            d.restore_domain();
-            for (unsigned j = 0; j + 1 < k; j++) {
-                stack.pop_back();
-            }
-            std::cout<<"comparing i = " << i << std::endl;
-            lp_assert(d ==  *stack.rbegin());
-            stack.pop_back();
-        }
-        //d.print(std::cout);
-    }
+    std::cout << "test_integer_domain\n";
+    unsigned e0 = 0;
+    unsigned e1 = 1;
+    unsigned e2 = 2;
+    unsigned e3 = 3; // these are explanations
+    unsigned e4 = 4;
+    unsigned e5 = 5;
+    integer_domain<unsigned> d;
+    unsigned l0 = 0, l1 = 1, l2 = 3;
+    unsigned u0 = 10, u1 = 9, u2 = 8;
+    d.intersect_with_lower_bound(l0, e0);
+    unsigned b;
+    unsigned e;
+    bool r = d.get_lower_bound_with_expl(b, e);
+    lp_assert(r && b == l0 && e == e0);
+    d.push();
+    d.intersect_with_upper_bound(u0, e1);
+    r = d.get_upper_bound_with_expl(b, e);
+    lp_assert(r && b == u0 && e == e1);
+    r = d.get_lower_bound_with_expl(b, e);
+    lp_assert(r && b == l0 && e == e0);
+    d.pop();
+    r = d.get_upper_bound_with_expl(b, e);
+    lp_assert(!r);
+    d.intersect_with_upper_bound(u0, e1);
+    d.push();
+    d.intersect_with_lower_bound(l1, e2);
+    d.intersect_with_upper_bound(u1, e3);
+    d.push();
+    d.intersect_with_lower_bound(l2, e4);
+    d.intersect_with_upper_bound(u2, e5);
+    lp_assert(d.is_empty() == false);
+    d.print(std::cout);
+    d.pop();
+    r = d.get_lower_bound_with_expl(b, e);
+    lp_assert(r && b == l1 && e == e2);
+    d.print(std::cout);
+   
+    // integer_domain<int> d;
+    // std::vector<integer_domain<int>> stack;
+    // for (int i = 0; i < 10000; i++) {
+    //     test_integer_domain_randomly(d);
+    //     stack.push_back(d);
+    //     d.push();
+    //     if (i > 0 && i%100 == 0) {
+    //         if (stack.size() == 0) continue;
+    //         unsigned k = my_random() % stack.size();
+    //         if (k == 0)
+    //             k = 1;
+    //         d.pop(k);
+    //         d.restore_domain();
+    //         for (unsigned j = 0; j + 1 < k; j++) {
+    //             stack.pop_back();
+    //         }
+    //         std::cout<<"comparing i = " << i << std::endl;
+    //         lp_assert(d ==  *stack.rbegin());
+    //         stack.pop_back();
+    //     }
+    //     //d.print(std::cout);
+    // }
 }
 
 
@@ -3214,7 +3252,7 @@ void test_lp_local(int argn, char**argv) {
 
     args_parser.print();
 
-    if (args_parser.option_is_used("-dji")) {
+    if (args_parser.option_is_used("-intd")) {
         test_integer_domain();
         return finalize(0);
     }

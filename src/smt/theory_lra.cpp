@@ -1582,7 +1582,7 @@ public:
     literal_vector m_core2;
 
     void assign(literal lit) {
-        SASSERT(validate_assign(lit));
+        //        SASSERT(validate_assign(lit));
         if (m_core.size() < small_lemma_size() && m_eqs.empty()) {
             m_core2.reset();
             for (auto const& c : m_core) {
@@ -2312,7 +2312,7 @@ public:
                           );
 
                     // parameters are TBD.
-                    SASSERT(validate_eq(x, y));
+                    //                    SASSERT(validate_eq(x, y));
                     ctx().assign_eq(x, y, eq_justification(js));
                 }
             }
@@ -2406,7 +2406,7 @@ public:
                 set_evidence(ev.second);
             }
         }
-        SASSERT(validate_conflict());
+        //        SASSERT(validate_conflict());
         ctx().set_conflict(
             ctx().mk_justification(
                 ext_theory_conflict_justification(
@@ -2533,8 +2533,7 @@ public:
         cancel_eh<reslimit> eh(m.limit());
         scoped_timer timer(1000, &eh);
         bool result = l_true != nctx.check();
-        CTRACE("arith", !result, ctx().display_lemma_as_smt_problem(tout, m_core.size(), m_core.c_ptr(), m_eqs.size(), m_eqs.c_ptr(), false_literal);
-               display(tout););   
+        CTRACE("arith", !result, ctx().display_lemma_as_smt_problem(tout, m_core.size(), m_core.c_ptr(), m_eqs.size(), m_eqs.c_ptr(), false_literal););
         return result;
     }
 

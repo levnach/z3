@@ -459,8 +459,13 @@ struct pivoted_rows_tracking_control {
 };
 
 void int_solver::copy_explanations_from_cut_solver(explanation &ex) {
-    for (unsigned j : m_cut_solver.m_explanation)
+    TRACE("propagate_and_backjump_step_int",
+          for (unsigned j: m_cut_solver.m_explanation)
+              m_lar_solver->print_constraint(m_lar_solver->constraints()[j], tout););
+
+    for (unsigned j : m_cut_solver.m_explanation) {
         ex.push_justification(j);
+     }
     m_cut_solver.m_explanation.clear();
 }
 
@@ -494,6 +499,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
         return lia_move::ok;
 
     if ((++m_branch_cut_counter) % settings().m_int_branch_cut_solver == 0) {
+        TRACE("check_main_int", tout<<"cut_solver";);
         auto check_res = m_cut_solver.check();
         settings().st().m_cut_solver_calls++;
         switch (check_res) {
@@ -514,6 +520,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
         }
     }
     if ((m_branch_cut_counter) % settings().m_int_branch_cut_gomory_threshold == 0) {
+        TRACE("check_main_int", tout << "gomory";);
         if (move_non_basic_columns_to_bounds()) {
             lp_status st = m_lar_solver->find_feasible_solution();
             lp_assert(non_basic_columns_are_at_bounds());
@@ -527,6 +534,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex) {
         TRACE("arith_int", tout << "j = " << j << " does not have an integer assignment: " << get_value(j) << "\n";);
         return proceed_with_gomory_cut(t, k, ex, j);
     }
+    TRACE("check_main_int", tout << "branch"; );
     return create_branch_on_column(find_inf_int_base_column(), t, k, false);
 }
 
