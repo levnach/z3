@@ -287,6 +287,7 @@ public: // for debugging
         }
     public:
         svector<literal*> reasons() { return m_reasons; }
+        const svector<literal*> reasons() const { return m_reasons; }
         const polynomial & tight_ineq () const { return m_tight_ineq; }
         polynomial& tight_ineq () { return m_tight_ineq; }
         const mpq & bound() const { return m_bound; }
@@ -830,10 +831,7 @@ public:
             TRACE("var_bound_is_correct_by_trail", tout<< "expl=" << expl << std::endl; print_var_info(tout, j); tout << "b=" << b<<", expl = " << expl << std::endl; print_literal(tout, l); tout << "return " << (b == l.bound() && !l.is_lower()););
             if (! (b == l.bound() && !l.is_lower() && j == l.var()))
                 return false;
-            if (! (t.m_eu == static_cast<int>(expl) && t.m_u == b))
-                return false;
-            //            if( !run_over_trail_with_upper_bound(j, b))
-            //  return false;
+            return (t.m_eu == static_cast<int>(expl) && t.m_u == b);
         }
         return t.m_eu == -1;
     }
@@ -964,7 +962,7 @@ public:
             }
         } else {
             mpq v = ceil(rs / p.coeff());
-            if (new_upper_bound_is_relevant(j, v)) {
+            if (new_lower_bound_is_relevant(j, v)) {
                 TRACE("ba_int_change", print_var_info(tout, j););
                 intersect_var_info_with_lower_bound(j, v, m_trail.size());
                 TRACE("ba_int_change", trace_print_domain_change(tout, j, v, p, c););
@@ -1351,10 +1349,10 @@ public:
         }
         out << std::endl;
     }
-    void print_literal(std::ostream & out, literal * t) const {
+    void print_literal(std::ostream & out, const literal * t) const {
         print_literal(out, *t);
     }
-    void print_literal(std::ostream & out, literal & t) const {
+    void print_literal(std::ostream & out, const literal & t) const {
         out << (t.is_decided()? "decided ": "implied ");
         out << var_name(t.var()) << " ";
         if (t.is_lower())
@@ -1528,7 +1526,6 @@ public:
             if (cancel()) {
                 break;
             }
-            TRACE("cs_ch", print_state(tout););
             lp_assert(solver_is_in_correct_state());
             if (r != lbool::l_undef) {
                 TRACE("check_int", tout << "return " << (r == lbool::l_true ? "true" : "false") << "\n"; );
