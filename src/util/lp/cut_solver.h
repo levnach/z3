@@ -735,11 +735,11 @@ public:
     }
     
     struct test_bound_struct {
-        mpq m_l;
-        mpq m_u;
-        int m_el;
-        int m_eu;
-        test_bound_struct() :m_el(-1), m_eu(-1) {}
+        mpq m_lower_bound;
+        mpq m_upper_bound;
+        int m_expl_lower;
+        int m_expl_upper;
+        test_bound_struct() :m_expl_lower(-1), m_expl_upper(-1) {}
     };
 
     
@@ -751,26 +751,91 @@ public:
         return true;
     }
 
+    bound_result bound_test_on_poly(const polynomial &p, const mpq& a, unsigned j, vector<test_bound_struct>& bs) const {
+        lp_assert(!is_zero(a));
+        if (numeric_traits<mpq>::is_pos(a)) {
+            TRACE("bound_test_on_poly", tout << var_name(j) << " a is pos, p = "; print_polynomial(tout, p););
+            bound_result r = lower_without_test(p, j, bs);
+            if (r.m_type == bound_type::UNDEF)
+                return r;
+            lp_assert(is_int(r.m_bound));
+            r.m_bound = - ceil_ratio(r.m_bound , a);
+            r.m_type = bound_type::UPPER;
+            return r;
+        }
+        else {
+            TRACE("bound_test_on_poly", tout << var_name(j) << " a is neg, p = "; print_polynomial(tout, p););
+            bound_result r = lower_without_test(p, j, bs);
+            if (r.m_type == bound_type::UNDEF)
+                return r;
+            r.m_bound = -floor_ratio(r.m_bound, a);
+            r.m_type = bound_type::LOWER;
+            return r;
+        }
+  
+    }
+
+    bound_result bound_test(unsigned j, const polynomial &p, vector<test_bound_struct>& bs) const {
+        const mpq &a = p.coeff(j);
+        bound_result br = bound_test_on_poly(p, a, j, bs);
+        TRACE("bound_test", tout << var_name(j) << ", p = ";  print_polynomial(tout, p);
+              tout << ", br = "; br.print(tout); );
+        return br;
+    }
+    
+    void bound_test_literal(const literal & l, vector<test_bound_struct> & bs) const {
+        bound_result br = l.cnstr() != nullptr?
+            bound_test(l.var(), l.cnstr()->poly(), bs) :
+            bound_result(l.bound(), l.is_lower() ? bound_type::LOWER: bound_type::UPPER);
+        lp_assert(br.m_type != bound_type::UNDEF);
+        if (l.is_lower()) {
+            lp_assert(br.m_type == bound_type::LOWER);
+            lp_assert(br.m_bound >= l.bound());
+        } else {
+            lp_assert(br.m_type == bound_type::UPPER);
+            lp_assert(br.m_bound <= l.bound());
+        }
+
+        if (l.tight_ineq().coeffs().size()) {
+            br = bound_test(l.var(), l.tight_ineq(), bs);
+            lp_assert(br.m_type != bound_type::UNDEF);
+            if (l.is_lower()) {
+                lp_assert(br.m_type == bound_type::LOWER);
+                lp_assert(br.m_bound >= l.bound());
+            } else {
+                lp_assert(br.m_type == bound_type::UPPER);
+                lp_assert(br.m_bound <= l.bound());
+            }
+        }
+            
+    }
+    
     void get_bounds_from_trail_elem(unsigned j, vector<test_bound_struct>& bs) const {
         const literal & l = *m_trail[j];
         auto & t = bs[l.var()];
+        TRACE("get_bounds_from_trail_elem", tout << "j = " << j << ", literal = "; print_literal(tout, l););
+        bound_test_literal(l, bs);
         if (l.is_lower()) {
-            if (t.m_el == -1) {
-                t.m_el = j;
-                t.m_l = l.bound();
+            if (t.m_expl_lower == -1) {
+                t.m_expl_lower = j;
+                t.m_lower_bound = l.bound();
+                TRACE("get_bounds_from_trail_elem", tout << var_name(l.var()) << " m_lower_bound = " << t.m_lower_bound << std::endl;);
             } else {
-                lp_assert(t.m_l < l.bound());
-                t.m_l = l.bound();
-                t.m_el = j;
+                lp_assert(t.m_lower_bound < l.bound());
+                t.m_lower_bound = l.bound();
+                TRACE("get_bounds_from_trail_elem", tout << var_name(l.var()) << " m_lower_bound = " << t.m_lower_bound << std::endl;);
+                t.m_expl_lower = j;
             }
         } else {
-            if (t.m_eu == -1) {
-                t.m_eu = j;
-                t.m_u = l.bound();
+            if (t.m_expl_upper == -1) {
+                t.m_expl_upper = j;
+                t.m_upper_bound = l.bound();
+                TRACE("get_bounds_from_trail_elem", tout << var_name(l.var()) << " m_u = " << t.m_upper_bound << std::endl;);
             } else {
-                lp_assert(t.m_u > l.bound());
-                t.m_u = l.bound();
-                t.m_eu = j;
+                lp_assert(t.m_upper_bound > l.bound());
+                t.m_upper_bound = l.bound();
+                t.m_expl_upper = j;
+                TRACE("get_bounds_from_trail_elem", tout << var_name(l.var()) << " m_u = " << t.m_upper_bound << std::endl;);
             }
         }
     }
@@ -831,9 +896,9 @@ public:
             TRACE("var_bound_is_correct_by_trail", tout<< "expl=" << expl << std::endl; print_var_info(tout, j); tout << "b=" << b<<", expl = " << expl << std::endl; print_literal(tout, l); tout << "return " << (b == l.bound() && !l.is_lower()););
             if (! (b == l.bound() && !l.is_lower() && j == l.var()))
                 return false;
-            return (t.m_eu == static_cast<int>(expl) && t.m_u == b);
+            return (t.m_expl_upper == static_cast<int>(expl) && t.m_upper_bound == b);
         }
-        return t.m_eu == -1;
+        return t.m_expl_upper == -1;
     }
 
     // bool run_over_trail_with_upper_bound(unsigned j, const mpq & b) const {
@@ -849,12 +914,12 @@ public:
         if (v.get_lower_bound_with_expl(b, expl)) {
             literal & l = *m_trail[expl];
             TRACE("var_bound_is_correct_by_trail",  print_var_info(tout, j); tout << "b=" << b<<", expl = " << expl << std::endl; print_literal(tout, l); tout << "return " << (b == l.bound() && l.is_lower()););
-            if (! (t.m_el == static_cast<int>(expl) && t.m_l == b))
+            if (! (t.m_expl_lower == static_cast<int>(expl) && t.m_lower_bound == b))
                 return false;
             return b == l.bound() && l.is_lower();
         }
         
-        return t.m_el == -1;
+        return t.m_expl_lower == -1;
     }
     
     void push_literal_to_trail(literal * l) {
@@ -1030,20 +1095,29 @@ public:
     }
     
     void fill_conflict_explanation(conflict_struct & confl) {
-        TRACE("fill_conflict_explanation",
-              print_constraint(tout, *confl.m_constraint);
-              for (auto l: confl.m_reasons)
-                  print_literal(tout, l);
-              print_trail(tout);
-              );
+        //        std::cout << "ddd="<< ++ lp_settings::ddd << std::endl;
+        // if (lp_settings::ddd == 255) {
+        //     lp_assert(solver_is_in_correct_state());
+        //     TRACE("fill_conflict_explanation",
+        //           print_constraint(tout, *confl.m_constraint);
+        //           for (auto l: confl.m_reasons)
+        //               print_literal(tout, l);
+        //           print_trail(tout);
+        //           );
+        // }
         m_explanation.clear();
         m_conflict_constraints.clear();
+        m_conflict_constraints.insert(confl.m_constraint);
         for (literal * l : confl.m_reasons)
             explain_literal(l);
         for (auto c : m_conflict_constraints) {
             add_constraint_origins_to_explanation(c);
         }
-        add_constraint_origins_to_explanation(confl.m_constraint);
+        // if (lp_settings::ddd == 255) {
+        //     TRACE("fill_conflict_explanation",
+        //           for (const constraint * c :m_conflict_constraints)
+        //               print_constraint(tout, *c););
+        // }
     }
 
     void trace_print_constraint(std::ostream& out, ccns* i) const {
@@ -1090,6 +1164,23 @@ public:
         return m_var_infos[i].get_lower_bound(bound);
     }
 
+    bool get_var_lower_bound_test(var_index i, mpq & bound, const vector<test_bound_struct>& bs) const {
+        const auto & t = bs[i];
+        if (t.m_expl_lower == -1)
+            return false;
+        bound = t.m_lower_bound;
+        return true;
+    }
+    bool get_var_upper_bound_test(var_index i, mpq & bound, const vector<test_bound_struct>& bs) const {
+        const auto & t = bs[i];
+        if (t.m_expl_upper == -1)
+            return false;
+        bound = t.m_upper_bound;
+        return true;
+    }
+
+    
+    
     bool get_var_upper_bound(var_index i, mpq & bound) const {
         const var_info & v = m_var_infos[i];
         return v.get_upper_bound(bound);
@@ -1108,8 +1199,18 @@ public:
         return get_lower_for_monomial_expl(p) != -1;
     }
 
+    bool lower_for_monomial_exists_test(const monomial &p, const vector<test_bound_struct>& bs ) const {
+        return is_pos(p.coeff())? bs[p.var()].m_expl_lower != -1: bs[p.var()].m_expl_upper != -1;
+    }
+
     bool upper_for_monomial_exists(const monomial &p ) const {
         return get_upper_for_monomial_expl(p) != -1;
+    }
+    bool upper_for_monomial_exists_test(const monomial &p, const vector<test_bound_struct> & bs ) const {
+        const auto &t = bs[p.var()];
+        TRACE("upper_for_monomial_exists_test", tout << p.coeff() << ", " << var_name(p.var());
+              tout << "t.m_expl_lower = " << t.m_expl_lower << ", t.m_expl_upper = " << t.m_expl_upper;);
+        return is_neg(p.coeff())? t.m_expl_lower != -1: t.m_expl_upper != -1;
     }
     
     int get_upper_for_monomial_expl(const monomial & p) const {
@@ -1118,7 +1219,21 @@ public:
         return p.coeff() > 0? v.get_upper_bound_expl() : v.get_lower_bound_expl();
     }
 
-    
+    bool lower_monomial_test(const monomial & p, mpq & lb, vector<test_bound_struct>& bs) const {
+        lp_assert(p.coeff() != 0);
+        mpq var_bound;
+        if (p.coeff() > 0) {
+            if (!get_var_lower_bound_test(p.var(), var_bound, bs))
+                return false;
+            lb = p.coeff() * var_bound;
+        }
+        else {
+            if (!get_var_upper_bound_test(p.var(), var_bound, bs))
+                return false;
+            lb = p.coeff() * var_bound;
+        }
+        return true;
+    }
     // finds the lower bound of the monomial,
     // otherwise returns false
     bool lower_monomial(const monomial & p, mpq & lb) const {
@@ -1146,6 +1261,21 @@ public:
         }
         else {
             if (!get_var_lower_bound(p.var(), var_bound))
+                return false;
+        }
+        lb = p.coeff() * var_bound;
+        return true;
+    }
+
+    bool upper_monomial_test(const monomial & p, mpq & lb, const vector<test_bound_struct> & bs) const {
+        lp_assert(p.coeff() != 0);
+        mpq var_bound;
+        if (p.coeff() > 0) {
+            if (!get_var_upper_bound_test(p.var(), var_bound, bs))
+                return false;
+        }
+        else {
+            if (!get_var_lower_bound_test(p.var(), var_bound, bs))
                 return false;
         }
         lb = p.coeff() * var_bound;
@@ -1235,61 +1365,39 @@ public:
         return bound_result(bound,bound_type::LOWER);
     }
 
-    bound_result upper_without(const polynomial & p, var_index j) const {
+    bound_result lower_without_test(const polynomial & p, var_index j, vector<test_bound_struct>& bs ) const {
         for (const auto & t:  p.m_coeffs) {
             if (t.var() == j)
                 continue;
-            if (!upper_for_monomial_exists(t)) {
+            if (!lower_for_monomial_exists_test(t, bs)) {
                 return bound_result();
             }
         }
-        // if we are here then there is an upper bound for p
+        // if we are here then there is a lower bound for p
         mpq bound = p.m_a;
         for (const auto & t:  p.m_coeffs) {
             if (t.var() == j)
                 continue;
-            mpq b;
-            upper_monomial(t, b);
-            bound += b;
+
+            mpq l;
+            lower_monomial_test(t, l, bs);
+            bound += l;
         }
-        return bound_result(bound, bound_type::UPPER);
+        return bound_result(bound,bound_type::LOWER);
     }
 
-    bool upper(const polynomial & p, mpq b) const {
-        for (const auto & t:  p.m_coeffs) {
-            if (!upper_for_monomial_exists(t)) {
-                return false;
-            }
-        }
-        // if we are here then there is an upper bound for p
-        b = p.m_a;
-        mpq bb;
-        for (const auto & t:  p.m_coeffs) {
-            upper_monomial(t, bb);
-            b += bb;
-        }
-        return true;
-    }
-
-    
-    
-    
     // a is the coefficient before j
     bound_result bound_on_polynomial(const polynomial & p, const mpq& a, var_index j) const {
         lp_assert(!is_zero(a));
+        bound_result r = lower_without(p, j);
+        if (r.m_type == bound_type::UNDEF)
+            return r;
         if (numeric_traits<mpq>::is_pos(a)) {
-            bound_result r = upper_without(p, j);
-            if (r.m_type == bound_type::UNDEF)
-                return r;
-            lp_assert(is_int(r.m_bound));
             r.m_bound = - ceil_ratio(r.m_bound , a);
             r.m_type = bound_type::UPPER;
             return r;
         }
         else {
-            bound_result r = lower_without(p, j);
-            if (r.m_type == bound_type::UNDEF)
-                return r;
             r.m_bound = -floor_ratio(r.m_bound, a);
             r.m_type = bound_type::LOWER;
             return r;
@@ -1617,9 +1725,7 @@ public:
         for (auto c: m_active_set.cs())
             print_constraint(out, *c);
         out << "end of active constraints\n";
-        out << "trail\n";
         print_trail(out);
-        out << "end of trail\n";
         out << "var_infos\n";
         for (const auto & v: m_var_infos) {
             if (v.is_active())
@@ -1743,13 +1849,8 @@ public:
                 m_number_of_conflicts++;
                 TRACE("propagate_and_backjump_step_int", tout << "incostistent_constraint "; trace_print_constraint(tout, confl.m_constraint); tout << "m_number_of_conflicts = " << m_number_of_conflicts << std::endl; tout << "cut_solver_calls " << m_settings.st().m_cut_solver_calls << std::endl;);
                 if (at_base_lvl()) {
-                    //                    std::cout << "ddd = " << ++ lp_settings::ddd << std::endl;
                     lp_assert(solver_is_in_correct_state());
                     fill_conflict_explanation(confl);
-                    // if (lp_settings::ddd == 26) {
-                    //     test_given_vals();
-                    //     TRACE("propagate_and_backjump_step_int", print_state(tout););
-                    // }
                     return lbool::l_false;
                 }
                 handle_conflicting_cores(); // testing only
@@ -2065,14 +2166,13 @@ public:
                                  bool &p_has_been_modified) {
         lp_assert(lower_is_pos(p));
         create_tight_ineq_under_literal(trail_index, lemma_origins);
-        TRACE("resolve_implied_literal", print_literal(tout, &l););
+        TRACE("resolve_implied_literal", tout << "literal with the tight_ineq: "; print_literal(tout, &l););
         DEBUG_CODE(m_debug_resolve_ineqs.push_back(l.tight_ineq()););
         // applying Resolve rule
         bool resolved = resolve(p, l.var(), !l.is_lower(), l.tight_ineq());            
         p_has_been_modified = p_has_been_modified || resolved;
-        CTRACE("int_resolve_confl", resolved, print_resolvent(tout, p, l););
+        CTRACE("int_resolve_confl", resolved, tout << "resolved p: "; print_resolvent(tout, p, l););
         CTRACE("int_resolve_confl", !lower_is_pos(p), print_trail(tout, trail_index););
-        lp_assert(solver_is_in_correct_state());
         lp_assert(lower_is_pos(p));
         if (p.coeffs().size() == 0) {
             for (auto c : lemma_origins)
@@ -2152,6 +2252,7 @@ public:
     }
     
     bool resolve_conflict(conflict_struct & confl) {
+        lp_assert(solver_is_in_correct_state());
         auto i = confl.m_constraint;
         lp_assert(!at_base_lvl());
         TRACE("int_resolve_confl", tout << "inconstistent_constraint = ";

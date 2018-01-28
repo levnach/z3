@@ -2406,7 +2406,7 @@ public:
                 set_evidence(ev.second);
             }
         }
-        //        SASSERT(validate_conflict());
+        SASSERT(validate_conflict());
         ctx().set_conflict(
             ctx().mk_justification(
                 ext_theory_conflict_justification(
