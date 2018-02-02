@@ -33,6 +33,19 @@ class integer_domain {
             return m_start_expl == e.m_start_expl && m_end_expl == e.m_end_expl;
         }
         bool operator!=(const endpoint & e) const { return !(*this == e); }
+
+        void print(std::ostream & out) const {
+            if (m_start_expl != -1 && m_end_expl != -1)
+                out << "(" <<  m_start_expl << ", " << m_end_expl << ")";
+            else {
+                if (m_start_expl != -1) {
+                    out << "(" << m_start_expl << ")";
+                }
+                else if (m_end_expl != -1) {
+                    out << "(" << m_end_expl << ")";
+                }
+            }
+        }
     };
     stacked_map<T, endpoint>                 m_endpoints;
     stacked_value<bool>                      m_empty;
@@ -331,24 +344,29 @@ public:
         for (auto t : m_endpoints()) {
             if (first) {
                 if (t.second.kind() == endpoint_kind::END) {
-                    out << "[-oo," << t.first << "]";
+                    out << "[-oo," << t.first; t.second.print(out); tout << "]";
                 }
-                else if (t.second.kind() == endpoint_kind::START)
-                    out << "[" << t.first << ",";
-                else if (t.second.kind() == endpoint_kind::STEND)
-                    out << "[" << t.first << "]";
+                else if (t.second.kind() == endpoint_kind::START) {
+                    out << "[" << t.first; t.second.print(out); tout << ",";
+                } else if (t.second.kind() == endpoint_kind::STEND) {
+                    out << "[" << t.first; t.second.print(out); tout << "]";
+                }
                 first = false;
             } else {
-                if (t.second.kind() == endpoint_kind::START)
-                    out << "[" << t.first << ",";
-                else if (t.second.kind() == endpoint_kind::END)
-                    out << t.first << "]";
-                else if (t.second.kind() == endpoint_kind::STEND)
-                    out << "[" << t.first << "]";
+                if (t.second.kind() == endpoint_kind::START) {
+                    out << "[" << t.first; t.second.print(out); tout << ",";
+                }
+                else if (t.second.kind() == endpoint_kind::END) {
+                    out << t.first; t.second.print(out); tout << "]";
+                }
+                else if (t.second.kind() == endpoint_kind::STEND) {
+                    out << "[" << t.first; t.second.print(out); tout << "]";;
+                }
             }
         }
         if (has_pos_inf())
             out << "oo]";
+        
         out << "\n";
     }
     

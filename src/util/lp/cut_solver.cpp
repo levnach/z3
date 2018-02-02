@@ -6,9 +6,9 @@
 namespace lp {
     mpq polynomial::m_local_zero = zero_of_type<mpq>();
 
-    size_t ccns_hash::operator() (const constraint* c) const { return c->id(); }
+    size_t constraint_hash::operator() (const constraint* c) const { return c->id(); }
     
-    bool ccns_equal::operator() (const constraint* a, const constraint * b) const { return a->id() == b->id(); }
+    bool constraint_equal::operator() (const constraint* a, const constraint * b) const { return a->id() == b->id(); }
 
     std::ostream& operator<<(std::ostream& out, pp_poly const& p) {
         p.s.print_polynomial(out, p.p);
