@@ -344,23 +344,23 @@ public:
         for (auto t : m_endpoints()) {
             if (first) {
                 if (t.second.kind() == endpoint_kind::END) {
-                    out << "[-oo," << t.first; t.second.print(out); tout << "]";
+                    out << "[-oo," << t.first; t.second.print(out); out << "]";
                 }
                 else if (t.second.kind() == endpoint_kind::START) {
-                    out << "[" << t.first; t.second.print(out); tout << ",";
+                    out << "[" << t.first; t.second.print(out); out << ",";
                 } else if (t.second.kind() == endpoint_kind::STEND) {
-                    out << "[" << t.first; t.second.print(out); tout << "]";
+                    out << "[" << t.first; t.second.print(out); out << "]";
                 }
                 first = false;
             } else {
                 if (t.second.kind() == endpoint_kind::START) {
-                    out << "[" << t.first; t.second.print(out); tout << ",";
+                    out << "[" << t.first; t.second.print(out); out << ",";
                 }
                 else if (t.second.kind() == endpoint_kind::END) {
-                    out << t.first; t.second.print(out); tout << "]";
+                    out << t.first; t.second.print(out); out << "]";
                 }
                 else if (t.second.kind() == endpoint_kind::STEND) {
-                    out << "[" << t.first; t.second.print(out); tout << "]";;
+                    out << "[" << t.first; t.second.print(out); out << "]";;
                 }
             }
         }
