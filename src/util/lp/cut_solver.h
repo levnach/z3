@@ -1646,7 +1646,6 @@ public:
     }
     
     lbool check() {
-        std::cout << ".";
         init_search();
         TRACE("check_int_state", tout << "starting check" << "\n";);
         while (!m_stuck_state && !cancel()) {
