@@ -11,19 +11,17 @@
 #include <stack>
 namespace lp {
 template<class A,
-         class B,
-         class _Pr = std::less<A>,
-         class _Alloc = std::allocator<std::pair<const A, B> > >
+		class B,
+		class _Pr = std::less<A>,
+		class _Alloc = std::allocator<std::pair<const A, B> > >
 class stacked_map {
     struct delta {
         std::unordered_set<A> m_new;
         std::unordered_map<A, B> m_original_changed;
         //        std::unordered_map<A,B, Hash, KeyEqual, Allocator > m_deb_copy;
     };
-    // fields
-    std::map<A,B,_Pr, _Alloc>  m_map;
-    std::stack<delta>          m_stack;
-    svector<bool>              m_register; // a push first goes to the register as m_register.push_back(false);
+    std::map<A,B,_Pr, _Alloc> m_map;
+    std::stack<delta> m_stack;
 public:
     class ref {
         stacked_map<A,B,_Pr, _Alloc> & m_map;
@@ -41,56 +39,46 @@ public:
             return it->second;
         }
     };
-    typename std::map < A, B, _Pr, _Alloc>::iterator upper_bound(const A& k) {
-        return m_map.upper_bound(k);
-    }
-    typename std::map < A, B, _Pr, _Alloc>::const_iterator upper_bound(const A& k) const {
-        return m_map.upper_bound(k);
-    }
-    typename std::map < A, B, _Pr, _Alloc>::iterator lower_bound(const A& k) {
-        return m_map.lower_bound(k);
-    }
-    typename std::map < A, B, _Pr, _Alloc>::const_iterator lower_bound(const A& k) const {
-        return m_map.lower_bound(k);
-    }
-    typename std::map < A, B, _Pr, _Alloc>::iterator end() {
-        return m_map.end();
-    }
-    typename std::map < A, B, _Pr, _Alloc>::const_iterator end() const {
-        return m_map.end();
-    }
-    typename std::map < A, B, _Pr, _Alloc>::reverse_iterator rend() {
-        return m_map.rend();
-    }
-    typename std::map < A, B, _Pr, _Alloc>::const_reverse_iterator rend() const {
-        return m_map.rend();
-    }
-    typename std::map < A, B, _Pr, _Alloc>::iterator begin() {
-        return m_map.begin();
-    }
-    typename std::map < A, B, _Pr, _Alloc>::const_iterator begin() const {
-        return m_map.begin();
-    }
-    typename std::map < A, B, _Pr, _Alloc>::reverse_iterator rbegin() {
-        return m_map.rbegin();
-    }
-    typename std::map < A, B, _Pr, _Alloc>::const_reverse_iterator rbegin() const {
-        return m_map.rbegin();
-    }
+	typename std::map < A, B, _Pr, _Alloc>::iterator upper_bound(const A& k) {
+		return m_map.upper_bound(k);
+	}
+	typename std::map < A, B, _Pr, _Alloc>::const_iterator upper_bound(const A& k) const {
+		return m_map.upper_bound(k);
+	}
+	typename std::map < A, B, _Pr, _Alloc>::iterator lower_bound(const A& k) {
+		return m_map.lower_bound(k);
+	}
+	typename std::map < A, B, _Pr, _Alloc>::const_iterator lower_bound(const A& k) const {
+		return m_map.lower_bound(k);
+	}
+	typename std::map < A, B, _Pr, _Alloc>::iterator end() {
+		return m_map.end();
+	}
+	typename std::map < A, B, _Pr, _Alloc>::const_iterator end() const {
+		return m_map.end();
+	}
+	typename std::map < A, B, _Pr, _Alloc>::reverse_iterator rend() {
+		return m_map.rend();
+	}
+	typename std::map < A, B, _Pr, _Alloc>::const_reverse_iterator rend() const {
+		return m_map.rend();
+	}
+	typename std::map < A, B, _Pr, _Alloc>::iterator begin() {
+		return m_map.begin();
+	}
+	typename std::map < A, B, _Pr, _Alloc>::const_iterator begin() const {
+		return m_map.begin();
+	}
+	typename std::map < A, B, _Pr, _Alloc>::reverse_iterator rbegin() {
+		return m_map.rbegin();
+	}
+	typename std::map < A, B, _Pr, _Alloc>::const_reverse_iterator rbegin() const {
+		return m_map.rbegin();
+	}
 private:
-
-    delta & stack_top() {
-        if (m_register.back() == false) {
-            m_register.back() = true;
-            delta d;
-            m_stack.push(d);
-        }
-        return m_stack.top();
-    }
-    
-    void emplace_replace(const A & a, const B & b)  {
-        if (!m_register.empty()) {
-            delta & d = stack_top();
+	void emplace_replace(const A & a, const B & b)  {
+        if (!m_stack.empty()) {
+            delta & d = m_stack.top();
             auto it = m_map.find(a);
             if (it == m_map.end()) {
                 d.m_new.insert(a);
@@ -156,8 +144,22 @@ public:
     }
     
     void push() {
-        m_register.push_back(false);
-        // delay the m_stack.push(delta);
+        delta d;
+        //        d.m_deb_copy = m_map;
+        m_stack.push(d);
+    }
+
+    void revert() {
+        if (m_stack.empty()) return;
+
+        delta & d = m_stack.top();
+        for (auto & t : d.m_new) {
+            m_map.erase(t);
+        }
+        for (auto & t: d.m_original_changed) {
+            m_map[t.first] = t.second;
+        }
+        d.clear();
     }
     
     void pop() {
@@ -165,13 +167,8 @@ public:
     }
     void pop(unsigned k) {
         while (k-- > 0) {
-            if (m_register.empty())
+            if (m_stack.empty())
                 return;
-            if (!m_register.back()) {
-                m_register.pop_back();
-                continue;
-            }
-            m_register.pop_back();
             delta & d = m_stack.top();
             for (auto & t : d.m_new) {
                 m_map.erase(t);
@@ -192,14 +189,13 @@ public:
     void erase(const typename std::map < A, B, _Pr, _Alloc>::reverse_iterator & it) {
         erase(it->first);
     }
-
     void erase(const A & key) {
-        if (m_register.empty()) {
+        if (m_stack.empty()) {
             m_map.erase(key);
             return;
         }
         
-        delta & d = stack_top();
+        delta & d = m_stack.top();
         auto it = m_map.find(key);
         if (it == m_map.end()) {
             lp_assert(d.m_new.find(key) == d.m_new.end());
@@ -219,12 +215,12 @@ public:
     }
     
     void clear() {
-        if (m_register.empty()) {
+        if (m_stack.empty()) {
             m_map.clear();
             return;
         }
 
-        delta & d = stack_top();
+        delta & d = m_stack.top();
         auto & oc = d.m_original_changed;
         for (auto & p : m_map) {
             const auto & it = oc.find(p.first);
@@ -234,6 +230,8 @@ public:
         m_map.clear();
     }
 
+    unsigned stack_size() const { return m_stack.size(); }
+    
     bool empty() const { return m_map.empty(); }
 
     const std::map<A, B, _Pr, _Alloc>& operator()() const { return m_map;}
