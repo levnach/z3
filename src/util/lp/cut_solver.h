@@ -1130,7 +1130,9 @@ public:
                        std::unordered_set<unsigned> & visited_literals,
                        std::unordered_set<const_constr*> visited_constraints) {
         add_premises(c, visited_constraints);
-        TRACE("fill_conflict_explanation", trace_print_constraint(tout, *c););
+        TRACE("fill_conflict_explanation", tout << "visited_constraints\n";
+              for (auto cc: visited_constraints)
+                  trace_print_constraint(tout, *cc););
         for (const monomial & m : c->poly().coeffs()) {
             int trail_index = find_literal_index_after(m.var(), is_pos(m.coeff()), trail_lim);
             if (trail_index == -1)
@@ -1190,7 +1192,7 @@ public:
             print_var_domain(out, j);
         }
         if (i->assert_origins().size()) {
-            out << "assert origins: " ;
+            out << (i->assert_origins().size() > 1?"origins: ":"origin: ") ;
             for (auto o : i->assert_origins())
                 out << o << ", ";
             out << "\n";
