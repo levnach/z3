@@ -355,15 +355,17 @@ public: // for debugging
     };
 
     class var_info {
-        unsigned m_internal_j; // it is just the index into m_var_infos of this var_info, if the var_info is not active then this value is set to (unsigned)-1
-        integer_domain<mpq> m_domain;
+        unsigned                                                                       m_internal_j; // it is just the index into m_var_infos of this var_info, if the var_info is not active then this value is set to (unsigned)-1
+        integer_domain<mpq>                                                            m_domain;
         // the map of constraints using the var: bound_type = UNDEF stands for a div constraint
         std::unordered_map<constraint*, bound_type, constraint_hash, constraint_equal> m_dependent_constraints;
-        svector<unsigned> m_external_stack_level;
+        svector<unsigned>                                                              m_external_stack_level; // todo : get rid of this field. Use just stack_level and a boolean on a literal if it was pushed
+        unsigned                                                                       m_number_of_bound_propagations;
     public:
-        var_info(unsigned user_var_index) :  m_internal_j(user_var_index)
-        {}
-        var_info() : m_internal_j(static_cast<unsigned>(-1)) {}
+        var_info(unsigned user_var_index) :
+            m_internal_j(user_var_index), m_number_of_bound_propagations(0) {}
+        var_info() : m_internal_j(static_cast<unsigned>(-1)),
+                     m_number_of_bound_propagations(0) {}
 
         bool is_active() const { return m_internal_j != static_cast<unsigned>(-1); }
         
@@ -416,10 +418,12 @@ public: // for debugging
             m_external_stack_level.shrink(m_external_stack_level.size() - k);
         }
         const svector<unsigned> & external_stack_level() const { return m_external_stack_level; }
+
+        unsigned number_of_bound_propagations() const { return m_number_of_bound_propagations; }
+        unsigned & number_of_bound_propagations() { return m_number_of_bound_propagations; }
+        
     }; // end of var_info
 
-    vector<var_info> m_var_infos;
-    
     bool lhs_is_int(const vector<monomial> & lhs) const {
         for (auto & p : lhs) {
             if (numeric_traits<mpq>::is_int(p.coeff()) == false) return false;
@@ -552,6 +556,7 @@ public:
     };
     
     // fields
+    vector<var_info> m_var_infos;
     svector<constraint*>                           m_asserts;
     svector<constraint*>                           m_lemmas;
     vector<mpq>                                    m_v; // the values of the variables
@@ -573,6 +578,7 @@ public:
     unsigned                                       m_decision_level;
     bool                                           m_stuck_state;
     bool                                           m_cancelled;
+    
 
     bool is_lower_bound(literal & l) const {
         return l.is_lower();
@@ -971,7 +977,8 @@ public:
 
     bool new_lower_bound_is_relevant(unsigned j, const mpq & v) const {
         mpq lb;
-        auto & d = m_var_infos[j].domain();
+        const var_info & vi = m_var_infos[j];
+        auto & d = vi.domain();
         bool has_bound = d.get_lower_bound(lb);
         if (!has_bound)
             return true;
@@ -980,12 +987,21 @@ public:
         if (upper_bound_exists(d))
             return true;
 
+        if (too_many_propagations_for_var(vi))
+            return false;
+        
         //        int delta = 2;
         return v >= lb + 2 * abs(lb);
-    }
         
+    }
+
+    bool too_many_propagations_for_var(const var_info& vi) const {
+        return vi.number_of_bound_propagations() > m_settings.m_cut_solver_bound_propagation_factor * vi.dependent_constraints().size();
+    }
+
     bool new_upper_bound_is_relevant(unsigned j, const mpq & v) const {
-        auto & d = m_var_infos[j].domain();
+        auto & vi = m_var_infos[j];
+        auto & d = vi.domain();
         mpq b;
         bool has_bound = d.get_upper_bound(b);
         if (!has_bound)
@@ -995,6 +1011,9 @@ public:
         if (lower_bound_exists(d))
             return true;
 
+        if (too_many_propagations_for_var(vi))
+            return false;
+        
         //        delta = 2
         return v <= b - 2 * abs(b); // returns false if the improvement is small
     }
@@ -1061,9 +1080,10 @@ public:
     void print_var_info(std::ostream & out, const var_info & vi) const {
         out << m_var_name_function(vi.internal_j()) << " ";
         print_var_domain(out, vi);
-        out << "external levels: ";
-        for (auto j : vi.external_stack_level())
-            out << j << " ";
+        out << ", propagaions = " <<  vi.number_of_bound_propagations() << ", deps = " << vi.dependent_constraints().size() << std::endl;
+        // out << "external levels: ";
+        // for (auto j : vi.external_stack_level())
+        //     out << j << " ";
     }
 
     void print_var_info(std::ostream & out, unsigned j) const {
@@ -1656,6 +1676,7 @@ public:
     void add_bound(mpq v, unsigned j, bool is_lower, constraint * c) {
         literal l = literal::make_implied_literal(j, is_lower, v, c);
         push_literal_to_trail(l);
+        m_var_infos[j].number_of_bound_propagations()++;
     }
     
     mpq value(const polynomial & p) const {
@@ -1719,6 +1740,8 @@ public:
         m_cancelled = false;
         for (constraint * c : m_asserts)
             m_active_set.add_constraint(c);
+        for (auto & vi : m_var_infos)
+            vi.number_of_bound_propagations() = 0;
     }
 
     constraint* propagate_constraint(constraint* c) {
@@ -1977,7 +2000,7 @@ public:
             TRACE("tight", tout << "after resolve ndiv_part = " << pp_poly(*this, ndiv_part) << "\n";);
         } else { 
             create_tight_constr_under_literal(l.decision_context_index());
-            TRACE("tight",
+            TRACE("tight", 
                   tout << "index_of_literal = " << index_of_literal << ", ";
                   print_literal(tout, m_trail[index_of_literal]); tout << "\n";
                   tout << "div_part = " << pp_poly(*this, div_part) << "\n";
@@ -2002,15 +2025,10 @@ public:
         }
         return change;
     }
-    
-    // see page 88 of Cutting to Chase
-    void tighten(constraint * c,
-                 unsigned j_of_var,
-                 const mpq& a,
-                 unsigned index_of_literal) {
-        polynomial div_part, ndiv_part;
-        ndiv_part.m_a = c->poly().m_a;
-        create_div_ndiv_parts_for_tightening(c->poly(), a, div_part, ndiv_part);
+
+    void eliminate_ndiv_part_monomials(const mpq& a, polynomial & div_part, polynomial& ndiv_part, unsigned index_of_literal) {
+        if (ndiv_part.number_of_monomials() == 0)
+            return;
         int k = index_of_literal - 1;
         lp_assert(k >= 0);
         literal& l = m_trail[index_of_literal];
@@ -2025,6 +2043,17 @@ public:
             }
             k--;
         }
+    }
+    
+    // see page 88 of Cutting to Chase
+    void tighten(constraint * c,
+                 unsigned j_of_var,
+                 const mpq& a,
+                 unsigned index_of_literal) {
+        polynomial div_part, ndiv_part;
+        ndiv_part.m_a = c->poly().m_a;
+        create_div_ndiv_parts_for_tightening(c->poly(), a, div_part, ndiv_part);
+        eliminate_ndiv_part_monomials(a, div_part, ndiv_part, index_of_literal);
         mpq abs_a = abs(a);
         polynomial & p = c->poly();
         p.clear();
