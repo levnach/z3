@@ -268,31 +268,36 @@ public: // for debugging
         mpq                      m_bound;
         constraint*              m_constraint; // nullptr if it is a decided literal
         constraint*              m_tight_constr; // nullptr if it is not calculated
+        unsigned                 m_prev_var_level;
     public:
     private:
         literal(  // creates an implied bound
             unsigned var_index,
             bool is_lower,
             const mpq & bound,
-            constraint * constr) :
+            constraint * constr,
+            unsigned prev_var_level) :
             m_decision_context_index(-1),
             m_var(var_index),
             m_is_lower(is_lower),
             m_bound(bound),
             m_constraint(constr),
-            m_tight_constr(nullptr) {
+            m_tight_constr(nullptr),
+            m_prev_var_level(prev_var_level) {
         }
         literal(  // creates a decided bound
             int trail_index,
             unsigned var_index,
             bool is_lower,
-            const mpq & bound):
+            const mpq & bound,
+            unsigned prev_var_level):
             m_decision_context_index(trail_index),
             m_var(var_index),
             m_is_lower(is_lower),
             m_bound(bound),
             m_constraint(nullptr),
-            m_tight_constr(nullptr) {
+            m_tight_constr(nullptr),
+            m_prev_var_level(prev_var_level) {
         }
     public:
         const constraint * tight_constr() const { return m_tight_constr; }
@@ -317,14 +322,15 @@ public: // for debugging
 
         unsigned var() const { return m_var; }
 
-        static literal make_implied_literal(unsigned var_index, bool is_lower, const mpq & bound, constraint * c) {
-            return literal(var_index, is_lower, bound, c);
+        static literal make_implied_literal(unsigned var_index, bool is_lower, const mpq & bound, constraint * c, unsigned var_level) {
+            return literal(var_index, is_lower, bound, c, var_level);
         }
         static literal make_decided_literal(unsigned var_index, bool is_lower,
-                                            const mpq & bound, int decision_context_index) {
-            return literal(decision_context_index, var_index, is_lower, bound);
+                                            const mpq & bound, int decision_context_index, unsigned var_level) {
+            return literal(decision_context_index, var_index, is_lower, bound, var_level);
         }
 
+        unsigned prev_var_level() const { return m_prev_var_level; }
     };    
 
     enum class bound_type {
@@ -359,12 +365,15 @@ public: // for debugging
         integer_domain<mpq>                                                            m_domain;
         // the map of constraints using the var: bound_type = UNDEF stands for a div constraint
         std::unordered_map<constraint*, bound_type, constraint_hash, constraint_equal> m_dependent_constraints;
-        svector<unsigned>                                                              m_external_stack_level; // todo : get rid of this field. Use just stack_level and a boolean on a literal if it was pushed
+        unsigned                                                                       m_external_stack_level;
         unsigned                                                                       m_number_of_bound_propagations;
+        
     public:
         var_info(unsigned user_var_index) :
-            m_internal_j(user_var_index), m_number_of_bound_propagations(0) {}
+            m_internal_j(user_var_index), m_external_stack_level(static_cast<unsigned>(-1)), m_number_of_bound_propagations(0)
+        {}
         var_info() : m_internal_j(static_cast<unsigned>(-1)),
+                     m_external_stack_level(static_cast<unsigned>(-1)),
                      m_number_of_bound_propagations(0) {}
 
         bool is_active() const { return m_internal_j != static_cast<unsigned>(-1); }
@@ -385,10 +394,10 @@ public: // for debugging
             m_dependent_constraints.erase(i);
         }
 
-        void conditional_push(unsigned stack_level) {
-            if (m_external_stack_level.empty() || stack_level > m_external_stack_level.back()) {
+        void conditional_push(unsigned external_level) {
+            if (external_level != m_external_stack_level) {
                 m_domain.push();
-                m_external_stack_level.push_back(stack_level);
+                m_external_stack_level = external_level;
             }
         }
         
@@ -397,8 +406,8 @@ public: // for debugging
             return m_domain.intersect_with_bound(b, true, explanation);
         }
         
-        bool intersect_with_upper_bound(const mpq & b, unsigned explanation, unsigned stack_level) {
-            conditional_push(stack_level);
+        bool intersect_with_upper_bound(const mpq & b, unsigned explanation, unsigned external_level) {
+            conditional_push(external_level);
             return m_domain.intersect_with_bound(b, false, explanation);
         }
         
@@ -413,11 +422,12 @@ public: // for debugging
         int get_lower_bound_expl() const { return m_domain.get_lower_bound_expl();}
         int get_upper_bound_expl() const { return m_domain.get_upper_bound_expl();}
     public:
-        void pop(unsigned k) {            
+        void pop(unsigned k, unsigned external_level) {            
             m_domain.pop(k);
-            m_external_stack_level.shrink(m_external_stack_level.size() - k);
+            m_external_stack_level = external_level;
         }
-        const svector<unsigned> & external_stack_level() const { return m_external_stack_level; }
+        unsigned external_stack_level() const { return m_external_stack_level; }
+        unsigned &external_stack_level() { return m_external_stack_level; }
 
         unsigned number_of_bound_propagations() const { return m_number_of_bound_propagations; }
         unsigned & number_of_bound_propagations() { return m_number_of_bound_propagations; }
@@ -849,9 +859,11 @@ public:
     
     bool var_info_is_correct(unsigned j, const test_bound_struct& t) const {
         const var_info & v = m_var_infos[j];
-        if (!v.external_stack_level().empty() && v.external_stack_level().back() > m_scopes.size()) {
+        if (v.external_stack_level() != static_cast<unsigned>(-1) && v.external_stack_level() > m_scopes.size()) {
+            
             TRACE("var_info_is_correct", tout << "incorrect: the level is too high:";
                   print_var_info(tout, j);
+                  tout << "external_level = " << v.external_stack_level();
                   tout << "\nm_scopes.size() = " << m_scopes.size(); );
             return false;
         }
@@ -911,7 +923,7 @@ public:
                tout << "literal index = " << t.m_expl_upper << "\n";
                print_literal(tout, m_trail[t.m_expl_upper]);
                tout << "will return false";
-              );
+               );
         
         return t.m_expl_upper == -1;
     }
@@ -1676,7 +1688,7 @@ public:
 
 
     void add_bound(mpq v, unsigned j, bool is_lower, constraint * c) {
-        literal l = literal::make_implied_literal(j, is_lower, v, c);
+        literal l = literal::make_implied_literal(j, is_lower, v, c, m_var_infos[j].external_stack_level());
         push_literal_to_trail(l);
         m_var_infos[j].number_of_bound_propagations()++;
     }
@@ -2192,7 +2204,7 @@ public:
         lemma->add_predecessor(l.tight_constr());
         TRACE("resolve_implied_literal", tout << "resolved p: "; print_resolvent(tout, p, l););
         lp_assert(lower_is_pos(p));
-     }
+    }
     
     // returns true iff resolved
     bool resolve_conflict_for_inequality_on_trail_element(unsigned index_of_literal, bool & lemma_has_been_modified, constraint* lemma, constraint * orig_conflict) {
@@ -2201,7 +2213,7 @@ public:
         TRACE("resolve_conflict_for_inequality_on_trail_element",
               tout << "index_of_literal = " << index_of_literal <<", p = " << pp_poly(*this, lemma->poly()) << "\n";
               tout << "\nm_decision_level = " << m_decision_level << "\n";
-               print_literal(tout, l););
+              print_literal(tout, l););
         if (l.is_decided()) {
             return resolve_decided_literal(index_of_literal, l, lemma_has_been_modified, lemma, orig_conflict);
         } else {
@@ -2333,15 +2345,13 @@ public:
         unsigned new_scope_size = m_scopes.size() - k;
         scope s = m_scopes[new_scope_size];
         m_scopes.shrink(new_scope_size);
-        lp_assert(m_scopes.size() == new_scope_size);
         for (unsigned j = m_trail.size(); j-- > s.m_trail_size; ) {
             literal& lit = m_trail[j];
             if (lit.is_decided())
                 m_decision_level--;
             var_info & vi = m_var_infos[lit.var()];
-            while ((!vi.external_stack_level().empty()) && (vi.external_stack_level().back() > new_scope_size))
-                vi.pop(1);
-            
+            if (vi.external_stack_level() != lit.prev_var_level())
+                vi.pop(k, lit.prev_var_level());
             m_trail.pop_back();
         }
         pop_constraints(s.m_asserts_size, s.m_lemmas_size);
@@ -2448,6 +2458,7 @@ public:
         vector<monomial> lhs;
         unsigned decision_context_index;
         var_info & vi = m_var_infos[j];
+        unsigned var_level = vi.external_stack_level();
         push();    
         if (decide_on_lower) {
             vi.domain().get_lower_bound_with_expl(b, decision_context_index);
@@ -2463,7 +2474,7 @@ public:
         TRACE("decide_var_on_bound", tout<< "j="<< j<<" ";print_var_info(tout, j););
         add_changed_var(j);
         m_decision_level++;
-        literal nl = literal::make_decided_literal(j, !decide_on_lower, b, decision_context_index);
+        literal nl = literal::make_decided_literal(j, !decide_on_lower, b, decision_context_index, var_level);
         push_literal_to_trail(nl);
     }
 
