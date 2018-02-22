@@ -213,7 +213,8 @@ public:
                     m_int_branch_cut_gomory_threshold(4),
                     m_int_branch_cut_solver(4),
                     m_run_gcd_test(true),
-                    m_cut_solver_bound_propagation_factor(5)
+                    m_cut_solver_bound_propagation_factor(5),
+                    m_cut_solver_cycle_on_var(10)
     {}
 
     void set_resource_limit(lp_resource_limit& lim) { m_resource_limit = &lim; }
@@ -324,6 +325,7 @@ public:
     unsigned m_int_branch_cut_solver;
     bool m_run_gcd_test;
     unsigned m_cut_solver_bound_propagation_factor;
+    unsigned m_cut_solver_cycle_on_var;
 }; // end of lp_settings class
 
 
