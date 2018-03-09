@@ -1,29 +1,28 @@
 /*++
-Copyright (c) 2017 Microsoft Corporation
+  Copyright (c) 2017 Microsoft Corporation
 
-Module Name:
+  Module Name:
 
-    <name>
+  <name>
 
-Abstract:
+  Abstract:
 
-    <abstract>
+  <abstract>
 
-Author:
-    Nikolaj Bjorner (nbjorner)
-    Lev Nachmanson (levnach)
+  Author:
+  Nikolaj Bjorner (nbjorner)
+  Lev Nachmanson (levnach)
 
-Revision History:
+  Revision History:
 
 
---*/
+  --*/
 #pragma once
 #include "util/lp/lp_settings.h"
 #include "util/lp/static_matrix.h"
 #include "util/lp/iterator_on_row.h"
 #include "util/lp/int_set.h"
 #include "util/lp/lar_term.h"
-#include "util/lp/cut_solver.h"
 #include "util/lp/lar_constraints.h"
 
 namespace lp {
@@ -57,7 +56,6 @@ public:
     int_set m_old_values_set;
     vector<impq> m_old_values_data;
     unsigned m_branch_cut_counter;
-    cut_solver m_cut_solver;
     // methods
     int_solver(lar_solver* lp);
     int_set& inf_int_set();
@@ -168,8 +166,6 @@ public:
     void display_inf_or_int_inf_columns(std::ostream & out) const;
     template <typename T>
     void fill_cut_solver_vars();
-    template <typename T>
-    void get_int_coeffs_from_constraint(const lar_base_constraint* c, vector<cut_solver::monomial>& coeff, T & rs);
     bool is_term(unsigned j) const;
     void add_constraint_to_cut_solver(unsigned,const lar_base_constraint*);
     void copy_explanations_from_cut_solver(explanation &);

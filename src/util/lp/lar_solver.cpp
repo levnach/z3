@@ -1489,9 +1489,6 @@ bool lar_solver::strategy_is_undecided() const {
 }
 
 void lar_solver::catch_up_in_updating_int_solver() {
-    for (unsigned i = 0; i < constraints().size(); i++) {
-        m_int_solver->add_constraint_to_cut_solver(i, constraints()[i]);
-    }
 }
 
 var_index lar_solver::add_var(unsigned ext_j, bool is_int) {

@@ -38,11 +38,7 @@ bool assertions_enabled();
 #include "util/error_codes.h"
 #include "util/warning.h"
 
-#ifdef Z3DEBUG
-#define DEBUG_CODE(CODE) { CODE } ((void) 0)
-#else
 #define DEBUG_CODE(CODE) ((void) 0)
-#endif
 
 #ifdef NO_Z3_DEBUGGER
 #define INVOKE_DEBUGGER() exit(ERR_INTERNAL_FATAL)
