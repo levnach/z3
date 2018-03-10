@@ -789,14 +789,14 @@ namespace smt {
     */
     template<typename Ext>
     unsigned theory_arith<Ext>::mk_row() {
-        static int nrows = 0;
+        static unsigned nrows = 0;
         unsigned r;
         if (m_dead_rows.empty()) {
             r = m_rows.size();
             m_rows.push_back(row());
             if (nrows + 10 < m_rows.size() ) {
                 nrows = m_rows.size();
-                std::cout << "cz3 rows = " << nrows << std::endl;
+                std::cout << "z3 rows = " << nrows << std::endl;
             }
         }
         else {
