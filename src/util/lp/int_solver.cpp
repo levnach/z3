@@ -10,18 +10,6 @@
 #include <utility>
 namespace lp {
 
-void int_solver::failed() {
-    auto & lcs = m_lar_solver->m_mpq_lar_core_solver;
-    
-    for (unsigned j : m_old_values_set.m_index) {
-        lcs.m_r_x[j] = m_old_values_data[j];
-        lp_assert(lcs.m_r_solver.column_is_feasible(j));
-        lcs.m_r_solver.remove_column_from_inf_set(j);
-    }
-    lp_assert(lcs.m_r_solver.calc_current_x_is_feasible_include_non_basis());
-    lp_assert(lcs.m_r_solver.current_x_is_feasible());
-    m_old_values_set.clear();
-}
 
 void int_solver::trace_inf_rows() const {
     TRACE("arith_int_rows",
@@ -379,12 +367,6 @@ lia_move int_solver::mk_gomory_cut(lar_term& t, mpq& k, explanation & expl, unsi
     
 }
 
-void int_solver::init_check_data() {
-    unsigned n = m_lar_solver->A_r().column_count();
-    m_old_values_set.resize(n);
-    m_old_values_data.resize(n);
-}
-
 int int_solver::find_free_var_in_gomory_row(const row_strip<mpq>& row) {
     unsigned j;
     for (auto & p : row) {
@@ -551,7 +533,7 @@ bool int_solver::tighten_terms_for_cube() {
 }
 
 bool int_solver::find_cube() {
-	if (m_branch_cut_counter % settings().m_int_branch_find_cube != 0)
+	if (m_branch_cut_counter % settings().m_int_find_cube_period != 0)
         return false;
     
     settings().st().m_cube_calls++;
@@ -582,13 +564,9 @@ bool int_solver::find_cube() {
 }
 
 lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
-    init_check_data();
-    // it is a reimplementation of 
-    // final_check_status theory_arith<Ext>::check_int_feasibility()
-    // from theory_arith_int.h with the addition of cut_solver
     if (!has_inf_int()) 
-        return lia_move::ok;
-    if (settings().m_run_gcd_test) {
+        return lia_move::sat;
+    if (settings().m_int_run_gcd_test) {
         settings().st().m_gcd_calls++;
         if (!gcd_test(ex)) {
             TRACE("gcd_test", tout << "conflict";);
@@ -601,18 +579,18 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
     pivoted_rows_tracking_control pc(m_lar_solver);
     /* if (m_params.m_arith_euclidean_solver) apply_euclidean_solver();  */
     //m_lar_solver->pivot_fixed_vars_from_basis();
-    patch_int_infeasible_nbasic_columns();
+    patch_nbasic_columns();
     if (!has_inf_int())
-        return lia_move::ok;
+        return lia_move::sat;
 
     ++m_branch_cut_counter;
     if (find_cube()){
         settings().st().m_cube_success++;
-        return lia_move::ok;
+        return lia_move::sat;
     }
     TRACE("cube", tout << "cube did not succeed";);
     
-    if ((m_branch_cut_counter) % settings().m_int_branch_cut_solver == 0 && all_columns_are_bounded()) {
+    if ((m_branch_cut_counter) % settings().m_int_cut_solver_period == 0 && all_columns_are_bounded()) {
         TRACE("check_main_int", tout<<"cut_solver";);
         catch_up_in_adding_constraints_to_cut_solver();
         auto check_res = m_cut_solver.check();
@@ -626,7 +604,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
             settings().st().m_cut_solver_true++;
             copy_values_from_cut_solver();
             lp_assert(m_lar_solver->all_constraints_hold());
-            return lia_move::ok;
+            return lia_move::sat;
         case cut_solver::lbool::l_undef:
             settings().st().m_cut_solver_undef++;
             if (m_cut_solver.try_getting_cut(t, k, m_lar_solver->m_mpq_lar_core_solver.m_r_x)) {
@@ -639,21 +617,21 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
             }
             break;
         default:
-            return lia_move::give_up;
+            return lia_move::undef;
         }
     }
-    if ((m_branch_cut_counter) % settings().m_int_branch_cut_gomory_threshold == 0) {
+    if ((m_branch_cut_counter) % settings().m_int_gomory_cut_period == 0) {
         TRACE("check_main_int", tout << "gomory";);
         if (move_non_basic_columns_to_bounds()) {
             lp_status st = m_lar_solver->find_feasible_solution();
             lp_assert(non_basic_columns_are_at_bounds());
             if (st != lp_status::FEASIBLE && st != lp_status::OPTIMAL) {
                 TRACE("arith_int", tout << "give_up\n";);
-                return lia_move::give_up;
+                return lia_move::undef;
             }
         }
         int j = find_inf_int_base_column();
-        if (j == -1) return lia_move::ok;
+        if (j == -1) return lia_move::sat;
         TRACE("arith_int", tout << "j = " << j << " does not have an integer assignment: " << get_value(j) << "\n";);
         
         return proceed_with_gomory_cut(t, k, ex, j, upper);
@@ -719,16 +697,12 @@ void int_solver::set_value_for_nbasic_column_ignore_old_values(unsigned j, const
 void int_solver::set_value_for_nbasic_column(unsigned j, const impq & new_val) {
     lp_assert(!is_base(j));
     auto & x = m_lar_solver->m_mpq_lar_core_solver.m_r_x[j];
-    if (m_lar_solver->has_int_var() && !m_old_values_set.contains(j)) {
-        m_old_values_set.insert(j);
-        m_old_values_data[j] = x;
-    }
     auto delta = new_val - x;
     x = new_val;
     m_lar_solver->change_basic_columns_dependend_on_a_given_nb_column(j, delta);
 }
 
-void int_solver::patch_int_infeasible_non_basic_column(unsigned j) {
+void int_solver::patch_nbasic_column(unsigned j) {
     if (!is_int(j)) return;
     bool inf_l, inf_u;
     impq l, u;
@@ -776,10 +750,11 @@ void int_solver::patch_int_infeasible_non_basic_column(unsigned j) {
               tout << "patching with 0\n";);
     }
 }
-void int_solver::patch_int_infeasible_nbasic_columns() {
+void int_solver::patch_nbasic_columns() {
+    settings().st().m_patches++;
     lp_assert(is_feasible());
     for (unsigned j : m_lar_solver->m_mpq_lar_core_solver.m_r_nbasis) {
-        patch_int_infeasible_non_basic_column(j);
+        patch_nbasic_column(j);
     }
     
     lp_assert(is_feasible());
@@ -956,9 +931,6 @@ int_solver::int_solver(lar_solver* lar_slv) :
                  [this]() {return m_lar_solver->A_r().column_count();},
                  [this](unsigned j) {return get_value(j);},
                  settings()) {
-    lp_assert(m_old_values_set.size() == 0);
-    m_old_values_set.resize(lar_slv->A_r().column_count());
-    m_old_values_data.resize(lar_slv->A_r().column_count(), zero_of_type<impq>());
     m_lar_solver->set_int_solver(this);
 }
 

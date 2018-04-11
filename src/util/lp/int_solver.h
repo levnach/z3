@@ -30,14 +30,14 @@ class lar_solver;
 template <typename T, typename X>
 struct lp_constraint;
 enum class lia_move {
-    ok,
-        branch,
-        cut,
-        conflict,
-        continue_with_check,
-        give_up,
-        unsat
-        };
+    sat,
+    branch,
+    cut,
+    conflict,
+    continue_with_check,
+    undef,
+    unsat
+};
 
 struct explanation {
     vector<std::pair<mpq, constraint_index>> m_explanation;
@@ -52,11 +52,9 @@ struct explanation {
 class int_solver {
 public:
     // fields
-    lar_solver *m_lar_solver;
-    int_set m_old_values_set;
-    vector<impq> m_old_values_data;
-    unsigned m_branch_cut_counter;
-    cut_solver m_cut_solver;
+    lar_solver *        m_lar_solver;
+    unsigned            m_branch_cut_counter;
+    cut_solver          m_cut_solver;
     // methods
     int_solver(lar_solver* lp);
 
@@ -96,8 +94,8 @@ private:
                       explanation & ex);
     void fill_explanation_from_fixed_columns(const row_strip<mpq> & row, explanation &);
     void add_to_explanation_from_fixed_or_boxed_column(unsigned j, explanation &);
-    void patch_int_infeasible_non_basic_column(unsigned j);
-    void patch_int_infeasible_nbasic_columns();
+    void patch_nbasic_column(unsigned j);
+    void patch_nbasic_columns();
     bool get_freedom_interval_for_column(unsigned j, bool & inf_l, impq & l, bool & inf_u, impq & u, mpq & m);
     const impq & lower_bound(unsigned j) const;
     const impq & upper_bound(unsigned j) const;
@@ -111,7 +109,6 @@ private:
     void set_value_for_nbasic_column(unsigned j, const impq & new_val);
     void set_value_for_nbasic_column_ignore_old_values(unsigned j, const impq & new_val);
     bool non_basic_columns_are_at_bounds() const;
-    void failed();
     bool is_feasible() const;
     const impq & get_value(unsigned j) const;
     bool column_is_int_inf(unsigned j) const;
@@ -125,7 +122,6 @@ private:
     lia_move mk_gomory_cut(lar_term& t, mpq& k,explanation & ex, unsigned inf_col, const row_strip<mpq>& row);
     lia_move report_conflict_from_gomory_cut(mpq & k);
     void adjust_term_and_k_for_some_ints_case_gomory(lar_term& t, mpq& k, mpq& lcm_den);
-    void init_check_data();
     lia_move proceed_with_gomory_cut(lar_term& t, mpq& k, explanation& ex, unsigned j, bool & upper);
     int find_free_var_in_gomory_row(const row_strip<mpq>& );
     bool is_gomory_cut_target(const row_strip<mpq>&);
