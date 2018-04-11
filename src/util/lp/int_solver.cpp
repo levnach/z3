@@ -125,9 +125,11 @@ int int_solver::find_inf_int_boxed_base_column_with_smallest_range(unsigned & in
 bool int_solver::is_gomory_cut_target(const row_strip<mpq>& row) {
     // All non base variables must be at their bounds and assigned to rationals (that is, infinitesimals are not allowed).
     unsigned j;
-    for (auto p : row) {
+    for (const auto & p : row) {
         j = p.var();
         if (is_base(j)) continue;
+        if (!at_bound(j))
+            return false;
         if (!is_zero(get_value(j).y)) {
             TRACE("gomory_cut", tout << "row is not gomory cut target:\n";
                   display_column(tout, j);
@@ -335,7 +337,7 @@ lia_move int_solver::mk_gomory_cut(lar_term& t, mpq& k, explanation & expl, unsi
 
     TRACE("gomory_cut",
           tout << "applying cut at:\n"; m_lar_solver->print_row(row, tout); tout << std::endl;
-          for (auto p : row) {
+          for (auto & p : row) {
               m_lar_solver->m_mpq_lar_core_solver.m_r_solver.print_column_info(p.var(), tout);
           }
           tout << "inf_col = " << inf_col << std::endl;
@@ -349,7 +351,7 @@ lia_move int_solver::mk_gomory_cut(lar_term& t, mpq& k, explanation & expl, unsi
     bool some_int_columns = false;
     mpq f_0  = int_solver::fractional_part(get_value(inf_col));
     mpq one_min_f_0 = 1 - f_0;
-    for (auto p : row) {
+    for (auto & p : row) {
         x_j = p.var();
         if (x_j == inf_col)
             continue;
@@ -385,7 +387,7 @@ void int_solver::init_check_data() {
 
 int int_solver::find_free_var_in_gomory_row(const row_strip<mpq>& row) {
     unsigned j;
-    for (auto p : row) {
+    for (auto & p : row) {
         j = p.var();
         if (!is_base(j) && is_free(j))
             return static_cast<int>(j);
@@ -785,7 +787,7 @@ void int_solver::patch_int_infeasible_nbasic_columns() {
 
 mpq get_denominators_lcm(const row_strip<mpq> & row) {
     mpq r(1);
-    for  (auto c : row) {
+    for  (auto & c : row) {
         r = lcm(r, denominator(c.coeff()));
     }
     return r;
