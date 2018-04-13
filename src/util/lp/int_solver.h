@@ -175,5 +175,6 @@ public:
     unsigned column_count() const;
     bool all_columns_are_bounded() const;
     impq get_cube_delta_for_term(const lar_term&) const;
+    void find_feasible_solution();
 };
 }

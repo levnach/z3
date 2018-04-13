@@ -553,14 +553,20 @@ bool int_solver::find_cube() {
         TRACE("cube", tout << "cannot find a feasiblie solution";);
         m_lar_solver->pop();
         move_non_basic_columns_to_bounds();
-        m_lar_solver->find_feasible_solution();
-        lp_assert(m_lar_solver->get_status() == lp_status::OPTIMAL);
+        find_feasible_solution();
+        lp_assert(is_feasible());
         // it can happen that we found an integer solution here
         return !m_lar_solver->r_basis_has_inf_int();
     }
-    m_lar_solver->round_to_integer_solution();
     m_lar_solver->pop();
+    m_lar_solver->round_to_integer_solution();
+    lp_assert(is_feasible());
     return true;
+}
+
+void int_solver::find_feasible_solution() {
+    m_lar_solver->find_feasible_solution();
+    lp_assert(lp_status::OPTIMAL == m_lar_solver->get_status() || lp_status::FEASIBLE == m_lar_solver->get_status());
 }
 
 lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
@@ -569,20 +575,18 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
     if (settings().m_int_run_gcd_test) {
         settings().st().m_gcd_calls++;
         if (!gcd_test(ex)) {
-            TRACE("gcd_test", tout << "conflict";);
             settings().st().m_gcd_conflicts++;
             return lia_move::conflict;
         }
-    } else {
-        TRACE("gcd_test", tout << "no test";);
-    }
+    } 
     pivoted_rows_tracking_control pc(m_lar_solver);
     /* if (m_params.m_arith_euclidean_solver) apply_euclidean_solver();  */
-    //m_lar_solver->pivot_fixed_vars_from_basis();
+    m_lar_solver->pivot_fixed_vars_from_basis();
     patch_nbasic_columns();
-    if (!has_inf_int())
+    if (!has_inf_int()) {
+        settings().st().m_patches_success++;
         return lia_move::sat;
-
+    }
     ++m_branch_cut_counter;
     if (find_cube()){
         settings().st().m_cube_success++;
@@ -630,14 +634,20 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
                 return lia_move::undef;
             }
         }
-        int j = find_inf_int_base_column();
-        if (j == -1) return lia_move::sat;
+        int j = find_inf_int_base_column(); // todo: should we branch on nbasic column?
+        if (j == -1)
+            return has_inf_int()? lia_move::undef : lia_move::sat;
+        
         TRACE("arith_int", tout << "j = " << j << " does not have an integer assignment: " << get_value(j) << "\n";);
         
         return proceed_with_gomory_cut(t, k, ex, j, upper);
     }
     TRACE("check_main_int", tout << "branch"; );
-    return create_branch_on_column(find_inf_int_base_column(), t, k, false, upper);
+    int j = find_inf_int_base_column();
+    if (j == -1) {
+        return has_inf_int()? lia_move::undef : lia_move::sat;
+    }
+    return create_branch_on_column(j, t, k, false, upper);
 }
 
 bool int_solver::move_non_basic_column_to_bounds(unsigned j) {
@@ -998,7 +1008,7 @@ bool int_solver::get_freedom_interval_for_column(unsigned j, bool & inf_l, impq 
     unsigned row_index;
     lp_assert(settings().use_tableau());
     const auto & A = m_lar_solver->A_r();
-    for (auto c : A.column(j)) {
+    for (const auto &c : A.column(j)) {
         row_index = c.var();
         const mpq & a = c.coeff();
         
