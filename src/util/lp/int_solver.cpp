@@ -581,7 +581,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
     } 
     pivoted_rows_tracking_control pc(m_lar_solver);
     /* if (m_params.m_arith_euclidean_solver) apply_euclidean_solver();  */
-    m_lar_solver->pivot_fixed_vars_from_basis();
+    //    m_lar_solver->pivot_fixed_vars_from_basis();
     patch_nbasic_columns();
     if (!has_inf_int()) {
         settings().st().m_patches_success++;
@@ -692,6 +692,9 @@ bool int_solver::move_non_basic_columns_to_bounds() {
         if (move_non_basic_column_to_bounds(j))
             change = true;
     }
+
+    if (settings().simplex_strategy() == simplex_strategy_enum::tableau_costs)
+        m_lar_solver->update_x_and_inf_costs_for_columns_with_changed_bounds_tableau();
     return change;
 }
 
