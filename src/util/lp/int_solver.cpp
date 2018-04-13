@@ -67,6 +67,14 @@ int int_solver::get_kth_inf_int(unsigned k) const {
     return -1;
 }
 
+int int_solver::find_inf_int_nbasis_column() const {
+    for (unsigned j : m_lar_solver->r_nbasis())
+        if (! column_is_int_inf(j) )
+            return j;
+    
+    return -1; 
+}
+
 int int_solver::find_inf_int_boxed_base_column_with_smallest_range(unsigned & inf_int_count) {
     inf_int_count = 0;
     int result = -1;
@@ -634,9 +642,11 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
                 return lia_move::undef;
             }
         }
-        int j = find_inf_int_base_column(); // todo: should we branch on nbasic column?
-        if (j == -1)
-            return has_inf_int()? lia_move::undef : lia_move::sat;
+        int j = find_inf_int_base_column(); 
+        if (j == -1) {
+            j = find_inf_int_nbasis_column();
+            return j == -1? lia_move::sat : create_branch_on_column(j, t, k, false, upper);
+        }
         
         TRACE("arith_int", tout << "j = " << j << " does not have an integer assignment: " << get_value(j) << "\n";);
         
@@ -645,7 +655,9 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
     TRACE("check_main_int", tout << "branch"; );
     int j = find_inf_int_base_column();
     if (j == -1) {
-        return has_inf_int()? lia_move::undef : lia_move::sat;
+        j = find_inf_int_nbasis_column();
+        if (j == -1)
+            return lia_move::sat;
     }
     return create_branch_on_column(j, t, k, false, upper);
 }

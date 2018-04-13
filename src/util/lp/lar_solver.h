@@ -578,5 +578,6 @@ public:
     void fill_vars_to_terms(vector<vector<unsigned>> & vars_to_terms);
     unsigned column_count() const { return A_r().column_count(); }
     const vector<unsigned> & r_basis() const { return m_mpq_lar_core_solver.r_basis(); }
+    const vector<unsigned> & r_nbasis() const { return m_mpq_lar_core_solver.r_nbasis(); }
 };
 }
