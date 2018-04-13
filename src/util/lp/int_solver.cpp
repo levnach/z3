@@ -732,7 +732,7 @@ void int_solver::patch_nbasic_column(unsigned j) {
     bool inf_l, inf_u;
     impq l, u;
     mpq m;
-    if (!get_value(j).is_int() || !get_freedom_interval_for_column(j, inf_l, l, inf_u, u, m)) {
+    if (!get_freedom_interval_for_column(j, inf_l, l, inf_u, u, m)) {
         return;
     }
     auto & lcs = m_lar_solver->m_mpq_lar_core_solver; 
