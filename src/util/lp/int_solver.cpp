@@ -586,25 +586,22 @@ lia_move int_solver::run_gcd_test() {
         }
     }
     return lia_move::undef;
- 
 }
 
 lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
     if (!has_inf_int()) 
         return lia_move::sat;
     m_t = &t;  m_k = &k;  m_ex = &ex; m_upper = &upper;
-    lia_move r = run_gcd_test();
-    if (r == lia_move::conflict)
+    if (run_gcd_test() == lia_move::conflict)
         return lia_move::conflict;
     
     pivoted_rows_tracking_control pc(m_lar_solver);
     if(settings().m_int_pivot_fixed_vars_from_basis)
         m_lar_solver->pivot_fixed_vars_from_basis();
-    patch_nbasic_columns();
-    if (!has_inf_int()) {
-        settings().st().m_patches_success++;
+
+    if (patch_nbasic_columns() == lia_move::sat)
         return lia_move::sat;
-    }
+
     ++m_branch_cut_counter;
     if (find_cube()){
         settings().st().m_cube_success++;
@@ -789,14 +786,18 @@ void int_solver::patch_nbasic_column(unsigned j) {
               tout << "patching with 0\n";);
     }
 }
-void int_solver::patch_nbasic_columns() {
+lia_move int_solver::patch_nbasic_columns() {
     settings().st().m_patches++;
     lp_assert(is_feasible());
     for (unsigned j : m_lar_solver->m_mpq_lar_core_solver.m_r_nbasis) {
         patch_nbasic_column(j);
     }
-    
     lp_assert(is_feasible());
+    if (!has_inf_int()) {
+        settings().st().m_patches_success++;
+        return lia_move::sat;
+    }
+    return lia_move::undef;
 }
 
 mpq get_denominators_lcm(const row_strip<mpq> & row) {

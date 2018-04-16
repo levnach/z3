@@ -91,7 +91,7 @@ private:
     void fill_explanation_from_fixed_columns(const row_strip<mpq> & row);
     void add_to_explanation_from_fixed_or_boxed_column(unsigned j);
     void patch_nbasic_column(unsigned j);
-    void patch_nbasic_columns();
+    lia_move patch_nbasic_columns();
     bool get_freedom_interval_for_column(unsigned j, bool & inf_l, impq & l, bool & inf_u, impq & u, mpq & m);
     const impq & lower_bound(unsigned j) const;
     const impq & upper_bound(unsigned j) const;
