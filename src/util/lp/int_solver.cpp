@@ -577,18 +577,26 @@ void int_solver::find_feasible_solution() {
     lp_assert(lp_status::OPTIMAL == m_lar_solver->get_status() || lp_status::FEASIBLE == m_lar_solver->get_status());
 }
 
-lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
-    if (!has_inf_int()) 
-        return lia_move::sat;
-    m_t = &t;  m_k = &k;  m_ex = &ex; m_upper = &upper;
-    
+lia_move int_solver::run_gcd_test() {
     if (settings().m_int_run_gcd_test) {
         settings().st().m_gcd_calls++;
         if (!gcd_test()) {
             settings().st().m_gcd_conflicts++;
             return lia_move::conflict;
         }
-    } 
+    }
+    return lia_move::undef;
+ 
+}
+
+lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
+    if (!has_inf_int()) 
+        return lia_move::sat;
+    m_t = &t;  m_k = &k;  m_ex = &ex; m_upper = &upper;
+    lia_move r = run_gcd_test();
+    if (r == lia_move::conflict)
+        return lia_move::conflict;
+    
     pivoted_rows_tracking_control pc(m_lar_solver);
     if(settings().m_int_pivot_fixed_vars_from_basis)
         m_lar_solver->pivot_fixed_vars_from_basis();
