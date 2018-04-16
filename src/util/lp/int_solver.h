@@ -55,6 +55,10 @@ public:
     lar_solver *        m_lar_solver;
     unsigned            m_branch_cut_counter;
     cut_solver          m_cut_solver;
+    lar_term*           m_t; // the term to return in the cut
+    mpq                 *m_k; // the right side of the cut
+    explanation         *m_ex; // the conflict explanation
+    bool                *m_upper; // we have a cut m_t*x <= k if m_upper is true nad m_t*x >= k otherwise
     // methods
     int_solver(lar_solver* lp);
 
@@ -67,7 +71,7 @@ private:
 
     // how to tighten bounds for integer variables.
 
-    bool gcd_test_for_row(static_matrix<mpq, numeric_pair<mpq>> & A, unsigned i, explanation &); 
+    bool gcd_test_for_row(static_matrix<mpq, numeric_pair<mpq>> & A, unsigned i); 
     
     // gcd test
     // 5*x + 3*y + 6*z = 5
@@ -77,23 +81,15 @@ private:
     // this is unsolvable because 5/3 is not an integer.
     // so we create a lemma that rules out this condition.
     // 
-    bool gcd_test(explanation & ); // returns false in case of failure. Creates a theory lemma in case of failure.
-
-    // create goromy cuts
-    // either creates a conflict or a bound.
-
-    // branch and bound: 
-    // decide what to branch and bound on
-    // creates a fresh inequality.
+    bool gcd_test(); // returns false in case of failure. Creates a theory lemma in case of failure.
 
     bool branch(const lp_constraint<mpq, mpq> & new_inequality);
     bool ext_gcd_test(const row_strip<mpq>& row,
                       mpq const & least_coeff, 
                       mpq const & lcm_den,
-                      mpq const & consts,
-                      explanation & ex);
-    void fill_explanation_from_fixed_columns(const row_strip<mpq> & row, explanation &);
-    void add_to_explanation_from_fixed_or_boxed_column(unsigned j, explanation &);
+                      mpq const & consts);
+    void fill_explanation_from_fixed_columns(const row_strip<mpq> & row);
+    void add_to_explanation_from_fixed_or_boxed_column(unsigned j);
     void patch_nbasic_column(unsigned j);
     void patch_nbasic_columns();
     bool get_freedom_interval_for_column(unsigned j, bool & inf_l, impq & l, bool & inf_u, impq & u, mpq & m);

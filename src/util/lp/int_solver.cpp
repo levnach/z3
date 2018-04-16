@@ -580,15 +580,16 @@ void int_solver::find_feasible_solution() {
 lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
     if (!has_inf_int()) 
         return lia_move::sat;
+    m_t = &t;  m_k = &k;  m_ex = &ex; m_upper = &upper;
+    
     if (settings().m_int_run_gcd_test) {
         settings().st().m_gcd_calls++;
-        if (!gcd_test(ex)) {
+        if (!gcd_test()) {
             settings().st().m_gcd_conflicts++;
             return lia_move::conflict;
         }
     } 
     pivoted_rows_tracking_control pc(m_lar_solver);
-    /* if (m_params.m_arith_euclidean_solver) apply_euclidean_solver();  */
     if(settings().m_int_pivot_fixed_vars_from_basis)
         m_lar_solver->pivot_fixed_vars_from_basis();
     patch_nbasic_columns();
@@ -798,7 +799,7 @@ mpq get_denominators_lcm(const row_strip<mpq> & row) {
     return r;
 }
     
-bool int_solver::gcd_test_for_row(static_matrix<mpq, numeric_pair<mpq>> & A, unsigned i, explanation & ex) {
+bool int_solver::gcd_test_for_row(static_matrix<mpq, numeric_pair<mpq>> & A, unsigned i) {
     mpq lcm_den = get_denominators_lcm(A.m_rows[i]);
     mpq consts(0);
     mpq gcds(0);
@@ -847,7 +848,7 @@ bool int_solver::gcd_test_for_row(static_matrix<mpq, numeric_pair<mpq>> & A, uns
         
     if (!(consts / gcds).is_int()) {
         TRACE("gcd_test", tout << "row failed the GCD test:\n"; display_row_info(tout, i););
-        fill_explanation_from_fixed_columns(A.m_rows[i], ex);
+        fill_explanation_from_fixed_columns(A.m_rows[i]);
         return false;
     }
         
@@ -857,29 +858,29 @@ bool int_solver::gcd_test_for_row(static_matrix<mpq, numeric_pair<mpq>> & A, uns
     }
         
     if (least_coeff_is_bounded) {
-        return ext_gcd_test(A.m_rows[i], least_coeff, lcm_den, consts, ex);
+        return ext_gcd_test(A.m_rows[i], least_coeff, lcm_den, consts);
     }
     return true;
 }
 
-void int_solver::add_to_explanation_from_fixed_or_boxed_column(unsigned j, explanation & ex) {
+void int_solver::add_to_explanation_from_fixed_or_boxed_column(unsigned j) {
     constraint_index lc, uc;
     m_lar_solver->get_bound_constraint_witnesses_for_column(j, lc, uc);
-    ex.m_explanation.push_back(std::make_pair(mpq(1), lc));
-    ex.m_explanation.push_back(std::make_pair(mpq(1), uc));
+    m_ex->m_explanation.push_back(std::make_pair(mpq(1), lc));
+    m_ex->m_explanation.push_back(std::make_pair(mpq(1), uc));
 }
-void int_solver::fill_explanation_from_fixed_columns(const row_strip<mpq> & row, explanation & ex) {
+void int_solver::fill_explanation_from_fixed_columns(const row_strip<mpq> & row) {
     for (const auto & c : row) {
         if (!m_lar_solver->column_is_fixed(c.var()))
             continue;
-        add_to_explanation_from_fixed_or_boxed_column(c.var(), ex);
+        add_to_explanation_from_fixed_or_boxed_column(c.var());
     }
 }
     
-bool int_solver::gcd_test(explanation & ex) {
+bool int_solver::gcd_test() {
     auto & A = m_lar_solver->A_r(); // getting the matrix
     for (unsigned i = 0; i < A.row_count(); i++)
-        if (!gcd_test_for_row(A, i, ex)) {
+        if (!gcd_test_for_row(A, i)) {
             return false;
         }
         
@@ -889,7 +890,7 @@ bool int_solver::gcd_test(explanation & ex) {
 bool int_solver::ext_gcd_test(const row_strip<mpq> & row,
                               mpq const & least_coeff, 
                               mpq const & lcm_den,
-                              mpq const & consts, explanation& ex) {
+                              mpq const & consts) {
     mpq gcds(0);
     mpq l(consts);
     mpq u(consts);
@@ -919,7 +920,7 @@ bool int_solver::ext_gcd_test(const row_strip<mpq> & row,
                 // u += ncoeff * lower_bound(j).get_rational();
                 u.addmul(ncoeff, m_lar_solver->column_lower_bound(j).x);
             }
-            add_to_explanation_from_fixed_or_boxed_column(j, ex);
+            add_to_explanation_from_fixed_or_boxed_column(j);
         }
         else if (gcds.is_zero()) {
             gcds = abs_ncoeff; 
@@ -938,7 +939,7 @@ bool int_solver::ext_gcd_test(const row_strip<mpq> & row,
     mpq u1 = floor(u/gcds);
         
     if (u1 < l1) {
-        fill_explanation_from_fixed_columns(row, ex);
+        fill_explanation_from_fixed_columns(row);
         return false;
     }
         
