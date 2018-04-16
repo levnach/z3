@@ -562,13 +562,13 @@ bool int_solver::find_cube() {
         m_lar_solver->pop();
         move_non_basic_columns_to_bounds();
         find_feasible_solution();
-        lp_assert(is_feasible());
+        lp_assert(m_cut_solver.cancel() || is_feasible());
         // it can happen that we found an integer solution here
         return !m_lar_solver->r_basis_has_inf_int();
     }
     m_lar_solver->pop();
     m_lar_solver->round_to_integer_solution();
-    lp_assert(is_feasible());
+    lp_assert(m_cut_solver.cancel() || is_feasible());
     return true;
 }
 
@@ -589,7 +589,8 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
     } 
     pivoted_rows_tracking_control pc(m_lar_solver);
     /* if (m_params.m_arith_euclidean_solver) apply_euclidean_solver();  */
-    //    m_lar_solver->pivot_fixed_vars_from_basis();
+    if(settings().m_int_pivot_fixed_vars_from_basis)
+        m_lar_solver->pivot_fixed_vars_from_basis();
     patch_nbasic_columns();
     if (!has_inf_int()) {
         settings().st().m_patches_success++;
@@ -728,16 +729,20 @@ void int_solver::set_value_for_nbasic_column(unsigned j, const impq & new_val) {
 }
 
 void int_solver::patch_nbasic_column(unsigned j) {
-    if (!is_int(j)) return;
+    auto & lcs = m_lar_solver->m_mpq_lar_core_solver; 
+    impq & val = lcs.m_r_x[j];
+    bool val_is_int = val.is_int();
+    if (settings().m_int_patch_only_integer_values) {
+        if (!val_is_int)
+            return;
+    }
+        
     bool inf_l, inf_u;
     impq l, u;
     mpq m;
     if (!get_freedom_interval_for_column(j, inf_l, l, inf_u, u, m)) {
         return;
     }
-    auto & lcs = m_lar_solver->m_mpq_lar_core_solver; 
-    impq & val = lcs.m_r_x[j];
-    bool val_is_int = val.is_int();
     bool m_is_one = m.is_one();
     if (m.is_one() && val_is_int)
         return;
