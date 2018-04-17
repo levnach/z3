@@ -160,7 +160,7 @@ public:
     void get_int_coeffs_from_constraint(const lar_base_constraint* c, vector<cut_solver::monomial>& coeff, T & rs);
     bool is_term(unsigned j) const;
     void add_constraint_to_cut_solver(unsigned,const lar_base_constraint*);
-    void copy_explanations_from_cut_solver(explanation &);
+    void copy_explanations_from_cut_solver();
     void pop(unsigned);
     void push();
     void copy_values_from_cut_solver();
@@ -174,5 +174,6 @@ public:
     void find_feasible_solution();
     int find_inf_int_nbasis_column() const;
     lia_move run_gcd_test();
+    lia_move call_cut_solver();
 };
 }

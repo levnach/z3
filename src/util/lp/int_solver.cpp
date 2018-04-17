@@ -461,14 +461,14 @@ struct pivoted_rows_tracking_control {
     }
 };
 
-void int_solver::copy_explanations_from_cut_solver(explanation &ex) {
+void int_solver::copy_explanations_from_cut_solver() {
     TRACE("propagate_and_backjump_step_int",
           for (unsigned j: m_cut_solver.m_explanation)
               m_lar_solver->print_constraint(m_lar_solver->constraints()[j], tout););
 
     for (unsigned j : m_cut_solver.m_explanation) {
-        ex.push_justification(j);
-     }
+        m_ex->push_justification(j);
+    }
     m_cut_solver.m_explanation.clear();
 }
 
@@ -588,6 +588,37 @@ lia_move int_solver::run_gcd_test() {
     return lia_move::undef;
 }
 
+lia_move int_solver::call_cut_solver() {
+    if ((m_branch_cut_counter) % settings().m_int_cut_solver_period != 0 || all_columns_are_bounded())
+        return lia_move::undef;
+    TRACE("check_main_int", tout<<"cut_solver";);
+    catch_up_in_adding_constraints_to_cut_solver();
+    auto check_res = m_cut_solver.check();
+    settings().st().m_cut_solver_calls++;
+    switch (check_res) {
+    case cut_solver::lbool::l_false:
+        copy_explanations_from_cut_solver(); 
+        settings().st().m_cut_solver_false++;
+        return lia_move::conflict;
+    case cut_solver::lbool::l_true:
+        settings().st().m_cut_solver_true++;
+        copy_values_from_cut_solver();
+        lp_assert(m_lar_solver->all_constraints_hold());
+        return lia_move::sat;
+    case cut_solver::lbool::l_undef:
+        settings().st().m_cut_solver_undef++;
+        if (m_cut_solver.try_getting_cut(*m_t, *m_k, m_lar_solver->m_mpq_lar_core_solver.m_r_x)) {
+            m_lar_solver->subs_term_columns(*m_t);
+            TRACE("cut_solver_cuts",
+                  tout<<"precut from cut_solver:"; m_lar_solver->print_term(*m_t, tout); tout << " <= " << *m_k << std::endl;);
+
+            return lia_move::cut;
+        }
+    default:
+        return lia_move::undef;
+    }
+}
+
 lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
     if (!has_inf_int()) 
         return lia_move::sat;
@@ -607,38 +638,11 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
         settings().st().m_cube_success++;
         return lia_move::sat;
     }
-    TRACE("cube", tout << "cube did not succeed";);
+
+    lia_move r = call_cut_solver();
+    if (r != lia_move::undef)
+        return r;
     
-    if ((m_branch_cut_counter) % settings().m_int_cut_solver_period == 0 && all_columns_are_bounded()) {
-        TRACE("check_main_int", tout<<"cut_solver";);
-        catch_up_in_adding_constraints_to_cut_solver();
-        auto check_res = m_cut_solver.check();
-        settings().st().m_cut_solver_calls++;
-        switch (check_res) {
-        case cut_solver::lbool::l_false:
-            copy_explanations_from_cut_solver(ex); 
-            settings().st().m_cut_solver_false++;
-            return lia_move::conflict;
-        case cut_solver::lbool::l_true:
-            settings().st().m_cut_solver_true++;
-            copy_values_from_cut_solver();
-            lp_assert(m_lar_solver->all_constraints_hold());
-            return lia_move::sat;
-        case cut_solver::lbool::l_undef:
-            settings().st().m_cut_solver_undef++;
-            if (m_cut_solver.try_getting_cut(t, k, m_lar_solver->m_mpq_lar_core_solver.m_r_x)) {
-                m_lar_solver->subs_term_columns(t);
-                TRACE("cut_solver_cuts",
-                      tout<<"precut from cut_solver:"; m_lar_solver->print_term(t, tout); tout << " <= " << k << std::endl;);
-
-
-                return lia_move::cut;
-            }
-            break;
-        default:
-            return lia_move::undef;
-        }
-    }
     if ((m_branch_cut_counter) % settings().m_int_gomory_cut_period == 0) {
         TRACE("check_main_int", tout << "gomory";);
         if (move_non_basic_columns_to_bounds()) {
