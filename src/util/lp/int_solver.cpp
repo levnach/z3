@@ -589,7 +589,7 @@ lia_move int_solver::run_gcd_test() {
 }
 
 lia_move int_solver::call_cut_solver() {
-    if ((m_branch_cut_counter) % settings().m_int_cut_solver_period != 0 || all_columns_are_bounded())
+    if ((m_branch_cut_counter) % settings().m_int_cut_solver_period != 0 || !all_columns_are_bounded())
         return lia_move::undef;
     TRACE("check_main_int", tout<<"cut_solver";);
     catch_up_in_adding_constraints_to_cut_solver();
