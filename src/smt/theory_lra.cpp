@@ -1324,7 +1324,7 @@ public:
             set_conflict1();
             return l_false;
         case lp::lia_move::undef:
-            TRACE("arith", tout << "lia giveup\n";);
+            TRACE("arith", tout << "lia undef\n";);
             return l_undef;
         default:
             UNREACHABLE();
