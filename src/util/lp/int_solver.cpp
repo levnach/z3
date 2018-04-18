@@ -387,19 +387,16 @@ int int_solver::find_free_var_in_gomory_row(const row_strip<mpq>& row) {
 }
 
 lia_move int_solver::proceed_with_gomory_cut(unsigned j) {
-    lia_move ret;
-    
     const row_strip<mpq>& row = m_lar_solver->get_row(row_of_basic_column(j));
     int free_j = find_free_var_in_gomory_row(row);
-    if (free_j != -1) {
+    if (free_j != -1)
         return lia_move::undef;
-    } else if (!is_gomory_cut_target(row)) {
+    if (!is_gomory_cut_target(row)) {
         return lia_move::undef;
-    } else {
-        *m_upper = false;
-        ret = mk_gomory_cut(j, row);
     }
-    return ret;
+
+    *m_upper = false;
+    return mk_gomory_cut(j, row);
 }
 
 
@@ -656,15 +653,15 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
         int j = find_inf_int_base_column(); 
         if (j == -1) {
             j = find_inf_int_nbasis_column();
-            return j == -1? lia_move::sat : create_branch_on_column(j);
+            return j == -1? lia_move::sat : lia_move::undef;
         }
         
         TRACE("arith_int", tout << "j = " << j << " does not have an integer assignment: " << get_value(j) << "\n";);
         
-        r = proceed_with_gomory_cut(j);
-        if (r != lia_move::undef)
+        return proceed_with_gomory_cut(j);
+        /*        if (r != lia_move::undef)
             return r;
-        return create_branch_on_column(j);
+            return create_branch_on_column(j); */
     }
     
     TRACE("check_main_int", tout << "branch"; );
