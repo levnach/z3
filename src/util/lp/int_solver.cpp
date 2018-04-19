@@ -653,15 +653,15 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
         int j = find_inf_int_base_column(); 
         if (j == -1) {
             j = find_inf_int_nbasis_column();
-            return j == -1? lia_move::sat : lia_move::undef;
+            return j == -1? lia_move::sat : create_branch_on_column(j);
         }
         
         TRACE("arith_int", tout << "j = " << j << " does not have an integer assignment: " << get_value(j) << "\n";);
         
-        return proceed_with_gomory_cut(j);
-        /*        if (r != lia_move::undef)
+        r = proceed_with_gomory_cut(j);
+        if (r != lia_move::undef)
             return r;
-            return create_branch_on_column(j); */
+        return create_branch_on_column(j);
     }
     
     TRACE("check_main_int", tout << "branch"; );

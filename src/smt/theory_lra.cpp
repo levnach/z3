@@ -1325,7 +1325,7 @@ public:
             return l_false;
         case lp::lia_move::undef:
             TRACE("arith", tout << "lia undef\n";);
-            return l_false;
+            return l_undef;
         default:
             UNREACHABLE();
         }
