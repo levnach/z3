@@ -378,7 +378,7 @@ lia_move int_solver::mk_gomory_cut( unsigned inf_col, const row_strip<mpq> & row
 
 int int_solver::find_free_var_in_gomory_row(const row_strip<mpq>& row) {
     unsigned j;
-    for (auto & p : row) {
+    for (const auto & p : row) {
         j = p.var();
         if (!is_base(j) && is_free(j))
             return static_cast<int>(j);
