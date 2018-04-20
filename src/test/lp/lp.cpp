@@ -51,7 +51,7 @@ Revision History:
 #include "util/lp/stacked_map.h"
 #include <cstdlib>
 #include "test/lp/gomory_test.h"
-
+#include "util/lp/hnf.h"
 namespace lp {
 unsigned seed = 1;
 
@@ -1884,7 +1884,9 @@ void test_replace_column() {
 }
 
 
+
 void setup_args_parser(argument_parser & parser) {
+    parser.add_option_with_help_string("-hnf", "test hermite normal form");
     parser.add_option_with_help_string("-gomory", "gomory");
     parser.add_option_with_help_string("-intd", "test integer_domain");
     parser.add_option_with_help_string("-xyz_sample", "run a small interactive scenario");
@@ -3400,6 +3402,23 @@ void test_gomory_cut_1() {
         g.mk_gomory_cut(t,  k, expl, inf_col, row);
 }
 
+struct matrix_A {
+    vector<vector<mpq>> m_data;
+    unsigned row_count() const { return m_data.size(); }
+    unsigned column_count() const { return m_data[0].size(); }
+
+    const vector<mpq>& operator[](unsigned i) const { return m_data[i]; }
+    
+};
+void test_hnf() {
+    matrix_A A;
+    vector<mpq> v;
+    v.push_back(mpq(7));
+    v.push_back(mpq(3));
+    A.m_data.push_back(v);
+    hnf<matrix_A> h(A);
+}
+
 void test_gomory_cut() {
     test_gomory_cut_0();
     test_gomory_cut_1();
@@ -3420,6 +3439,12 @@ void test_lp_local(int argn, char**argv) {
     }
 
     args_parser.print();
+
+    if (args_parser.option_is_used("-hnf")) {
+        test_hnf();
+        return finalize(0);
+    }
+    
     if (args_parser.option_is_used("-gomory")) {
         test_gomory_cut();
         return finalize(0);
