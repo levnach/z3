@@ -115,10 +115,10 @@ private:
     lp_settings& settings();
     bool move_non_basic_columns_to_bounds();
     void branch_infeasible_int_var(unsigned);
-    lia_move mk_gomory_cut(lar_term& t, mpq& k,explanation & ex, unsigned inf_col, const row_strip<mpq>& row);
-    lia_move report_conflict_from_gomory_cut(mpq & k);
-    void adjust_term_and_k_for_some_ints_case_gomory(lar_term& t, mpq& k, mpq& lcm_den);
-    lia_move proceed_with_gomory_cut(lar_term& t, mpq& k, explanation& ex, unsigned j, bool & upper);
+    lia_move mk_gomory_cut(unsigned inf_col, const row_strip<mpq>& row);
+    lia_move report_conflict_from_gomory_cut();
+    void adjust_term_and_k_for_some_ints_case_gomory(mpq& lcm_den);
+    lia_move proceed_with_gomory_cut(unsigned j);
     int find_free_var_in_gomory_row(const row_strip<mpq>& );
     bool is_gomory_cut_target(const row_strip<mpq>&);
     bool at_bound(unsigned j) const;
@@ -139,19 +139,19 @@ public:
         return n.x - floor(n.x);
     }
 private:
-    void real_case_in_gomory_cut(const mpq & a, unsigned x_j, mpq & k, lar_term& t, explanation & ex, const mpq& f_0, const mpq& one_minus_f_0);
-    void int_case_in_gomory_cut(const mpq & a, unsigned x_j, mpq & k, lar_term& t, explanation& ex, mpq & lcm_den, const mpq& f_0, const mpq& one_minus_f_0);
+    void real_case_in_gomory_cut(const mpq & a, unsigned x_j, const mpq& f_0, const mpq& one_minus_f_0);
+    void int_case_in_gomory_cut(const mpq & a, unsigned x_j, mpq & lcm_den, const mpq& f_0, const mpq& one_minus_f_0);
     constraint_index column_upper_bound_constraint(unsigned j) const;
     constraint_index column_lower_bound_constraint(unsigned j) const;
     void display_row_info(std::ostream & out, unsigned row_index) const;
     void gomory_cut_adjust_t_and_k(vector<std::pair<mpq, unsigned>> & pol, lar_term & t, mpq &k, bool num_ints, mpq &lcm_den);
-    bool current_solution_is_inf_on_cut(const lar_term& t, const mpq& k) const;
+    bool current_solution_is_inf_on_cut() const;
 public:
     bool shift_var(unsigned j, unsigned range);
 private:
     unsigned random();
     bool has_inf_int() const;
-    lia_move create_branch_on_column(int j, lar_term& t, mpq& k, bool free_column, bool & upper);
+    lia_move create_branch_on_column(int j);
     void catch_up_in_adding_constraints_to_cut_solver();
 public:
     template <typename T>
