@@ -411,8 +411,6 @@ struct pivoted_rows_tracking_control {
     }
 };
 
-
-
 impq int_solver::get_cube_delta_for_term(const lar_term& t) const {
     if (t.size() == 2) {
         bool seen_minus = false;
@@ -532,38 +530,33 @@ lia_move int_solver::gomory_cut() {
 }
 
 
-bool int_solver::try_add_term_to_A_for_hnf(unsigned i, bool & have_non_integral_x) {
+bool int_solver::try_add_term_to_A_for_hnf(unsigned i) {
     mpq rs;
     const lar_term* t = m_lar_solver->terms()[i];
-    bool local_have_non_integral_x = false;
     for (const auto & p : *t) {
         if (!is_int(p.var())) {
             lp_assert(false); 
             return false; // todo : the mix case!
         }
-        if (!local_have_non_integral_x)
-            local_have_non_integral_x = ! get_value(p.var()).is_int();
     }
-    constraint_index ci;
-    if (m_lar_solver->get_equality_and_right_side_for_term_on_current_x(i, rs, ci)) {
-        m_hnf_cutter.add_term(t, rs, ci);
-        if (!have_non_integral_x)
-            have_non_integral_x = local_have_non_integral_x;
+    bool has_bounds;
+    if (m_lar_solver->get_equality_and_right_side_for_term_on_corrent_x(i, rs, has_bounds)) {
+        m_hnf_cutter.add_term(t, rs);
         return true;
     }
-    return false;
+    return !has_bounds;
 }
 
 bool int_solver::hnf_matrix_is_empty() const { return true; }
 
 bool int_solver::init_terms_for_hnf_cut() {
-    bool have_non_integral_x = false;
     m_hnf_cutter.clear();
     for (unsigned i = 0; i < m_lar_solver->terms().size(); i++) {
-        try_add_term_to_A_for_hnf(i, have_non_integral_x);
+        try_add_term_to_A_for_hnf(i);
     }
-    return have_non_integral_x && m_hnf_cutter.row_count() < settings().limit_on_rows_for_hnf_cutter;
+    return m_hnf_cutter.row_count() < settings().limit_on_rows_for_hnf_cutter;
 }
+
 
 lia_move int_solver::make_hnf_cut() {
     if (!init_terms_for_hnf_cut()) {
@@ -583,9 +576,6 @@ lia_move int_solver::make_hnf_cut() {
     if (r == lia_move::cut) {        
         lp_assert(current_solution_is_inf_on_cut());
         settings().st().m_hnf_cuts++;
-        for (unsigned i = 0; i < m_hnf_cutter.row_count(); i++) {
-            m_ex->push_justification(m_hnf_cutter.constraints_for_explanation()[i]);
-        }
     }
     return r;
 }
@@ -611,6 +601,7 @@ lia_move int_solver::check(lar_term& t, mpq& k, explanation& ex, bool & upper) {
 
     r = patch_nbasic_columns();
     if (r != lia_move::undef) return r;
+
     ++m_branch_cut_counter;
 
     r = find_cube();

@@ -225,6 +225,7 @@ public:
         lp_assert(m_A.is_correct());
         if (m_using_infeas_costs) {
             if (infeasibility_costs_are_correct() == false) {
+                std::cout << "infeasibility_costs_are_correct() does not hold" << std::endl;
                 return false;
             }
         }
@@ -233,6 +234,9 @@ public:
         for (unsigned j = 0; j < n; j++) {
             if (m_basis_heading[j] >= 0) {
                 if (!is_zero(m_d[j])) {
+                    
+                    std::cout << "case a\n";
+                    print_column_info(j, std::cout);
                     return false;
                 }
             } else {
@@ -241,6 +245,8 @@ public:
                     d -= this->m_costs[this->m_basis[cc.m_i]] * this->m_A.get_val(cc);
                 }
                 if (m_d[j] != d) {
+                    std::cout << "case b\n";
+                    print_column_info(j, std::cout);
                     return false;
                 }
             }
@@ -546,6 +552,7 @@ public:
     bool non_basic_columns_are_set_correctly() const {
         for (unsigned j : this->m_nbasis)
             if (!column_is_feasible(j)) {
+                print_column_info(j, std::cout);
                 return false;
             }
         return true;
@@ -594,6 +601,10 @@ public:
             out << " base\n";
         else
             out << " nbas\n";
+                
+        /*
+        std::cout << "cost = " << m_costs[j] << std::endl;
+        std:: cout << "m_d = " << m_d[j] << std::endl;*/
     }
 
     bool column_is_free(unsigned j) const { return this->m_column_type[j] == free; }
