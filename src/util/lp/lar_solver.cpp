@@ -1165,7 +1165,8 @@ void lar_solver::get_infeasibility_explanation_for_inf_sign(
     } 
 }
 
-void lar_solver::get_model(std::unordered_map<var_index, mpq> & variable_values) const {
+template <typename T>
+void lar_solver::get_model(T & variable_values) const {
     lp_assert(m_status == lp_status::OPTIMAL);
     mpq delta = mpq(1, 2); // start from 0.5 to have less clashes
     unsigned i;
@@ -2248,8 +2249,6 @@ void lar_solver::set_cut_strategy(unsigned cut_frequency) {
         settings().set_hnf_cut_period(100000000);
     } 
 }
-
-
 } // namespace lp
 
 
