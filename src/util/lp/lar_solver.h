@@ -112,6 +112,7 @@ private:
 public :
     unsigned terms_start_index() const { return m_terms_start_index; }
     const vector<lar_term*> & terms() const { return m_terms; }
+    lar_term const& term(unsigned i) const { return *m_terms[i]; }
     const vector<lar_base_constraint*>& constraints() const {
         return m_constraints;
     }
@@ -467,26 +468,18 @@ public:
 
     std::string get_variable_name(var_index vi) const;
 
-    // print utilities
-
+    // ********** print region start
     std::ostream& print_constraint(constraint_index ci, std::ostream & out) const;
 
     std::ostream& print_constraints(std::ostream& out) const ;
 
     std::ostream& print_terms(std::ostream& out) const;
 
-    std::ostream& print_left_side_of_constraint(const lar_base_constraint * c, std::ostream & out) const;
-
     std::ostream& print_term(lar_term const& term, std::ostream & out) const;
 
     std::ostream& print_term_as_indices(lar_term const& term, std::ostream & out) const;
 
     std::ostream& print_constraint(const lar_base_constraint * c, std::ostream & out) const;
-
-    std::ostream& print_implied_bound(const implied_bound& be, std::ostream & out) const;
-
-    
-    mpq get_left_side_val(const lar_base_constraint &  cns, const std::unordered_map<var_index, mpq> & var_map) const;
 
     void fill_var_set_for_random_update(unsigned sz, var_index const * vars, vector<unsigned>& column_list);
 
