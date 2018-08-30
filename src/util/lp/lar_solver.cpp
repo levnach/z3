@@ -501,7 +501,7 @@ lar_term lar_solver::get_term_to_maximize(unsigned ext_j) const {
     unsigned local_j;
     if (m_var_register.external_is_used(ext_j, local_j)) {
         lar_term r;
-        r. add_monomial(one_of_type<mpq>(), local_j);
+        r.add_coeff_var(one_of_type<mpq>(), local_j);
         return r;
     }
     if (!is_term(ext_j) || adjust_term_index(ext_j) >= m_terms.size())
