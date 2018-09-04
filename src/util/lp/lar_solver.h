@@ -500,6 +500,11 @@ public:
         return m_mpq_lar_core_solver.column_is_bounded(j);
     }
 
+    bool column_has_a_bound(unsigned j) const {
+        return m_mpq_lar_core_solver.column_has_a_bound(j);
+    }
+
+    
     void get_bound_constraint_witnesses_for_column(unsigned j, constraint_index & lc, constraint_index & uc) const {
         const ul_pair & ul = m_columns_to_ul_pairs[j];
         lc = ul.lower_bound_witness();

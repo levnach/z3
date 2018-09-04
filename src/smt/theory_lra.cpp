@@ -1440,7 +1440,7 @@ public:
         unsigned nv = m_solver->column_count();
         bool added_bound = false;
         for (lp::var_index j = 0; j < nv; ++j) {
-            if (m_solver->column_is_bounded(j)) continue;
+            if (m_solver->column_has_a_bound(j)) continue;
             int k = m_solver->adjust_column_index_to_term_index(j);
             lp::lar_term term;
             term.add_monomial(rational::one(), k);

@@ -707,6 +707,12 @@ public:
         }
         
     }
+
+
+    bool column_has_a_bound(unsigned j) const {
+        return m_r_solver.column_has_upper_bound(j) || m_r_solver.column_has_lower_bound(j);
+    }
+    
     // returns the trace of basis changes
     vector<unsigned> find_solution_signature_with_doubles(lar_solution_signature & signature) {
         if (m_d_solver.m_factorization == nullptr || m_d_solver.m_factorization->get_status() != LU_status::OK) {
