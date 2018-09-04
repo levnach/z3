@@ -154,6 +154,7 @@ class theory_lra::imp {
     ast_manager&         m;
     theory_arith_params& m_arith_params;
     arith_util           a;
+    bool                 m_has_int;
     arith_eq_adapter     m_arith_eq_adapter;
     vector<rational>     m_columns;
       
@@ -624,6 +625,7 @@ class theory_lra::imp {
         }
         if (result == UINT_MAX) {
             result = m_solver->add_var(v, is_int(v));
+            m_has_int |= is_int(v);
             m_theory_var2var_index.setx(v, result, UINT_MAX);
             m_var_index2theory_var.setx(result, v, UINT_MAX);
             m_var_trail.push_back(v);
@@ -798,6 +800,7 @@ public:
         th(th), m(m), 
         m_arith_params(ap), 
         a(m), 
+        m_has_int(false),
         m_arith_eq_adapter(th, ap, a),            
         m_internalize_head(0),
         m_not_handled(0),
@@ -1371,6 +1374,22 @@ public:
         return FC_GIVEUP;
     }
 
+    // create a eq atom representing "term = 0"
+    app_ref mk_eq(lp::lar_term const& term) {
+        rational offset(0);
+        u_map<rational> coeffs;
+        term2coeffs(term, coeffs, rational::one(), offset);
+        offset.neg();
+        bool isint = offset.is_int();
+        for (auto const& kv : coeffs) isint &= is_int(kv.m_key) && kv.m_value.is_int();
+        app_ref atom(m);
+        app_ref t = coeffs2app(coeffs, rational::zero(), isint);
+        atom = m.mk_eq(t, a.mk_numeral(offset, isint));
+        ctx().internalize(atom, true);
+        ctx().mark_as_relevant(atom.get());
+        return atom;
+    }
+
     // create a bound atom representing term >= k is lower_bound is true, and term <= k if it is false
     app_ref mk_bound(lp::lar_term const& term, rational const& k, bool lower_bound) {
         bool is_int = k.is_int();
@@ -1383,7 +1402,7 @@ public:
             // 3x + 6y <= 5 -> x + 3y <= 1
             
             rational g = gcd_reduce(coeffs);
-            if (!g.is_one()) {
+            if (!g.is_one() && !g.is_zero()) {  // TBG : Nikolaj, review
                 if (lower_bound) {
                     offset = div(offset + g - rational::one(), g);
                 }
@@ -1414,11 +1433,34 @@ public:
         return atom;
     }
 
+    bool all_variables_have_bounds() {
+        if (!m_has_int) {
+            return true;
+        }
+        unsigned nv = m_solver->column_count();
+        bool added_bound = false;
+        for (lp::var_index j = 0; j < nv; ++j) {
+            if (m_solver->column_is_bounded(j)) continue;
+            int k = m_solver->adjust_column_index_to_term_index(j);
+            lp::lar_term term;
+            term.add_monomial(rational::one(), k);
+            app_ref b = mk_bound(term, rational::zero(), false);
+            TRACE("arith", tout << "added bound " << b << "\n";);
+            added_bound = true;
+        }
+        return !added_bound;
+    }
+
     lbool check_lia() {
         if (m.canceled()) {
             TRACE("arith", tout << "canceled\n";);
             return l_undef;
         }
+        
+        if (!all_variables_have_bounds()) {
+            return l_false;
+        }
+
         lp::lar_term term;
         lp::mpq k;
         lp::explanation ex; // TBD, this should be streamlined accross different explanations
@@ -1737,7 +1779,7 @@ public:
 
     void assign(literal lit) {
         //        SASSERT(validate_assign(lit));
-        dump_assign(lit);
+        dump_assign(lit);
         if (m_core.size() < small_lemma_size() && m_eqs.empty()) {
             m_core2.reset();
             for (auto const& c : m_core) {
