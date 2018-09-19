@@ -1612,7 +1612,7 @@ public:
         return atom;
     }
 
-    bool make_sure_all_vars_have_bounds() {
+    /*    bool make_sure_all_vars_have_bounds() {
         if (!m_has_int) {
             return true;
         }
@@ -1632,7 +1632,7 @@ public:
             }
         }
         return all_bounded;
-    }
+        }*/
 
     /**
      * n = (div p q)
@@ -1791,6 +1791,9 @@ public:
         case lp::GE: fml = a.mk_ge(a.mk_add(ts.size(), ts.c_ptr()), a.mk_numeral(rhs, true)); break;
         case lp::GT: fml = a.mk_gt(a.mk_add(ts.size(), ts.c_ptr()), a.mk_numeral(rhs, true)); break;
         case lp::EQ: fml = m.mk_eq(a.mk_add(ts.size(), ts.c_ptr()), a.mk_numeral(rhs, true)); break;
+        case lp::NE:
+            SASSERT(false); // unexpected
+            break;
         }
         return fml;
     }
@@ -1808,11 +1811,11 @@ public:
                 out << "v" << m_solver->local2external(wi) << "\n";
             }
         }
-        for (auto const& ev : ex.m_explanation) {
+        for (auto const& ev : ex) {
             m_solver->print_constraint(ev.second, out << ev.first << ": ");
         }
         expr_ref_vector fmls(m);
-        for (auto const& ev : ex.m_explanation) {
+        for (auto const& ev : ex) {
             fmls.push_back(constraint2fml(ev.second));
         }        
         expr_ref t(term2expr(term), m);
@@ -1890,7 +1893,7 @@ public:
             m_eqs.reset();
             m_core.reset();
             m_params.reset();
-            for (auto const& ev : ex.m_explanation) {
+            for (auto const& ev : ex) {
                 if (!ev.first.is_zero()) { 
                     set_evidence(ev.second);
                 }

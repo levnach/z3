@@ -1165,11 +1165,10 @@ void lar_solver::get_infeasibility_explanation_for_inf_sign(
     } 
 }
 
-template <typename T>
-void lar_solver::get_model(T & variable_values) const {
-    lp_assert(m_status == lp_status::OPTIMAL || m_status == lp_status::FEASIBLE);
+void lar_solver::get_model(std::unordered_map<var_index, mpq> & variable_values) const {
+    lp_assert(m_status == lp_status::OPTIMAL);
     mpq delta = mpq(1, 2); // start from 0.5 to have less clashes
-    unsigned j;
+    unsigned i;
     unsigned n = m_mpq_lar_core_solver.m_r_x.size();
     variable_values.resize(n);
     do {
@@ -1177,9 +1176,8 @@ void lar_solver::get_model(T & variable_values) const {
         std::unordered_set<impq> set_of_different_pairs; 
         std::unordered_set<mpq> set_of_different_singles;
         delta = m_mpq_lar_core_solver.find_delta_for_strict_bounds(delta);
-        for (j = 0; j < n; j++ ) {
-            
-            const numeric_pair<mpq> & rp = m_mpq_lar_core_solver.m_r_x[j];
+        for (i = 0; i < m_mpq_lar_core_solver.m_r_x.size(); i++ ) {
+            const numeric_pair<mpq> & rp = m_mpq_lar_core_solver.m_r_x[i];
             set_of_different_pairs.insert(rp);
             mpq x = rp.x + delta * rp.y;
             set_of_different_singles.insert(x);
@@ -1188,11 +1186,12 @@ void lar_solver::get_model(T & variable_values) const {
                 delta /= mpq(2);
                 break;
             }
-            if (!column_corresponds_to_term(j))
-                variable_values[j] = x;
+                    
+            variable_values[i] = x;
         }
-    } while (j != m_mpq_lar_core_solver.m_r_x.size());
+    } while (i != m_mpq_lar_core_solver.m_r_x.size());
 }
+
 
 void lar_solver::get_model_do_not_care_about_diff_vars(std::unordered_map<var_index, mpq> & variable_values) const {
     mpq delta = mpq(1);
