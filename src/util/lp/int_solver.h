@@ -54,7 +54,6 @@ public:
     mpq const& get_offset() const { return m_k; }
     explanation const& get_explanation() const { return m_ex; }
     bool is_upper() const { return m_upper; }
-ng a gomory cut
     bool move_non_basic_column_to_bounds(unsigned j);
     lia_move check_wrapper(lar_term& t, mpq& k, explanation& ex);    
     bool is_base(unsigned j) const;
