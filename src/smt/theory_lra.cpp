@@ -3320,7 +3320,7 @@ public:
 
     theory_lra::inf_eps value(theory_var v) {
         lp::impq ival = get_ivalue(v);
-        return inf_eps(0, inf_rational(ival.x, ival.y));
+        return inf_eps(rational(0), inf_rational(ival.x, ival.y));
     }
 
     theory_lra::inf_eps maximize(theory_var v, expr_ref& blocker, bool& has_shared) {
