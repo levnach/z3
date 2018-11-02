@@ -1970,6 +1970,7 @@ public:
     }
 
     lbool check_lia() {
+        TRACE("arith",);
         if (m.canceled()) {
             TRACE("arith", tout << "canceled\n";);
             return l_undef;
