@@ -643,12 +643,13 @@ class theory_lra::imp {
                 if (!ctx().e_internalized(n)) {
                     ctx().internalize(n, false);
                 }
-                vars.push_back(get_var_index(mk_var(n)));
+                vars.push_back(register_theory_var_in_lar_solver(mk_var(n)));
             }
         }
-        TRACE("arith", tout << "v" << v << "(" << get_var_index(v) << ") := " << mk_pp(t, m) << " " << _has_var << "\n";);
+        SASSERT(theory_var_is_registered_in_lar_solver(v));
+        TRACE("arith", tout << "v" << v << "(" << register_theory_var_in_lar_solver(v) << ") := " << mk_pp(t, m) << " " << _has_var << "\n";);
         if (!_has_var) {
-            m_switcher.add_monomial(get_var_index(v), vars.size(), vars.c_ptr());
+            m_switcher.add_monomial(register_theory_var_in_lar_solver(v), vars.size(), vars.c_ptr());
         }
     }
 
@@ -726,8 +727,12 @@ class theory_lra::imp {
         SASSERT(null_theory_var != v);
         return v;
     }
-        
-    lp::var_index get_var_index(theory_var v) {
+
+    bool theory_var_is_registered_in_lar_solver(theory_var v) const {
+        return m_solver->external_is_used(v);
+    }
+    
+    lp::var_index register_theory_var_in_lar_solver(theory_var v) {
         lp::var_index result = UINT_MAX;
         if (m_theory_var2var_index.size() > static_cast<unsigned>(v)) {
             result = m_theory_var2var_index[v];
@@ -762,7 +767,7 @@ class theory_lra::imp {
             theory_var var = vars[i];
             rational const& r = m_columns[var];
             if (!r.is_zero()) {
-                m_left_side.push_back(std::make_pair(r, get_var_index(var)));
+                m_left_side.push_back(std::make_pair(r, register_theory_var_in_lar_solver(var)));
                 m_columns[var].reset();                    
             }
         }
@@ -811,7 +816,7 @@ class theory_lra::imp {
         st.coeffs().push_back(rational::one());
         st.coeffs().push_back(rational::minus_one());
         theory_var z = internalize_linearized_def(term, st);      
-        lp::var_index vi = get_var_index(z);
+        lp::var_index vi = register_theory_var_in_lar_solver(z);
         add_def_constraint(m_solver->add_var_bound(vi, lp::LE, rational::zero()));
         add_def_constraint(m_solver->add_var_bound(vi, lp::GE, rational::zero()));
         TRACE("arith", 
@@ -1164,11 +1169,11 @@ public:
                                  a.mk_mul(a.mk_numeral(r, true), 
                                           get_enode(w)->get_owner())));
         theory_var z = internalize_def(term);
-        lp::var_index vi = get_var_index(z);
+        lp::var_index vi = register_theory_var_in_lar_solver(z);
         add_def_constraint(m_solver->add_var_bound(vi, lp::GE, rational::zero()));
         add_def_constraint(m_solver->add_var_bound(vi, lp::LE, rational::zero()));
-        add_def_constraint(m_solver->add_var_bound(get_var_index(v), lp::GE, rational::zero()));
-        add_def_constraint(m_solver->add_var_bound(get_var_index(v), lp::LT, abs(r)));
+        add_def_constraint(m_solver->add_var_bound(register_theory_var_in_lar_solver(v), lp::GE, rational::zero()));
+        add_def_constraint(m_solver->add_var_bound(register_theory_var_in_lar_solver(v), lp::LT, abs(r)));
         TRACE("arith", m_solver->print_constraints(tout << term << "\n"););
     }
 
@@ -2620,7 +2625,7 @@ public:
 
     void add_use_lists(lp_api::bound* b) {
         theory_var v = b->get_var();
-        lp::var_index vi = get_var_index(v);
+        lp::var_index vi = register_theory_var_in_lar_solver(v);
         if (!m_solver->is_term(vi)) {
             return;
         }
@@ -2801,7 +2806,7 @@ public:
         else {
             ++m_stats.m_assert_upper;
         }
-        auto vi = get_var_index(b.get_var());
+        auto vi = register_theory_var_in_lar_solver(b.get_var());
         rational bound = b.get_value();
         lp::constraint_index ci;
         if (is_int && !is_true) {
@@ -2955,8 +2960,8 @@ public:
         value_sort_pair key(bound, is_int(v1));
         if (m_fixed_var_table.find(key, v2)) {
             if (static_cast<unsigned>(v2) < th.get_num_vars() && !is_equal(v1, v2)) {
-                auto vi1 = get_var_index(v1);
-                auto vi2 = get_var_index(v2);
+                auto vi1 = register_theory_var_in_lar_solver(v1);
+                auto vi2 = register_theory_var_in_lar_solver(v2);
                 lp::constraint_index ci1, ci2, ci3, ci4;
                 TRACE("arith", tout << "fixed: " << mk_pp(get_owner(v1), m) << " " << mk_pp(get_owner(v2), m) << " " << bound << " " << has_lower_bound(vi2, ci3, bound) << "\n";);
                 if (has_lower_bound(vi2, ci3, bound) && has_upper_bound(vi2, ci4, bound)) {
