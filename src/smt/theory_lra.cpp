@@ -2985,11 +2985,11 @@ public:
         else {
             ci = m_solver->add_var_bound(vi, k, b.get_value());
         }
+        TRACE("arith", tout << "v" << b.get_var() << "\n";);
+        add_ineq_constraint(ci, literal(bv, !is_true));
         if (is_infeasible()) {
             return;
         }
-        TRACE("arith", tout << "v" << b.get_var() << "\n";);
-        add_ineq_constraint(ci, literal(bv, !is_true));
         propagate_eqs(vi, ci, k, b);
     }
 
@@ -3286,7 +3286,7 @@ public:
                 c.neg();
                 ctx().mark_as_relevant(c);
             }
-            TRACE("arith", ctx().display_literals_verbose(tout, m_core););
+            TRACE("arith", ctx().display_literals_verbose(tout, m_core) << "\n";);
             ctx().mk_th_axiom(get_id(), m_core.size(), m_core.c_ptr());
         }
     }
@@ -3757,6 +3757,8 @@ public:
                 break;
             }
             case null_source:                    
+                out << idx << " null";
+                break;
             default:
                 UNREACHABLE();
                 break; 
