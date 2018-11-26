@@ -595,7 +595,7 @@ template<typename T, typename SZ = unsigned>
 class svector : public vector<T, false, SZ> {
 public:
     svector():vector<T, false, SZ>() {}
-    svector(SZ s):vector<T, false, SZ>(s) {}
+    explicit svector(SZ s):vector<T, false, SZ>(s) {}
     svector(SZ s, T const & elem):vector<T, false, SZ>(s, elem) {}
     svector(svector const & source):vector<T, false, SZ>(source) {}
     svector(svector && other) : vector<T, false, SZ>(std::move(other)) {}
