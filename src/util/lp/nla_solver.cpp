@@ -1864,8 +1864,7 @@ void solver::test_order_lemma_params(int sign) {
     lp::lar_solver s;
     unsigned a = 0, b = 1, c = 2, d = 3, e = 4, f = 5, 
         i = 8, j = 9,
-        ab = 10, cd = 11, ef = 12, abef = 13, cdij = 16, ij = 17,
-        k = 18;
+        ab = 10, cd = 11, ef = 12, abef = 13, cdij = 16, ij = 17;
     
     
     lpvar lp_a = s.add_named_var(a, true, "a");
