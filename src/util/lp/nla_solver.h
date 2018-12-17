@@ -35,6 +35,16 @@ struct ineq {
     bool operator==(const ineq& a) const {
         return m_cmp == a.m_cmp && m_term == a.m_term && m_rs == a.m_rs;
     }
+    const lp::lar_term& term() const {
+        return m_term;
+    };
+    const lp::lconstraint_kind& cmp() const {
+        return m_cmp;
+    };
+    const rational& rs() const {
+        return m_rs;
+    };
+
 };
 
 typedef vector<ineq> lemma;
@@ -62,6 +72,6 @@ public:
     static void test_basic_lemma_for_mon_neutral_from_factors_to_monomial_0();
     static void test_basic_lemma_for_mon_neutral_from_factors_to_monomial_1();
     static void test_order_lemma();
-    static void test_order_lemma_params(bool, int sign);
+    static void test_order_lemma_params(int sign);
 };
 }
