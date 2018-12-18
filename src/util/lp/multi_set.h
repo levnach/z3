@@ -23,6 +23,13 @@ namespace nla {
 template <typename T>
 struct multi_set {
     std::unordered_map<T, int> m;
+
+    template <typename K>
+    multi_set(const K& c) {
+        for (const auto & v : c) {
+            add(v);
+        }
+    }
     void add(const T& e) {
         auto i = m.find(e);
         if (i == m.end()) {
@@ -42,5 +49,8 @@ struct multi_set {
                 m.erase(i);
         }
     }
+    bool contains(const T& e) const {
+        return m.find(e) != m.end();
+    } 
 };
 }

@@ -26,12 +26,10 @@
 #include "util/lp/rooted_mons.h"
 #include "util/lp/multi_set.h"
 namespace nla {
+typedef lp::lconstraint_kind llc;
+
 struct solver::imp {
 
-    
-    typedef lp::lar_base_constraint lpcon;
-    
-   
 
     //fields    
     vars_equivalence                                                 m_vars_equivalence;
@@ -311,26 +309,116 @@ struct solver::imp {
     }
 
     void mk_ineq(lpvar j, lp::lconstraint_kind cmp, const rational& rs) {
-        lp::lar_term t;
-        t.add_coeff_var(j);  
-        m_lemma->push_back(ineq(cmp, t, rs));
+        mk_ineq(rational(1), j, cmp, rs);
     }
 
     void mk_ineq(const rational& a, lpvar j, lp::lconstraint_kind cmp, const rational& rs) {
+        if (explain(a, j, cmp, rs))
+            return;
         lp::lar_term t;
+            
         t.add_coeff_var(a, j);  
         m_lemma->push_back(ineq(cmp, t, rs));
     }
 
-    void mk_ineq(const rational& a, lpvar j, lp::lconstraint_kind cmp) {
+    lp::lconstraint_kind negate(lp::lconstraint_kind cmp) {
+        switch(cmp) {
+        case llc::LE: return llc::GE;
+        case llc::LT: return llc::GT;
+        case llc::GE: return llc::LE;
+        case llc::GT: return llc::LT;
+        case llc::EQ: return llc::NE;
+        case llc::NE: return llc::EQ;
+        default: SASSERT(false);
+        };
+        return cmp; // not reachable
+    }
+    
+    llc apply_minus(llc cmp) {
+        switch(cmp) {
+        case llc::LE: return llc::GE;
+        case llc::LT: return llc::GT;
+        case llc::GE: return llc::LE;
+        case llc::GT: return llc::LT;
+        default: break;
+        }
+        return cmp;
+    }
+    
+    bool explain(const rational& a, lpvar j, llc cmp, const rational& rs) {
+        cmp = negate(cmp);
+        if (a == rational(1))
+            return explain(j, cmp, rs);
+        if (a == -rational(1))
+            return explain(j, apply_minus(cmp), -rs);
+        return false;
+    }
+
+    bool explain(lpvar j, llc cmp, const rational& rs) {
+        unsigned lc, uc; // indices for the lower and upper bounds
+        m_lar_solver.get_bound_constraint_witnesses_for_column(j, lc, uc);
+        switch(cmp) {
+        case llc::LE: {
+            if (uc + 1 == 0 || m_lar_solver.column_upper_bound(j) > rs) 
+                return false;
+            m_expl->add(uc);
+            return true;
+        }
+        case llc::LT: {
+            if (uc + 1 == 0 || m_lar_solver.column_upper_bound(j) >= rs) 
+                return false;
+            m_expl->add(uc);
+            return true;
+        }
+        case llc::GE: {
+            if (lc + 1 == 0 || m_lar_solver.column_lower_bound(j) < rs) 
+                return false;
+            m_expl->add(lc);
+            return true;
+        }
+        case llc::GT:  {
+            if (lc + 1 == 0 || m_lar_solver.column_lower_bound(j) <= rs) 
+                return false;
+            m_expl->add(lc);
+            return true;
+        }
+        case llc::EQ: 
+            {
+            if (lc + 1 == 0 || m_lar_solver.column_lower_bound(j) < rs
+                ||
+                uc + 1 == 0 || m_lar_solver.column_upper_bound(j) > rs) 
+                return false;
+            m_expl->add(lc);
+            m_expl->add(uc);
+            return true;
+        }
+        case llc::NE: {
+            if (uc + 1 && m_lar_solver.column_upper_bound(j) < rs) {
+                m_expl->add(uc);
+                return true;
+            }
+            if (lc + 1 && m_lar_solver.column_lower_bound(j) > rs) {
+                m_expl->add(lc);
+                return true;
+            }
+            return false;
+        };
+        default:
+            SASSERT(false); 
+        };
+        SASSERT(false); 
+        return false;
+    }
+    
+    void mk_ineq(const rational& a, lpvar j, llc cmp) {
         mk_ineq(a, j, cmp, rational::zero());
     }
 
-    void mk_ineq(lpvar j, lpvar k, lp::lconstraint_kind cmp) {
+    void mk_ineq(lpvar j, lpvar k, llc cmp) {
         mk_ineq(rational(1), j, rational(1), k, cmp, rational::zero());
     }
 
-    void mk_ineq(lpvar j, lp::lconstraint_kind cmp) {
+    void mk_ineq(lpvar j, llc cmp) {
         mk_ineq(j, cmp, rational::zero());
     }
     
@@ -343,7 +431,7 @@ struct solver::imp {
                   m_lar_solver.print_constraint(p.second, tout); tout << "\n";
               );
         SASSERT(m_lemma->size() == 0);
-        mk_ineq(rational(1), a.var(), -sign, b.var(), lp::lconstraint_kind::EQ, rational::zero());
+        mk_ineq(rational(1), a.var(), -sign, b.var(), llc::EQ, rational::zero());
         TRACE("nla_solver", print_lemma(tout););
     }
 
@@ -425,12 +513,12 @@ struct solver::imp {
             index_with_sign & ins = it->second.back();
             if (j != ins.m_i) {
                 s *= ins.m_sign;
-                mk_ineq(j, -s, ins.m_i, lp::lconstraint_kind::NE);
+                mk_ineq(j, -s, ins.m_i, llc::NE);
             }
             it->second.pop_back();
         } 
 
-        mk_ineq(m_monomials[i].var(), -sign, m_monomials[k].var(), lp::lconstraint_kind::EQ);
+        mk_ineq(m_monomials[i].var(), -sign, m_monomials[k].var(), llc::EQ);
         std::unordered_set<lpvar> seen;
         add_mono_rooted_literals(m_monomials[i], seen);
         add_mono_rooted_literals(m_monomials[k], seen);
@@ -454,6 +542,12 @@ struct solver::imp {
     }
     
     bool basic_sign_lemma_on_a_bucket_of_abs_vals(const vector<rational>& abs_vals, const unsigned_vector& list){
+        TRACE("nla_solver",
+              tout << "key = ";
+              print_vector(abs_vals, tout);
+              tout << "m0 = ";              
+              print_monomial_with_vars(m_monomials[list[0]], tout);
+              );
         rational val =  vvr(m_monomials[list[0]].var());
         int sign = vars_sign(m_monomials[list[0]].vars());
         if (sign == 0) {
@@ -494,7 +588,7 @@ struct solver::imp {
     
     std::ostream & print_ineq(const ineq & in, std::ostream & out) const {
         m_lar_solver.print_term(in.m_term, out);
-        out << " " << lp::lconstraint_kind_string(in.m_cmp) << " " << in.m_rs;
+        out << " " << lconstraint_kind_string(in.m_cmp) << " " << in.m_rs;
         return out;
     }
 
@@ -511,6 +605,8 @@ struct solver::imp {
         }
         if (!is_monomial)
             out << m_lar_solver.get_variable_name(j) << " = " << vvr(j);
+        out <<" = ";
+        m_lar_solver.m_mpq_lar_core_solver.m_r_solver.print_column_info(j, out);
         out <<";";
         return out;
     }    
@@ -532,6 +628,10 @@ struct solver::imp {
             print_var(j, out);
         }
         out << "\n";
+        if (!m_expl->empty()) {
+            out << "expl:"; print_explanation(out);
+        }
+            
         return out;
     }
     
@@ -580,16 +680,29 @@ struct solver::imp {
                 return false;
             }
         }
-        std::unordered_set<lpvar> mvars;
+        const monomial & m = m_monomials[rm.orig_index()];
+        // the lemma is generated on m, we need to make sure
+        // that each for each factor of f and for each variable
+        // of the factor v, either v is
+        std::unordered_set<lpvar> processed;
         
         SASSERT(m_lemma->empty());
-        
-        mk_ineq(var(rm), lp::lconstraint_kind::NE);
-        for (auto fc : f) {
+        NOT_IMPLEMENTED_YET();
+
+        mk_ineq(var(rm), llc::NE);
+        multi_set<lpvar> ms(m);
+        // the lemma 
+        for (factor fc : f) {
             lpvar j = var(fc);
-            if (contains(mvars, j)) continue;
-            mvars.insert(j);
-            mk_ineq(j, lp::lconstraint_kind::EQ);
+            if (contains(processed, j)) continue;
+            processed.insert(j);
+            mk_ineq(j, llc::EQ);
+                
+            if (fc.type() == factor_type::VAR) {
+                if (ms.contains(j))
+                    continue;
+            }
+            else {}
         }
 
         TRACE("nla_solver", print_lemma(tout););
@@ -623,8 +736,8 @@ struct solver::imp {
             return false;
         } 
 
-        mk_ineq(zero_j, lp::lconstraint_kind::NE);
-        mk_ineq(var(rm), lp::lconstraint_kind::EQ);
+        mk_ineq(zero_j, llc::NE);
+        mk_ineq(var(rm), llc::EQ);
 
         TRACE("nla_solver", print_lemma(tout););
         return true;
@@ -669,19 +782,19 @@ struct solver::imp {
         } 
 
         // mon_var = 0
-        mk_ineq(mon_var, lp::lconstraint_kind::EQ);
+        mk_ineq(mon_var, llc::EQ);
         
         // negate abs(jl) == abs()
         if (vvr(jl) == - vvr(mon_var))
-            mk_ineq(jl, mon_var, lp::lconstraint_kind::NE);   
+            mk_ineq(jl, mon_var, llc::NE);   
         else  // jl == mon_var
-            mk_ineq(jl, -rational(1), mon_var, lp::lconstraint_kind::NE);   
+            mk_ineq(jl, -rational(1), mon_var, llc::NE);   
 
         // not_one_j = 1
-        mk_ineq(not_one_j, lp::lconstraint_kind::EQ,  rational(1));   
+        mk_ineq(not_one_j, llc::EQ,  rational(1));   
         
         // not_one_j = -1
-        mk_ineq(not_one_j, lp::lconstraint_kind::EQ, -rational(1));
+        mk_ineq(not_one_j, llc::EQ, -rational(1));
         TRACE("nla_solver", print_lemma(tout); );
         return true;
     }
@@ -738,13 +851,13 @@ struct solver::imp {
         for (auto j : f){
             lpvar var_j = var(j);
             if (not_one == var_j) continue;
-            mk_ineq(var_j, lp::lconstraint_kind::NE, j.is_var()? vvr(j) : flip_sign(j) * vvr(j) );   
+            mk_ineq(var_j, llc::NE, j.is_var()? vvr(j) : flip_sign(j) * vvr(j) );   
         }
 
         if (not_one == static_cast<lpvar>(-1)) {
-            mk_ineq(m_monomials[rm.orig_index()].var(), lp::lconstraint_kind::EQ, sign);
+            mk_ineq(m_monomials[rm.orig_index()].var(), llc::EQ, sign);
         } else {
-            mk_ineq(m_monomials[rm.orig_index()].var(), -sign, not_one, lp::lconstraint_kind::EQ);
+            mk_ineq(m_monomials[rm.orig_index()].var(), -sign, not_one, llc::EQ);
         }
         if (trivial_truth(m_lemma->back())) {
             m_lemma->clear();
@@ -991,9 +1104,9 @@ struct solver::imp {
         auto iv = vvr(i), jv = vvr(j);
         SASSERT(abs(iv) == abs(jv));
         if (iv == jv) {
-            mk_ineq(i, -rational(1), j, lp::lconstraint_kind::NE);
+            mk_ineq(i, -rational(1), j, llc::NE);
         } else { // iv == -jv
-            mk_ineq(i, j, lp::lconstraint_kind::NE);                
+            mk_ineq(i, j, llc::NE);                
         }
     }
 
@@ -1006,16 +1119,16 @@ struct solver::imp {
         auto iv = vvr(i), jv = vvr(j);
         SASSERT(abs(iv) == abs(jv));
         if (iv == jv) {
-            mk_ineq(i, -rational(1), j, lp::lconstraint_kind::NE);
+            mk_ineq(i, -rational(1), j, llc::NE);
         } else { // iv == -jv
-            mk_ineq(i, j, lp::lconstraint_kind::NE);                
+            mk_ineq(i, j, llc::NE);                
         }
     }
     
     void negate_factor_relation(const rational& a_sign, const factor& a, const rational& b_sign, const factor& b) {
         rational a_fs = flip_sign(a);
         rational b_fs = flip_sign(b);
-        lp::lconstraint_kind cmp = a_sign*vvr(a) < b_sign*vvr(b)? lp::lconstraint_kind::GE : lp::lconstraint_kind::LE;
+        llc cmp = a_sign*vvr(a) < b_sign*vvr(b)? llc::GE : llc::LE;
         mk_ineq(a_fs*a_sign, var(a), - b_fs*b_sign, var(b), cmp);
     }
 
@@ -1030,8 +1143,8 @@ struct solver::imp {
                      const factor& b,
                      int d_sign,
                      const factor& d,
-                     lp::lconstraint_kind ab_cmp) {
-        mk_ineq(rational(c_sign) * flip_sign(c), var(c), lp::lconstraint_kind::LE);
+                     llc ab_cmp) {
+        mk_ineq(rational(c_sign) * flip_sign(c), var(c), llc::LE);
         negate_factor_equality(c, d);
         negate_factor_relation(rational(c_sign), a, rational(d_sign), b);
         mk_ineq(flip_sign(ac), var(ac), -flip_sign(bd), var(bd), ab_cmp);
@@ -1095,12 +1208,12 @@ struct solver::imp {
         
         if (av < bv){
             if(!(acv < bdv)) {
-                generate_ol(ac, a, c_sign, c, bd, b, d_sign, d, lp::lconstraint_kind::LT);
+                generate_ol(ac, a, c_sign, c, bd, b, d_sign, d, llc::LT);
                 return true;
             }
         } else if (av > bv){
             if(!(acv > bdv)) {
-                generate_ol(ac, a, c_sign, c, bd, b, d_sign, d, lp::lconstraint_kind::GT);
+                generate_ol(ac, a, c_sign, c, bd, b, d_sign, d, llc::GT);
                 return true;
             }
         }
@@ -1514,12 +1627,12 @@ void solver::test_basic_lemma_for_mon_neutral_from_factors_to_monomial_0() {
     
     nla.m_imp->print_lemma(std::cout << "lemma: ");
 
-    // ineq i0(lp::lconstraint_kind::NE, lp::lar_term(), rational(1));
+    // ineq i0(llc::NE, lp::lar_term(), rational(1));
     // i0.m_term.add_coeff_var(lp_ac);
-    // ineq i1(lp::lconstraint_kind::EQ, lp::lar_term(), rational(0));
+    // ineq i1(llc::EQ, lp::lar_term(), rational(0));
     // i1.m_term.add_coeff_var(lp_bde);
     // i1.m_term.add_coeff_var(-rational(1), lp_abcde);
-    // ineq i2(lp::lconstraint_kind::EQ, lp::lar_term(), rational(0));
+    // ineq i2(llc::EQ, lp::lar_term(), rational(0));
     // i2.m_term.add_coeff_var(lp_abcde);
     // i2.m_term.add_coeff_var(-rational(1), lp_bde);
     // bool found0 = false;
@@ -1571,13 +1684,13 @@ void solver::test_basic_lemma_for_mon_neutral_from_factors_to_monomial_1() {
     // SASSERT(lemma.size() == 4);
     // nla.m_imp->print_lemma(std::cout << "lemma: ");
 
-    // ineq i0(lp::lconstraint_kind::NE, lp::lar_term(), rational(1));
+    // ineq i0(llc::NE, lp::lar_term(), rational(1));
     // i0.m_term.add_coeff_var(lp_b);
-    // ineq i1(lp::lconstraint_kind::NE, lp::lar_term(), rational(1));
+    // ineq i1(llc::NE, lp::lar_term(), rational(1));
     // i1.m_term.add_coeff_var(lp_d);
-    // ineq i2(lp::lconstraint_kind::NE, lp::lar_term(), rational(1));
+    // ineq i2(llc::NE, lp::lar_term(), rational(1));
     // i2.m_term.add_coeff_var(lp_e);
-    // ineq i3(lp::lconstraint_kind::EQ, lp::lar_term(), rational(1));
+    // ineq i3(llc::EQ, lp::lar_term(), rational(1));
     // i3.m_term.add_coeff_var(lp_bde);
     // bool found0 = false;
     // bool found1 = false;
@@ -1649,9 +1762,9 @@ void solver::test_basic_lemma_for_mon_zero_from_factors_to_monomial() {
 
     SASSERT(nla.m_imp->test_check(lemma, exp) == l_false);
     // nla.m_imp->print_lemma(std::cout << "lemma: ");
-    // ineq i0(lp::lconstraint_kind::NE, lp::lar_term(), rational(0));
+    // ineq i0(llc::NE, lp::lar_term(), rational(0));
     // i0.m_term.add_coeff_var(lp_b);
-    // ineq i1(lp::lconstraint_kind::EQ, lp::lar_term(), rational(0));
+    // ineq i1(llc::EQ, lp::lar_term(), rational(0));
     // i1.m_term.add_coeff_var(lp_be);
     // bool found0 = false;
     // bool found1 = false;
@@ -1768,9 +1881,9 @@ void solver::test_basic_lemma_for_mon_neutral_from_monomial_to_factors() {
     SASSERT(nla.m_imp->test_check(lemma, exp) == l_false);
     
     nla.m_imp->print_lemma(std::cout << "lemma: ");
-    ineq i0(lp::lconstraint_kind::EQ, lp::lar_term(), rational(1));
+    ineq i0(llc::EQ, lp::lar_term(), rational(1));
     i0.m_term.add_coeff_var(lp_b);
-    ineq i1(lp::lconstraint_kind::EQ, lp::lar_term(), -rational(1));
+    ineq i1(llc::EQ, lp::lar_term(), -rational(1));
     i1.m_term.add_coeff_var(lp_b);
     bool found0 = false;
     bool found1 = false;
@@ -1842,11 +1955,11 @@ void solver::test_basic_sign_lemma() {
     lp::lar_term t;
     t.add_coeff_var(lp_bde);
     t.add_coeff_var(lp_acd);
-    ineq q(lp::lconstraint_kind::EQ, t, rational(0));
+    ineq q(llc::EQ, t, rational(0));
    
     nla.m_imp->print_lemma(std::cout << "lemma: ");
     SASSERT(std::find(lemma.begin(), lemma.end(), q) != lemma.end());
-    ineq i0(lp::lconstraint_kind::EQ, lp::lar_term(), rational(0));
+    ineq i0(llc::EQ, lp::lar_term(), rational(0));
     i0.m_term.add_coeff_var(lp_bde);
     i0.m_term.add_coeff_var(rational(1), lp_acd);
     bool found = false;
@@ -1964,11 +2077,11 @@ void solver::test_order_lemma_params(int sign) {
     // lp::lar_term t;
     // t.add_coeff_var(lp_bde);
     // t.add_coeff_var(lp_acd);
-    // ineq q(lp::lconstraint_kind::EQ, t, rational(0));
+    // ineq q(llc::EQ, t, rational(0));
    
     nla.m_imp->print_lemma(std::cout << "lemma: ");
     // SASSERT(q == lemma.back());
-    // ineq i0(lp::lconstraint_kind::EQ, lp::lar_term(), rational(0));
+    // ineq i0(llc::EQ, lp::lar_term(), rational(0));
     // i0.m_term.add_coeff_var(lp_bde);
     // i0.m_term.add_coeff_var(rational(1), lp_acd);
     // bool found = false;
