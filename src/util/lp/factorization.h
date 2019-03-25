@@ -105,11 +105,19 @@ struct factorization_factory {
         m_vars(vars) {
     }
 
-    const_iterator_mon begin() const {
+    svector<bool> get_mask() const {
         // we keep the last element always in the first factor to avoid
-        // repeating a pair twice
-        svector<bool> mask(m_vars.size() - 1, false);
-        return const_iterator_mon(mask, this);
+        // repeating a pair twice, that is why m_mask is shorter by one then m_vars
+        
+        return
+            m_vars.size() != 2?
+            svector<bool>(m_vars.size() - 1, false)
+            :
+            svector<bool>(1, true); // init mask as in the end() since the full iteration will do the job
+    }
+    
+    const_iterator_mon begin() const {
+        return const_iterator_mon(get_mask(), this);
     }
     
     const_iterator_mon end() const {
