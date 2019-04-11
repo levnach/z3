@@ -59,14 +59,12 @@ void tangents::generate_simple_tangent_lemma(const rooted_mon* rm) {
             c().mk_ineq(js, j, llc::LT);
             c().mk_ineq(js, j, llc::GT, jv);
         }
-        c().mk_ineq(sign, i_mon, llc::LT);
-        c().mk_ineq(sign, i_mon, llc::LE, v);
+        c().mk_ineq(sign, i_mon, llc::LE, std::max(v, rational(-1)));
     } else {
         for (lpvar j : m) {
             const rational & jv = vvr(j);
             rational js = rational(nla::rat_sign(jv));
-            c().mk_ineq(js, j, llc::LT);
-            c().mk_ineq(js, j, llc::LT, jv);
+            c().mk_ineq(js, j, llc::LT, std::max(jv, rational(0)));
         }
         c().mk_ineq(sign, m.var(), llc::LT);
         c().mk_ineq(sign, m.var(), llc::GE, v);
