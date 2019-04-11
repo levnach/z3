@@ -25,7 +25,8 @@ z3_add_component(lp
     mon_eq.cpp
     nla_core.cpp
     nla_solver.cpp
-    nra_solver.cpp
+    nla_tangent_lemmas.cpp
+    nra_solver.cpp    
     permutation_matrix.cpp
     random_updater.cpp      
     row_eta_matrix.cpp

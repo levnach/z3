@@ -20,45 +20,12 @@
 
 #pragma once
 #include "util/union_find.h"
-#include "util/lp/lp_types.h"
+#include "util/lp/nla_defs.h"
 #include "util/rational.h"
 #include "util/lp/explanation.h"
+
 namespace nla {
     
-typedef lp::var_index lpvar;
-typedef lp::constraint_index lpci;
-struct from_index{};
-
-class signed_var {
-    unsigned m_sv;
-public:
-    // constructor, sign = true means minus
-    signed_var(lpvar v, bool sign): m_sv((v << 1) + (sign ? 1 : 0)) {}
-    // constructor
-    signed_var(unsigned sv, from_index): m_sv(sv) {}
-    bool sign() const { return 0 != (m_sv & 0x1); }
-    lpvar var() const { return m_sv >> 1; }
-    unsigned index() const { return m_sv; }        
-    void neg() { m_sv = m_sv ^ 1; }
-    friend signed_var operator~(signed_var const& sv) {
-        return signed_var(sv.var(), !sv.sign());
-    }
-    bool operator==(signed_var const& other) const {
-        return m_sv == other.m_sv;
-    }
-    bool operator!=(signed_var const& other) const {
-        return m_sv != other.m_sv;
-    }
-    rational rsign() const { return sign() ? rational::minus_one() : rational::one(); }
-
-    std::ostream& display(std::ostream& out) const {
-        return out << (sign()?"-":"") << var();
-    }
-};
-
-    inline std::ostream& operator<<(std::ostream& out, signed_var const& sv) {
-        return sv.display(out);
-    }
 
 class eq_justification {
     lpci m_cs[4];
@@ -177,7 +144,7 @@ public:
     public:
         iterator(var_eqs& ve, unsigned idx, bool t) : m_ve(ve), m_idx(idx), m_touched(t) {}
         signed_var operator*() const {
-            return signed_var(m_idx, from_index()); // 0 is needed to call the right constructor
+            return signed_var(m_idx, from_index_dummy());
         }
         iterator& operator++() { m_idx = m_ve.m_uf.next(m_idx); m_touched = true; return *this; }
         bool operator==(iterator const& other) const { return m_idx == other.m_idx && m_touched == other.m_touched; }

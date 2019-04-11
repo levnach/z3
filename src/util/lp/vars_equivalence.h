@@ -20,9 +20,6 @@
 
 namespace nla {
 
-typedef lp::constraint_index     lpci;
-typedef lp::explanation          expl_set;
-typedef lp::var_index            lpvar;
 struct hash_svector {
     size_t operator()(const unsigned_vector & v) const {
         return svector_hash<unsigned_hash>()(v);

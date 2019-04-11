@@ -21,11 +21,11 @@
 #pragma once
 #include "util/rational.h"
 #include "util/lp/monomial.h"
+#include "util/lp/nla_defs.h"
 
 namespace nla {
 
 struct factorization_factory;
-typedef unsigned lpvar;
 
 enum class factor_type { VAR, RM }; // RM stands for rooted monomial 
 
@@ -140,5 +140,12 @@ struct factorization_factory {
     } 
    
 };
+// binary factorization
+struct bfc {
+    factor m_x, m_y;
+    bfc() {}
+    bfc(const factor& x, const factor& y): m_x(x), m_y(y) {};
+};
+
 
 }

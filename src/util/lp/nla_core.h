@@ -22,10 +22,13 @@
 #include "util/lp/lp_types.h"
 #include "util/lp/var_eqs.h"
 #include "util/lp/rooted_mons.h"
-
+#include "util/lp/nla_tangent_lemmas.h"
 namespace nla {
 typedef lp::constraint_index lpci;
 typedef lp::lconstraint_kind llc;
+typedef lp::constraint_index     lpci;
+typedef lp::explanation          expl_set;
+typedef lp::var_index            lpvar;
 
 inline int rat_sign(const rational& r) { return r.is_pos()? 1 : ( r.is_neg()? -1 : 0); }
 inline rational rrat_sign(const rational& r) { return rational(rat_sign(r)); }
@@ -57,25 +60,8 @@ public:
     bool is_conflict() const { return m_ineqs.empty() && !m_expl.empty(); }
 };
 
-struct point {
-    rational x;
-    rational y;
-    point(const rational& a, const rational& b): x(a), y(b) {}
-    point() {}
-    point& operator*=(rational a) {
-        x *= a;
-        y *= a;
-        return *this;
-    } 
-};
 
 struct core {
-    struct bfc {
-        factor m_x, m_y;
-        bfc() {}
-        bfc(const factor& x, const factor& y): m_x(x), m_y(y) {};
-    };
-
     //fields    
     var_eqs                                                          m_evars;
     vector<monomial>                                                 m_monomials;
@@ -91,9 +77,10 @@ struct core {
     vector<lemma> *                                                  m_lemma_vec;
     unsigned_vector                                                  m_to_refine;
     std::unordered_map<unsigned_vector, unsigned, hash_svector>      m_mkeys; // the key is the sorted vars of a monomial 
-    
+    tangents                                                         m_tangents;   
+    // methods
     unsigned find_monomial(const unsigned_vector& k) const;
-    core(lp::lar_solver& s, reslimit& lim, params_ref const& p);
+    core(lp::lar_solver& s);
     
     bool compare_holds(const rational& ls, llc cmp, const rational& rs) const;
     
@@ -165,10 +152,6 @@ struct core {
     std::ostream & print_factor_with_vars(const factor& f, std::ostream& out) const;
 
     std::ostream& print_monomial(const monomial& m, std::ostream& out) const;
-
-    std::ostream& print_point(const point &a, std::ostream& out) const;
-    
-    std::ostream& print_tangent_domain(const point &a, const point &b, std::ostream& out) const;
 
     std::ostream& print_bfc(const bfc& m, std::ostream& out) const;
 
@@ -659,39 +642,7 @@ struct core {
     bool  find_bfc_to_refine(bfc& bf, lpvar &j, rational& sign, const rooted_mon*& rm_found);
     void generate_simple_sign_lemma(const rational& sign, const monomial& m);
 
-    void generate_simple_tangent_lemma(const rooted_mon* rm);
-    
-    void tangent_lemma();
-
-    void generate_explanations_of_tang_lemma(const rooted_mon& rm, const bfc& bf, lp::explanation& exp);
-    
-    void tangent_lemma_bf(const bfc& bf, lpvar j, const rational& sign, const rooted_mon* rm);
-    void generate_tang_plane(const rational & a, const rational& b, const factor& x, const factor& y, bool below, lpvar j, const rational& j_sign);  
-
     void negate_relation(unsigned j, const rational& a);
-    
-    void generate_two_tang_lines(const bfc & bf, const point& xy, const rational& sign, lpvar j);
-    // Get two planes tangent to surface z = xy, one at point a,  and another at point b.
-    // One can show that these planes still create a cut.
-    void get_initial_tang_points(point &a, point &b, const point& xy,
-                                 bool below) const;
-
-    void push_tang_point(point &a, const point& xy, bool below, const rational& correct_val, const rational& val) const;
-    
-    void push_tang_points(point &a, point &b, const point& xy, bool below, const rational& correct_val, const rational& val) const;
-
-    rational tang_plane(const point& a, const point& x) const;
-
-    bool  plane_is_correct_cut(const point& plane,
-                               const point& xy,
-                               const rational & correct_val,                             
-                               const rational & val,
-                               bool below) const;
-
-    // "below" means that the val is below the surface xy 
-    void get_tang_points(point &a, point &b, bool below, const rational& val,
-                         const point& xy) const;
-
     bool  conflict_found() const;
     lbool  inner_check(bool derived);
     

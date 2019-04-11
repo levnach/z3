@@ -62,7 +62,7 @@ namespace nla {
             return v;
         }
         unsigned idx = m_uf.find(v.index());
-        return signed_var(idx, from_index());
+        return signed_var(idx, from_index_dummy());
     }
 
     void var_eqs::explain_dfs(signed_var v1, signed_var v2, lp::explanation& e) const {
@@ -173,7 +173,7 @@ namespace nla {
         m_uf.display(out);
         unsigned idx = 0;
         for (auto const& edges : m_eqs) {
-            out << signed_var(idx, from_index()) << ": ";
+            out << signed_var(idx, from_index_dummy()) << ": ";
             for (auto const& jv : edges) {
                 out << jv.m_var << " ";
             }

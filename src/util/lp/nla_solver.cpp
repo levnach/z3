@@ -46,8 +46,8 @@ void solver::pop(unsigned n) {
     m_core->pop(n);
 }
         
-solver::solver(lp::lar_solver& s, reslimit& lim, params_ref const& p) {
-    m_core = alloc(core, s, lim, p);
+solver::solver(lp::lar_solver& s) {
+    m_core = alloc(core, s);
 }
 
 solver::~solver() {
@@ -117,9 +117,7 @@ void solver::test_factorization() {
     lpvar lp_acd = s.add_named_var(acd, true, "acd");
     lpvar lp_be = s.add_named_var(be, true, "be");
     
-    reslimit l;
-    params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     
     create_abcde(nla,
                  lp_a,
@@ -165,7 +163,7 @@ void solver::test_basic_lemma_for_mon_neutral_from_factors_to_monomial_0() {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     svector<lpvar> v; v.push_back(lp_b);v.push_back(lp_d);v.push_back(lp_e);
     nla.add_monomial(lp_bde, v.size(), v.begin());
     v.clear();
@@ -242,7 +240,7 @@ void solver::test_basic_lemma_for_mon_neutral_from_factors_to_monomial_1() {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     svector<lpvar> v; v.push_back(lp_b);v.push_back(lp_d);v.push_back(lp_e);
     nla.add_monomial(lp_bde, v.size(), v.begin());
 
@@ -307,7 +305,7 @@ void solver::test_basic_lemma_for_mon_zero_from_factors_to_monomial() {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     
     create_abcde(nla,
                  lp_a,
@@ -367,7 +365,7 @@ void solver::test_basic_lemma_for_mon_zero_from_monomial_to_factors() {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
 
     // create monomial acd
     unsigned_vector vec;
@@ -430,7 +428,7 @@ void solver::test_basic_lemma_for_mon_neutral_from_monomial_to_factors() {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     
     create_abcde(nla,
                  lp_a,
@@ -499,7 +497,7 @@ void solver::test_basic_sign_lemma() {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     // create monomial bde
     vector<unsigned> vec;
 
@@ -586,7 +584,7 @@ void solver::test_order_lemma_params(bool var_equiv, int sign) {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);
@@ -715,7 +713,7 @@ void solver::test_monotone_lemma() {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);
@@ -777,7 +775,7 @@ void solver::test_tangent_lemma_reg() {
     
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);
@@ -821,7 +819,7 @@ void solver::test_tangent_lemma_equiv() {
     s_set_column_value(s, lp_a, - s.get_column_value(lp_k));
     reslimit l;
     params_ref p;
-    solver nla(s, l, p);
+    solver nla(s);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);

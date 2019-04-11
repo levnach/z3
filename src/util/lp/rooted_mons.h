@@ -20,6 +20,7 @@
 
 #pragma once
 #include "util/lp/lp_utils.h"
+#include "util/lp/nla_defs.h"
 namespace nla {
 struct index_with_sign {
     unsigned m_i; // the index
