@@ -18,16 +18,9 @@ Revision History:
 
 --*/
 #include "util/lp/nla_core.h"
+#include "util/lp/factorization_factory_imp.h"
 namespace nla {
 
-template <typename A, typename B>
-bool try_insert(const A& elem, B& collection) {
-    auto it = collection.find(elem);
-    if (it != collection.end())
-        return false;
-    collection.insert(elem);
-    return true;
-}
 
 unsigned core::find_monomial(const unsigned_vector& k) const {
     TRACE("nla_solver_find", tout << "k = "; print_product_with_vars(k, tout););
@@ -40,14 +33,11 @@ unsigned core::find_monomial(const unsigned_vector& k) const {
     return it->second;
 }
     
-core::core(lp::lar_solver& s)
-    :
+core::core(lp::lar_solver& s) :
     m_evars(),
     m_lar_solver(s),
-    m_tangents(this)
-    // m_limit(lim),
-    // m_params(p)
-{
+    m_tangents(this),
+    m_basics(this) {
 }
     
 bool core::compare_holds(const rational& ls, llc cmp, const rational& rs) const {
@@ -573,19 +563,6 @@ monomial_coeff core::canonize_monomial(monomial const& m) const {
     return monomial_coeff(vars, sign);
 }
 
-// the value of the i-th monomial has to be equal to the value of the k-th monomial modulo sign
-// but it is not the case in the model
-void core::generate_sign_lemma(const monomial& m, const monomial& n, const rational& sign) {
-    add_empty_lemma();
-    TRACE("nla_solver",
-          tout << "m = "; print_monomial_with_vars(m, tout);
-          tout << "n = "; print_monomial_with_vars(n, tout);
-          );
-    mk_ineq(m.var(), -sign, n.var(), llc::EQ);
-    explain(m, current_expl());
-    explain(n, current_expl());        
-    TRACE("nla_solver", print_lemma(tout););
-}
 lemma& core::current_lemma() { return m_lemma_vec->back(); }
 const lemma& core::current_lemma() const { return m_lemma_vec->back(); }
 vector<ineq>& core::current_ineqs() { return current_lemma().ineqs(); }
@@ -603,36 +580,7 @@ int core::vars_sign(const svector<lpvar>& v) {
     return sign;
 }
 
-void core::negate_strict_sign(lpvar j) {
-    TRACE("nla_solver_details", print_var(j, tout););
-    if (!vvr(j).is_zero()) {
-        int sign = nla::rat_sign(vvr(j));
-        mk_ineq(j, (sign == 1? llc::LE : llc::GE));
-    } else {   // vvr(j).is_zero()
-        if (has_lower_bound(j) && get_lower_bound(j) >= rational(0)) {
-            explain_existing_lower_bound(j);
-            mk_ineq(j, llc::GT);
-        } else {
-            SASSERT(has_upper_bound(j) && get_upper_bound(j) <= rational(0));
-            explain_existing_upper_bound(j);
-            mk_ineq(j, llc::LT);
-        }
-    }
-}
     
-void core::generate_strict_case_zero_lemma(const monomial& m, unsigned zero_j, int sign_of_zj) {
-    TRACE("nla_solver_bl", tout << "sign_of_zj = " << sign_of_zj << "\n";);
-    // we know all the signs
-    add_empty_lemma();
-    mk_ineq(zero_j, (sign_of_zj == 1? llc::GT : llc::LT));
-    for (unsigned j : m){
-        if (j != zero_j) {
-            negate_strict_sign(j);
-        }
-    }
-    negate_strict_sign(m.var());
-    TRACE("nla_solver", print_lemma(tout););
-}
 
 bool core::has_upper_bound(lpvar j) const {
     return m_lar_solver.column_has_upper_bound(j);
@@ -658,85 +606,11 @@ bool core::zero_is_an_inner_point_of_bounds(lpvar j) const {
     return true;
 }
     
-// try to find a variable j such that vvr(j) = 0
-// and the bounds on j contain 0 as an inner point
-lpvar core::find_best_zero(const monomial& m, unsigned_vector & fixed_zeros) const {
-    lpvar zero_j = -1;
-    for (unsigned j : m){
-        if (vvr(j).is_zero()){
-            if (var_is_fixed_to_zero(j))
-                fixed_zeros.push_back(j);
-                
-            if (!is_set(zero_j) || zero_is_an_inner_point_of_bounds(j))
-                zero_j = j;
-        }
-    }
-    return zero_j;    
-}
-
-bool core::try_get_non_strict_sign_from_bounds(lpvar j, int& sign) const {
-    SASSERT(sign);
-    if (has_lower_bound(j) && get_lower_bound(j) >= rational(0))
-        return true;
-    if (has_upper_bound(j) && get_upper_bound(j) <= rational(0)) {
-        sign = -sign;
-        return true;
-    }
-    sign = 0;
-    return false;
-}
-
-void core::get_non_strict_sign(lpvar j, int& sign) const {
-    const rational & v = vvr(j);
-    if (v.is_zero()) {
-        try_get_non_strict_sign_from_bounds(j, sign);
-    } else {
-        sign *= nla::rat_sign(v);
-    }
-}
 
 
-void core::add_trival_zero_lemma(lpvar zero_j, const monomial& m) {
-    add_empty_lemma();
-    mk_ineq(zero_j, llc::NE);
-    mk_ineq(m.var(), llc::EQ);
-    TRACE("nla_solver", print_lemma(tout););            
-}
+
     
-void core::generate_zero_lemmas(const monomial& m) {
-    SASSERT(!vvr(m).is_zero() && product_value(m).is_zero());
-    int sign = nla::rat_sign(vvr(m));
-    unsigned_vector fixed_zeros;
-    lpvar zero_j = find_best_zero(m, fixed_zeros);
-    SASSERT(is_set(zero_j));
-    unsigned zero_power = 0;
-    for (unsigned j : m){
-        if (j == zero_j) {
-            zero_power++;
-            continue;
-        }
-        get_non_strict_sign(j, sign);
-        if(sign == 0)
-            break;
-    }
-    if (sign && is_even(zero_power))
-        sign = 0;
-    TRACE("nla_solver_details", tout << "zero_j = " << zero_j << ", sign = " << sign << "\n";);
-    if (sign == 0) { // have to generate a non-convex lemma
-        add_trival_zero_lemma(zero_j, m);
-    } else { 
-        generate_strict_case_zero_lemma(m, zero_j, sign);
-    }
-    for (lpvar j : fixed_zeros)
-        add_fixed_zero_lemma(m, j);
-}
 
-void core::add_fixed_zero_lemma(const monomial& m, lpvar j) {
-    add_empty_lemma();
-    explain_fixed_var(j);
-    mk_ineq(m.var(), llc::EQ);
-    TRACE("nla_solver", print_lemma(tout););
-}
 llc core::negate(llc cmp) {
     switch(cmp) {
     case llc::LE: return llc::GT;
@@ -781,102 +655,6 @@ bool core::sign_contradiction(const monomial& m) const {
   return m_evars.eq_vars(j);
   }
 */
-// Monomials m and n vars have the same values, up to "sign"
-// Generate a lemma if values of m.var() and n.var() are not the same up to sign
-bool core::basic_sign_lemma_on_two_monomials(const monomial& m, const monomial& n, const rational& sign) {
-    if (vvr(m) == vvr(n) *sign)
-        return false;
-    TRACE("nla_solver", tout << "sign contradiction:\nm = "; print_monomial_with_vars(m, tout); tout << "n= "; print_monomial_with_vars(n, tout); tout << "sign: " << sign << "\n";);
-    generate_sign_lemma(m, n, sign);
-    return true;
-}
-
-void core::basic_sign_lemma_model_based_one_mon(const monomial& m, int product_sign) {
-    if (product_sign == 0) {
-        TRACE("nla_solver_bl", tout << "zero product sign\n";);
-        generate_zero_lemmas(m);
-    } else {
-        add_empty_lemma();
-        for(lpvar j: m) {
-            negate_strict_sign(j);
-        }
-        mk_ineq(m.var(), product_sign == 1? llc::GT : llc::LT);
-        TRACE("nla_solver", print_lemma(tout); tout << "\n";);
-    }
-}
-    
-bool core::basic_sign_lemma_model_based() {
-    unsigned i = random() % m_to_refine.size();
-    unsigned ii = i;
-    do {
-        const monomial& m = m_monomials[m_to_refine[i]];
-        int mon_sign = nla::rat_sign(vvr(m));
-        int product_sign = rat_sign(m);
-        if (mon_sign != product_sign) {
-            basic_sign_lemma_model_based_one_mon(m, product_sign);
-            if (done())
-                return true;
-        }
-        i++;
-        if (i == m_to_refine.size())
-            i = 0;
-    } while (i != ii);
-    return m_lemma_vec->size() > 0;
-}
-
-    
-bool core::basic_sign_lemma_on_mon(unsigned i, std::unordered_set<unsigned> & explored){
-    const monomial& m = m_monomials[i];
-    TRACE("nla_solver_details", tout << "i = " << i << ", mon = "; print_monomial_with_vars(m, tout););
-    const index_with_sign&  rm_i_s = m_rm_table.get_rooted_mon(i);
-    unsigned k = rm_i_s.index();
-    if (!try_insert(k, explored))
-        return false;
-
-    const auto& mons_to_explore = m_rm_table.rms()[k].m_mons;
-    TRACE("nla_solver", tout << "rm = "; print_rooted_monomial_with_vars(m_rm_table.rms()[k], tout) << "\n";);
-        
-    for (index_with_sign i_s : mons_to_explore) {
-        TRACE("nla_solver", tout << "i_s = (" << i_s.index() << "," << i_s.sign() << ")\n";
-              print_monomial_with_vars(m_monomials[i_s.index()], tout << "m = ") << "\n";
-              {
-                  for (lpvar j : m_monomials[i_s.index()] ) {
-                      lpvar rj = m_evars.find(j).var();
-                      if (j == rj)
-                          tout << "rj = j ="  << j << "\n";
-                      else {
-                          lp::explanation e;
-                          m_evars.explain(j, e);
-                          tout << "j = " << j << ", e = "; print_explanation(e, tout) << "\n";
-                      }
-                  }
-              }
-              );
-        unsigned n = i_s.index();
-        if (n == i) continue;
-        if (basic_sign_lemma_on_two_monomials(m, m_monomials[n], rm_i_s.sign()*i_s.sign()))
-            if(done())
-                return true;
-    }
-    TRACE("nla_solver_details", tout << "return false\n";);
-    return false;
-}
-
-/**
- * \brief <generate lemma by using the fact that -ab = (-a)b) and
- -ab = a(-b)
-*/
-bool core::basic_sign_lemma(bool derived) {
-    if (!derived)
-        return basic_sign_lemma_model_based();
-
-    std::unordered_set<unsigned> explored;
-    for (unsigned i : m_to_refine){
-        if (basic_sign_lemma_on_mon(i, explored))
-            return true;
-    }
-    return false;
-}
 
 bool core::var_is_fixed_to_zero(lpvar j) const {
     return 
@@ -979,38 +757,6 @@ const monomial* core::find_monomial_of_vars(const svector<lpvar>& vars) const {
     return &m_monomials[m_rm_table.rms()[i].orig_index()];
 }
 
-struct factorization_factory_imp: factorization_factory {
-    const core&  m_core;
-    const monomial *m_mon;
-    const rooted_mon& m_rm;
-        
-    factorization_factory_imp(const rooted_mon& rm, const core& s) :
-        factorization_factory(rm.m_vars, &s.m_monomials[rm.orig_index()]),
-        m_core(s), m_mon(& s.m_monomials[rm.orig_index()]), m_rm(rm) { }
-        
-    bool find_rm_monomial_of_vars(const svector<lpvar>& vars, unsigned & i) const {
-        return m_core.find_rm_monomial_of_vars(vars, i);
-    }
-    const monomial* find_monomial_of_vars(const svector<lpvar>& vars) const {
-        return m_core.find_monomial_of_vars(vars);
-    }
-
-};
-// here we use the fact
-// xy = 0 -> x = 0 or y = 0
-bool core::basic_lemma_for_mon_zero(const rooted_mon& rm, const factorization& f) {
-    TRACE("nla_solver", trace_print_monomial_and_factorization(rm, f, tout););
-    add_empty_lemma();
-    explain_fixed_var(var(rm));
-    std::unordered_set<lpvar> processed;
-    for (auto j : f) {
-        if (try_insert(var(j), processed))
-            mk_ineq(var(j), llc::EQ);
-    }
-    explain(rm, current_expl());
-    TRACE("nla_solver", print_lemma(tout););
-    return true;
-}
 
 void core::explain_existing_lower_bound(lpvar j) {
     SASSERT(has_lower_bound(j));
@@ -1042,28 +788,6 @@ int core::get_derived_sign(const rooted_mon& rm, const factorization& f) const {
     }
     return nla::rat_sign(sign);
 }
-// here we use the fact xy = 0 -> x = 0 or y = 0
-void core::basic_lemma_for_mon_zero_model_based(const rooted_mon& rm, const factorization& f) {        
-    TRACE("nla_solver", trace_print_monomial_and_factorization(rm, f, tout););
-    SASSERT(vvr(rm).is_zero()&& !rm_check(rm));
-    add_empty_lemma();
-    int sign = get_derived_sign(rm, f);
-    if (sign == 0) {
-        mk_ineq(var(rm), llc::NE);        
-        for (auto j : f) {
-            mk_ineq(var(j), llc::EQ);
-        }
-    } else {
-        mk_ineq(var(rm), llc::NE);        
-        for (auto j : f) {
-            explain_separation_from_zero(var(j));
-        }            
-    }
-    explain(rm, current_expl());
-    explain(f, current_expl());
-    TRACE("nla_solver", print_lemma(tout););
-}
-
 void core::trace_print_monomial_and_factorization(const rooted_mon& rm, const factorization& f, std::ostream& out) const {
     out << "rooted vars: ";
     print_product(rm.m_vars, out);
@@ -1087,51 +811,6 @@ void core::explain_fixed_var(lpvar j) {
     current_expl().add(m_lar_solver.get_column_upper_bound_witness(j));
     current_expl().add(m_lar_solver.get_column_lower_bound_witness(j));
 }
-// x = 0 or y = 0 -> xy = 0
-void core::basic_lemma_for_mon_non_zero_model_based(const rooted_mon& rm, const factorization& f) {
-    TRACE("nla_solver_bl", trace_print_monomial_and_factorization(rm, f, tout););
-    if (f.is_mon())
-        basic_lemma_for_mon_non_zero_model_based_mf(f);
-    else
-        basic_lemma_for_mon_non_zero_model_based_mf(f);
-}
-// x = 0 or y = 0 -> xy = 0
-void core::basic_lemma_for_mon_non_zero_model_based_rm(const rooted_mon& rm, const factorization& f) {
-    TRACE("nla_solver_bl", trace_print_monomial_and_factorization(rm, f, tout););
-    SASSERT (!vvr(rm).is_zero());
-    int zero_j = -1;
-    for (auto j : f) {
-        if (vvr(j).is_zero()) {
-            zero_j = var(j);
-            break;
-        }
-    }
-
-    if (zero_j == -1) { return; } 
-    add_empty_lemma();
-    mk_ineq(zero_j, llc::NE);
-    mk_ineq(var(rm), llc::EQ);
-    explain(rm, current_expl());
-    explain(f, current_expl());
-    TRACE("nla_solver", print_lemma(tout););
-}
-
-void core::basic_lemma_for_mon_non_zero_model_based_mf(const factorization& f) {
-    TRACE("nla_solver_bl", print_factorization(f, tout););
-    int zero_j = -1;
-    for (auto j : f) {
-        if (vvr(j).is_zero()) {
-            zero_j = var(j);
-            break;
-        }
-    }
-
-    if (zero_j == -1) { return; } 
-    add_empty_lemma();
-    mk_ineq(zero_j, llc::NE);
-    mk_ineq(f.mon()->var(), llc::EQ);
-    TRACE("nla_solver", print_lemma(tout););
-}
 
 bool core::var_has_positive_lower_bound(lpvar j) const {
     return m_lar_solver.column_has_lower_bound(j) && m_lar_solver.get_lower_bound(j) > lp::zero_of_type<lp::impq>();
@@ -1147,142 +826,6 @@ bool core::var_is_separated_from_zero(lpvar j) const {
         var_has_positive_lower_bound(j);
 }
     
-// x = 0 or y = 0 -> xy = 0
-bool core::basic_lemma_for_mon_non_zero_derived(const rooted_mon& rm, const factorization& f) {
-    TRACE("nla_solver", trace_print_monomial_and_factorization(rm, f, tout););
-    if (!var_is_separated_from_zero(var(rm)))
-        return false; 
-    int zero_j = -1;
-    for (auto j : f) {
-        if (var_is_fixed_to_zero(var(j))) {
-            zero_j = var(j);
-            break;
-        }
-    }
-
-    if (zero_j == -1) {
-        return false;
-    } 
-    add_empty_lemma();
-    explain_fixed_var(zero_j);
-    explain_var_separated_from_zero(var(rm));
-    explain(rm, current_expl());
-    TRACE("nla_solver", print_lemma(tout););
-    return true;
-}
-
-// use the fact that
-// |xabc| = |x| and x != 0 -> |a| = |b| = |c| = 1 
-bool core::basic_lemma_for_mon_neutral_monomial_to_factor_model_based(const rooted_mon& rm, const factorization& f) {
-    TRACE("nla_solver_bl", trace_print_monomial_and_factorization(rm, f, tout););
-
-    lpvar mon_var = m_monomials[rm.orig_index()].var();
-    TRACE("nla_solver_bl", trace_print_monomial_and_factorization(rm, f, tout); tout << "\nmon_var = " << mon_var << "\n";);
-        
-    const auto & mv = vvr(mon_var);
-    const auto  abs_mv = abs(mv);
-        
-    if (abs_mv == rational::zero()) {
-        return false;
-    }
-    lpvar jl = -1;
-    for (auto j : f ) {
-        if (abs(vvr(j)) == abs_mv) {
-            jl = var(j);
-            break;
-        }
-    }
-    if (jl == static_cast<lpvar>(-1))
-        return false;
-    lpvar not_one_j = -1;
-    for (auto j : f ) {
-        if (var(j) == jl) {
-            continue;
-        }
-        if (abs(vvr(j)) != rational(1)) {
-            not_one_j = var(j);
-            break;
-        }
-    }
-
-    if (not_one_j == static_cast<lpvar>(-1)) {
-        return false;
-    } 
-
-    add_empty_lemma();
-    // mon_var = 0
-    mk_ineq(mon_var, llc::EQ);
-        
-    // negate abs(jl) == abs()
-    if (vvr(jl) == - vvr(mon_var))
-        mk_ineq(jl, mon_var, llc::NE, current_lemma());   
-    else  // jl == mon_var
-        mk_ineq(jl, -rational(1), mon_var, llc::NE);   
-
-    // not_one_j = 1
-    mk_ineq(not_one_j, llc::EQ,  rational(1));   
-        
-    // not_one_j = -1
-    mk_ineq(not_one_j, llc::EQ, -rational(1));
-    explain(rm, current_expl());
-    explain(f, current_expl());
-
-    TRACE("nla_solver", print_lemma(tout); );
-    return true;
-}
-// use the fact that
-// |xabc| = |x| and x != 0 -> |a| = |b| = |c| = 1 
-bool core::basic_lemma_for_mon_neutral_monomial_to_factor_model_based_fm(const monomial& m) {
-    TRACE("nla_solver_bl", print_monomial(m, tout););
-
-    lpvar mon_var = m.var();
-    const auto & mv = vvr(mon_var);
-    const auto  abs_mv = abs(mv);
-    if (abs_mv == rational::zero()) {
-        return false;
-    }
-    lpvar jl = -1;
-    for (auto j : m ) {
-        if (abs(vvr(j)) == abs_mv) {
-            jl = j;
-            break;
-        }
-    }
-    if (jl == static_cast<lpvar>(-1))
-        return false;
-    lpvar not_one_j = -1;
-    for (auto j : m ) {
-        if (j == jl) {
-            continue;
-        }
-        if (abs(vvr(j)) != rational(1)) {
-            not_one_j = j;
-            break;
-        }
-    }
-
-    if (not_one_j == static_cast<lpvar>(-1)) {
-        return false;
-    } 
-
-    add_empty_lemma();
-    // mon_var = 0
-    mk_ineq(mon_var, llc::EQ);
-        
-    // negate abs(jl) == abs()
-    if (vvr(jl) == - vvr(mon_var))
-        mk_ineq(jl, mon_var, llc::NE, current_lemma());   
-    else  // jl == mon_var
-        mk_ineq(jl, -rational(1), mon_var, llc::NE);   
-
-    // not_one_j = 1
-    mk_ineq(not_one_j, llc::EQ,  rational(1));   
-        
-    // not_one_j = -1
-    mk_ineq(not_one_j, llc::EQ, -rational(1));
-    TRACE("nla_solver", print_lemma(tout); );
-    return true;
-}
 
 bool core::vars_are_equiv(lpvar a, lpvar b) const {
     SASSERT(abs(vvr(a)) == abs(vvr(b)));
@@ -1300,239 +843,6 @@ void core::explain_equiv_vars(lpvar a, lpvar b) {
         explain_fixed_var(b);
     }
 }
-// use the fact that
-// |xabc| = |x| and x != 0 -> |a| = |b| = |c| = 1 
-bool core::basic_lemma_for_mon_neutral_monomial_to_factor_derived(const rooted_mon& rm, const factorization& f) {
-    TRACE("nla_solver", trace_print_monomial_and_factorization(rm, f, tout););
-
-    lpvar mon_var = m_monomials[rm.orig_index()].var();
-    TRACE("nla_solver", trace_print_monomial_and_factorization(rm, f, tout); tout << "\nmon_var = " << mon_var << "\n";);
-        
-    const auto & mv = vvr(mon_var);
-    const auto  abs_mv = abs(mv);
-        
-    if (abs_mv == rational::zero()) {
-        return false;
-    }
-    bool mon_var_is_sep_from_zero = var_is_separated_from_zero(mon_var);
-    lpvar jl = -1;
-    for (auto fc : f ) {
-        lpvar j = var(fc);
-        if (abs(vvr(j)) == abs_mv && vars_are_equiv(j, mon_var) &&
-            (mon_var_is_sep_from_zero || var_is_separated_from_zero(j))) {
-            jl = j;
-            break;
-        }
-    }
-    if (jl == static_cast<lpvar>(-1))
-        return false;
-        
-    lpvar not_one_j = -1;
-    for (auto j : f ) {
-        if (var(j) == jl) {
-            continue;
-        }
-        if (abs(vvr(j)) != rational(1)) {
-            not_one_j = var(j);
-            break;
-        }
-    }
-
-    if (not_one_j == static_cast<lpvar>(-1)) {
-        return false;
-    } 
-
-    add_empty_lemma();
-    // mon_var = 0
-    if (mon_var_is_sep_from_zero)
-        explain_var_separated_from_zero(mon_var);
-    else
-        explain_var_separated_from_zero(jl);
-
-    explain_equiv_vars(mon_var, jl);
-        
-    // not_one_j = 1
-    mk_ineq(not_one_j, llc::EQ,  rational(1));   
-        
-    // not_one_j = -1
-    mk_ineq(not_one_j, llc::EQ, -rational(1));
-    explain(rm, current_expl());
-    TRACE("nla_solver", print_lemma(tout); );
-    return true;
-}
-
-// use the fact
-// 1 * 1 ... * 1 * x * 1 ... * 1 = x
-bool core::basic_lemma_for_mon_neutral_from_factors_to_monomial_model_based(const rooted_mon& rm, const factorization& f) {
-    rational sign = rm.orig_sign();
-    TRACE("nla_solver_bl", tout << "f = "; print_factorization(f, tout); tout << ", sign = " << sign << '\n'; );
-    lpvar not_one = -1;
-    for (auto j : f){
-        TRACE("nla_solver_bl", tout << "j = "; print_factor_with_vars(j, tout););
-        auto v = vvr(j);
-        if (v == rational(1)) {
-            continue;
-        }
-            
-        if (v == -rational(1)) { 
-            sign = - sign;
-            continue;
-        } 
-            
-        if (not_one == static_cast<lpvar>(-1)) {
-            not_one = var(j);
-            continue;
-        }
-            
-        // if we are here then there are at least two factors with absolute values different from one : cannot create the lemma
-        return false;
-    }
-
-    if (not_one + 1) {
-        // we found the only not_one
-        if (vvr(rm) == vvr(not_one) * sign) {
-            TRACE("nla_solver", tout << "the whole equal to the factor" << std::endl;);
-            return false;
-        }
-    } else {
-        // we have +-ones only in the factorization
-        if (vvr(rm) == sign) {
-            return false;
-        }
-    }
-
-    TRACE("nla_solver_bl", tout << "not_one = " << not_one << "\n";);
-        
-    add_empty_lemma();
-
-    for (auto j : f){
-        lpvar var_j = var(j);
-        if (not_one == var_j) continue;
-        mk_ineq(var_j, llc::NE, j.is_var()? vvr(j) : canonize_sign(j) * vvr(j));   
-    }
-
-    if (not_one == static_cast<lpvar>(-1)) {
-        mk_ineq(m_monomials[rm.orig_index()].var(), llc::EQ, sign);
-    } else {
-        mk_ineq(m_monomials[rm.orig_index()].var(), -sign, not_one, llc::EQ);
-    }
-    explain(rm, current_expl());
-    explain(f, current_expl());
-    TRACE("nla_solver",
-          print_lemma(tout);
-          tout << "rm = "; print_rooted_monomial_with_vars(rm, tout);
-          );
-    return true;
-}
-// use the fact
-// 1 * 1 ... * 1 * x * 1 ... * 1 = x
-bool core::basic_lemma_for_mon_neutral_from_factors_to_monomial_model_based_fm(const monomial& m) {
-    lpvar not_one = -1;
-    rational sign(1);
-    TRACE("nla_solver_bl", tout << "m = "; print_monomial(m, tout););
-    for (auto j : m){
-        auto v = vvr(j);
-        if (v == rational(1)) {
-            continue;
-        }
-        if (v == -rational(1)) { 
-            sign = - sign;
-            continue;
-        } 
-        if (not_one == static_cast<lpvar>(-1)) {
-            not_one = j;
-            continue;
-        }
-        // if we are here then there are at least two factors with values different from one and minus one: cannot create the lemma
-        return false;
-    }
-
-    if (not_one + 1) {  // we found the only not_one
-        if (vvr(m) == vvr(not_one) * sign) {
-            TRACE("nla_solver", tout << "the whole equal to the factor" << std::endl;);
-            return false;
-        }
-    }
-        
-    add_empty_lemma();
-    for (auto j : m){
-        if (not_one == j) continue;
-        mk_ineq(j, llc::NE, vvr(j));   
-    }
-
-    if (not_one == static_cast<lpvar>(-1)) {
-        mk_ineq(m.var(), llc::EQ, sign);
-    } else {
-        mk_ineq(m.var(), -sign, not_one, llc::EQ);
-    }
-    TRACE("nla_solver",  print_lemma(tout););
-    return true;
-}
-// use the fact
-// 1 * 1 ... * 1 * x * 1 ... * 1 = x
-bool core::basic_lemma_for_mon_neutral_from_factors_to_monomial_derived(const rooted_mon& rm, const factorization& f) {
-    return false;
-    rational sign = rm.orig().m_sign;
-    lpvar not_one = -1;
-
-    TRACE("nla_solver", tout << "f = "; print_factorization(f, tout););
-    for (auto j : f){
-        TRACE("nla_solver", tout << "j = "; print_factor_with_vars(j, tout););
-        auto v = vvr(j);
-        if (v == rational(1)) {
-            continue;
-        }
-
-        if (v == -rational(1)) { 
-            sign = - sign;
-            continue;
-        } 
-
-        if (not_one == static_cast<lpvar>(-1)) {
-            not_one = var(j);
-            continue;
-        }
-
-        // if we are here then there are at least two factors with values different from one and minus one: cannot create the lemma
-        return false;
-    }
-
-    add_empty_lemma();
-    explain(rm, current_expl());
-
-    for (auto j : f){
-        lpvar var_j = var(j);
-        if (not_one == var_j) continue;
-        mk_ineq(var_j, llc::NE, j.is_var()? vvr(j) : canonize_sign(j) * vvr(j));   
-    }
-
-    if (not_one == static_cast<lpvar>(-1)) {
-        mk_ineq(m_monomials[rm.orig_index()].var(), llc::EQ, sign);
-    } else {
-        mk_ineq(m_monomials[rm.orig_index()].var(), -sign, not_one, llc::EQ);
-    }
-    TRACE("nla_solver",
-          tout << "rm = "; print_rooted_monomial_with_vars(rm, tout);
-          print_lemma(tout););
-    return true;
-}
-void core::basic_lemma_for_mon_neutral_model_based(const rooted_mon& rm, const factorization& f) {
-    if (f.is_mon()) {
-        basic_lemma_for_mon_neutral_monomial_to_factor_model_based_fm(*f.mon());
-        basic_lemma_for_mon_neutral_from_factors_to_monomial_model_based_fm(*f.mon());
-    }
-    else {
-        basic_lemma_for_mon_neutral_monomial_to_factor_model_based(rm, f);
-        basic_lemma_for_mon_neutral_from_factors_to_monomial_model_based(rm, f);
-    }
-}
-    
-bool core::basic_lemma_for_mon_neutral_derived(const rooted_mon& rm, const factorization& factorization) {
-    return
-        basic_lemma_for_mon_neutral_monomial_to_factor_derived(rm, factorization) || 
-        basic_lemma_for_mon_neutral_from_factors_to_monomial_derived(rm, factorization);
-    return false;
-}
 
 void core::explain(const factorization& f, lp::explanation& exp) {
     SASSERT(!f.is_mon());
@@ -1548,64 +858,6 @@ bool core::has_zero_factor(const factorization& factorization) const {
     }
     return false;
 }
-
-// if there are no zero factors then |m| >= |m[factor_index]|
-void core::generate_pl_on_mon(const monomial& m, unsigned factor_index) {
-    add_empty_lemma();
-    unsigned mon_var = m.var();
-    rational mv = vvr(mon_var);
-    rational sm = rational(nla::rat_sign(mv));
-    mk_ineq(sm, mon_var, llc::LT);
-    for (unsigned fi = 0; fi < m.size(); fi ++) {
-        lpvar j = m[fi];
-        if (fi != factor_index) {
-            mk_ineq(j, llc::EQ);
-        } else {
-            rational jv = vvr(j);
-            rational sj = rational(nla::rat_sign(jv));
-            SASSERT(sm*mv < sj*jv);
-            mk_ineq(sj, j, llc::LT);
-            mk_ineq(sm, mon_var, -sj, j, llc::GE );
-        }
-    }
-    TRACE("nla_solver", print_lemma(tout); );
-}
-    
-// none of the factors is zero and the product is not zero
-// -> |fc[factor_index]| <= |rm|
-void core::generate_pl(const rooted_mon& rm, const factorization& fc, int factor_index) {
-    TRACE("nla_solver", tout << "factor_index = " << factor_index << ", rm = ";
-          print_rooted_monomial_with_vars(rm, tout);
-          tout << "fc = "; print_factorization(fc, tout);
-          tout << "orig mon = "; print_monomial(m_monomials[rm.orig_index()], tout););
-    if (fc.is_mon()) {
-        generate_pl_on_mon(*fc.mon(), factor_index);
-        return;
-    }
-    add_empty_lemma();
-    int fi = 0;
-    rational rmv = vvr(rm);
-    rational sm = rational(nla::rat_sign(rmv));
-    unsigned mon_var = var(rm);
-    mk_ineq(sm, mon_var, llc::LT);
-    for (factor f : fc) {
-        if (fi++ != factor_index) {
-            mk_ineq(var(f), llc::EQ);
-        } else {
-            lpvar j = var(f);
-            rational jv = vvr(j);
-            rational sj = rational(nla::rat_sign(jv));
-            SASSERT(sm*rmv < sj*jv);
-            mk_ineq(sj, j, llc::LT);
-            mk_ineq(sm, mon_var, -sj, j, llc::GE );
-        }
-    }
-    if (!fc.is_mon()) {
-        explain(fc, current_expl());
-        explain(rm, current_expl());
-    }
-    TRACE("nla_solver", print_lemma(tout); );
-}   
 
 template <typename T>
 bool core::has_zero(const T& product) const {
@@ -1625,96 +877,7 @@ bool core::mon_has_zero(const T& product) const {
     return false;
 }
 
-// x != 0 or y = 0 => |xy| >= |y|
-void core::proportion_lemma_model_based(const rooted_mon& rm, const factorization& factorization) {
-    rational rmv = abs(vvr(rm));
-    if (rmv.is_zero()) {
-        SASSERT(has_zero_factor(factorization));
-        return;
-    }
-    int factor_index = 0;
-    for (factor f : factorization) {
-        if (abs(vvr(f)) > rmv) {
-            generate_pl(rm, factorization, factor_index);
-            return;
-        }
-        factor_index++;
-    }
-}
-// x != 0 or y = 0 => |xy| >= |y|
-bool core::proportion_lemma_derived(const rooted_mon& rm, const factorization& factorization) {
-    return false;
-    rational rmv = abs(vvr(rm));
-    if (rmv.is_zero()) {
-        SASSERT(has_zero_factor(factorization));
-        return false;
-    }
-    int factor_index = 0;
-    for (factor f : factorization) {
-        if (abs(vvr(f)) > rmv) {
-            generate_pl(rm, factorization, factor_index);
-            return true;
-        }
-        factor_index++;
-    }
-    return false;
-}
 
-void core::basic_lemma_for_mon_model_based(const rooted_mon& rm) {
-    TRACE("nla_solver_bl", tout << "rm = "; print_rooted_monomial(rm, tout););
-    if (vvr(rm).is_zero()) {
-        for (auto factorization : factorization_factory_imp(rm, *this)) {
-            if (factorization.is_empty())
-                continue;
-            basic_lemma_for_mon_zero_model_based(rm, factorization);
-            basic_lemma_for_mon_neutral_model_based(rm, factorization);
-        }
-    } else {
-        for (auto factorization : factorization_factory_imp(rm, *this)) {
-            if (factorization.is_empty())
-                continue;
-            basic_lemma_for_mon_non_zero_model_based(rm, factorization);
-            basic_lemma_for_mon_neutral_model_based(rm, factorization);
-            proportion_lemma_model_based(rm, factorization) ;
-        }
-    }
-}
-
-bool core::basic_lemma_for_mon_derived(const rooted_mon& rm) {
-    if (var_is_fixed_to_zero(var(rm))) {
-        for (auto factorization : factorization_factory_imp(rm, *this)) {
-            if (factorization.is_empty())
-                continue;
-            if (basic_lemma_for_mon_zero(rm, factorization) ||
-                basic_lemma_for_mon_neutral_derived(rm, factorization)) {
-                explain(factorization, current_expl());
-                return true;
-            }
-        }
-    } else {
-        for (auto factorization : factorization_factory_imp(rm, *this)) {
-            if (factorization.is_empty())
-                continue;
-            if (basic_lemma_for_mon_non_zero_derived(rm, factorization) ||
-                basic_lemma_for_mon_neutral_derived(rm, factorization) ||
-                proportion_lemma_derived(rm, factorization)) {
-                explain(factorization, current_expl());
-                return true;
-            }
-        }
-    }
-    return false;
-}
-    
-// Use basic multiplication properties to create a lemma
-// for the given monomial.
-// "derived" means derived from constraints - the alternative is model based
-void core::basic_lemma_for_mon(const rooted_mon& rm, bool derived) {
-    if (derived)
-        basic_lemma_for_mon_derived(rm);
-    else
-        basic_lemma_for_mon_model_based(rm);
-}
 
 void core::init_rm_to_refine() {
     if (!m_rm_table.to_refine().empty())
@@ -1730,29 +893,6 @@ lp::lp_settings& core::settings() {
     
 unsigned core::random() { return settings().random_next(); }
     
-// use basic multiplication properties to create a lemma
-bool core::basic_lemma(bool derived) {
-    if (basic_sign_lemma(derived))
-        return true;
-    if (derived)
-        return false;
-    init_rm_to_refine();
-    const auto& rm_ref = m_rm_table.to_refine();
-    TRACE("nla_solver", tout << "rm_ref = "; print_vector(rm_ref, tout););
-    unsigned start = random() % rm_ref.size();
-    unsigned i = start;
-    do {
-        const rooted_mon& r = m_rm_table.rms()[rm_ref[i]];
-        SASSERT (!check_monomial(m_monomials[r.orig_index()]));
-        basic_lemma_for_mon(r, derived);
-        if (++i == rm_ref.size()) {
-            i = 0;
-        }
-    } while(i != start && !done());
-        
-    return false;
-}
-
 void core::map_monomial_vars_to_monomial_indices(unsigned i) {
     const monomial& m = m_monomials[i];
     for (lpvar j : m.vars()) {
@@ -2964,7 +2104,7 @@ lbool core::inner_check(bool derived) {
     for (int search_level = 0; search_level < 3 && !done(); search_level++) {
         TRACE("nla_solver", tout << "derived = " << derived << ", search_level = " << search_level << "\n";);
         if (search_level == 0) {
-            basic_lemma(derived);
+            m_basics.basic_lemma(derived);
             if (!m_lemma_vec->empty())
                 return l_false;
         }
@@ -3038,5 +2178,6 @@ lbool core::test_check(
     m_lar_solver.set_status(lp::lp_status::OPTIMAL);
     return check(l);
 }
+template rational core::product_value<monomial>(const monomial & m) const;
 
 } // end of nla
