@@ -91,7 +91,6 @@ struct core {
     tangents                                                         m_tangents;
     basics                                                            m_basics;
     // methods
-    unsigned find_monomial(const unsigned_vector& k) const;
     core(lp::lar_solver& s);
     
     bool compare_holds(const rational& ls, llc cmp, const rational& rs) const;
