@@ -25,7 +25,9 @@ z3_add_component(lp
     matrix.cpp
     mon_eq.cpp
     nla_basics_lemmas.cpp
+    nla_common.cpp
     nla_core.cpp
+    nla_order_lemmas.cpp
     nla_solver.cpp
     nla_tangent_lemmas.cpp
     nra_solver.cpp    
