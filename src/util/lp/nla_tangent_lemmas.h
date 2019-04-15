@@ -21,9 +21,11 @@
 #include "util/rational.h"
 #include "util/lp/rooted_mons.h"
 #include "util/lp/factorization.h"
+#include "util/lp/nla_common.h"
+
 namespace nla {
 struct core;
-struct tangents {   
+struct tangents: common {   
     struct point {
         rational x;
         rational y;
@@ -43,9 +45,6 @@ struct tangents {
         }
     };
     
-    core* m_core;
-    core& c() { return *m_core; }
-    const core& c() const { return *m_core; }
     tangents(core *core);
 
     void generate_simple_tangent_lemma(const rooted_mon* rm);
@@ -78,6 +77,5 @@ struct tangents {
                                bool below) const;
     template <typename T> rational vvr(T const& t) const;
     template <typename T> lpvar var(T const& t) const;
-    void add_empty_lemma();
 }; // end of tangents
 }

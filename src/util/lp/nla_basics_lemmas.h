@@ -21,14 +21,12 @@
 #include "util/lp/monomial.h"    
 #include "util/lp/rooted_mons.h"    
 #include "util/lp/factorization.h"    
+#include "util/lp/nla_common.h"    
 
 
 namespace nla {
 struct core;
-struct basics {
-    core* m_core;
-    core& c() { return *m_core; }
-    const core& c() const { return *m_core; }
+struct basics: common {
     basics(core *core);
     bool basic_sign_lemma_on_two_monomials(const monomial& m, const monomial& n, const rational& sign);
 
@@ -85,9 +83,6 @@ struct basics {
     void basic_lemma_for_mon(const rooted_mon& rm, bool derived);
     // use basic multiplication properties to create a lemma
     bool basic_lemma(bool derived);
-    template <typename T> rational vvr(T const& t) const;
-    rational vvr(lpvar) const;
-    template <typename T> lpvar var(T const& t) const;
     void generate_sign_lemma(const monomial& m, const monomial& n, const rational& sign);
     void generate_zero_lemmas(const monomial& m);
     lpvar find_best_zero(const monomial& m, unsigned_vector & fixed_zeros) const;
@@ -97,14 +92,11 @@ struct basics {
     void generate_strict_case_zero_lemma(const monomial& m, unsigned zero_j, int sign_of_zj);
     
     void add_fixed_zero_lemma(const monomial& m, lpvar j);
-    void add_empty_lemma();
     void negate_strict_sign(lpvar j);
-    bool done() const;
     // x != 0 or y = 0 => |xy| >= |y|
     void proportion_lemma_model_based(const rooted_mon& rm, const factorization& factorization);
     // x != 0 or y = 0 => |xy| >= |y|
     bool proportion_lemma_derived(const rooted_mon& rm, const factorization& factorization);
-    template <typename T> void explain(const T&);
     // if there are no zero factors then |m| >= |m[factor_index]|
     void generate_pl_on_mon(const monomial& m, unsigned factor_index);
     
