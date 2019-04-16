@@ -72,4 +72,33 @@ public:
     rational const& coeff() const { return m_coeff; }
     const svector<lp::var_index> & vars() const { return m_vs; } 
 };
+template <typename T> bool has_zero(const T& product) {
+    for (const rational & t : product) {
+        if (t.is_zero())
+            return true;
+    }
+    return false;
+}
+template <typename T>
+bool uniform_le(const T& a, const T& b,  unsigned & strict_i) {
+    SASSERT(a.size() == b.size());
+    strict_i = -1;
+    bool z_b = false;
+        
+    for (unsigned i = 0; i < a.size(); i++) {
+        if (a[i] > b[i]){
+            return false;
+        }
+            
+        SASSERT(!a[i].is_neg());
+        if (a[i] < b[i]){
+            strict_i = i;
+        } else if (b[i].is_zero()) {
+            z_b = true;
+        }
+    }
+    if (z_b) {strict_i = -1;}
+    return true;
+}
+
 }
