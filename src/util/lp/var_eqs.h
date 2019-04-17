@@ -25,7 +25,8 @@
 #include "util/lp/explanation.h"
 
 namespace nla {
-    
+
+
 
 class eq_justification {
     lpci m_cs[4];
@@ -46,6 +47,16 @@ public:
                 e.add(c);
     }
 };
+
+ class var_eqs_merge_handler {
+ public:
+     virtual void merge_eh(signed_var r2, signed_var r1, signed_var v2, signed_var v1) = 0;
+
+     virtual void after_merge_eh(signed_var r2, signed_var r1, signed_var v2, signed_var v1) = 0;
+
+     virtual void unmerge_eh(signed_var r2, signed_var r1) = 0;;        
+
+ };
 
 class var_eqs {
     struct justified_var {
@@ -68,12 +79,14 @@ class var_eqs {
 
     typedef std::pair<signed_var, signed_var> signed_var_pair;
 
-    union_find_default_ctx  m_ufctx;
-    union_find<>            m_uf;
+    var_eqs_merge_handler*  m_merge_handler;    
+    union_find<var_eqs>         m_uf;
     svector<signed_var_pair>    m_trail;
     unsigned_vector         m_trail_lim;
     vector<justified_vars>  m_eqs;    // signed_var-index -> justified_var corresponding to edges in a graph used to extract justifications.
 
+    typedef trail_stack<var_eqs>    trail_stack_t;       
+    trail_stack_t                   m_stack;
     mutable svector<var_frame>      m_todo;
     mutable svector<bool>           m_marked;
     mutable unsigned_vector         m_marked_trail;
@@ -164,8 +177,32 @@ public:
 
     eq_class equiv_class(lpvar v) { return equiv_class(signed_var(v, false)); }
 
+
     std::ostream& display(std::ostream& out) const;
-    
+
+    // union find event handlers
+    void set_merge_handler(var_eqs_merge_handler* mh) { m_merge_handler = mh; }
+
+    trail_stack_t& get_trail_stack() { return m_stack; }
+
+    void unmerge_eh(unsigned i, unsigned j) { 
+        if (m_merge_handler) {
+            m_merge_handler->unmerge_eh(signed_var(i, from_index_dummy()), signed_var(j, from_index_dummy())); 
+        }
+    }
+    void merge_eh(unsigned r2, unsigned r1, unsigned v2, unsigned v1) {
+        if (m_merge_handler) {
+            m_merge_handler->merge_eh(signed_var(r2, from_index_dummy()), signed_var(r1, from_index_dummy()), signed_var(v2, from_index_dummy()), signed_var(v1, from_index_dummy())); 
+        }
+    }
+
+    void after_merge_eh(unsigned r2, unsigned r1, unsigned v2, unsigned v1) {
+        if (m_merge_handler) {
+            m_merge_handler->after_merge_eh(signed_var(r2, from_index_dummy()), signed_var(r1, from_index_dummy()), signed_var(v2, from_index_dummy()), signed_var(v1, from_index_dummy())); 
+        }
+    }
+
+
 }; 
 
     inline std::ostream& operator<<(var_eqs const& ve, std::ostream& out) { return ve.display(out); }

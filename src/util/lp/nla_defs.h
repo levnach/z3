@@ -30,7 +30,6 @@ typedef lp::explanation          expl_set;
 typedef lp::var_index            lpvar;
 
 struct from_index_dummy{};
-
 class signed_var {
     unsigned m_sv;
 public:
