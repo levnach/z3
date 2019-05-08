@@ -26,6 +26,7 @@
 #include "util/lp/nla_order_lemmas.h"
 #include "util/lp/nla_monotone_lemmas.h"
 #include "util/lp/emonomials.h"
+#include "util/lp/nla_settings.h"
 namespace nla {
 
 template <typename A, typename B>
@@ -84,8 +85,13 @@ public:
     basics                   m_basics;
     order                    m_order;
     monotone                 m_monotone;
+    nla_settings               m_settings;
+private:
     emonomials               m_emons;
-
+public:
+    emonomials& emons() { return m_emons; }
+    const emonomials& emons() const { return m_emons; }
+    // constructor
     core(lp::lar_solver& s);
 
     bool compare_holds(const rational& ls, llc cmp, const rational& rs) const;
@@ -340,13 +346,13 @@ struct pp_mon {
     core const& c;
     monomial const& m;
     pp_mon(core const& c, monomial const& m): c(c), m(m) {}
-    pp_mon(core const& c, lpvar v): c(c), m(c.m_emons[v]) {}
+    pp_mon(core const& c, lpvar v): c(c), m(c.emons()[v]) {}
 };
 struct pp_rmon {
     core const& c;
     monomial const& m;
     pp_rmon(core const& c, monomial const& m): c(c), m(m) {}
-    pp_rmon(core const& c, lpvar v): c(c), m(c.m_emons[v]) {}
+    pp_rmon(core const& c, lpvar v): c(c), m(c.emons()[v]) {}
 };
 inline rational sign_to_rat(bool s) { return rational(s? -1 : 1); }
 inline std::ostream& operator<<(std::ostream& out, pp_mon const& p) { return p.c.print_monomial(p.m, out); }

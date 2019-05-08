@@ -27,6 +27,7 @@
 #include "util/nat_set.h"
 #include "util/optional.h"
 #include "util/lp/lp_params.hpp"
+#include "util/lp/nla_params.hpp"
 #include "util/inf_rational.h"
 #include "smt/smt_theory.h"
 #include "smt/smt_context.h"
@@ -438,6 +439,9 @@ class theory_lra::imp {
                 (void)_s;
                 m_nla->push();
             }
+            nla_params nla(ctx().get_params());
+            m_nla->get_core()->m_settings.run_order() = nla.order();
+            m_nla->get_core()->m_settings.run_tangents() = nla.tangents();
         }
     }
 

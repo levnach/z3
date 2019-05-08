@@ -66,6 +66,10 @@ void tangents::generate_simple_tangent_lemma(const monomial& m) {
 }
     
 void tangents::tangent_lemma() {
+    if (!c().m_settings.run_tangents()) {
+        TRACE("nla_solver", tout << "not generating tangent lemmas\n";);
+        return;
+    }
     bfc bf;
     lpvar j;
     rational sign;

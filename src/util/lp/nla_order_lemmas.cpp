@@ -28,11 +28,16 @@ namespace nla {
 // a > b && c > 0 => ac > bc
 void order::order_lemma() {
     TRACE("nla_solver", );
+    if (!c().m_settings.run_order()) {
+        TRACE("nla_solver", tout << "not generating order lemmas\n";);
+        return;
+    }
+    
     const auto& rm_ref = c().m_to_refine; // todo : run on the rooted subset or m_to_refine
     unsigned start = random();
     unsigned sz = rm_ref.size();
     for (unsigned i = 0; i < sz && !done(); ++i) {        
-        const monomial& rm = c().m_emons[rm_ref[(i + start) % sz]];
+        const monomial& rm = c().emons()[rm_ref[(i + start) % sz]];
         order_lemma_on_rmonomial(rm);
     }
 }
@@ -100,7 +105,7 @@ void order::order_lemma_on_factor_binomial_explore(const monomial& ac, bool k) {
     SASSERT(ac.size() == 2);    
     lpvar c = ac.vars()[k];
     
-    for (monomial const& bd : _().m_emons.get_products_of(c)) {
+    for (monomial const& bd : _().emons().get_products_of(c)) {
         if (bd.var() == ac.var()) continue;
         TRACE("nla_solver", tout << "bd = " << pp_rmon(_(), bd););
         order_lemma_on_factor_binomial_rm(ac, k, bd);
@@ -239,14 +244,14 @@ bool order::order_lemma_on_ac_explore(const monomial& rm, const factorization& a
     TRACE("nla_solver", tout << "c = "; _().print_factor_with_vars(c, tout); );
     if (c.is_var()) {
         TRACE("nla_solver", tout << "var(c) = " << var(c););
-        for (monomial const& bc : _().m_emons.get_use_list(c.var())) {
+        for (monomial const& bc : _().emons().get_use_list(c.var())) {
             if (order_lemma_on_ac_and_bc(rm ,ac, k, bc)) {
                 return true;
             }
         }
     } 
     else {
-        for (monomial const& bc : _().m_emons.get_products_of(c.var())) {
+        for (monomial const& bc : _().emons().get_products_of(c.var())) {
             if (order_lemma_on_ac_and_bc(rm , ac, k, bc)) {
                 return true;
             }
