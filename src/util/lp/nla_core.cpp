@@ -1217,22 +1217,6 @@ rational core::val(const factorization& f) const {
     return r;
 }
 
-void core::generate_simple_sign_lemma(const rational& sign, const monomial& m) {
-    add_empty_lemma();
-    SASSERT(sign == nla::rat_sign(product_value(m.vars())));
-    for (lpvar j : m.vars()) {
-        if (val(j).is_pos()) {
-            mk_ineq(j, llc::LE);
-        } else {
-            SASSERT(val(j).is_neg());
-            mk_ineq(j, llc::GE);
-        }
-    }
-    mk_ineq(m.var(), (sign.is_pos()? llc::GT : llc ::LT));
-    TRACE("nla_solver", print_lemma(tout););
-}
-
-
 void core::add_empty_lemma() {
     m_lemma_vec->push_back(lemma());
 }
