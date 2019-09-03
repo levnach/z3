@@ -18,7 +18,7 @@ def init_project_def():
     add_lib('dd', ['util'], 'math/dd')
     add_lib('sat', ['util','dd'])
     add_lib('nlsat', ['polynomial', 'sat'])
-    add_lib('lp', ['util','nlsat'], 'util/lp')
+    add_lib('lp', ['util','nlsat'], 'math/lp')
     add_lib('hilbert', ['util'], 'math/hilbert')
     add_lib('simplex', ['util'], 'math/simplex')
     add_lib('automata', ['util'], 'math/automata')
