@@ -2169,7 +2169,7 @@ public:
             for(const nla::lemma & l : lv) {
                 m_lemma = l; //todo avoid the copy
                 m_explanation = l.expl();
-                m_stats.m_nla_explanations += l.expl().size();
+                m_stats.m_nla_explanations += static_cast<unsigned>(l.expl().size());
                 false_case_of_check_nla();
             }
             break;
