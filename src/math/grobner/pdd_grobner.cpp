@@ -188,6 +188,7 @@ namespace dd {
         return eq;
     }
 
+<<<<<<< HEAD
     void grobner::simplify() {
         try {
             while (!done() &&
@@ -500,6 +501,12 @@ namespace dd {
         for (equation* target : m_processed) {
             superpose(eq, *target);
         }
+=======
+    void grobner::superpose(equation const & eq) {
+        for (equation* target : m_processed) {
+            retire(target);             
+        }
+>>>>>>> merge changes from Z3Prover repository
     }
 
     /*
@@ -645,7 +652,11 @@ namespace dd {
     }
 
     void grobner::add_to_watch(equation& eq) {
+<<<<<<< HEAD
         SASSERT(eq.state() == to_simplify);
+=======
+        SASSERT(!eq.is_processed());
+>>>>>>> merge changes from Z3Prover repository
         SASSERT(is_tuned());
         pdd const& p = eq.poly();
         if (!p.is_val()) {
@@ -753,6 +764,7 @@ namespace dd {
             m_to_simplify.size() + m_processed.size() >= m_config.m_eqs_threshold || 
             canceled() || 
             m_conflict != nullptr;
+<<<<<<< HEAD
     }
 
     grobner::equation_vector& grobner::get_queue(equation const& eq) {
@@ -763,6 +775,8 @@ namespace dd {
         }
         UNREACHABLE();
         return m_to_simplify;
+=======
+>>>>>>> merge changes from Z3Prover repository
     }
 
     void grobner::del_equation(equation* eq) {
