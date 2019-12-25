@@ -1,5 +1,6 @@
 #include "math/dd/dd_pdd.h"
 #include "math/dd/pdd_eval.h"
+#include "math/dd/pdd_interval.h"
 
 namespace dd {
 static void test1() {
@@ -104,6 +105,51 @@ static void test_reset() {
         std::cout << (a + b)*(c + d) << "\n";
     }
 
+static void  test7() {
+    std::cout << "\ntest7\n";
+    
+    pdd_manager m(5);
+    pdd a_ = m.mk_var(0);
+  
+    pdd a = m.mk_var(1);
+    pdd b = m.mk_var(2);
+    pdd c = m.mk_var(3);
+    pdd d = m.mk_var(4);
+    pdd_eval ev(m);
+    std::function<rational (unsigned)> f = [](unsigned j){ return rational(j); };
+    ev.var2val() = f;
+    pdd p = a * d * c + a + d;
+    VERIFY(ev(p) == rational(1*4*3 + 1 + 4));
+    p = a * d * d * c + a + d * c;
+    VERIFY(ev(p) == rational(1*4*4*3 + 1 + 4*3));
+}
+static void  test8() {
+    std::cout << "\ntest8\n";
+    
+    pdd_manager m(5);
+    pdd a_ = m.mk_var(0);
+  
+    pdd a = m.mk_var(1);
+    pdd b = m.mk_var(2);
+    pdd c = m.mk_var(3);
+    pdd d = m.mk_var(4);
+    reslimit lim;
+    pdd_interval ev(m, lim);
+
+    dep_intervals intervals(lim);
+    typedef dep_intervals::interval interval;
+    std::function<interval (unsigned, bool )> f = [&intervals](unsigned j, bool){
+                                                      interval a;
+                                                      intervals.set_interval_for_scalar(a, rational(j));
+                                                      intervals.set_upper(a, rational(j + 1));                                                                                return a;
+                                                  };
+    ev.var2interval() = f;
+    pdd p = a * d + d;
+    interval i = ev.get_interval<dep_intervals::with_deps_t::without_deps>(p);
+    VERIFY(intervals.lower(i) == rational(1*4 + 4));
+    VERIFY(intervals.upper(i) == rational((1+1)*(4+1) + (4+1)));
+}
+>>>>>>> add pdd_interval to evaluate intervals of pdd expressions
 }
 
 void tst_pdd() {
@@ -111,4 +157,6 @@ void tst_pdd() {
     dd::test2();
     dd::test3();
     dd::test_reset();
+    dd::test7();
+    dd::test8();
 }
