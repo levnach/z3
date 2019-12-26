@@ -240,7 +240,6 @@ namespace dd {
 
         pdd_manager(unsigned nodes, semantics s = free_e);
         ~pdd_manager();
-
         void reset(unsigned_vector const& level2var);
         void set_max_num_nodes(unsigned n) { m_max_num_nodes = n; }
         unsigned_vector const& get_level2var() const { return m_level2var; }
