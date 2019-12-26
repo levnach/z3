@@ -82,7 +82,7 @@ static void test3() {
         e = e * e;
     }
     e = e * b;
-    std::cout << e << "\n";
+    //    std::cout << e << "\n";
 }
 
 static void test_reset() {
@@ -103,7 +103,44 @@ static void test_reset() {
         c = m.mk_var(2);
         d = m.mk_var(3);
         std::cout << (a + b)*(c + d) << "\n";
-    }
+}
+
+static void test5() {
+    std::cout << "\ntest5\n";
+    pdd_manager m(2);
+    pdd a = m.mk_var(0);
+    pdd b = m.mk_var(1);
+
+    pdd e = (a - b) * ( a + b);
+    pdd f = a * a  - b * b;
+    SASSERT(e == f);
+
+    e = (a - b)* (a - b);
+    f = a * a - 2 * a * b + b * b;
+    SASSERT(e == f);
+    e = a - 3;
+    e = e * e;
+    f = a * a - 6 * a + 9;
+    SASSERT(e == f);        
+    e = 2 * a - 3;
+    e = e * e;
+    f = 4 * a * a - 12 * a + 9;
+    SASSERT(e == f);        
+}
+
+static void test6() {
+    std::cout << "\ntest6\n";
+    pdd_manager m(5);
+    pdd a = m.mk_var(0);
+    pdd b = m.mk_var(1);
+    pdd c = m.mk_var(2);
+    pdd d = m.mk_var(3);
+    pdd e = a * b * b * d + 2*a*b*c + (b*c*d) + (b*c) + (c*d) + 3;
+    pdd f = a * d * c + a + d;
+    pdd l = m.zero();
+    VERIFY(m.try_spoly(e, f, l));
+    std::cout << "superpose\n" << e << "\nand\n" << f << "\nresult\n" << l << "\n"; 
+}
 
 static void  test7() {
     std::cout << "\ntest7\n";
@@ -148,8 +185,8 @@ static void  test8() {
     interval i = ev.get_interval<dep_intervals::with_deps_t::without_deps>(p);
     VERIFY(intervals.lower(i) == rational(1*4 + 4));
     VERIFY(intervals.upper(i) == rational((1+1)*(4+1) + (4+1)));
+    VERIFY(intervals.separated_from_zero(i));
 }
->>>>>>> add pdd_interval to evaluate intervals of pdd expressions
 }
 
 void tst_pdd() {
