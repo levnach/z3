@@ -99,8 +99,6 @@ public:
     grobner(reslimit& lim, pdd_manager& m);
     ~grobner();
 
-    u_dependency_manager& get_dep_manager() { return m_dep_manager; }
-
     void operator=(print_dep_t& pd) { m_print_dep = pd; }
     void operator=(config const& c) { m_config = c; }
 
