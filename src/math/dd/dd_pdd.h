@@ -45,6 +45,7 @@ namespace dd {
         enum semantics { free_e, mod2_e, zero_one_vars_e };
     private:
         friend pdd;
+
         typedef unsigned PDD;
         typedef vector<std::pair<rational,unsigned_vector>> monomials_t;
 
