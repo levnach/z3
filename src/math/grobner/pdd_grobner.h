@@ -36,6 +36,7 @@ public:
         unsigned m_max_expr_degree;
         unsigned m_superposed;
         unsigned m_compute_steps;
+        unsigned m_conflicts;
         void reset() { memset(this, 0, sizeof(*this)); }
         stats() { reset(); }
     };
@@ -115,6 +116,8 @@ public:
     void collect_statistics(statistics & st) const;
     std::ostream& display(std::ostream& out, const equation& eq) const;
     std::ostream& display(std::ostream& out) const;
+    const stats& get_stats() const { return m_stats; }
+    stats& get_stats() { return m_stats; }
 
 private:
     bool step();
