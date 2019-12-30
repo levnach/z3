@@ -43,10 +43,12 @@ public:
     struct config {
         unsigned m_eqs_threshold;
         unsigned m_expr_size_limit;
+        unsigned m_max_steps;
         enum { basic, tuned } m_algorithm;
         config() :
             m_eqs_threshold(UINT_MAX),
             m_expr_size_limit(UINT_MAX),
+                m_max_steps(UINT_MAX),
                 m_algorithm(tuned)
         {}
     };
@@ -115,6 +117,7 @@ public:
     void collect_statistics(statistics & st) const;
     std::ostream& display(std::ostream& out, const equation& eq) const;
     std::ostream& display(std::ostream& out) const;
+    std::ostream& display_statistics(std::ostream& out) const;
     const stats& get_stats() const { return m_stats; }
     stats& get_stats() { return m_stats; }
 
