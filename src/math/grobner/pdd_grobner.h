@@ -44,12 +44,10 @@ public:
         unsigned m_eqs_threshold;
         unsigned m_expr_size_limit;
         unsigned m_max_steps;
-        enum { basic, tuned } m_algorithm;
         config() :
             m_eqs_threshold(UINT_MAX),
             m_expr_size_limit(UINT_MAX),
-                m_max_steps(UINT_MAX),
-                m_algorithm(tuned)
+            m_max_steps(UINT_MAX)
         {}
     };
 
@@ -97,6 +95,7 @@ private:
     mutable u_dependency_manager                 m_dep_manager;
     equation_vector                              m_all_eqs;
     equation*                                    m_conflict;   
+    bool                                         m_too_complex; 
 public:
     grobner(reslimit& lim, pdd_manager& m);
     ~grobner();
@@ -123,15 +122,13 @@ public:
 
 private:
     bool step();
-    bool basic_step();
-    bool basic_step(equation* e);
     equation* pick_next();
     bool canceled();
     bool done();
     void superpose(equation const& eq1, equation const& eq2);
     void superpose(equation const& eq);
-    bool simplify_using(equation& eq, equation_vector const& eqs);
-    bool simplify_using(equation_vector& set, equation const& eq);
+    void simplify_using(equation& eq, equation_vector const& eqs);
+    void simplify_using(equation_vector& set, equation const& eq);
     void simplify_using(equation & dst, equation const& src, bool& changed_leading_term);
     bool try_simplify_using(equation& target, equation const& source, bool& changed_leading_term);
 
@@ -184,13 +181,12 @@ private:
     struct scoped_process {
         grobner& g;
         equation* e;
+        void done();
         scoped_process(grobner& g, equation* e): g(g), e(e) {}
         ~scoped_process();        
     };
 
     void update_stats_max_degree_and_size(const equation& e);
-    bool is_tuned() const { return m_config.m_algorithm == config::tuned;  }
-    bool is_basic() const { return m_config.m_algorithm == config::basic; }
 };
 
 }
