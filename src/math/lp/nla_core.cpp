@@ -1492,7 +1492,7 @@ bool core::check_pdd_eq(const dd::grobner::equation* e) {
                                                          add_empty_lemma();
                                                          current_expl().add(e);
                                                      };
-    if (di.check_interval_for_conflict_on_zero(i_wd, e->dep(), f)) {
+    if (di.check_interval_for_conflict_on_zero(i_wd, nullptr, f)) {
         lp_settings().stats().m_grobner_conflicts++;
         return true;
     }
@@ -1530,6 +1530,18 @@ void core::add_var_and_its_factors_to_q_and_collect_new_rows(lpvar j, svector<lp
     }            
 }
 
+dd::pdd core::pdd_expr(const rational& c, lpvar j) {
+    if (!is_monic_var(j))
+        return c * m_pdd_manager.mk_var(j);
+
+    // j is a monic var
+    dd::pdd r = m_pdd_manager.mk_val(c);
+    const monic& m = emons()[j];
+    for (lpvar k : m.vars()) {
+        r *= m_pdd_manager.mk_var(k);
+    }
+    return r;
+}
 
 dd::pdd core::pdd_expr(const rational& c, lpvar j, u_dependency*& dep) {
     unsigned lc, uc;
@@ -1567,7 +1579,7 @@ void core::add_row_to_pdd_grobner(const vector<lp::row_cell<rational>> & row) {
     for (const auto &p : row) {
         sum  += pdd_expr(p.coeff(), p.var(), dep);
     }
-    m_pdd_grobner.add(sum, dep);    
+    m_pdd_grobner.add(sum);    
 }
 
 

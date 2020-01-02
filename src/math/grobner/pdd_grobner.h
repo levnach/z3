@@ -61,20 +61,16 @@ public:
         eq_state                   m_state; 
         unsigned                   m_idx;        //!< unique index
         pdd                        m_poly;       //!< polynomial in pdd form
-        u_dependency *             m_dep;        //!< justification for the equality
     public:
-        equation(pdd const& p, u_dependency* d): 
+        equation(pdd const& p): 
             m_state(to_simplify),
             m_idx(0),
-            m_poly(p),
-            m_dep(d)
+            m_poly(p)
         {}
 
         const pdd& poly() const { return m_poly; }        
-        u_dependency * dep() const { return m_dep; }
         unsigned idx() const { return m_idx; }
         void operator=(pdd const& p) { m_poly = p; }
-        void operator=(u_dependency* d) { m_dep = d; }
         eq_state state() const { return m_state; }
         void set_state(eq_state st) { m_state = st; }
         void set_index(unsigned idx) { m_idx = idx; }
@@ -104,8 +100,7 @@ public:
     void operator=(config const& c) { m_config = c; }
 
     void reset();
-    void add(pdd const& p) { add(p, nullptr); }
-    void add(pdd const& p, u_dependency * dep);
+    void add(pdd const& p);
 
     void simplify();
     void saturate();

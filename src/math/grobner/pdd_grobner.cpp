@@ -313,7 +313,6 @@ namespace dd {
             pdd q = eq2->poly();
             if (eq2 != eq1 && (p.hi().is_val() || q.hi().is_val()) && !p.lo().is_val()) {
                 *eq1 = p - eq2->poly();
-                *eq1 = m_dep_manager.mk_join(eq1->dep(), eq2->dep());
                 reduced = true;
                 if (is_trivial(*eq1)) {
                     retire(eq1);
@@ -600,7 +599,6 @@ namespace dd {
               tout << "to:     " << r << "\n";);
         changed_leading_term = dst.state() == processed && m.different_leading_term(r, dst.poly());
         dst = r;
-        dst = m_dep_manager.mk_join(dst.dep(), src.dep());
         update_stats_max_degree_and_size(dst);
         return true;
     }
@@ -618,7 +616,6 @@ namespace dd {
 
         if (r == dst.poly()) return;
         dst = r;
-        dst = m_dep_manager.mk_join(dst.dep(), src.dep());
         update_stats_max_degree_and_size(dst);
     }
 
@@ -634,7 +631,7 @@ namespace dd {
             }
             else {
                 m_stats.m_superposed++;
-                add(r, m_dep_manager.mk_join(eq1.dep(), eq2.dep()));
+                add(r);
             }
         }
     }
@@ -758,9 +755,9 @@ namespace dd {
         m_conflict = nullptr;
     }
 
-    void grobner::add(pdd const& p, u_dependency * dep) {
+    void grobner::add(pdd const& p) {
         if (p.is_zero()) return;
-        equation * eq = alloc(equation, p, dep);
+        equation * eq = alloc(equation, p);
         if (check_conflict(*eq)) {
             return;
         }
@@ -838,7 +835,6 @@ namespace dd {
             
     std::ostream& grobner::display(std::ostream & out, const equation & eq) const {
         out << eq.poly() << "\n";
-        if (m_print_dep) m_print_dep(eq.dep(), out);
         return out;
     }
 

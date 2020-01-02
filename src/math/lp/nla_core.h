@@ -410,6 +410,7 @@ public:
     void add_row_to_pdd_grobner(const vector<lp::row_cell<rational>> & row);    
     bool check_pdd_eq(const dd::grobner::equation*);
     dd::pdd pdd_expr(const rational& c, lpvar j, u_dependency*&);
+    dd::pdd pdd_expr(const rational& c, lpvar j);
     void set_level2var_for_pdd_grobner();
 };  // end of core
 
