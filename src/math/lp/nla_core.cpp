@@ -1543,41 +1543,10 @@ dd::pdd core::pdd_expr(const rational& c, lpvar j) {
     return r;
 }
 
-dd::pdd core::pdd_expr(const rational& c, lpvar j, u_dependency*& dep) {
-    unsigned lc, uc;
-    m_lar_solver.get_bound_constraint_witnesses_for_column(j, lc, uc);
-    if (lc != null_lpvar)
-        dep = m_intervals.mk_join(dep, m_intervals.mk_leaf(lc));
-    if (uc != null_lpvar) 
-        dep = m_intervals.mk_join(dep, m_intervals.mk_leaf(uc));
-    if (var_is_fixed(j)) {
-        return m_pdd_manager.mk_val(c *  m_lar_solver.column_lower_bound(j).x);
-    }
-
-    if (!is_monic_var(j))
-        return c * m_pdd_manager.mk_var(j);
-
-    // j is a monic var
-    dd::pdd r = m_pdd_manager.mk_val(c);
-    const monic& m = emons()[j];
-    for (lpvar k : m.vars()) {
-        if (var_is_fixed(k)) {
-            r *= m_pdd_manager.mk_val(m_lar_solver.column_lower_bound(k).x);           
-            m_lar_solver.get_bound_constraint_witnesses_for_column(k, lc, uc);
-            dep = m_intervals.mk_join(dep, m_intervals.mk_leaf(lc));
-            dep = m_intervals.mk_join(dep, m_intervals.mk_leaf(uc));
-        } else {
-            r *= m_pdd_manager.mk_var(k);
-        }
-    }
-    return r;
-}
-
 void core::add_row_to_pdd_grobner(const vector<lp::row_cell<rational>> & row) {
-    u_dependency *dep = nullptr;
     dd::pdd sum = m_pdd_manager.mk_val(rational(0));
     for (const auto &p : row) {
-        sum  += pdd_expr(p.coeff(), p.var(), dep);
+        sum  += pdd_expr(p.coeff(), p.var());
     }
     m_pdd_grobner.add(sum);    
 }
