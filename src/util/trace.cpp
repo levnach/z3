@@ -59,6 +59,8 @@ bool is_trace_enabled(const char * tag) {
     if (g_enable_all_trace_tags) {
         if (get_enabled_trace_tags().contains(tag))
             return false;
+        if (strcmp(tag, "memory") == 0)
+            return false;
         std::string stag(tag);
         std::string bug("bug");
         if (stag.find(bug) != std::string::npos)
