@@ -205,7 +205,7 @@ void memory::deallocate(char const * file, int line, void * p) {
 
 void * memory::allocate(char const* file, int line, char const* obj, size_t s) {
     void * r = allocate(s);
-    TRACE("memory", tout << "alloc " << std::hex << r << std::dec << " " << file << ":" << line << " " << obj << " " << s << "\n";);
+    // TRACE("memory", tout << "alloc " << std::hex << r << std::dec << " " << file << ":" << line << " " << obj << " " << s << "\n";);
     return r;
 }
 #endif
