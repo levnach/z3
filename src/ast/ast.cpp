@@ -1756,9 +1756,10 @@ func_decl* ast_manager::get_rec_fun_decl(quantifier* q) const {
 
 
 void ast_manager::register_plugin(family_id id, decl_plugin * plugin) {
-    SASSERT(m_plugins.get(id, 0) == 0);
-    m_plugins.setx(id, plugin, 0);
-    plugin->set_manager(this, id);
+    if (m_plugins.get(id, 0) == 0) {
+        m_plugins.setx(id, plugin, 0);
+        plugin->set_manager(this, id);
+    }
 }
 
 bool ast_manager::is_bool(expr const * n) const {

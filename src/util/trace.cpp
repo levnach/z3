@@ -23,7 +23,7 @@ Revision History:
 
 std::ofstream tout(".z3-trace"); 
 
-static bool g_enable_all_trace_tags = false;
+static int g_enable_all_trace_tags = false;
 static str_hashtable* g_enabled_trace_tags = nullptr;
 
 static str_hashtable& get_enabled_trace_tags() {
@@ -39,7 +39,12 @@ void finalize_trace() {
 }
 
 void enable_trace(const char * tag) {
-    get_enabled_trace_tags().insert(tag);
+    int v = atoi(tag);
+    if (v) {
+        g_enable_all_trace_tags = v;
+    } else {
+        get_enabled_trace_tags().insert(tag);
+    }
 }
 
 void enable_all_trace(bool flag) {
@@ -51,6 +56,20 @@ void disable_trace(const char * tag) {
 }
 
 bool is_trace_enabled(const char * tag) {
+    if (g_enable_all_trace_tags) {
+        if (get_enabled_trace_tags().contains(tag))
+            return false;
+        std::string stag(tag);
+        std::string bug("bug");
+        if (stag.find(bug) != std::string::npos)
+            return false;
+        g_enable_all_trace_tags--;
+        if (g_enable_all_trace_tags == 0)
+            exit(3);
+        if (g_enable_all_trace_tags % 5)
+            return false;
+            
+    }
     return g_enable_all_trace_tags || 
         (g_enabled_trace_tags && get_enabled_trace_tags().contains(tag));
 }
