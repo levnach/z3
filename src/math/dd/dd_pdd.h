@@ -37,7 +37,7 @@ Author:
 #include "util/rational.h"
 
 namespace dd {
-
+    class test;
     class pdd;
     class pdd_manager;
     class pdd_iterator;
@@ -46,6 +46,7 @@ namespace dd {
     public:
         enum semantics { free_e, mod2_e, zero_one_vars_e };
     private:
+        friend test;
         friend pdd;
         friend pdd_iterator;
 
@@ -235,7 +236,8 @@ namespace dd {
         rational m_pc, m_qc;
         pdd spoly(pdd const& a, pdd const& b, unsigned_vector const& p, unsigned_vector const& q, rational const& pc, rational const& qc);
         bool common_factors(pdd const& a, pdd const& b, unsigned_vector& p, unsigned_vector& q, rational& pc, rational& qc);
-        PDD leading_child(PDD p) const;
+        PDD first_leading(PDD p) const;
+        PDD next_leading(PDD p) const;
 
         monomials_t to_monomials(pdd const& p);
 
@@ -302,6 +304,7 @@ namespace dd {
     };
 
     class pdd {
+        friend test;
         friend class pdd_manager;
         friend class pdd_iterator;
         unsigned     root;
