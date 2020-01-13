@@ -34,6 +34,7 @@ core::core(lp::lar_solver& s, reslimit & lim) :
     m_monotone(this),
     m_intervals(this, lim),
     m_horner(this, &m_intervals),
+    m_nex_grobner(this, &m_intervals),
     m_pdd_manager(s.number_of_vars()),
     m_pdd_grobner(lim, m_pdd_manager),
     m_emons(m_evars),
@@ -1288,8 +1289,15 @@ lbool core::inner_check(bool constraint_derived) {
             if (!m_horner.horner_lemmas()) {
                 clear_and_resize_active_var_set();
                 if (m_nla_settings.run_grobner()) {
+                    unsigned& quota = m_grobner_quota;
+                    if (quota == 1) {
+                        return l_false;
+                    }
+                    if (quota > 1)
+                        quota--;
                     find_nl_cluster();
-                    run_grobner();
+                    init_nex_grobner(m_nex_grobner.get_nex_creator());
+                    m_nex_grobner.grobner_lemmas();
                 }
             }
         if (done()) {
@@ -1645,6 +1653,14 @@ void core::display_matrix_of_m_rows(std::ostream & out) const {
         print_row(r, out) << std::endl;
     }
 }
+void core::init_nex_grobner(nex_creator & nc) {
+    m_nex_grobner.init();
+    set_active_vars_weights(nc);
+    for (unsigned i : m_rows) {
+        m_nex_grobner.add_row(m_lar_solver.A_r().m_rows[i]);
+    }
+}
+
 
 void core::set_active_vars_weights(nex_creator& nc) {
     nc.set_number_of_vars(m_lar_solver.column_count());
