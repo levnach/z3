@@ -462,12 +462,22 @@ namespace lp {
         column_cell& cs = m_columns[row_el_iv.var()][column_offset];
         unsigned row_offset = cs.offset();
         if (column_offset != column_vals.size() - 1) {
-            auto & cc = column_vals[column_offset] = column_vals.back(); // copy from the tail
+            auto & cc = column_vals[column_offset] = column_vals.back(); // column cells are tiny, a plain copy is optimal
             m_rows[cc.var()][cc.offset()].offset() = column_offset;
         }
     
         if (row_offset != row_vals.size() - 1) {
-            auto & rc = row_vals[row_offset] = row_vals.back(); // copy from the tail
+            row_cell<T> & rc   = row_vals[row_offset];
+            row_cell<T> & tail = row_vals.back();
+            rc.var()    = tail.var();
+            rc.offset() = tail.offset();
+            // Relocating the tail coefficient: swap to steal an already allocated (big) value and
+            // avoid a heap allocation; for small coefficients a direct copy is cheaper than swapping
+            // the mpz internals. See Z3Prover/bench#3143.
+            if (rc.coeff().is_big() || tail.coeff().is_big())
+                rc.coeff().swap(tail.coeff());
+            else
+                rc.coeff() = tail.coeff();
             m_columns[rc.var()][rc.offset()].offset() = row_offset;
         }
 
