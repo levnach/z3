@@ -467,19 +467,25 @@ namespace lp {
         }
     
         if (row_offset != row_vals.size() - 1) {
-            row_cell<T> & rc   = row_vals[row_offset];
-            row_cell<T> & tail = row_vals.back();
-            rc.var()    = tail.var();
-            rc.offset() = tail.offset();
-            // Relocating the tail coefficient: a copy allocates a fresh bignum only when the
-            // source (tail) is big, so swap to steal the tail's storage exactly in that case.
-            // When the tail is small the copy never allocates and is cheaper than a swap. See
-            // Z3Prover/bench#3143.
-            if (tail.coeff().is_big())
-                rc.coeff().swap(tail.coeff());
-            else
-                rc.coeff() = tail.coeff();
-            m_columns[rc.var()][rc.offset()].offset() = row_offset;
+            if (m_relocate_by_swap) {
+                row_cell<T> & rc   = row_vals[row_offset];
+                row_cell<T> & tail = row_vals.back();
+                rc.var()    = tail.var();
+                rc.offset() = tail.offset();
+                // Relocating the tail coefficient: a copy allocates a fresh bignum only when the
+                // source (tail) is big, so swap to steal the tail's storage exactly in that case.
+                // When the tail is small the copy never allocates and is cheaper than a swap. See
+                // Z3Prover/bench#3143.
+                if (tail.coeff().is_big())
+                    rc.coeff().swap(tail.coeff());
+                else
+                    rc.coeff() = tail.coeff();
+                m_columns[rc.var()][rc.offset()].offset() = row_offset;
+            }
+            else {
+                auto & rc = row_vals[row_offset] = row_vals.back(); // original: deep-copy from the tail
+                m_columns[rc.var()][rc.offset()].offset() = row_offset;
+            }
         }
 
         column_vals.pop_back();

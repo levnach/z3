@@ -270,7 +270,9 @@ private:
     bool             m_random_hammers = true;
     bool             m_lcube = true;
     unsigned         m_lcube_flips = 16;
+    bool             m_remove_element_swap = true;
 public:
+    bool remove_element_swap() const { return m_remove_element_swap; }
     bool lcube() const { return m_lcube; }
     unsigned lcube_flips() const { return m_lcube_flips; }
     unsigned dio_calls_period() const { return m_dio_calls_period; }

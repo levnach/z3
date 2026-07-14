@@ -211,6 +211,7 @@ namespace lp {
         track_touched_rows(p.arith_bprop_on_pivoted_rows());
         set_cut_strategy(p.arith_branch_cut_ratio());
         m_imp->m_settings.updt_params(_p);
+        A_r().m_relocate_by_swap = settings().remove_element_swap();
     }
 
     lar_solver::lar_solver() :

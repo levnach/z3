@@ -87,6 +87,9 @@ public:
     indexed_vector<T> m_work_vector;
     std_vector<row_strip<T>> m_rows;
     std_vector<column_strip> m_columns;
+    // When true, remove_element relocates a big (heap-allocated) tail coefficient by swapping
+    // instead of deep-copying it (see Z3Prover/bench#3143). Toggled via lp.remove_element_swap.
+    bool m_relocate_by_swap = true;
     // starting inner classes
     class ref {
         static_matrix & m_matrix;

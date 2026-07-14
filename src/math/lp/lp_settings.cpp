@@ -46,6 +46,7 @@ void lp::lp_settings::updt_params(params_ref const& _p) {
     m_dio_calls_period_decrease = lp_p.dio_calls_period_decrease();
     m_dio_run_gcd = lp_p.dio_run_gcd();
     m_random_hammers = lp_p.random_hammers();
+    m_remove_element_swap = lp_p.remove_element_swap();
     m_lcube = lp_p.lcube();
     m_lcube_flips = lp_p.lcube_flips();
     unsigned hammer_period = lp_p.int_hammer_period();
