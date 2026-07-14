@@ -471,10 +471,11 @@ namespace lp {
             row_cell<T> & tail = row_vals.back();
             rc.var()    = tail.var();
             rc.offset() = tail.offset();
-            // Relocating the tail coefficient: swap to steal an already allocated (big) value and
-            // avoid a heap allocation; for small coefficients a direct copy is cheaper than swapping
-            // the mpz internals. See Z3Prover/bench#3143.
-            if (rc.coeff().is_big() || tail.coeff().is_big())
+            // Relocating the tail coefficient: a copy allocates a fresh bignum only when the
+            // source (tail) is big, so swap to steal the tail's storage exactly in that case.
+            // When the tail is small the copy never allocates and is cheaper than a swap. See
+            // Z3Prover/bench#3143.
+            if (tail.coeff().is_big())
                 rc.coeff().swap(tail.coeff());
             else
                 rc.coeff() = tail.coeff();
