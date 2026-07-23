@@ -120,8 +120,6 @@ public:
     }
 
     void set_logic(symbol const & l) override {
-        fprintf(stdout, "DEBUG: smt_tactic set_logic=%s\n", l.str().c_str());
-        fflush(stdout);
         m_logic = l;
     }
 

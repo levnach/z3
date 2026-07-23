@@ -60,8 +60,6 @@ namespace smt {
         //    m_params.m_model_compact = false;
         // }
         TRACE(setup, tout << "configuring logical context, logic: " << m_logic << " " << cm << "\n";);
-        fprintf(stdout, "DEBUG: setup operator logic=%s cm=%d\n", m_logic.str().c_str(), (int)cm);
-        fflush(stdout);
         
         m_already_configured = true;
         
@@ -461,8 +459,6 @@ namespace smt {
 
     void setup::setup_QF_ANIA() {
         TRACE(setup, tout << "QF_ANIA setup\n";);
-        fprintf(stdout, "DEBUG: setup_QF_ANIA called\n");
-        fflush(stdout);
         m_params.setup_QF_ANIA();
         setup_lra_arith();
     }
