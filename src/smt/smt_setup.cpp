@@ -60,6 +60,8 @@ namespace smt {
         //    m_params.m_model_compact = false;
         // }
         TRACE(setup, tout << "configuring logical context, logic: " << m_logic << " " << cm << "\n";);
+        fprintf(stdout, "DEBUG: setup operator logic=%s cm=%d\n", m_logic.str().c_str(), (int)cm);
+        fflush(stdout);
         
         m_already_configured = true;
         
@@ -85,6 +87,8 @@ namespace smt {
             setup_QF_LRA();
         else if (m_logic == "QF_LIA")
             setup_QF_LIA();
+        else if (m_logic == "QF_ANIA")
+            setup_QF_ANIA();
         else if (m_logic == "QF_UFLIA")
             setup_QF_UFLIA();
         else if (m_logic == "QF_UFLRA")
@@ -169,6 +173,8 @@ namespace smt {
                 setup_QF_LRA(st);
             else if (m_logic == "QF_LIA")
                 setup_QF_LIA(st);
+            else if (m_logic == "QF_ANIA")
+                setup_QF_ANIA();
             else if (m_logic == "QF_UFLIA")
                 setup_QF_UFLIA(st);
             else if (m_logic == "QF_UFLRA")
@@ -450,6 +456,14 @@ namespace smt {
         check_no_uninterpreted_functions(st, "QF_LIA");
         TRACE(setup, tout << "QF_LIA setup\n";);
         m_params.setup_QF_LIA(st);
+        setup_lra_arith();
+    }
+
+    void setup::setup_QF_ANIA() {
+        TRACE(setup, tout << "QF_ANIA setup\n";);
+        fprintf(stdout, "DEBUG: setup_QF_ANIA called\n");
+        fflush(stdout);
+        m_params.setup_QF_ANIA();
         setup_lra_arith();
     }
 

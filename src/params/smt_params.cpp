@@ -266,6 +266,10 @@ void smt_params::setup_QF_LIA() {
     m_nnf_cnf             = false;            
 }
 
+void smt_params::setup_QF_ANIA() {
+    m_arith_bound_prop = bound_prop_mode::BP_REFINE;
+}
+
 void smt_params::setup_QF_LIA(static_features const& st) {
     m_relevancy_lvl       = 0;
     m_arith_eq2ineq       = true;

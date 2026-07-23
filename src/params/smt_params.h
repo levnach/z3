@@ -285,6 +285,8 @@ struct smt_params : public preprocessor_params,
 
     void setup_QF_LIA(static_features const& st);
 
+    void setup_QF_ANIA();
+
     void setup_QF_UFIDL();
 
     void setup_QF_UFLIA();
