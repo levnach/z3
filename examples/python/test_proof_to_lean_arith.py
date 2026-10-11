@@ -80,15 +80,72 @@ Z3TEST_LRA_INPUTS = {
 
 _STANDARD_AXIOMS = "[propext, Classical.choice, Quot.sound]"
 
+# Real-valued ite terms: an opaque variable to Farkas reasoning, tied to its
+# branches by gate clauses, and normalized by Z3 (abs/max shapes are rewritten).
+ITE_INPUTS = {
+    "ite_basic": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const p Bool)
+(assert (> (ite p x y) 3.0))
+(assert (< x 1.0))
+(assert (< y 2.0))
+(check-sat)
+""",
+    "ite_abs_max": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const z Real)
+(assert (> (+ (ite (< x 0.0) (- x) x) (ite (< y 0.0) (- y) y)) 3.0))
+(assert (< x 1.0))
+(assert (> x (- 1.0)))
+(assert (< y 2.0))
+(assert (> y (- 1.0)))
+(assert (= z (ite (> x y) x y)))
+(assert (> z 5.0))
+(check-sat)
+""",
+    "ite_nested_fractions": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const p Bool)
+(declare-const q Bool)
+(assert (>= (ite (and p q) (ite p x (/ 1.0 3.0)) (ite q (/ y 2.0) (- x))) (/ 7.0 2.0)))
+(assert (<= x (/ 1.0 2.0)))
+(assert (<= y (/ 2.0 3.0)))
+(assert (>= x (- 1.0)))
+(check-sat)
+""",
+    "ite_distinct": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const p Bool)
+(assert (distinct (ite p x y) x y))
+(check-sat)
+""",
+}
 
-def random_instance(seed, variables, constraints):
+
+def random_instance(seed, variables, constraints, ite=False):
     """A random QF_LRA problem; callers filter for unsat ones."""
     generator = random.Random(seed)
     lines = ["(set-logic QF_LRA)"] + ["(declare-const x%d Real)" % i for i in range(variables)]
 
+    def term(v):
+        if ite and generator.random() < 0.3:
+            other = generator.randrange(variables)
+            return "(ite (%s x%d %d.0) x%d (* %d.0 x%d))" % (
+                generator.choice(["<=", ">"]), other, generator.randint(-2, 2), v,
+                generator.choice([-2, -1, 2]), other)
+        return "x%d" % v
+
     def atom():
         chosen = generator.sample(range(variables), generator.randint(2, 3))
-        terms = " ".join("(* %d.0 x%d)" % (generator.choice([-3, -2, -1, 1, 2, 3]), v) for v in chosen)
+        terms = " ".join("(* %d.0 %s)" % (generator.choice([-3, -2, -1, 1, 2, 3]), term(v)) for v in chosen)
         constant = generator.choice(["%d.0" % generator.randint(-5, 5),
                                      "(/ %d.0 %d.0)" % (generator.randint(-9, 9), generator.randint(2, 4))])
         return "(%s (+ %s) %s)" % (generator.choice(["<=", ">=", "<", ">", "="]), terms, constant)
@@ -233,6 +290,50 @@ class TestArithmeticValidation(unittest.TestCase):
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "must end in a Real equality"):
             proof_to_lean.reconstruct(self.source, certificate)
 
+    def test_real_ite_is_an_opaque_linear_atom_with_classical_terms(self):
+        source = ITE_INPUTS["ite_basic"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        ite = next(i for i in range(len(graph.nodes)) if graph.kind(i) == z3.Z3_OP_ITE)
+        self.assertTrue(graph.is_real(ite))
+        terms = {}
+        self.assertEqual(proof_to_lean._linear_term(graph, ite, Fraction(2), terms), 0)
+        self.assertEqual(terms, {ite: Fraction(2)})
+        for node in _th_lemma_nodes(certificate):
+            proof_to_lean._check_th_lemma(graph, node)
+        text = proof_to_lean.reconstruct(source, certificate)
+        self.assertIn("noncomputable def term_%d (_atoms : Nat -> Prop) (_vars : Nat -> Rat) : Rat := (@ite Rat" % ite, text)
+        self.assertIn("(Classical.propDecidable (formula_", text)
+        self.assertIn("(ite_eq_left _hc)", text)
+        self.assertIn("(ite_eq_right _hnc)", text)
+        self.assertNotIn("sorry", text)
+        self.assertNotIn("axiom ", text)
+
+    def test_tampered_ite_declarations_and_gate_clauses_are_rejected_before_lean(self):
+        source = ITE_INPUTS["ite_basic"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        for domain, message in [
+            (["Real", "Real", "Real"], "invalid arithmetic ite declaration"),
+            (["Bool", "Real"], "invalid arithmetic ite declaration"),
+        ]:
+            tampered = copy.deepcopy(certificate)
+            for declaration in tampered["declarations"]:
+                if declaration["kind"] == z3.Z3_OP_ITE and declaration["range"] == "Real":
+                    declaration["domain"] = domain
+            with self.subTest(domain=domain):
+                with self.assertRaisesRegex(proof_to_lean.ReconstructionError, message):
+                    proof_to_lean.reconstruct(source, tampered)
+        # Point the then-gate clause (not p) or (ite p x y) = x at the else branch.
+        graph = proof_to_lean._validate_graph(source, certificate)
+        ite = next(i for i in range(len(graph.nodes)) if graph.kind(i) == z3.Z3_OP_ITE)
+        condition, then_branch, else_branch = graph.arguments(ite)
+        equality = next(i for i in range(len(graph.nodes)) if graph.kind(i) == z3.Z3_OP_EQ
+                        and graph.arguments(i) == (ite, then_branch))
+        tampered = copy.deepcopy(certificate)
+        tampered["nodes"][equality]["arguments"] = [ite, else_branch]
+        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "unsupported or invalid def-axiom clause"):
+            proof_to_lean.reconstruct(source, tampered)
+
 
 @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
 class TestArithmeticLeanIntegration(unittest.TestCase):
@@ -308,9 +409,26 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
             self.assertFalse(output.exists())
 
     def test_random_instances_with_learned_clauses_and_deletions(self):
+        self.check_random_unsat_instances(ite=False)
+
+    def test_arithmetic_ite_terms_verify_under_the_standard_axioms(self):
+        for name, source in ITE_INPUTS.items():
+            with self.subTest(name=name):
+                certificate, report = self.check(source)
+                self.assertEqual(certificate["fragment"], "qf_lra")
+                self.assertIn(_STANDARD_AXIOMS, report)
+                self.assertIn("th-lemma", certificate["rule_counts"])
+                self.assertIn("def-axiom", certificate["rule_counts"])  # the ite gate clauses
+
+    def test_random_instances_with_ite_terms(self):
+        self.check_random_unsat_instances(ite=True)
+
+    def check_random_unsat_instances(self, ite):
         checked = 0
         for seed in range(1, 200):
-            source = random_instance(seed, 6, 14)
+            source = random_instance(seed, 6, 14, ite)
+            if ite and "(ite " not in source:
+                continue
             context = z3.Context()
             solver = z3.Solver(ctx=context)
             solver.add(z3.parse_smt2_string(source, ctx=context))
