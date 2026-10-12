@@ -33,6 +33,8 @@ from proof_certificate import (
 _NUMERAL = re.compile(r"^[0-9]+(\.[0-9]+)?$")
 _RESULTS = ("sat", "unsat", "unknown")
 _TRIM_THRESHOLD = 1_000_000
+# Resource limit of the bounded solver calls that tie assumed clauses to assertions.
+_RLIMIT = 200000
 
 
 def run_clause_log(z3_executable, assertion_text, timeout=None):
@@ -741,12 +743,17 @@ class _Replay:
         if not assertions:
             return None
         solver = z3.Solver(ctx=self.context)
-        solver.set("rlimit", 200000)
+        solver.set("rlimit", _RLIMIT)
         tracking = [z3.FreshBool("cnf_source", self.context) for _ in assertions]
         for literal, assertion in zip(tracking, assertions):
             solver.assert_and_track(assertion, literal)
         solver.add(z3.Not(formula))
-        if solver.check() != z3.unsat:
+        result = solver.check()
+        if result == z3.unknown:
+            # This is the last resort, so a cut-off check must not read as a mismatch.
+            raise ProofExportError("resource limit reached while tying an assumed clause to the assertions: %s"
+                                   % formula)
+        if result != z3.unsat:
             return None
         core = {literal.get_id() for literal in solver.unsat_core()}
         return [(self.dag.node(self.asserted, [self.dag.expression(assertion)]), assertion)
@@ -766,7 +773,7 @@ class _Replay:
 
     def _valid(self, claim):
         solver = z3.Solver(ctx=self.context)
-        solver.set("rlimit", 200000)
+        solver.set("rlimit", _RLIMIT)
         solver.add(z3.Not(claim))
         return solver.check() == z3.unsat
 

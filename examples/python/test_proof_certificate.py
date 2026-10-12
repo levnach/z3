@@ -948,6 +948,10 @@ class TestClauseLogReplay(unittest.TestCase):
         # empty clause's literal, so the replay rejects the log instead of guessing.
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "does not match any original assertion"):
             self.replay(_UF_ITE_ALLDIFF.replace("(assert q)\n", ""), _UF_ITE_ALLDIFF_LOG.replace("(assume q)\n", ""))
+        # A core check cut off by the resource limit is reported as such, not as a mismatch.
+        with patch.object(proof_clause_log, "_RLIMIT", 1):
+            with self.assertRaisesRegex(proof_certificate.ProofExportError, "resource limit reached"):
+                self.replay(_UF_ITE_ALLDIFF, _UF_ITE_ALLDIFF_LOG)
 
     def test_deleted_and_repeated_empty_clauses_are_handled(self):
         log = _LRA_LOG.replace("(infer rup)\n", "(del (not $11) (not $17) (not $21))\n(infer rup)\n(infer rup)\n")
