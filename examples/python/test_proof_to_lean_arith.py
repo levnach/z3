@@ -129,6 +129,40 @@ ITE_INPUTS = {
 """,
 }
 
+# A comparison applied directly to an ite with a fractional branch: Z3's
+# rewriter pushes the comparison through the ite, so the log never mentions
+# the ite as a term and no gate clause is recorded; only the cnf lemmas that
+# bridge the assertion to its rewritten form tie the ite to its branches.
+ITE_REWRITTEN_INPUTS = {
+    "ite_half_branch": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const p Bool)
+(assert (>= (ite p x (/ 1.0 2.0)) 1.0))
+(assert (< x 1.0))
+(check-sat)
+""",
+    "ite_divided_branches": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const p Bool)
+(assert (> (ite p (/ x 3.0) (/ 1.0 7.0)) 3.0))
+(assert (< x 1.0))
+(check-sat)
+""",
+    "ite_deep_fractions": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const p Bool)
+(declare-const q Bool)
+(assert (>= (ite p (ite q (/ x 3.0) (/ 1.0 7.0)) (ite (< y (/ 1.0 2.0)) (/ y 5.0) (/ 2.0 3.0))) 1.0))
+(assert (< x 1.0))
+(assert (< y 1.0))
+(check-sat)
+""",
+}
+
 
 def random_instance(seed, variables, constraints, ite=False):
     """A random QF_LRA problem; callers filter for unsat ones."""
@@ -303,11 +337,27 @@ class TestArithmeticValidation(unittest.TestCase):
             proof_to_lean._check_th_lemma(graph, node)
         text = proof_to_lean.reconstruct(source, certificate)
         self.assertIn("noncomputable def term_%d (_atoms : Nat -> Prop) (_vars : Nat -> Rat) : Rat := (@ite Rat" % ite, text)
-        self.assertIn("(Classical.propDecidable (formula_", text)
+        self.assertIn("(Classical.propDecidable _)", text)
         self.assertIn("(ite_eq_left _hc)", text)
         self.assertIn("(ite_eq_right _hnc)", text)
+        # Every grind lemma over the ite states its branch equalities first.
+        self.assertIn("  have _g%d_0 : (_atoms 0) -> (" % ite, text)
+        self.assertIn("  have _g%d_1 : (Not (_atoms 0)) -> (" % ite, text)
         self.assertNotIn("sorry", text)
         self.assertNotIn("axiom ", text)
+
+    def test_fractional_ite_branches_get_scaled_gate_helpers(self):
+        source = ITE_REWRITTEN_INPUTS["ite_divided_branches"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        self.assertNotIn("def-axiom", certificate["rule_counts"])  # the rewriter removed the ite term
+        graph = proof_to_lean._validate_graph(source, certificate)
+        ite = next(i for i in range(len(graph.nodes)) if graph.kind(i) == z3.Z3_OP_ITE)
+        text = proof_to_lean.reconstruct(source, certificate)
+        # x / 3 scales by 3 and 1 / 7 by 7; both helpers rewrite the ite and let grind close the scaled form.
+        self.assertIn("  have _g%d_0 : (_atoms 0) -> ((3 : Rat)) * (" % ite, text)
+        self.assertIn("= (((1 : Rat)) * _vars 0 + ((0 : Rat))) := fun _h => by rw [ite_eq_left _h]; grind", text)
+        self.assertIn("  have _g%d_1 : (Not (_atoms 0)) -> ((7 : Rat)) * (" % ite, text)
+        self.assertIn("= (((1 : Rat))) := fun _h => by rw [ite_eq_right _h]; grind", text)
 
     def test_tampered_ite_declarations_and_gate_clauses_are_rejected_before_lean(self):
         source = ITE_INPUTS["ite_basic"]
@@ -419,6 +469,15 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 self.assertIn(_STANDARD_AXIOMS, report)
                 self.assertIn("th-lemma", certificate["rule_counts"])
                 self.assertIn("def-axiom", certificate["rule_counts"])  # the ite gate clauses
+
+    def test_comparisons_pushed_through_an_ite_with_fractional_branches_verify(self):
+        for name, source in ITE_REWRITTEN_INPUTS.items():
+            with self.subTest(name=name):
+                certificate, report = self.check(source)
+                self.assertEqual(certificate["fragment"], "qf_lra")
+                self.assertIn(_STANDARD_AXIOMS, report)
+                self.assertIn("th-lemma", certificate["rule_counts"])
+                self.assertNotIn("def-axiom", certificate["rule_counts"])
 
     def test_random_instances_with_ite_terms(self):
         self.check_random_unsat_instances(ite=True)

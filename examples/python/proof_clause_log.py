@@ -212,11 +212,12 @@ class _Terms:
             pairs = []
             for argument in arguments:
                 claim = self.hints.get(argument) if isinstance(argument, str) else argument
-                if isinstance(claim, list) and claim and claim[0] in ("cc", "comm"):
+                if name == "euf" and isinstance(claim, list) and claim and claim[0] in ("cc", "comm"):
                     # A congruence claim (cc (= a b)) tells Z3's checker which
-                    # congruences close the literals. It is not a literal of the
-                    # lemma, and Lean's congruence closure needs no guidance, so
-                    # only its shape is checked here.
+                    # congruences close the literals of a euf lemma (the only
+                    # hint that carries them). It is not a literal of the lemma,
+                    # and Lean's congruence closure needs no guidance, so only
+                    # its shape is checked here.
                     if len(claim) != 2 or not z3.is_eq(self.build(claim[1])):
                         raise ProofExportError("malformed congruence claim in a %s hint" % name)
                     continue

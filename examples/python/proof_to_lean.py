@@ -396,9 +396,9 @@ def _term_body(graph, node, variable_indices, term=None, formula=None):
             return "((%d : Rat))" % value.numerator
         return "((%d : Rat) / (%d : Rat))" % (value.numerator, value.denominator)
     if kind == z3.Z3_OP_ITE:
-        condition = formula(arguments[0])
-        return "(@ite Rat %s (Classical.propDecidable %s) %s %s)" % (
-            condition, condition, term(arguments[1]), term(arguments[2]))
+        # The instance's proposition is inferred from the condition.
+        return "(@ite Rat %s (Classical.propDecidable _) %s %s)" % (
+            formula(arguments[0]), term(arguments[1]), term(arguments[2]))
     args = [term(arg) for arg in arguments]
     if kind == z3.Z3_OP_UMINUS:
         return "(-%s)" % args[0]
@@ -684,17 +684,62 @@ def _scaling_helpers(graph, reachable, atom_indices, variable_indices):
                 or (kind not in _ARITH_PREDICATE_NAMES and kind != z3.Z3_OP_EQ)):
             continue
         relation, terms, constant = _atom_constraint(graph, formula)
-        scale = 1
-        for value in list(terms.values()) + [constant]:
-            scale = scale * value.denominator // _gcd(scale, value.denominator)
+        scale = _common_denominator(terms, constant)
         if scale == 1:
             continue
-        # The linear form's variables are Real variables and opaque ite terms.
-        parts = ["((%d : Rat)) * %s" % (terms[variable] * scale, _inline(graph, variable, atom_indices, variable_indices))
-                 for variable in sorted(terms)]
-        parts.append("((%d : Rat))" % (constant * scale))
         helpers.append("  have _s%d : %s -> (%s %s ((0 : Rat))) := by grind" % (
-            formula, _inline(graph, formula, atom_indices, variable_indices), " + ".join(parts), relation))
+            formula, _inline(graph, formula, atom_indices, variable_indices),
+            _scaled_form(graph, terms, constant, scale, atom_indices, variable_indices), relation))
+    return helpers
+
+
+def _common_denominator(terms, constant):
+    scale = 1
+    for value in list(terms.values()) + [constant]:
+        scale = scale * value.denominator // _gcd(scale, value.denominator)
+    return scale
+
+
+def _scaled_form(graph, terms, constant, scale, atom_indices, variable_indices):
+    """Render scale * (terms + constant) with integer coefficients, as grind's linear module wants it."""
+    # The linear form's variables are Real variables and opaque ite terms.
+    parts = ["((%d : Rat)) * %s" % (terms[variable] * scale, _inline(graph, variable, atom_indices, variable_indices))
+             for variable in sorted(terms)]
+    parts.append("((%d : Rat))" % (constant * scale))
+    return " + ".join(parts)
+
+
+def _ite_gate_helpers(graph, reachable, atom_indices, variable_indices):
+    """State the branch equalities of every reachable Real ite, denominator-free.
+
+    grind splits on an ite term by itself, but when the selected branch is a
+    fractional numeral or a term with fractional coefficients it does not
+    combine the resulting equality with its linear facts, just as with
+    fractional atoms. Each helper gives one branch equality under the condition
+    or its negation, scaled to integer coefficients, so grind can use it.
+    """
+    helpers = []
+    for node in sorted(reachable):
+        if not graph.is_real(node) or graph.kind(node) != z3.Z3_OP_ITE:
+            continue
+        condition, then_branch, else_branch = graph.arguments(node)
+
+        def inline(sub):
+            return "(%s)" % _inline(graph, sub, atom_indices, variable_indices)
+
+        for side, branch, hypothesis, lemma in (
+                (0, then_branch, inline(condition), "ite_eq_left"),
+                (1, else_branch, "(Not %s)" % inline(condition), "ite_eq_right")):
+            terms = {}
+            constant = _linear_term(graph, branch, Fraction(1), terms)
+            scale = _common_denominator(terms, constant)
+            if scale == 1:
+                helpers.append("  have _g%d_%d : %s -> %s = %s := fun _h => %s _h" % (
+                    node, side, hypothesis, inline(node), inline(branch), lemma))
+            else:
+                helpers.append("  have _g%d_%d : %s -> ((%d : Rat)) * %s = (%s) := fun _h => by rw [%s _h]; grind" % (
+                    node, side, hypothesis, scale, inline(node),
+                    _scaled_form(graph, terms, constant, scale, atom_indices, variable_indices), lemma))
     return helpers
 
 
@@ -724,6 +769,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices):
     ]
     if graph.arithmetic:
         lines.extend(_scaling_helpers(graph, reachable, atom_indices, variable_indices))
+        lines.extend(_ite_gate_helpers(graph, reachable, atom_indices, variable_indices))
     lines.append("  grind")
     return lines, "(%s_%d _atoms%s)" % (prefix, node, graph.valuation)
 

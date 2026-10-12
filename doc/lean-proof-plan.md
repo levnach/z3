@@ -549,8 +549,16 @@ splitting on the condition. The same inputs exposed `euf` hints that carry
 congruence claims `(cc (= a b))` and `(comm (= a b))` as `Proof`-sorted
 arguments; Z3's checker uses them as guidance and builds the clause from the
 Boolean arguments only, and the replay now drops them after a shape check.
-Random instances with `ite` terms verify end to end; integer `ite` and
-`ite` with nonlinear branches stay rejected.
+Review of this slice found that a comparison applied directly to an `ite`
+with a fractional branch, such as `(>= (ite p x (/ 1.0 2.0)) 1.0)`, exported
+a certificate that `grind` could not close: Z3's rewriter pushes the
+comparison through the `ite`, so no gate clause is recorded, and `grind`
+splits on the `ite` but, as with fractional atoms, does not combine the
+resulting equality `ite = 1/2` with its linear facts. Each `grind` lemma now
+states the two branch equalities of every reachable `ite` first, scaled to
+integer coefficients when a branch has fractions, proved by `ite_eq_left` and
+`ite_eq_right`. Random instances with `ite` terms verify end to end; integer
+`ite` and `ite` with nonlinear branches stay rejected.
 
 ## Arithmetic proof infrastructure
 

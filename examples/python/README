@@ -312,7 +312,12 @@ combination with exact rationals and rejects coefficients that do not refute
 the lemma's literals. grind does not always combine equalities whose constants
 are fractions, so the generated proof first states each fractional atom's
 denominator-free form as an implication that grind proves, then calls grind
-on the lemma; a false helper fails rather than weakening anything.
+on the lemma; a false helper fails rather than weakening anything. For the
+same reason each Real ite reachable from the lemma gets its two branch
+equalities, under the condition and under its negation, stated the same way
+(scaled to integer coefficients when a branch has fractions) and proved with
+ite_eq_left and ite_eq_right; Z3's rewriter can push a comparison through an
+ite, in which case these are the only facts tying the ite to its branches.
 
 Lean core's Rat library itself depends on propext, Classical.choice, and
 Quot.sound, so arithmetic theorems necessarily report those three standard

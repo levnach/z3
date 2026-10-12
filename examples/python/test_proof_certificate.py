@@ -629,6 +629,9 @@ class TestClauseLogReplay(unittest.TestCase):
             with self.subTest(broken=broken):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, "malformed congruence claim"):
                     self.replay(_ITE, log.replace("(cc $40)", broken))
+        # Only euf hints carry claims; in any other literal hint they are not literals either.
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, "undeclared or fresh symbol"):
+            self.replay(_ITE, log.replace("(tseitin $24 $25)", "(tseitin $24 $25 $41)"))
 
     def test_deleted_and_repeated_empty_clauses_are_handled(self):
         log = _LRA_LOG.replace("(infer rup)\n", "(del (not $11) (not $17) (not $21))\n(infer rup)\n(infer rup)\n")
