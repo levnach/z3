@@ -630,7 +630,9 @@ third clause. Native and external replay regressions cover this case.
 The reconstructed certificate has about 67,000 nodes and 41,000 proof steps,
 so a single deeply nested Lean term is unsuitable. Arithmetic proof DAGs are
 outlined at shared subproofs into independently checked lemmas with explicit
-input and hypothesis scopes. Large arithmetic rewrites normalize each atom
+input and hypothesis scopes (since 2026-10-12 every fragment above 500 steps
+is outlined, and chains are also cut every 500 nested steps; see "Long
+refutations in every fragment" above). Large arithmetic rewrites normalize each atom
 separately, then reconstruct and/or rearrangements over abstract propositions.
 This avoids sending large Boolean equivalences back through arithmetic search.
 
