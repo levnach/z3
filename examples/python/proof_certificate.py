@@ -187,32 +187,34 @@ def is_uninterpreted_sort(sort):
     return sort.kind() == z3.Z3_UNINTERPRETED_SORT
 
 
-def _require_single_sort(candidate, sort):
-    """Check that an uninterpreted sort is the one sort of the input so far; return it."""
+def _require_uninterpreted_sort(candidate, sorts):
+    """Check an uninterpreted sort's name and record it in sorts.
+
+    Any number of uninterpreted sorts is accepted: the Lean encoding renders
+    them all as one type, which is sound for unsatisfiability (see the
+    exporter README), while the certificate keeps every sort name so the
+    reconstructor can check that the proof is well-sorted.
+    """
     if candidate.name() in _RESERVED_SORTS:
         raise ProofExportError("unsupported uninterpreted sort name: %s" % candidate.name())
-    if sort is not None and not candidate.eq(sort):
-        raise ProofExportError("only one uninterpreted sort is supported, not %s and %s" % (
-            sort.name(), candidate.name()))
-    return candidate
+    sorts.add(candidate.name())
 
 
-def _require_uninterpreted_signature(decl, sort):
-    """Check a function or predicate over the single uninterpreted sort; return that sort."""
-    sorts = [decl.domain(i) for i in range(decl.arity())]
+def _require_uninterpreted_signature(decl, sorts):
+    """Check that a function or predicate ranges over uninterpreted sorts only."""
+    candidates = [decl.domain(i) for i in range(decl.arity())]
     if decl.range().kind() != z3.Z3_BOOL_SORT:
-        sorts.append(decl.range())
-    for candidate in sorts:
+        candidates.append(decl.range())
+    for candidate in candidates:
         if not is_uninterpreted_sort(candidate):
             raise ProofExportError("uninterpreted functions over %s are not supported: %s" % (
                 candidate, decl.name()))
-        sort = _require_single_sort(candidate, sort)
-    return sort
+        _require_uninterpreted_sort(candidate, sorts)
 
 
 def classify_fragment(assertions):
     """Return "propositional", "qf_lra", or "qf_uf", rejecting everything else."""
-    pending, seen, arithmetic, sort = list(assertions), set(), False, None
+    pending, seen, arithmetic, sorts = list(assertions), set(), False, set()
     while pending:
         expr = pending.pop()
         if expr.get_id() in seen:
@@ -224,7 +226,7 @@ def classify_fragment(assertions):
         if z3.is_bool(expr):
             if decl.kind() == z3.Z3_OP_UNINTERPRETED:
                 if decl.arity() != 0:
-                    sort = _require_uninterpreted_signature(decl, sort)
+                    _require_uninterpreted_signature(decl, sorts)
             elif decl.kind() in _ARITH_PREDICATES:
                 arithmetic = True
             elif decl.kind() not in _BOOLEAN_OPERATORS:
@@ -238,15 +240,15 @@ def classify_fragment(assertions):
             # Constants, function applications, and ite, whose branches are
             # terms of the sort and whose condition is any formula.
             if decl.kind() == z3.Z3_OP_UNINTERPRETED:
-                sort = _require_uninterpreted_signature(decl, sort)
+                _require_uninterpreted_signature(decl, sorts)
             elif decl.kind() == z3.Z3_OP_ITE:
-                sort = _require_single_sort(expr.sort(), sort)
+                _require_uninterpreted_sort(expr.sort(), sorts)
             else:
                 raise ProofExportError("unsupported operator over an uninterpreted sort: %s" % decl.name())
         else:
             raise ProofExportError("unsupported sort: %s" % expr.sort())
         pending.extend(expr.children())
-    if sort is not None:
+    if sorts:
         if arithmetic:
             raise ProofExportError("mixing uninterpreted sorts with arithmetic is not supported")
         return "qf_uf"
