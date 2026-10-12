@@ -209,7 +209,19 @@ class _Terms:
             pairs = [(_number(arguments[index]), self.build(arguments[index + 1]))
                      for index in range(0, len(arguments), 2)]
         elif name in _LITERAL_HINTS:
-            pairs = [(Fraction(1), self.build(argument)) for argument in arguments]
+            pairs = []
+            for argument in arguments:
+                claim = self.hints.get(argument) if isinstance(argument, str) else argument
+                if name == "euf" and isinstance(claim, list) and claim and claim[0] in ("cc", "comm"):
+                    # A congruence claim (cc (= a b)) tells Z3's checker which
+                    # congruences close the literals of a euf lemma (the only
+                    # hint that carries them). It is not a literal of the lemma,
+                    # and Lean's congruence closure needs no guidance, so only
+                    # its shape is checked here.
+                    if len(claim) != 2 or not z3.is_eq(self.build(claim[1])):
+                        raise ProofExportError("malformed congruence claim in a %s hint" % name)
+                    continue
+                pairs.append((Fraction(1), self.build(argument)))
         else:
             raise ProofExportError("unsupported clause-log hint: %s" % name)
         if not pairs and name != "smt":
@@ -250,13 +262,17 @@ def _tautology(literals):
 
 
 def _linear(expr, terms=None, scale=Fraction(1)):
-    """Return (variables -> coefficient, constant) for a linear Real term."""
+    """Return (variables -> coefficient, constant) for a linear Real term.
+
+    A Real ite term is an opaque variable here, as in Z3's arithmetic solver:
+    the clause log relates it to its branches through explicit gate clauses.
+    """
     terms = {} if terms is None else terms
     kind = expr.decl().kind()
     value = constant_value(expr)
     if value is not None:
         return terms, scale * value
-    if kind == z3.Z3_OP_UNINTERPRETED:
+    if kind in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE):
         terms[expr.get_id()] = terms.get(expr.get_id(), Fraction(0)) + scale
         return terms, Fraction(0)
     constant = Fraction(0)
@@ -440,15 +456,31 @@ class _Replay:
 
         Z3's clause-log checker propagates through such definitions implicitly,
         so the log's rup steps may rely on them. Each gate clause is justified
-        as a def-axiom, which the reconstructor proves independently.
+        as a def-axiom, which the reconstructor proves independently. A Real
+        ite term inside an arithmetic atom gets the two clauses relating it to
+        its branches, which the log also records as tseitin inferences.
         """
         pending = [literal]
         while pending:
             atom, _ = _strip(pending.pop())
-            if atom.get_id() in self.gates or not z3.is_bool(atom):
+            if atom.get_id() in self.gates:
                 continue
             self.gates[atom.get_id()] = atom
             kind, args = atom.decl().kind(), atom.children()
+            if z3.is_real(atom):
+                clauses = []
+                if kind == z3.Z3_OP_ITE:
+                    clauses = [[z3.Not(args[0]), atom == args[1]], [args[0], atom == args[2]]]
+                pending.extend(args)
+                for clause in clauses:
+                    node = self.dag.node(self.def_axiom, [self.dag.expression(self.clause_formula(clause))])
+                    self.add_clause(node, clause)
+                continue
+            if not z3.is_bool(atom):
+                continue
+            if kind in _ARITH_PREDICATES or (kind in (z3.Z3_OP_EQ, z3.Z3_OP_DISTINCT) and z3.is_real(args[0])):
+                pending.extend(args)
+                continue
             if kind == z3.Z3_OP_OR:
                 clauses = [[z3.Not(atom)] + args] + [[atom, z3.Not(arg)] for arg in args]
             elif kind == z3.Z3_OP_AND:
