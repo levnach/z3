@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #1: Certify Real ite terms and euf congruence claims in QF_LRA proofs</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1d1d1f;
+    --muted: #5c5c66;
+    --rule: #d9d9df;
+    --accent: #0b5cad;
+    --panel: #f4f5f8;
+    --code-bg: #eef0f4;
+    --pass-bg: #e3f3e7;
+    --pass-fg: #16603a;
+    --warn-bg: #fdf1dc;
+    --warn-fg: #7a4b00;
+    --fixed-bg: #e6eefa;
+    --fixed-fg: #1d4a86;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141417;
+      --fg: #e6e6ea;
+      --muted: #a2a2ac;
+      --rule: #34343c;
+      --accent: #7ab4f5;
+      --panel: #1d1d22;
+      --code-bg: #26262d;
+      --pass-bg: #163a24;
+      --pass-fg: #9fe0b4;
+      --warn-bg: #3d2d10;
+      --warn-fg: #f3c977;
+      --fixed-bg: #1b2f4b;
+      --fixed-fg: #a9c9f2;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    margin: 0 auto;
+    padding: 2rem 1.25rem 3rem;
+    max-width: 52rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 1.02rem;
+    line-height: 1.55;
+  }
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  header h1 { font-size: 1.65rem; line-height: 1.25; margin: 0 0 0.75rem; }
+  header dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; margin: 0; font-size: 0.95rem; }
+  header dt { color: var(--muted); }
+  header dd { margin: 0; }
+  h2 { font-size: 1.3rem; margin: 2rem 0 0.6rem; padding-top: 0.4rem; border-top: 1px solid var(--rule); }
+  h3 { font-size: 1.05rem; margin: 1.2rem 0 0.4rem; }
+  p { margin: 0.6rem 0; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 3px; }
+  pre { background: var(--code-bg); padding: 0.7rem 0.9rem; border-radius: 6px; overflow-x: auto; font-size: 0.88rem; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0 1rem; font-size: 0.93rem; }
+  th, td { text-align: left; vertical-align: top; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--rule); }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pill { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+  .pass { background: var(--pass-bg); color: var(--pass-fg); }
+  .minor { background: var(--warn-bg); color: var(--warn-fg); }
+  .fixed { background: var(--fixed-bg); color: var(--fixed-fg); }
+  .lead { background: var(--panel); border-left: 4px solid var(--accent); padding: 0.8rem 1rem; border-radius: 4px; }
+  ul { padding-left: 1.3rem; }
+  li { margin: 0.3rem 0; }
+  footer { margin-top: 2.5rem; padding-top: 0.8rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify Real <code>ite</code> terms and <code>euf</code> congruence claims in QF_LRA proofs</h1>
+  <dl>
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/1">levnach/z3 #1</a></dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/6cae0d0ad1a514d3fa62fdc952201cf398d0c31d"><code>6cae0d0ad1a514d3fa62fdc952201cf398d0c31d</code></a> on <code>master</code></dd>
+    <dt>Merged</dt><dd>2026-10-12T01:30:23Z</dd>
+    <dt>Loop iteration</dt><dd>1</dd>
+  </dl>
+</header>
+
+<h2>In one paragraph</h2>
+<p class="lead">
+Before this change, the Python exporter that turns Z3's clause log into a proof certificate rejected every QF_LRA input containing a Real-valued <code>ite</code> term, even though Z3 solves such inputs and its clause log records them cleanly. The pull request teaches the exporter to treat a Real <code>ite</code> as Z3's arithmetic solver does, as an opaque variable tied to its two branches by gate clauses, and teaches the Lean reconstructor to prove those gate clauses from Lean's own <code>ite_eq_left</code> and <code>ite_eq_right</code> lemmas. It also fixes an independent replay bug: <code>euf</code> hints can carry congruence claims such as <code>(cc (= a b))</code>, which the replay wrongly tried to read as clause literals. The <code>unsat</code> theorem Lean checks is unchanged, no new axiom or trust assumption was introduced, and tampered certificates are still rejected before Lean runs. Common benchmark idioms such as <code>abs</code>, <code>max</code>, and guarded assignments can now be certified end to end by the Lean kernel.
+</p>
+
+<h2>Background</h2>
+<p>
+The project's goal, from the plan document in the repository, is unsat results from Z3 that an independent Lean checker accepts without trusting the solver. The pipeline has four stages. Z3 runs with proof or clause-log output enabled. A Python exporter converts that evidence into a versioned JSON certificate preserving the native term DAG, the original assertions, and every inference. The reconstructor translates the certificate into Lean 4 source in which every inference becomes a small lemma. Finally the Lean kernel checks that source at trust level zero, yielding a theorem that the original assertions imply <code>False</code>.
+</p>
+<p>
+This work serves milestone 3 of the plan, "Equality and linear arithmetic". Its linear real arithmetic slice uses the <code>sat.smt</code> clause log rather than the core's proof objects, because the log carries the Farkas coefficients the proof objects omit. Theory hints become <code>th-lemma</code> nodes, Tseitin hints become <code>def-axiom</code> nodes, and Lean proves each theory lemma with the <code>grind</code> tactic over a <code>Rat</code> encoding of the Real variables. Real-valued <code>ite</code> was a known gap: the plan's acceptance boundary requires the exporter to fail explicitly on unsupported inputs, so these inputs were refused rather than mis-certified.
+</p>
+<p>
+Z3 already handles the construct the way this change mirrors. Its arithmetic theory treats a Real <code>ite</code> as an opaque variable, and its equality core records the two gate clauses <code>(not c) ∨ (ite c a b) = a</code> and <code>c ∨ (ite c a b) = b</code> as Tseitin inferences. The certificate can follow the solver exactly, in line with the plan's principle of extending native evidence only where replay needs it.
+</p>
+
+<h2>What changed</h2>
+
+<h3>Exporter (clause log to JSON certificate)</h3>
+<ul>
+  <li><strong>Fragment classification</strong> accepts a Real <code>ite</code> with linear Real branches and any supported condition. An <code>ite</code> under a nonlinear product or used as a divisor is still rejected.</li>
+  <li><strong>Farkas pre-check</strong> treats a Real <code>ite</code> as an opaque variable keyed by identity, matching Z3's arithmetic solver.</li>
+  <li><strong>Gate clauses</strong>: the exporter descends into arithmetic atoms and emits the two gate clauses of every Real <code>ite</code> as <code>def-axiom</code> nodes. When the log also records them as Tseitin inferences, they hash-cons to the same nodes.</li>
+  <li><strong>Congruence claims</strong> inside an <code>euf</code> hint are shape-checked (a one-argument claim over an equality) and dropped, as Z3's own C++ checker builds the lemma from the Boolean arguments only. A malformed claim, or a claim in any other hint kind, is rejected.</li>
+</ul>
+
+<h3>Reconstructor (JSON certificate to Lean source)</h3>
+<ul>
+  <li><strong>Declaration validation</strong>: a Real <code>ite</code> must be declared as <code>if</code> over <code>(Bool, Real, Real)</code>, and node arguments are sort-checked against that domain.</li>
+  <li><strong>Term rendering</strong>: an <code>ite</code> becomes Lean's <code>ite</code> over <code>Rat</code> with the classical decidability instance, so term definitions containing one are <code>noncomputable</code>. The PR states this adds no axiom beyond the three the <code>Rat</code> slice already reports.</li>
+  <li><strong>Gate lemma</strong>: a <code>def-axiom</code> clause tying an <code>ite</code> to one branch is proved by case analysis on a decidability witness for the condition, in either equality orientation, any literal order, and with weakening. A clause pointing at the wrong branch is rejected before Lean runs.</li>
+  <li><strong>Gate helpers for <code>grind</code></strong> (added after review): every <code>grind</code> lemma first states, for each reachable <code>ite</code>, its two branch equalities, scaled to integer coefficients when a branch has fractions. See the review section for why.</li>
+</ul>
+
+<h3>Tests and documentation</h3>
+<ul>
+  <li>Certificate tests gain <code>ite</code> classification, nonlinear-<code>ite</code> rejections, a recorded <code>ite</code> clause-log replay, congruence-claim handling with malformed variants, and rejection of a claim inside a <code>tseitin</code> hint.</li>
+  <li>Arithmetic Lean tests gain seven <code>ite</code> inputs, including three where Z3's rewriter pushes a comparison through an <code>ite</code> with fractional branches, plus tampering tests, generated-text tests, a Lean integration test over all seven, and random instances with <code>ite</code> terms.</li>
+  <li>The Python examples README, the Lean README, and the plan document describe the new support and its limits.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">155</td><td class="num">41</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">180</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">95</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">37</td><td class="num">5</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">28</td><td class="num">9</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">25</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">3</td><td class="num">6</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">3</td><td class="num">2</td></tr>
+    <tr><th>Total (8 files)</th><th class="num">526</th><th class="num">67</th></tr>
+  </tbody>
+</table>
+<p>No C++ source was touched, so the Z3 binary itself is unchanged by this PR.</p>
+
+<h2>How it was verified</h2>
+<h3>Local verification</h3>
+<p>The PR body reports these runs on the feature branch after the post-review fixes.</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Lean reconstruction unit tests (<code>test_proof_to_lean*.py</code>)</td><td>135 tests OK in 204.5 s</td></tr>
+    <tr><td>Certificate exporter unit tests</td><td>42 tests OK in 0.8 s</td></tr>
+    <tr><td>Arithmetic Lean module alone</td><td>19 tests OK in 44.4 s</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+    <tr><td>z3test proof-matrix test suite</td><td>46 OK, 2 skipped (pre-existing skips)</td></tr>
+    <tr><td>Matrix cell <code>legacy-proof-object</code>, six Boolean inputs</td><td>6 / 6 lean-verified</td></tr>
+    <tr><td>Matrix cell <code>smt-clause-log-nopp</code>, eight QF_LRA inputs</td><td>8 / 8 lean-verified</td></tr>
+    <tr><td>Reviewer probe scripts: 24 unsat <code>ite</code> inputs and four tamperings</td><td>All unsat inputs Lean OK; all four tamperings rejected in Python</td></tr>
+  </tbody>
+</table>
+<p>
+The pre-review change summary adds that sixteen random QF_LRA instances with <code>ite</code> terms, up to 1,509 DAG nodes, all lean-verified in at most 6 s each. Before the congruence-claim fix, 9 of the first 30 such instances failed with "undeclared or fresh symbol".
+</p>
+
+<h3>Continuous integration</h3>
+<p>
+All 28 gating checks and five non-gating checks passed in a single CI round. There were no CI fix rounds and no failures to judge as unrelated. The new unit tests and both Lean-certified matrix cells run inside the <code>releaseClang</code> job; the PR body estimates the two new Lean-backed tests add about 20 seconds to it.
+</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Check</th><th>State</th></tr></thead>
+  <tbody>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318470">Ubuntu build - cmake - releaseClang</a> (runs the Lean checks)</td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318433">Ubuntu build - cmake - debugClang</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318469">Ubuntu build - cmake - debugGcc</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318537">Ubuntu build - cmake - releaseSTGcc</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318384">Ubuntu with OCaml</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318455">Ubuntu with OCaml on z3-static</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318385">MacOS build with CMake</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318540">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318408">Python bindings (manylinux Centos AMD64) build</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318465">Python bindings (manylinux Centos ARM64 cross) build</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318489">Python build-script unit tests</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318420">CMake package - minimum builder and consumer</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960673/job/114614318224">CMake package - latest CMake</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960686/job/114614318542">build (x64)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960686/job/114614318303">build (x86)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960686/job/114614318541">build (amd64_arm64)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960686/job/114614318491">mingw-build</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960717/job/114617065863">Compare exact traces</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960717/job/114614318677">Trace (clang)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960717/job/114614318738">Trace (gcc)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960717/job/114614318509">Trace (gcc-unsigned-char)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960717/job/114614318734">Trace (libcxx)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960717/job/114614318716">Trace (libcxx-random)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960717/job/114614318745">Trace (msvc)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960717/job/114614318749">Trace (apple-clang)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960759/job/114614318374">build-test (ubuntu-latest, 5)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960759/job/114614318579">build-test (macos-latest, 5)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960769/job/114614318421">Check</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td colspan="3"><em>Non-gating</em></td></tr>
+    <tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960664/job/114614318615">Determinism linter (base)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960664/job/114614318331">Determinism linter (head)</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960664/job/114615506028">compare</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Dispatch NFV formal audit</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960750/job/114614319266">dispatch</a></td><td><span class="pill pass">pass</span></td></tr>
+    <tr><td>Mark Pull Requests Ready for Review</td><td><a href="https://github.com/levnach/z3/actions/runs/38187960762/job/114614318480">mark-ready</a></td><td><span class="pill pass">pass</span></td></tr>
+  </tbody>
+</table>
+
+<h2>Review</h2>
+<p>
+The reviewer's verdict was <strong>APPROVE</strong>, with no blocker or major findings. The reviewer re-ran the test suites and the QF_LRA matrix cell, grepped the diff for <code>sorry</code>, axioms, and trust widening (finding only test assertions and prose), and wrote probe scripts covering extra <code>ite</code> shapes and four certificate tamperings, all rejected in Python. The reviewer confirmed that the decidability witness used by the gate lemma is bound inside the main theorem, so the <code>unsat</code> statement is unchanged, and that Lean still runs at trust level zero with warnings as errors.
+</p>
+<table>
+  <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="pill minor">minor</span></td>
+      <td>A comparison applied directly to an <code>ite</code> with a fractional numeral branch, for example <code>(&gt;= (ite p x (/ 1.0 2.0)) 1.0)</code> with <code>(&lt; x 1.0)</code>, exported a certificate that <code>grind</code> could not close. Z3's rewriter pushes the comparison through the <code>ite</code>, so no gate clause is logged, and <code>grind</code> did not combine the equality <code>ite = 1/2</code> with its linear facts. The failure was fail-closed, so a completeness gap rather than a soundness issue, but the README promised the input class.</td>
+      <td><span class="pill fixed">fixed</span> A minimal Lean case isolated the cause: <code>t = 1/2, 1 &lt;= t</code> fails under <code>grind</code> while the scaled <code>2 * t = 1, 1 &lt;= t</code> succeeds, so the gap is the fractional constant, not the case split. Every <code>grind</code> lemma now states the scaled branch equalities of each reachable <code>ite</code> first. The three failing shapes became regression tests and verify in Lean.</td>
+    </tr>
+    <tr>
+      <td><span class="pill minor">nit</span></td>
+      <td>The condition of an <code>ite</code> was rendered twice, once as the proposition and once inside the decidability instance, doubling inline text per nesting level.</td>
+      <td><span class="pill fixed">fixed</span> The instance is now <code>Classical.propDecidable _</code> and elaborates from the expected type.</td>
+    </tr>
+    <tr>
+      <td><span class="pill minor">nit</span></td>
+      <td>Congruence claims were stripped from every literal-carrying hint kind, although Z3 only emits them in <code>euf</code> hints, so a <code>tseitin</code> hint carrying one was silently accepted.</td>
+      <td><span class="pill fixed">fixed</span> Stripping is restricted to <code>euf</code>; a claim in any other hint is rejected, with a test.</td>
+    </tr>
+    <tr>
+      <td><span class="pill minor">nit</span></td>
+      <td>The README described what the exporter accepts rather than what Lean verified, given the minor finding above.</td>
+      <td><span class="pill fixed">fixed</span> By the fix to the minor finding; the README now also documents the gate helpers.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li><strong>Generated Lean text changed for every QF_LRA proof.</strong> Arithmetic term definitions take an extra argument and <code>grind</code> lemmas reaching an <code>ite</code> carry gate helpers. The theorem statement is identical and Boolean certificates are unchanged.</li>
+  <li><strong>Unused gate clauses cost checking time.</strong> The exporter adds <code>ite</code> gate clauses whether or not the proof uses them, and Lean checks every <code>def-axiom</code>. The PR calls this a small cost; no measurement on large inputs is reported.</li>
+  <li><strong>Congruence claims are not re-validated in Python.</strong> Lean's <code>grind</code> must close each <code>euf</code> lemma by itself. It did on every instance tried, and a lemma it cannot close fails the run rather than being trusted.</li>
+  <li><strong>Reliance on <code>grind</code> behaviour.</strong> The review finding traces back to how Lean 4.34's <code>grind</code> handles fractional constants, as did an earlier issue in this slice. Whether other shapes expose the same limit is unknown.</li>
+  <li><strong>No corpus coverage in the matrix cell yet.</strong> The QF_LRA matrix cell in CI runs the eight pre-existing inputs, none containing an <code>ite</code>. Coverage lives in the in-repo unit tests for now.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Add a dedicated <code>lra_ite.smt2</code> to the Lean regression inputs in z3test so the CI matrix cell exercises <code>ite</code> directly. This needs a z3test change, which was out of scope for the loop.</li>
+  <li>Accept harmless <code>set-option</code> commands at the frontend; they currently reject several z3test QF_LRA regressions before solving.</li>
+  <li>Integer-valued <code>ite</code>, <code>ite</code> in nonlinear positions, QF_LIA, and QF_UF remain rejected and are the next fragments on the milestone 3 path. The plan notes QF_LIA needs <code>cut</code> hints the C++ checker does not yet accept.</li>
+  <li>Real SMT-LIB QF_LRA benchmarks remain open for the slice; the canary list has only two unsat instances, both trivial.</li>
+</ul>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-11. Iteration 1. All statements are drawn from the pull request, its review, the loop's CI status records, and the merged commit.
+</footer>
+
+</body>
+</html>
