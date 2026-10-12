@@ -204,7 +204,7 @@ class _Terms:
             self.hints[name] = sexpr
             return
         expr = self.build(sexpr)
-        if str(expr.sort()) != sort:
+        if str(expr.sort()) != _symbol(sort):  # The log quotes sort names the way it quotes symbols.
             raise ProofExportError("definition %s has sort %s, declared %s" % (name, expr.sort(), sort))
         self.defined[name] = expr
 

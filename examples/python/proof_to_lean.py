@@ -249,8 +249,10 @@ def _declaration(raw, sort):
             if kind != z3.Z3_OP_UNINTERPRETED and _BOOL_NAMES.get(kind) != name:
                 raise ReconstructionError("unsupported Boolean declaration: %s" % name)
             argument_sort = "Bool"
-            if kind in (z3.Z3_OP_EQ, z3.Z3_OP_DISTINCT) and domain:
-                argument_sort = domain[0]  # Equality and distinct compare terms of any one sort.
+            if kind in (z3.Z3_OP_EQ, z3.Z3_OP_DISTINCT) and domain and domain[0] != "Proof":
+                # Equality and distinct compare terms of one sort: Bool, Real, or the
+                # uninterpreted sort. Proof terms are never compared.
+                argument_sort = domain[0]
             elif kind == z3.Z3_OP_UNINTERPRETED and domain:
                 argument_sort = sort  # A predicate ranges over the uninterpreted sort only.
             if any(argument != argument_sort for argument in domain):

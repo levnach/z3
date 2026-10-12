@@ -264,6 +264,7 @@ class TestUninterpretedValidation(unittest.TestCase):
             (mutate(is_eq, domain=["U", "Bool"]), "cannot mix argument sorts"),
             (mutate(is_eq, domain=["Bool", "Bool"]), "wrong argument sort"),
             (mutate(is_f, range="Bool"), "wrong argument sort"),
+            (mutate(is_eq, domain=["Proof", "Proof"]), "cannot mix argument sorts"),
         ]:
             with self.subTest(message=message):
                 with self.assertRaisesRegex(proof_to_lean.ReconstructionError, message):
@@ -276,6 +277,26 @@ class TestUninterpretedValidation(unittest.TestCase):
         certificate["nodes"][application]["arguments"] = [formula]
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "wrong argument sort"):
             proof_to_lean.reconstruct(self.source, certificate)
+        # An equality over proof terms is a malformed declaration, not an internal error.
+        certificate = copy.deepcopy(self.certificate)
+        certificate["declarations"].append({"kind": z3.Z3_OP_EQ, "name": "=", "domain": ["Proof", "Proof"],
+                                            "range": "Bool", "parameters": []})
+        proofs = [i for i, raw in enumerate(certificate["nodes"])
+                  if certificate["declarations"][raw["declaration"]]["range"] == "Proof"]
+        certificate["nodes"].append({"declaration": len(certificate["declarations"]) - 1,
+                                     "arguments": proofs[:1] * 2})
+        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "cannot mix argument sorts"):
+            proof_to_lean.reconstruct(self.source, certificate)
+
+    def test_quoted_sort_names_are_kept(self):
+        source = ("(declare-sort |my sort| 0)(declare-fun a () |my sort|)(declare-fun b () |my sort|)"
+                  "(declare-fun f (|my sort|) |my sort|)(assert (= a b))(assert (not (= (f a) (f b))))")
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        self.assertEqual(certificate["fragment"], "qf_uf")
+        self.assertIn("my sort", {d["range"] for d in certificate["declarations"]})
+        text = proof_to_lean.reconstruct(source, certificate)
+        self.assertIn('-- Uninterpreted sort "my sort" is the type _U', text)
+        self.assertNotIn("|", text)
 
     def test_symbols_bind_by_signature(self):
         # A function and a constant may not share a name, and two declarations
@@ -298,6 +319,12 @@ class TestUninterpretedValidation(unittest.TestCase):
             proof_to_lean.reconstruct(source, with_extra_declaration(["U"], [element]))
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "ambiguous function symbol"):
             proof_to_lean.reconstruct(source, with_extra_declaration(["U", "U"], [element, element]))
+        # Z3 accepts one name with two signatures; the certificate cannot bind both.
+        overloaded = ("(declare-sort U 0)(declare-fun a () U)(declare-fun f (U) U)(declare-fun f (U U) U)"
+                      "(assert (not (= (f a) (f a))))(assert (= (f a a) a))")
+        certificate = proof_certificate.export_clause_log_certificate(overloaded)
+        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "ambiguous function symbol"):
+            proof_to_lean.reconstruct(overloaded, certificate)
 
 
 @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
@@ -330,19 +357,19 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
                 # grind's congruence closure proofs use the classical axioms Lean core relies on.
                 self.assertIn(".unsat' depends on axioms: " + _STANDARD_AXIOMS, report)
 
+    # The first three seeds in 1..4999 whose unsat core has at least four
+    # assertions, so the refutation needs learned clauses. They are pinned so
+    # the checked inputs stay the same across Z3 versions; if a solver change
+    # shrinks a core, re-pick the seed with the same scan.
+    LEARNED_CLAUSE_SEEDS = (405, 693, 896)
+
     def test_random_instances_with_learned_clauses(self):
-        checked = 0
-        for seed in range(1, 5000):
+        for seed in self.LEARNED_CLAUSE_SEEDS:
             source = random_instance(seed)
-            if _unsat_core_size(source) < 4:
-                continue
             with self.subTest(seed=seed):
+                self.assertGreaterEqual(_unsat_core_size(source), 4, "re-pick seed %d" % seed)
                 certificate, _ = self.check(source)
                 self.assertIn("th-lemma", certificate["rule_counts"])
-            checked += 1
-            if checked == 3:
-                break
-        self.assertEqual(checked, 3)
 
     def test_tampered_euf_lemmas_never_publish_a_proof(self):
         source = UF_INPUTS["uf_congruence"]

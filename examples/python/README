@@ -72,7 +72,9 @@ terms. The qf_uf fragment adds one uninterpreted sort with constants,
 functions, and predicates whose arguments all have that sort, and the atoms =
 and distinct over its terms; it cannot be combined with arithmetic, and a
 second uninterpreted sort, functions with Bool or Real arguments or results,
-and ite over the sort are rejected. Quantifiers, integer arithmetic,
+ite over the sort, and one symbol name declared with several signatures
+(Z3 accepts such overloading; the certificate binds symbols by name) are
+rejected. Quantifiers, integer arithmetic,
 nonlinear terms, bit-vectors, arrays, and pseudo-Boolean operators are
 rejected. Definitions are expanded by Z3's parser.
 Named assertions are retained as formulas, not converted into extra tracking

@@ -6,6 +6,7 @@
 from fractions import Fraction
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -743,6 +744,10 @@ class TestClauseLogReplay(unittest.TestCase):
             with self.subTest(message=message):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
                     self.replay(_UF, log)
+        # The log quotes a sort name the way it quotes symbols; the certificate keeps the bare name.
+        quoted = self.replay(re.sub(r"\bU\b", "|my sort|", _UF), re.sub(r"\bU\b", "|my sort|", _UF_LOG))
+        self.assertEqual({d["range"] for d in quoted["declarations"]}, {"Bool", "my sort", "Proof"})
+        self.assertEqual(quoted["rule_counts"], certificate["rule_counts"])
 
     def test_deleted_and_repeated_empty_clauses_are_handled(self):
         log = _LRA_LOG.replace("(infer rup)\n", "(del (not $11) (not $17) (not $21))\n(infer rup)\n(infer rup)\n")
