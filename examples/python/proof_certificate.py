@@ -212,9 +212,21 @@ def _require_uninterpreted_signature(decl, sorts):
         _require_uninterpreted_sort(candidate, sorts)
 
 
+def _require_unique_symbol(decl, symbols):
+    """Reject one symbol name declared with several signatures.
+
+    Z3 accepts such overloading and tells the declarations apart by sort, but
+    the certificate binds symbols by name: the reconstructor's comparison with
+    the input is faithful only if every name denotes one symbol of the input.
+    """
+    name = str(decl.name())
+    if not symbols.setdefault(name, decl).eq(decl):
+        raise ProofExportError("symbol declared with several signatures: %s" % name)
+
+
 def classify_fragment(assertions):
     """Return "propositional", "qf_lra", or "qf_uf", rejecting everything else."""
-    pending, seen, arithmetic, sorts = list(assertions), set(), False, set()
+    pending, seen, arithmetic, sorts, symbols = list(assertions), set(), False, set(), {}
     while pending:
         expr = pending.pop()
         if expr.get_id() in seen:
@@ -223,6 +235,8 @@ def classify_fragment(assertions):
         if not z3.is_app(expr):
             raise ProofExportError("only quantifier-free expressions are supported")
         decl = expr.decl()
+        if decl.kind() == z3.Z3_OP_UNINTERPRETED:
+            _require_unique_symbol(decl, symbols)
         if z3.is_bool(expr):
             if decl.kind() == z3.Z3_OP_UNINTERPRETED:
                 if decl.arity() != 0:

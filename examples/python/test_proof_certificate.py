@@ -713,6 +713,16 @@ class TestFragmentClassification(unittest.TestCase):
             (declarations + "(declare-fun h (U) Real)(assert (> (h a) 1.0))", "uninterpreted functions"),
             (declarations + "(declare-fun q (Real) Bool)(assert (q 1.0))", "functions over Real"),
             ("(declare-sort W 1)(declare-fun w () (W Bool))(assert (= w w))", "arity 0"),
+            # Z3 accepts one name declared with several signatures and tells the
+            # declarations apart by sort; the certificate binds symbols by name.
+            (declarations + "(declare-fun a () V)(declare-fun h (U) V)(assert (= (h (as a U)) (as a V)))",
+             "several signatures: a"),
+            (declarations + "(declare-fun r (U) Bool)(declare-fun r (V) Bool)(assert (and (r a) (r v)))",
+             "several signatures: r"),
+            ("(declare-sort U 0)(declare-fun a () U)(declare-fun f (U) U)(declare-fun f (U U) U)"
+             "(assert (= (f a) (f a a)))", "several signatures: f"),
+            ("(declare-const x Bool)(declare-const x Real)(assert (and (as x Bool) (> (as x Real) 1.0)))",
+             "several signatures: x"),
         ]:
             with self.subTest(source=source):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):

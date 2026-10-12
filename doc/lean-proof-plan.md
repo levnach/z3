@@ -640,8 +640,18 @@ one sort, so the collapsed theorem implies unsatisfiability of the
 many-sorted input. The two documented two-sort inputs and 19 random
 three-sort instances with `ite` terms (unsat cores of 3 to 5 assertions)
 verify end to end under the standard axioms; three are pinned in
-`test_proof_to_lean_uf.py`. Still rejected: QF_UFLRA and Bool or Real
-arguments or results of uninterpreted functions.
+`test_proof_to_lean_uf.py`. Review of this change found that the binder
+matched symbols by name alone while Z3 accepts one name declared with several
+signatures (`(declare-fun c () A) (declare-fun c () B)`, applied as
+`(as c A)`): the honest refutation of a one-sort input could be rebound to a
+satisfiable two-sort input whose assertions print identically, once an
+unused declaration padded the certificate's sort set. Overloaded names are
+now rejected by `classify_fragment` (so by the exporter and, since the
+reconstructor parses the input itself, by the binder), the binder requires
+every bound declaration to carry the input's full signature and interns
+terms with their sort, and a declaration over an uninterpreted sort that no
+node uses is rejected. Still rejected: QF_UFLRA and Bool or Real arguments
+or results of uninterpreted functions.
 
 ## Arithmetic proof infrastructure
 

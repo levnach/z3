@@ -633,12 +633,85 @@ class TestUninterpretedValidation(unittest.TestCase):
             proof_to_lean.reconstruct(source, with_extra_declaration(["U"], [element]))
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "ambiguous function symbol"):
             proof_to_lean.reconstruct(source, with_extra_declaration(["U", "U"], [element, element]))
-        # Z3 accepts one name with two signatures; the certificate cannot bind both.
+        # Z3 accepts one name with two signatures; the certificate binds by name, so
+        # the frontend rejects such inputs, in the exporter and inside the binder.
         overloaded = ("(declare-sort U 0)(declare-fun a () U)(declare-fun f (U) U)(declare-fun f (U U) U)"
                       "(assert (not (= (f a) (f a))))(assert (= (f a a) a))")
-        certificate = proof_certificate.export_clause_log_certificate(overloaded)
-        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "ambiguous function symbol"):
-            proof_to_lean.reconstruct(overloaded, certificate)
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, "several signatures: f"):
+            proof_certificate.export_clause_log_certificate(overloaded)
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, "several signatures: f"):
+            proof_to_lean.reconstruct(overloaded, dict(certificate, source_smt2=overloaded))
+
+    def test_overloaded_symbols_cannot_rebind_a_certificate(self):
+        # Z3 tells apart (declare-fun c () A) from (declare-fun c () B); a certificate
+        # names symbols without their sorts. Binding the honest refutation of a
+        # one-sort input to this satisfiable two-sort input, whose assertions print
+        # identically, must fail at every layer: the sort set, the frontend, and
+        # the binder's own signature checks.
+        satisfiable = """\
+(set-logic QF_UF)
+(declare-sort A 0)
+(declare-sort B 0)
+(declare-fun c () A)
+(declare-fun c () B)
+(declare-fun h (A) B)
+(declare-fun p (A) Bool)
+(declare-fun p (B) Bool)
+(assert (= (h (as c A)) (as c B)))
+(assert (p (as c A)))
+(assert (not (p (h (as c A)))))
+(check-sat)
+"""
+        unsat = """\
+(set-logic QF_UF)
+(declare-sort A 0)
+(declare-fun c () A)
+(declare-fun h (A) A)
+(declare-fun p (A) Bool)
+(assert (= (h c) c))
+(assert (p c))
+(assert (not (p (h c))))
+(check-sat)
+"""
+        certificate = proof_certificate.export_clause_log_certificate(unsat)
+        self.assertEqual([str(a) for a in proof_certificate.parse_assertions(unsat, z3.Context())[0]],
+                         [str(a) for a in z3.parse_smt2_string(proof_certificate._assertion_commands(satisfiable))])
+        rebound = dict(certificate, source_smt2=satisfiable)
+        padded = copy.deepcopy(rebound)
+        padded["declarations"].append({"kind": z3.Z3_OP_UNINTERPRETED, "name": "unused", "domain": [],
+                                       "range": "B", "parameters": []})
+        # An unused declaration cannot pad the certificate's sort set to {A, B}.
+        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "unused declaration"):
+            proof_to_lean.reconstruct(satisfiable, padded)
+        # The frontend rejects the overloaded input before any binding.
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, "several signatures"):
+            proof_to_lean.reconstruct(satisfiable, rebound)
+        # Even if it did not, the one-sort certificate does not know sort B.
+        parsed = z3.parse_smt2_string(proof_certificate._assertion_commands(satisfiable))
+        with patch.object(proof_to_lean, "parse_assertions", return_value=(parsed, "qf_uf")):
+            with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "sort does not match"):
+                proof_to_lean.reconstruct(satisfiable, rebound)
+        # And a certificate that knows both sorts sees the overloaded name itself.
+        source = UF_INPUTS["uf_two_sorts"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        overloaded = source.replace("(check-sat)", "(declare-fun b () A)\n(assert (= (as b A) a1))\n(check-sat)")
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, "several signatures: b"):
+            proof_to_lean.reconstruct(overloaded, dict(certificate, source_smt2=overloaded))
+        parsed = z3.parse_smt2_string(proof_certificate._assertion_commands(overloaded))
+        with patch.object(proof_to_lean, "parse_assertions", return_value=(parsed, "qf_uf")):
+            with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "several signatures: b"):
+                proof_to_lean.reconstruct(overloaded, dict(certificate, source_smt2=overloaded))
+        # Every bound symbol must carry the input's full signature: swapping the
+        # two sorts throughout a two-sort certificate keeps the graph well-sorted
+        # and the sort set unchanged, and is still rejected.
+        swapped = copy.deepcopy(certificate)
+        for declaration in swapped["declarations"]:
+            swap = {"A": "B", "B": "A"}
+            declaration["range"] = swap.get(declaration["range"], declaration["range"])
+            declaration["domain"] = [swap.get(sort, sort) for sort in declaration["domain"]]
+        self.assertEqual(proof_to_lean._validate_graph(source, swapped).sorts, ("A", "B"))
+        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "signature does not match"):
+            proof_to_lean.reconstruct(source, swapped)
 
 
 @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")

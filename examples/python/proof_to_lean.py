@@ -336,6 +336,13 @@ def _validate_graph(source, certificate):
         nodes.append(_Node(declaration, arguments))
         if decl.range == "Proof":
             counts[decl.name] += 1
+    used = {node.declaration for node in nodes}
+    if any(index not in used and set(decl.domain + (decl.range,)) & set(sorts)
+           for index, decl in enumerate(declarations)):
+        # The exporters apply every symbol they declare (only proof rules are
+        # pre-declared), so the sort set is exactly the sorts the proof graph uses
+        # and cannot be padded to match an input the certificate was not built from.
+        raise ReconstructionError("unused declaration over an uninterpreted sort")
     assertions = tuple(_index(arg, len(nodes), "assertion")
                        for arg in _list(certificate["assertions"], "assertions"))
     root = _index(certificate["proof"], len(nodes), "proof")
@@ -372,8 +379,21 @@ def _symbol_table(range_name, arity, sorts):
     return _SYMBOL_TABLES.get(("sort" if range_name in sorts else range_name, arity > 0))
 
 
+def _sort_name(sort):
+    """The certificate's name for a sort of the original input."""
+    kind = sort.kind()
+    return "Bool" if kind == z3.Z3_BOOL_SORT else "Real" if kind == z3.Z3_REAL_SORT else sort.name()
+
+
 def _bind_input(source, graph, fragment=None):
-    """Compare exact structures using hash-consing, not a digest or solver check."""
+    """Compare exact structures using hash-consing, not a digest or solver check.
+
+    Symbols are bound by name, so each name must denote one symbol of the input
+    (Z3 accepts overloading by sort; the frontend rejects it and this check is
+    repeated here) and the certificate's declaration must carry that symbol's
+    full signature. Interned terms also carry their sort, so terms of different
+    sorts never compare equal even though Lean renders every sort as _U.
+    """
     context = z3.Context(proof=False)
     original, original_fragment = parse_assertions(source, context)
     if fragment is None:
@@ -383,8 +403,8 @@ def _bind_input(source, graph, fragment=None):
     interned, terms = {}, {}
     tables = {table: {} for table in _SYMBOL_TABLES.values()}
 
-    def intern(kind, name, children):
-        key = (kind, name, tuple(children))
+    def intern(kind, name, range_name, children):
+        key = (kind, name, range_name, tuple(children))
         return interned.setdefault(key, len(interned))
 
     for index, node in enumerate(graph.nodes):
@@ -405,10 +425,10 @@ def _bind_input(source, graph, fragment=None):
             tables[table][name] = node.declaration
         elif decl.kind == z3.Z3_OP_ANUM:
             name = str(Fraction(decl.name))
-        terms[index] = intern(decl.kind, name, (terms[arg] for arg in node.arguments))
+        terms[index] = intern(decl.kind, name, decl.range, (terms[arg] for arg in node.arguments))
 
     original_terms, original_sorts = {}, set()
-    original_symbols = {table: set() for table in tables}
+    original_symbols = {table: {} for table in tables}  # name -> (domain, range)
     pending = [(expr, False) for expr in reversed(list(original))]
     while pending:
         expr, expanded = pending.pop()
@@ -418,25 +438,31 @@ def _bind_input(source, graph, fragment=None):
             pending.append((expr, True))
             pending.extend((child, False) for child in reversed(expr.children()))
             continue
-        decl, name = expr.decl(), ""
+        decl, name, range_name = expr.decl(), "", _sort_name(expr.sort())
         if is_uninterpreted_sort(expr.sort()):
-            original_sorts.add(expr.sort().name())
+            original_sorts.add(range_name)
         if decl.kind() == z3.Z3_OP_UNINTERPRETED:
             name = str(decl.name())
-            range_name = "Real" if z3.is_real(expr) else "Bool" if z3.is_bool(expr) else expr.sort().name()
             table = _symbol_table(range_name, decl.arity(), graph.sorts)
             if table is None:
                 raise ReconstructionError("certificate sort does not match the original input")
-            original_symbols[table].add(name)
+            signature = (tuple(_sort_name(decl.domain(i)) for i in range(decl.arity())), range_name)
+            if original_symbols[table].setdefault(name, signature) != signature:
+                raise ReconstructionError("symbol declared with several signatures: %s" % name)
         elif decl.kind() == z3.Z3_OP_ANUM:
             name = str(numeral_value(expr))
         original_terms[expr.get_id()] = intern(
-            decl.kind(), name, (original_terms[child.get_id()] for child in expr.children()))
+            decl.kind(), name, range_name, (original_terms[child.get_id()] for child in expr.children()))
     if original_sorts != set(graph.sorts):
         raise ReconstructionError("certificate sort does not match the original input")
-    if (any(set(tables[table]) != original_symbols[table] for table in tables)
-            or [terms[arg] for arg in graph.assertions]
-            != [original_terms[expr.get_id()] for expr in original]):
+    if any(set(tables[table]) != set(original_symbols[table]) for table in tables):
+        raise ReconstructionError("certificate assertions do not match the original input")
+    for table, symbols in tables.items():
+        for name, declaration in symbols.items():
+            decl = graph.declarations[declaration]
+            if (decl.domain, decl.range) != original_symbols[table][name]:
+                raise ReconstructionError("certificate symbol signature does not match the original input: %s" % name)
+    if [terms[arg] for arg in graph.assertions] != [original_terms[expr.get_id()] for expr in original]:
         raise ReconstructionError("certificate assertions do not match the original input")
     return terms, tables
 
