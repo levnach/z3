@@ -692,7 +692,6 @@ _UF_BOOL_ARGS_LOG = """\
 """
 
 _UF_NEGATIVE_UNIT = """\
-(set-logic QF_UF)
 (declare-sort U 0)
 (declare-fun a () U)
 (declare-fun b () U)
@@ -706,7 +705,9 @@ _UF_NEGATIVE_UNIT = """\
 """
 # The clause log for _UF_NEGATIVE_UNIT: the negated unit makes the sat core
 # log its internal true literal, a Boolean variable without an expression,
-# as the fresh constant k!0; the clause assuming it is used by nothing.
+# as the fresh constant k!0; the clause assuming it is used by nothing. The
+# input carries no set-logic line: with (set-logic QF_UF) the same
+# assertions are logged without the phantom.
 _UF_NEGATIVE_UNIT_LOG = """\
 (declare-sort U 0)
 (declare-fun p (U) Bool)
@@ -1322,6 +1323,14 @@ class TestClauseLogReplay(unittest.TestCase):
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "sat: no unsat proof"):
             proof_certificate.export_clause_log_certificate(
                 "(declare-const x Real)(assert (> x 1.0))")
+        # A negated unit makes the sat core log its internal true variable as
+        # the phantom k!0; the raw log shows it and the certificate does not.
+        log = proof_clause_log.run_clause_log(proof_certificate.default_z3_executable(),
+                                              proof_certificate._assertion_commands(_UF_NEGATIVE_UNIT))
+        self.assertIn("(declare-fun k!0 () Bool)", log)
+        certificate = proof_certificate.export_clause_log_certificate(_UF_NEGATIVE_UNIT)
+        self.assertEqual(certificate["fragment"], "qf_uf")
+        self.assertNotIn("k!", json.dumps(certificate))
         # Boolean input through the clause log, selected explicitly.
         result = subprocess.run(
             [sys.executable, str(_EXAMPLES / "proof_certificate.py"), "--core", "clause-log", "-"],

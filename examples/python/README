@@ -200,6 +200,14 @@ step:
   - del steps remove clauses from the database. If the log never derives the
     empty clause, because the contradiction was found while asserting, the
     empty clause is derived from the assumptions or tied to the assertions.
+  - The sat core logs Boolean variables that have no expression, such as
+    goal2sat's internal true literal when a unit is asserted, as nullary Bool
+    constants k!<n> absent from the input. Assumed and deleted clauses over
+    such a phantom are dropped silently: they are tied to no assertion, and
+    dropping a clause can only remove support for a later rup step, which
+    then fails explicitly. An inference or definition that mentions a phantom
+    is rejected as a fresh symbol, as is any other symbol absent from the
+    input.
 
 Logs of at least 1 MB are reduced with Z3's native proof trimmer before replay.
 The exporter follows the final empty clause's dependency graph, checks it for

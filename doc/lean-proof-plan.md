@@ -678,14 +678,18 @@ the unit and the assertion; and (2) a Boolean unit makes goal2sat log its
 internal `true` variable, which has no expression, as a fresh constant
 `k!0` assumed as a unit clause. The second affected plain QF_UF inputs with
 a negated unit assertion as well (`(assert (not s))` with `s` elsewhere),
-which the exporter rejected as a fresh symbol. The replay now drops assumed
+which the exporter rejected as a fresh symbol; empirically the phantom
+appears for inputs without a `set-logic` line and not for the same
+assertions under `(set-logic QF_UF)`, so the inputs that test it carry no
+`set-logic` line and the live tests check the raw log for `k!0` before
+checking that the certificate has none. The replay now drops assumed
 or deleted clauses over such phantom constants (sound: dropping a clause
 only removes support for later propagation) and still rejects any inference
 or definition mentioning one. Functions whose arguments are all Bool are
 accepted only together with an uninterpreted sort: without one the sat.smt
 core Ackermannizes them with fresh symbols the log cannot be tied to the
 input, so the exporter rejects that case explicitly. Two documented inputs
-and three pinned random instances verify end to end under the standard
+and five pinned random instances verify end to end under the standard
 axioms. Still rejected: QF_UFLRA and Real arguments or results.
 
 ## Arithmetic proof infrastructure

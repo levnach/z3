@@ -7,6 +7,7 @@
 ############################################
 import copy
 import hashlib
+import json
 from pathlib import Path
 import random
 import re
@@ -21,6 +22,7 @@ import z3
 _EXAMPLES = Path(__file__).resolve().parent
 sys.path.insert(0, str(_EXAMPLES))
 import proof_certificate
+import proof_clause_log
 import proof_to_lean
 
 _STANDARD_AXIOMS = "[propext, Classical.choice, Quot.sound]"
@@ -181,8 +183,9 @@ UF_INPUTS = {
     # Bool arguments fixed at level 0: Z3 internalizes (f q) and (r s b) with
     # the units substituted, assumes its true literal, and logs its internal
     # true variable as the phantom constant k!0; t is decided during search.
+    # No set-logic line: with (set-logic QF_UF) the sat.smt core logs no
+    # phantom for this input, and the live test below checks the raw log.
     "uf_bool_args_units": """\
-(set-logic QF_UF)
 (declare-sort U 0)
 (declare-fun a () U)
 (declare-fun b () U)
@@ -729,6 +732,12 @@ class TestUninterpretedValidation(unittest.TestCase):
 
     def test_level_zero_units_inside_boolean_arguments(self):
         source = UF_INPUTS["uf_bool_args_units"]
+        # The live run must exercise the phantom path: Z3's raw log declares
+        # its internal true variable as k!0 and assumes it as a unit clause.
+        log = proof_clause_log.run_clause_log(proof_certificate.default_z3_executable(),
+                                              proof_certificate._assertion_commands(source))
+        self.assertIn("(declare-fun k!0 () Bool)", log)
+        self.assertRegex(log, r"\(assume (\(not )?k!0\)?\)")
         certificate = proof_certificate.export_clause_log_certificate(source)
         graph = proof_to_lean._validate_graph(source, certificate)
         hints = [graph.decl(node).parameters for node in _th_lemma_nodes(certificate)]
@@ -739,6 +748,7 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertIn(("euf",), hints)
         self.assertIn("def-axiom", certificate["rule_counts"])
         self.assertFalse([d for d in certificate["declarations"] if d["name"].startswith("k!")])
+        self.assertNotIn("k!", json.dumps(certificate))
         text = proof_to_lean.reconstruct(source, certificate)
         self.assertIn("(_bool (formula_", text)
 
