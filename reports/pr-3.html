@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>PR #3: Outline long Boolean and QF_UF refutations into bounded Lean lemmas</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1d1f23;
+    --muted: #5b6168;
+    --line: #d9dde3;
+    --accent: #0b5fa5;
+    --pass-bg: #e3f4e8;
+    --pass-fg: #176130;
+    --pend-bg: #fff3d6;
+    --pend-fg: #7a4f00;
+    --code-bg: #f2f4f7;
+    --card-bg: #f7f8fa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171b;
+      --fg: #e6e8eb;
+      --muted: #a2a8b0;
+      --line: #343941;
+      --accent: #6fb1ea;
+      --pass-bg: #1d3a28;
+      --pass-fg: #9fe0b4;
+      --pend-bg: #42350f;
+      --pend-fg: #f3d58a;
+      --code-bg: #22262c;
+      --card-bg: #1c1f24;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    margin: 0 auto; max-width: 54rem; padding: 2rem 1.25rem 3rem;
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .5rem; }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 1.02rem; margin: 1.3rem 0 .4rem; }
+  p, li { max-width: 46rem; }
+  a { color: var(--accent); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+  code { background: var(--code-bg); padding: .08em .3em; border-radius: 3px; }
+  pre { background: var(--code-bg); padding: .75rem .9rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta dt { font-weight: 600; display: inline; }
+  .meta dd { display: inline; margin: 0; }
+  .meta div { margin: .15rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0 1rem; font-size: .93rem; }
+  th, td { text-align: left; vertical-align: top; padding: .4rem .55rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; }
+  td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-block; padding: .05em .5em; border-radius: 999px; font-size: .82em; font-weight: 600; white-space: nowrap; }
+  .pass { background: var(--pass-bg); color: var(--pass-fg); }
+  .pending { background: var(--pend-bg); color: var(--pend-fg); }
+  .card { background: var(--card-bg); border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1.1rem; margin: 1rem 0; }
+  .pipeline { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Outline long Boolean and QF_UF refutations into bounded Lean lemmas</h1>
+  <dl class="meta">
+    <div><dt>Pull request:</dt> <dd><a href="https://github.com/levnach/z3/pull/3">levnach/z3#3</a></dd></div>
+    <div><dt>Merge commit:</dt> <dd><a href="https://github.com/levnach/z3/commit/a864676fd7effe837f1cfcaecc9de1fe5f176758"><code>a864676fd7ef</code></a> on <code>master</code></dd></div>
+    <div><dt>Merged:</dt> <dd>2026-10-12T18:10:16Z</dd></div>
+    <div><dt>Loop iteration:</dt> <dd>3</dd></div>
+  </dl>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+Before this change, the Lean reconstructor emitted most refutations as a single theorem nesting one <code>let</code>-bound step per proof node. That term elaborates superlinearly, so a 7-level QF_UF equality diamond and pigeonhole-5, each around 1,600 steps, exhausted Lean's default heartbeat budget even though every individual step is trivial. Lemma outlining, which existed only for arithmetic certificates above 2,000 steps, now applies to every fragment above 500 steps, cuts unshared chains every 500 nested steps, and skips derivations the root never uses. Propositional lemmas receive their decidability witnesses as explicit parameters, so that slice still reports no axioms. Both failing inputs now check in about 3 s, and no C++ changed.
+</p>
+
+<h2>Background</h2>
+<p>
+The repository's Lean proof plan aims at unsat results from Z3 that an independent Lean checker accepts without trusting the solver. Z3 produces evidence, either a legacy proof object or, for theory problems, the clause log. A Python exporter turns it into a JSON certificate marked "unverified", and a reconstructor translates that into Lean source whose theorem hypotheses are the original assertions. Lean's kernel then checks the file with trust level zero, and only on success is the artifact published.
+</p>
+<p class="pipeline card">Z3 proof object or clause log &nbsp;&rarr;&nbsp; JSON certificate (unverified) &nbsp;&rarr;&nbsp; Lean source &nbsp;&rarr;&nbsp; Lean kernel check</p>
+<p>
+The plan's milestone 2 asks for a kernel-checked Boolean slice with no <code>sorry</code> and no solver-oracle axioms, and milestone 3 adds equality and linear arithmetic, one fragment at a time. Both fragments worked for short inputs but not at realistic sizes. The plan's scaling survey of 2026-09-25 had named the nested <code>let</code> chain as a resource cliff, and the iteration-2 backlog recorded heartbeat failures on 8- and 16-level QF_UF diamonds. The <code>maxHeartbeats</code> raise in the generated file covers only the <code>grind</code> lemmas, so every fragment was capped at roughly 1,000 steps. This PR removes that cap by generalizing the outlining built earlier for the LassoRanker arithmetic certificate.
+</p>
+
+<h2>What changed</h2>
+
+<h3>Lean reconstructor</h3>
+<p>
+The outlining threshold drops from 2,000 to 500 proof steps and the arithmetic-only condition is removed. A new boundary computation marks as separate lemmas every shared subproof, the root, and any single-use premise whose size would push its consumer's lemma above 500 nested steps. Sizes are computed in one increasing pass over the proof DAG, since arguments are known to precede their node. Only steps reachable from the root are considered, because the clause log can record derivations the refutation never uses.
+</p>
+<p>
+Arithmetic and uninterpreted-sort lemmas keep local classical decidability witnesses, since those slices already report the three standard Lean axioms through <code>Rat</code> and <code>grind</code>. Propositional lemmas instead take every witness they or their callees need as explicit <code>Decidable</code> parameters. The main theorem introduces those witnesses with the existing constructive continuation and passes them to the root lemma, so <code>#print axioms</code> still reports none for outlined propositional theorems.
+</p>
+
+<h3>Tests</h3>
+<p>
+Twelve tests were added across the three fragment suites, two of them after review. The QF_UF suite checks the 7-level diamond end to end, asserting that every lemma defines at most 500 steps and that the lemma bodies together define exactly the reachable steps, and sweeps all documented QF_UF inputs with forced outlining and chunks of three steps. The integration suite does the same for every documented propositional input and the six z3test Boolean inputs, asserting them axiom-free, and checks pigeonhole-5 end to end. The arithmetic suite now default-outlines a random ite instance above the threshold and forces chunk-3 cuts inside Farkas, gate-clause, and <code>Rat</code>-valued ite subproofs.
+</p>
+
+<h3>Documentation</h3>
+<p>
+The Python examples README and the Lean README describe the new rule and the axiom-free witness parameters. The proof plan gained a dated note with measurements, and its LassoRanker section now points at the generalized rule.
+</p>
+
+<table>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">88</td><td class="num">17</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">64</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">50</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td class="num">34</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">21</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">12</td><td class="num">6</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">4</td><td class="num">1</td></tr>
+    <tr><th>Total, 7 files</th><th class="num">273</th><th class="num">25</th></tr>
+  </tbody>
+</table>
+
+<h2>How it was verified</h2>
+
+<h3>Local verification</h3>
+<p>
+No C++ changed, so no rebuild or <code>test-z3</code> run was needed. The implementer, the reviewer, and the loop's independent verification step each ran the full Lean reconstruction suite, and all passed. The reviewer also confirmed that the pre-change reconstructor still fails the 7-level diamond with the heartbeat timeout, so the new UF test would fail without this change, and that a euf-hint tampering only Lean can catch is still rejected in outlined mode.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Lean reconstruction suites (<code>test_proof_to_lean*.py</code>)</td><td>154 tests OK in 271.5 s (iteration 2: 142 tests)</td></tr>
+    <tr><td>Certificate exporter tests</td><td>52 tests OK</td></tr>
+    <tr><td>z3test proof-matrix tests</td><td>46 tests OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+    <tr><td>Boolean matrix cell, legacy proof objects</td><td>6 of 6 lean-verified</td></tr>
+    <tr><td>QF_LRA matrix cell, clause log</td><td>8 of 8 lean-verified</td></tr>
+    <tr><td>Pre-change reconstructor on the 7-level diamond</td><td>Lean exit 1 after 34 s, maximum heartbeats exceeded</td></tr>
+    <tr><td>Axioms of outlined pigeonhole-5 and 7-level diamond</td><td>none, and the three standard axioms, respectively</td></tr>
+  </tbody>
+</table>
+
+<p>Lean checking time before and after, measured by the implementer on one machine:</p>
+<table>
+  <thead><tr><th>Input</th><th class="num">Steps</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>QF_UF diamond, 6 levels</td><td class="num">875</td><td>15.0 s</td><td>1.8 s</td></tr>
+    <tr><td>QF_UF diamond, 7 levels</td><td class="num">1,606</td><td>heartbeat failure after 36 s</td><td>3.0 s</td></tr>
+    <tr><td>QF_UF diamond, 8 levels</td><td class="num">3,827</td><td>heartbeat failure after 24 s</td><td>5.4 s</td></tr>
+    <tr><td>Pigeonhole 5</td><td class="num">1,644</td><td>heartbeat failure after 17 s</td><td>3.2 s, no axioms</td></tr>
+    <tr><td>Pigeonhole 6</td><td class="num">8,693</td><td>not tried</td><td>88 s, no axioms</td></tr>
+    <tr><td>Random 3-SAT, 40 variables, 190 clauses</td><td class="num">692</td><td>1.8 s</td><td>1.8 s, no axioms</td></tr>
+  </tbody>
+</table>
+
+<h3>Continuous integration</h3>
+<p>
+The new tests run in the Ubuntu releaseClang job, which also enforces the two matrix cells above. There were no CI fix rounds and no failures. At the last status snapshot recorded before the merge, 26 of the 28 gating checks had passed and two Windows builds were still running. Their final outcome is not recorded in the loop's inputs. The change touches only Python and documentation, and the reviewer confirmed that the Lean tests have no Windows exposure.
+</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Check</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661508">Ubuntu build - cmake - releaseClang</a> (runs the Lean checks)</td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661426">Ubuntu build - cmake - debugClang</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661418">Ubuntu build - cmake - debugGcc</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661376">Ubuntu build - cmake - releaseSTGcc</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925660915">Ubuntu with OCaml</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661654">Ubuntu with OCaml on z3-static</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661455">MacOS build with CMake</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661371">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661452">Python bindings (manylinux Centos AMD64) build</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661462">Python bindings (manylinux Centos ARM64 cross) build</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661194">Python build-script unit tests</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661333">CMake package - latest CMake</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338442/job/114925661309">CMake package - minimum builder and consumer</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338665/job/114925659597">build (amd64_arm64)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338665/job/114925659304">mingw-build</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338665/job/114925659617">build (x64)</a></td><td><span class="badge pending">in progress at snapshot</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338665/job/114925659581">build (x86)</a></td><td><span class="badge pending">in progress at snapshot</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338529/job/114926328787">Compare exact traces</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338529/job/114925659222">Trace (clang)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338529/job/114925659514">Trace (apple-clang)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338529/job/114925659282">Trace (gcc)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338529/job/114925659319">Trace (gcc-unsigned-char)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338529/job/114925659328">Trace (libcxx)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338529/job/114925659095">Trace (libcxx-random)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338529/job/114925659296">Trace (msvc)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338491/job/114925658024">build-test (ubuntu-latest, 5)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338491/job/114925658297">build-test (macos-latest, 5)</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38283338478/job/114925657861">Check</a></td><td><span class="badge pass">pass</span></td></tr>
+  </tbody>
+</table>
+<p>
+Non-gating checks: the three Determinism Linter jobs and the "Mark Pull Requests Ready for Review" job passed. A "Dispatch NFV formal audit" run was queued at the final snapshot with its outcome unknown; an earlier run of that workflow on the PR had passed.
+</p>
+
+<h2>Review</h2>
+<p>
+The reviewer approved with no blockers and no major findings, and independently verified that the trust boundary is unchanged: no <code>sorry</code>, no new axioms, and trust level zero untouched.
+</p>
+<ul>
+  <li><strong>Minor 1, arithmetic coverage.</strong> The implementer claimed the random QF_LRA suite covered the newly outlined 500 to 2,000 step range, but those instances have at most 418 steps. Fixed: two arithmetic tests were added after review, one default-outlining a 596-step ite instance and one forcing chunk-3 cuts inside arithmetic subproofs.</li>
+  <li><strong>Nit 2, reachable-only emission.</strong> Outlined mode emits only root-reachable steps while flat mode emits every step, so an unused derivation that only Lean would reject is accepted above 500 steps and rejected below. Accepted as designed: Python shape checks still run on every node and dropping unused work is sound. Follow-up for the flat path.</li>
+  <li><strong>Nit 3, scraped witness sets.</strong> The propositional lemma signature, now load-bearing for the axiom-free guarantee, is derived by pattern-matching identifiers in generated text rather than from per-step support data. Not changed: this is the pre-existing arithmetic mechanism and it is fail-safe, since a wrong parameter makes Lean reject the file. Recorded as a follow-up.</li>
+  <li><strong>Nit 4, stale plan paragraph.</strong> The LassoRanker section of the plan still described the old rule. Fixed with a cross-reference to the new dated note.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li><strong>Generated text changes</strong> for every certificate above 500 steps, including arithmetic ones between 500 and 2,000 steps that were one theorem before. The theorem statement and trust boundary are unchanged in every mode.</li>
+  <li><strong>LassoRanker was not re-run.</strong> Its 41,000-step certificate now gets extra chunk boundaries. Smaller lemmas should only reduce per-lemma cost, but the total was not measured.</li>
+  <li><strong>Witness parameter count.</strong> Propositional root lemmas take one parameter per witness, 876 for pigeonhole-6, and the main theorem nests that many continuations. This is pre-existing behaviour and it checks, but it is a cost to watch on larger SAT proofs.</li>
+  <li><strong>CI time.</strong> The releaseClang Lean step grows by roughly a minute. The forced chunk-3 sweeps are the first candidates to trim.</li>
+  <li><strong>Two Windows gating builds</strong> were still running at the last recorded snapshot, so their result is unknown here.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Per-lemma cost at scale is the next performance item: pigeonhole-6 verifies in 88 s across 3,071 lemmas.</li>
+  <li>Derive witness sets from per-step support data instead of identifier scraping, and consider skipping unreachable steps in the flat path too.</li>
+  <li>Add a long QF_UF or Boolean input to the z3test Lean regression corpus so the CI matrix covers outlining directly.</li>
+  <li>Still on the backlog: harmless <code>set-option</code> commands, QF_UFLRA, several uninterpreted sorts, and QF_LIA.</li>
+</ul>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-12.
+</footer>
+
+</body>
+</html>
