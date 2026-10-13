@@ -11,48 +11,52 @@
     --fg: #1f2328;
     --muted: #59636e;
     --border: #d0d7de;
-    --accent: #0a5bc4;
-    --code-bg: #f3f5f7;
-    --pass-bg: #dcf5e4;
-    --pass-fg: #0f5e2b;
-    --note-bg: #f6f8fa;
+    --code-bg: #f6f8fa;
+    --link: #0a5bd3;
+    --accent: #1a7f37;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0f1419;
+      --bg: #0d1117;
       --fg: #e6edf3;
-      --muted: #9aa6b2;
+      --muted: #9198a1;
       --border: #30363d;
-      --accent: #6cb6ff;
-      --code-bg: #1b2129;
-      --pass-bg: #163a26;
-      --pass-fg: #8ee0a8;
-      --note-bg: #161c23;
+      --code-bg: #161b22;
+      --link: #58a6ff;
+      --accent: #3fb950;
     }
   }
   html { background: var(--bg); color: var(--fg); }
   body {
-    margin: 0 auto; padding: 2rem 1.25rem 3rem; max-width: 56rem;
-    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0 auto; padding: 2rem 1.25rem 3rem; max-width: 52rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 1.05rem; line-height: 1.6;
   }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin: 0 0 .5rem; }
-  h2 { font-size: 1.2rem; margin: 2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--border); }
-  h3 { font-size: 1rem; margin: 1.2rem 0 .4rem; }
-  p, li { max-width: 48rem; }
-  a { color: var(--accent); }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; background: var(--code-bg); padding: .1em .3em; border-radius: 3px; }
-  pre { background: var(--code-bg); padding: .75rem; border-radius: 6px; overflow-x: auto; }
-  pre code { background: none; padding: 0; }
-  table { border-collapse: collapse; width: 100%; margin: .75rem 0 1.25rem; font-size: .95rem; }
-  th, td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; vertical-align: top; }
-  th { background: var(--note-bg); }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .meta { color: var(--muted); font-size: .95rem; margin: 0 0 1.5rem; }
-  .meta span { white-space: nowrap; }
-  .meta span + span::before { content: " · "; color: var(--muted); }
-  .pass { display: inline-block; background: var(--pass-bg); color: var(--pass-fg); font-weight: 600; font-size: .85rem; padding: .05rem .45rem; border-radius: 999px; }
-  .note { background: var(--note-bg); border-left: 3px solid var(--accent); padding: .6rem .9rem; margin: 1rem 0; }
-  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.3rem; margin: 2.2rem 0 0.6rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 0.4rem; }
+  p, li { max-width: 46rem; }
+  a { color: var(--link); }
+  .meta { color: var(--muted); font-size: 0.95rem; margin: 0 0 1rem; }
+  .meta span { display: inline-block; margin-right: 1.2rem; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.92em; background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.45; font-size: 0.86rem;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; margin: 0.8rem 0 1.2rem; width: 100%; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; white-space: nowrap; }
+  .pass { color: var(--accent); font-weight: 600; }
+  .caption { color: var(--muted); font-size: 0.92rem; margin: -0.4rem 0 1rem; }
+  footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.5rem; }
+  dl.glossary dd { margin: 0 0 0 1.2rem; }
 </style>
 </head>
 <body>
@@ -60,155 +64,201 @@
 <header>
   <h1>Certify Bool-argument uninterpreted functions in QF_UF refutations</h1>
   <p class="meta">
-    <span>Pull request <a href="https://github.com/levnach/z3/pull/6">levnach/z3 #6</a></span>
-    <span>Merge commit <a href="https://github.com/levnach/z3/commit/89a4c558187889c5c71c60537623eec6fc64f94a"><code>89a4c55</code></a></span>
-    <span>Merged 2026-10-13T00:50:45Z</span>
-    <span>Loop iteration 6</span>
+    <span>Pull request: <a href="https://github.com/levnach/z3/pull/6">levnach/z3 #6</a></span>
+    <span>Merge commit: <a href="https://github.com/levnach/z3/commit/89a4c558187889c5c71c60537623eec6fc64f94a"><code>89a4c55</code></a></span>
+    <span>Merged: 2026-10-13T00:50:45Z</span>
+    <span>Loop iteration: 6</span>
   </p>
 </header>
 
 <h2>In one paragraph</h2>
 <p>
-Before this change, the QF_UF slice of Z3's native proof certificates rejected every uninterpreted function or predicate with a Bool argument, such as <code>(declare-fun f (Bool) U)</code>. These signatures are typical of hardware-derived QF_UF benchmarks and were the first item on the project backlog. The pull request admits them without touching the solver: the Lean theorem gains one quantified map <code>_bool : Prop -&gt; _U</code>, each Boolean argument <code>p</code> is rendered as <code>_bool p</code>, and the exporter and reconstructor accept the matching declarations. It also closed an unrelated gap: Z3's SAT core logs an internal "true" variable as a phantom constant <code>k!0</code> whenever a Boolean unit is asserted, which made the exporter reject plain QF_UF inputs with a negated unit assertion. Every new input verifies in Lean under the three standard axioms.
+Before this change the pipeline refused any input in which an unknown function took a true/false value as an argument. An unknown function is one the input names but never defines. Such inputs are common in problems derived from hardware designs. Now the exporter accepts them and Lean checks the result. The theorem gains one extra map, written <code>_bool</code>, that carries each true/false argument into the single value type the theorem already uses. Think of it as putting a yes/no answer into an envelope so it can sit in the same tray as the other items. As a side benefit, the clause-log replay now skips a bookkeeping variable that Z3 sometimes logs under a name the input never declared. That variable used to make the exporter reject even plain inputs with a negated single fact.
 </p>
 
 <h2>Background</h2>
 <p>
-The project's goal, stated in the plan document, is unsat results from Z3 that an independent Lean checker accepts without trusting the solver. Z3 produces evidence, either a legacy proof object or a clause log from its sat.smt core. A Python exporter replays that evidence against the original SMT-LIB input and saves a JSON certificate. A reconstructor turns the certificate into Lean source with one lemma per inference step and a final theorem that the assertions imply <code>False</code>. Lean's kernel checks that source, and only a successful check publishes the artifact.
-</p>
-<p>
-The work sits in milestone 3 of the plan, "Equality and linear arithmetic", which asks for each fragment to be completed end to end before another is added. Iterations 2, 4, and 5 built the QF_UF slice: congruence lemmas discharged by Lean's <code>grind</code> tactic, <code>ite</code> terms over an uninterpreted sort, and many sorts collapsed onto one Lean carrier type <code>_U</code> through a disjoint-union soundness argument. This iteration adds Bool in argument positions.
-</p>
-<p>
-The soundness argument extends that collapse by one sort. The theorem quantifies over every type and every indexed family of functions, so any model of the input is one instance of it. With Bool as one more sort, the model's two truth values join the disjoint union and <code>_bool</code> picks them classically. Nothing states that <code>_bool True</code> and <code>_bool False</code> differ; the lemmas use only the congruence <code>p &lt;-&gt; q -&gt; _bool p = _bool q</code>, which <code>grind</code> proves through <code>propext</code>.
+Iterations 2, 4, and 5 built the QF_UF slice, the part of the pipeline for equality reasoning over unknown functions without arithmetic. It already handled if-then-else and several kinds of value collapsed into one Lean type. But every argument of an unknown function had to be of an unknown kind. A true/false argument was rejected at the exporter, before any proof was produced. This change serves milestone 3 of the plan, equality and linear arithmetic, and was the first item in the backlog.
 </p>
 
 <h2>What changed</h2>
-
-<h3>Exporter and fragment classification</h3>
-<p>
-The signature check now allows Bool among a function's or predicate's arguments; Real arguments and results stay rejected. One explicit refusal was added: a function whose arguments are all Bool, in an input with no uninterpreted sort, is rejected with a message naming the symbol. Z3 Ackermannizes such functions with fresh symbols the clause log cannot tie to the input, so no honest certificate is possible yet.
-</p>
-
-<h3>Clause-log replay</h3>
-<p>
-When a Boolean unit is asserted, Z3's goal2sat component logs its internal "true" SAT variable, which has no expression behind it, as a fresh nullary Bool constant <code>k!0</code> and assumes it as a unit clause. The replay now treats such a log-declared constant named <code>k!&lt;n&gt;</code>, absent from the input, as a phantom and drops the <code>assume</code> and <code>del</code> commands over it. Dropping a clause can only remove support for a later propagation step, which then fails explicitly. Any inference or definition that mentions a phantom is still rejected.
-</p>
-
-<h3>Lean reconstruction</h3>
-<p>
-Every QF_UF definition and lemma gained the <code>_bool</code> binder, and each application argument is rendered as a term or as <code>(_bool formula)</code> according to its declared sort. Predicate applications now count as theory nodes, so a rewrite over one goes to <code>grind</code> rather than to the propositional truth-table lemma. Finally, every <code>grind</code> lemma first states excluded middle for each Boolean argument it reaches, because Z3's egraph knows every Boolean argument is true or false once assigned. Without these helpers, 5 of 40 random instances failed in <code>grind</code>; with them, none did.
-</p>
-
-<h3>Tests and documentation</h3>
-<p>
-New tests cover classification, two hand-pinned clause-log replays, two documented inputs verified live in Lean, a random generator with five pinned seeds, and a live check that the raw clause log contains <code>k!0</code> while the certificate does not. The READMEs and the plan document describe the new binder, its trust boundary, and the phantom rule.
-</p>
+<ul>
+  <li><strong>Exporter.</strong> Unknown functions and predicates, functions whose result is true or false, may now take true/false arguments. Functions whose arguments are all true/false in an input with no unknown kind of value are still rejected, with a message naming the function.</li>
+  <li><strong>Clause-log replay.</strong> When Z3 asserts a single true/false fact, it sometimes logs a phantom variable named <code>k!0</code> standing for its internal "true". The replay now drops clauses over such a phantom instead of rejecting the input. A dropped clause can only make a later step fail loudly, never pass wrongly.</li>
+  <li><strong>Lean encoding.</strong> The theorem takes one more input, the envelope map, and every true/false argument is written as that map applied to the argument's formula. Nothing claims the envelope for "true" differs from the one for "false", and no proof step needs that.</li>
+  <li><strong>Lean proof help.</strong> Each lemma proved by the automatic <code>grind</code> tactic now first states that every true/false argument it mentions is either true or false. Some random tests failed until this hint was added.</li>
+</ul>
 
 <table>
-  <thead><tr><th>File</th><th class="num">Lines changed</th><th>Role</th></tr></thead>
+  <thead><tr><th>File</th><th>What it does</th><th class="num">Lines changed</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">232</td><td>Live Lean tests, text validation, random generator</td></tr>
-    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">165</td><td>Classification and pinned clause-log replays</td></tr>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">76</td><td>Lean reconstruction</td></tr>
-    <tr><td><code>examples/python/README</code></td><td class="num">44</td><td>Scope, bundle format, soundness argument, phantom rule</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">41</td><td>Dated note on the slice</td></tr>
-    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">18</td><td>Exporter signature check and classification</td></tr>
-    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">17</td><td>Phantom-literal handling in the replay</td></tr>
-    <tr><td><code>lean/README.md</code></td><td class="num">6</td><td>The new binder</td></tr>
-    <tr><th>Total (8 files)</th><th class="num">568 insertions, 31 deletions</th><th></th></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstruction</td><td class="num">76</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter and fragment classification</td><td class="num">18</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">17</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>QF_UF Lean tests</td><td class="num">232</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter and replay tests</td><td class="num">165</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Exporter documentation</td><td class="num">44</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">41</td></tr>
+    <tr><td><code>lean/README.md</code></td><td>Lean project documentation</td><td class="num">6</td></tr>
+    <tr><td colspan="2">Total: 8 files</td><td class="num">568 added, 31 removed</td></tr>
   </tbody>
 </table>
-<p class="meta">Per-file counts are lines changed (insertions plus deletions) as reported by the squash-merge commit. No C++ source changed.</p>
+
+<h2>Worked example</h2>
+<p>
+This input declares an unknown kind of value and an unknown function from true/false values to it. The first two facts force <code>q</code> to be true. The third says the function gives different results on <code>q</code> and on "true", which is then impossible.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-sort U 0)
+(declare-fun f (Bool) U)
+(declare-const q Bool)
+(declare-const s Bool)
+(assert (or s q))
+(assert (or (not s) q))
+(assert (not (= (f q) (f true))))
+(check-sat)
+</code></pre>
+
+<h3>(b) Before</h3>
+<p>The exporter from the commit just before the merge stopped at once, so no certificate or Lean file was produced.</p>
+<pre><code>proof_certificate.py: error: uninterpreted functions over Bool are not supported: f
+</code></pre>
+
+<h3>(c) After</h3>
+<p>The current pipeline produced a certificate and this Lean file. The two applications of the function wrap their true/false argument in the envelope map.</p>
+<pre><code>-- Atom 0: "s"
+-- Atom 1: "q"
+-- Function 0: "f"
+-- Uninterpreted sort "U" is the type _U; functions and predicates take argument lists.
+-- Boolean arguments of functions and predicates are injected into _U by _bool.
+...
+def term_5 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _funs 0 [(_bool (formula_1 _atoms _U _elems _funs _preds _bool))]
+def formula_6 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := True
+def term_7 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _funs 0 [(_bool (formula_6 _atoms _U _elems _funs _preds _bool))]
+...
+</code></pre>
+<p class="caption">The first term is <code>f(q)</code> and the second is <code>f(true)</code>, each argument wrapped in the envelope map.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_21 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    : (formula_20 _atoms _U _elems _funs _preds _bool) := by
+  unfold formula_20 formula_14 formula_8 term_7 formula_6 term_5 formula_1
+  have _b1 : Or (_atoms 1) (Not (_atoms 1)) := Classical.em _
+  grind (splits := 64)
+</code></pre>
+<p class="caption">This lemma says "either the two results are equal or <code>q</code> is false". The <code>have</code> line is the new hint that <code>q</code> is true or false, and the automatic tactic finishes.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    (_h0 : (formula_2 _atoms _U _elems _funs _preds _bool))
+    (_h1 : (formula_4 _atoms _U _elems _funs _preds _bool))
+    (_h2 : (formula_9 _atoms _U _elems _funs _preds _bool))
+    : False :=
+...
+</code></pre>
+<p class="caption">The main theorem: the three input facts give a contradiction for any choice of value type and maps. The last binder is the new envelope map.</p>
+<p>Lean accepted the file. The checker script reported <code>Lean checks passed.</code></p>
 
 <h2>How it was verified</h2>
 <p>
-The implementer, the reviewer, and the integrator each ran the local suites, and an independent pass ran once more on the final head before the PR was opened. All runs agreed.
+Locally, every existing test suite passed, the Lean project built, and both regression-matrix cells that reach Lean stayed fully verified. Dozens of random instances of the new shape and of the older generators all verified. Hand-written inputs all verified except the ones the exporter is meant to reject. The reviewer's own probes, with if-then-else, equivalence, exclusive-or, and implication as arguments, also verified. No C++ changed, so no rebuild was needed.
 </p>
 <table>
   <thead><tr><th>Local check</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td>Lean integration tests, <code>test_proof_to_lean*.py</code> (includes live Lean checks of the new inputs)</td><td>163 tests OK, about 311 s</td></tr>
-    <tr><td>Certificate and clause-log tests, <code>test_proof_certificate.py</code></td><td>57 tests OK</td></tr>
-    <tr><td><code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
-    <tr><td>z3test proof-matrix unit tests</td><td>46 tests OK, 1 of 1 matrix cell Lean-verified</td></tr>
-    <tr><td>Proof matrix, legacy proof object on the six Boolean inputs</td><td>6 of 6 Lean-verified</td></tr>
-    <tr><td>Proof matrix, clause log on the QF_LRA inputs</td><td>8 of 8 Lean-verified</td></tr>
-    <tr><td>Stress: 40 random Bool-argument instances, core of at least 3</td><td>0 failures after the excluded-middle helpers (5 before)</td></tr>
-    <tr><td>Stress: 25 instances from the pre-existing generators with the new binder</td><td>0 failures</td></tr>
-    <tr><td>27 hand-written shapes</td><td>All verified except the three Bool-only inputs, rejected as intended</td></tr>
-    <tr><td>Reviewer's 15 extra probes (Bool <code>ite</code>, <code>iff</code>, <code>distinct</code>, <code>xor</code>, implication, nested arguments, phantoms in the propositional and QF_LRA fragments)</td><td>All verified under the standard axioms</td></tr>
+    <tr><td>Lean reconstruction test suite (<code>test_proof_to_lean*.py</code>)</td><td class="pass">163 tests OK</td></tr>
+    <tr><td>Exporter test suite (<code>test_proof_certificate.py</code>)</td><td class="pass">57 tests OK</td></tr>
+    <tr><td>z3test proof scripts</td><td class="pass">46 tests OK</td></tr>
+    <tr><td>Lean project check (<code>check_lean.sh</code>)</td><td class="pass">passed</td></tr>
+    <tr><td>Boolean matrix cell, legacy proof object</td><td class="pass">6 of 6 Lean-verified</td></tr>
+    <tr><td>QF_LRA matrix cell, clause log</td><td class="pass">8 of 8 Lean-verified</td></tr>
+    <tr><td>Random true/false-argument instances, before the excluded-middle hint</td><td>40 run, 5 failed in Lean</td></tr>
+    <tr><td>Same instances, after the hint</td><td class="pass">40 run, 0 failed</td></tr>
+    <tr><td>Older random generators with the new binder</td><td class="pass">25 run, 0 failed</td></tr>
+    <tr><td>Hand-written shapes</td><td class="pass">27 run, 24 verified, 3 rejected as intended</td></tr>
+    <tr><td>Reviewer's probes</td><td class="pass">15 verified</td></tr>
+    <tr><td>Phantom probe, raw log with and without a <code>set-logic</code> line, three runs each</td><td>phantom present without the line, absent with it</td></tr>
   </tbody>
 </table>
+
 <p>
-In CI, the live Lean tests run in the <code>releaseClang</code> job, and the pinned-log tests also run in the manylinux Python wheel job. All 28 gating checks passed on the first run, so there were no CI fix rounds and no failures to judge unrelated.
+On GitHub, all gating checks passed on the first run. There were no CI fix rounds and no unrelated failures. The live Lean tests run inside the Ubuntu <code>releaseClang</code> job.
 </p>
 <table>
-  <thead><tr><th>Workflow</th><th>Check</th><th>State</th></tr></thead>
+  <thead><tr><th>Workflow</th><th>Check</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502829">Ubuntu build - cmake - releaseClang</a> (runs the Lean checks)</td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059503195">Ubuntu build - cmake - debugClang</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502908">Ubuntu build - cmake - debugGcc</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059503421">Ubuntu build - cmake - releaseSTGcc</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059503000">Ubuntu with OCaml</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502704">Ubuntu with OCaml on z3-static</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502806">MacOS build with CMake</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502849">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502945">Python bindings (manylinux Centos AMD64) build</a> (runs the certificate tests)</td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502821">Python bindings (manylinux Centos ARM64 cross) build</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502841">CMake package - minimum builder and consumer</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502820">CMake package - latest CMake</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502844">Python build-script unit tests</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365886/job/115059503025">build (x64)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365886/job/115059503074">build (x86)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365886/job/115059503052">build (amd64_arm64)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365886/job/115059502951">mingw-build</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365917/job/115059503039">Check</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365809/job/115059502550">build-test (ubuntu-latest, 5)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365809/job/115059502400">build-test (macos-latest, 5)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115062270518">Compare exact traces</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059502979">Trace (clang)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503392">Trace (gcc)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503235">Trace (gcc-unsigned-char)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503306">Trace (libcxx)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503247">Trace (libcxx-random)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503224">Trace (apple-clang)</a></td><td><span class="pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503223">Trace (msvc)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502829">Ubuntu build - cmake - releaseClang</a> (runs the Lean tests)</td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059503195">Ubuntu build - cmake - debugClang</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502908">Ubuntu build - cmake - debugGcc</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059503421">Ubuntu build - cmake - releaseSTGcc</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059503000">Ubuntu with OCaml</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502704">Ubuntu with OCaml on z3-static</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502806">MacOS build with CMake</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502849">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502945">Python bindings (manylinux Centos AMD64) build</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502821">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502844">Python build-script unit tests</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502841">CMake package - minimum builder and consumer</a></td><td class="pass">pass</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365845/job/115059502820">CMake package - latest CMake</a></td><td class="pass">pass</td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365886/job/115059503025">build (x64)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365886/job/115059503074">build (x86)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365886/job/115059503052">build (amd64_arm64)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365886/job/115059502951">mingw-build</a></td><td class="pass">pass</td></tr>
+    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365917/job/115059503039">Check</a></td><td class="pass">pass</td></tr>
+    <tr><td>OCaml Binding CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365809/job/115059502550">build-test (ubuntu-latest, 5)</a></td><td class="pass">pass</td></tr>
+    <tr><td>OCaml Binding CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365809/job/115059502400">build-test (macos-latest, 5)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059502979">Trace (clang)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503392">Trace (gcc)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503235">Trace (gcc-unsigned-char)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503306">Trace (libcxx)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503247">Trace (libcxx-random)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503224">Trace (apple-clang)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115059503223">Trace (msvc)</a></td><td class="pass">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365865/job/115062270518">Compare exact traces</a></td><td class="pass">pass</td></tr>
+    <tr><td colspan="2">Gating checks total</td><td class="pass">28 of 28 passed</td></tr>
+    <tr><td>Determinism Linter (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38324366216/job/115059504056">Determinism linter (base)</a>, <a href="https://github.com/levnach/z3/actions/runs/38324366216/job/115059503936">(head)</a>, <a href="https://github.com/levnach/z3/actions/runs/38324366216/job/115063153735">compare</a></td><td class="pass">pass</td></tr>
+    <tr><td>Mark Pull Requests Ready for Review (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365739/job/115059502264">mark-ready</a></td><td class="pass">pass</td></tr>
+    <tr><td>Dispatch NFV formal audit (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38324365594/job/115059502728">dispatch</a></td><td class="pass">pass</td></tr>
   </tbody>
 </table>
-<p class="meta">Five non-gating checks also passed: three Determinism Linter jobs, "Mark Pull Requests Ready for Review", and "Dispatch NFV formal audit". CI took about 58 minutes.</p>
 
 <h2>Review</h2>
-<p>
-The reviewer approved the change with no blocker and no major finding. They confirmed that the pre-change exporter rejects exactly the inputs the change claims to add, wrote 15 end-to-end probes, and inspected the generated Lean.
-</p>
+<p>The reviewer approved with no blocking or major findings. One minor issue, one nit, and one suggestion were all addressed before merge.</p>
 <ul>
-  <li><strong>Minor (fixed).</strong> The two inputs the live tests presented as producing the phantom <code>k!0</code> carried a <code>(set-logic QF_UF)</code> line, and with that line Z3's log contains no <code>k!</code> symbol at all, so the live assertion passed vacuously. The integrator confirmed this with a three-run probe, dropped the <code>set-logic</code> line from both inputs, and made both live tests assert that the raw log contains <code>k!0</code> before asserting that the certificate does not.</li>
-  <li><strong>Nit (fixed).</strong> The plan document said "three pinned random instances"; the test pins five seeds. Corrected.</li>
-  <li><strong>Suggestion (done).</strong> The phantom-literal rule is now documented in the exporter README's replay section, next to the other replay-level decisions.</li>
+  <li><strong>Minor: a test that could not fail.</strong> Comments said two test inputs make Z3 log the phantom variable. The reviewer ran them three times each and found no phantom at all. The cause was a <code>set-logic</code> line at the top of each input, which stops Z3 from logging it. So the test checking that the phantom was removed passed for nothing, and a regression would have gone unnoticed. The fix removed the line and made the tests first confirm the raw log contains the phantom, then that the certificate does not.</li>
+  <li><strong>Nit: a stale count.</strong> The plan document said three random instances were pinned. There are five. Corrected.</li>
+  <li><strong>Suggestion: document the trust boundary.</strong> The rule that drops phantom clauses is now written next to the other replay decisions in the exporter README.</li>
 </ul>
-<p>The review fixes landed as a second commit on the branch, and the whole suite was rerun before the PR was opened.</p>
 
 <h2>Risks and open questions</h2>
 <ul>
-  <li><strong>Every QF_UF theorem changed shape.</strong> The <code>_bool</code> binder is present even when no Boolean argument exists. The full suite and the stress runs over the older generators cover this; propositional and QF_LRA output is unchanged.</li>
-  <li><strong>The soundness of <code>_bool</code> is documented, not formalized.</strong> It is the same kind of frontend-encoding argument as Real-as-Rat and the many-sorted collapse.</li>
-  <li><strong>Phantom dropping applies to every fragment that uses the clause log.</strong> It can only make a later step fail explicitly, and it is keyed narrowly on log-declared nullary Bool constants named <code>k!&lt;n&gt;</code> absent from the input. It is still a silent deletion, documented as part of the trust boundary.</li>
-  <li><strong>The live phantom tests depend on solver behaviour.</strong> Why <code>(set-logic QF_UF)</code> suppresses the phantom was not tracked down. If a solver change stops logging it, the two live tests fail with a clear message.</li>
-  <li><strong>Level-0 substitution.</strong> Z3 substitutes units into Boolean arguments before internalization even with value propagation disabled. Where this happens was not identified.</li>
-  <li><strong>Proof cost.</strong> The helpers add one <code>have</code> per Boolean argument to each <code>grind</code> lemma. Stress lemmas stayed under a second; larger instances were not measured.</li>
+  <li><strong>Every QF_UF theorem changed shape.</strong> The new binder appears even without true/false arguments. The suite and the stress runs over the old generators cover this. Other fragments are unchanged.</li>
+  <li><strong>The soundness argument is informal.</strong> That the envelope map keeps the theorem honest is argued in the README, like the earlier collapses. It is not proved in Lean.</li>
+  <li><strong>Phantom dropping applies to every fragment.</strong> It cannot make a wrong proof pass. But it is keyed on the name prefix <code>k!</code>, and a solver change could alter when the phantom appears. The live tests would then fail with a clear message.</li>
+  <li><strong>Open questions.</strong> Why a <code>set-logic</code> line suppresses the phantom was not tracked down. The new hints may add case splits, though every stress lemma stayed under a second.</li>
 </ul>
 
 <h2>What comes next</h2>
 <ul>
-  <li>Pure Boolean uninterpreted functions with no uninterpreted sort, which Z3 Ackermannizes with fresh symbols.</li>
-  <li>QF_UFLRA and Real arguments or results of uninterpreted functions, which stay rejected.</li>
-  <li>A set of QF_UF inputs in the z3test regression corpus, so QF_UF appears in the CI proof matrix directly.</li>
-  <li>The remaining backlog items, among them QF_LIA and harmless <code>set-option</code> commands.</li>
+  <li>Functions whose arguments are all true/false with no unknown kind of value. Z3 replaces these with fresh names, so a different approach is needed.</li>
+  <li>Mixing unknown functions with real-number arithmetic.</li>
+  <li>QF_UF inputs in the z3test regression corpus, so the CI matrix checks this fragment directly.</li>
 </ul>
 
+<h2>Glossary</h2>
+<dl class="glossary">
+  <dt>Unknown function</dt><dd>A function the input declares but never defines. Also called an uninterpreted function.</dd>
+  <dt>Predicate</dt><dd>An unknown function whose result is a true/false value.</dd>
+  <dt>QF_UF</dt><dd>Inputs with unknown functions and equality, but no numbers and no quantifiers.</dd>
+  <dt>Clause log</dt><dd>Z3's record of the clauses it assumed, derived, and deleted, which the exporter replays into a proof.</dd>
+  <dt>Phantom variable</dt><dd>A variable such as <code>k!0</code> in the clause log but not in the input. It stands for Z3's internal "true".</dd>
+  <dt>Envelope map (<code>_bool</code>)</dt><dd>The new theorem input that carries a true/false value into the single value type.</dd>
+  <dt>Excluded middle</dt><dd>The fact that any statement is either true or false.</dd>
+  <dt>Standard axioms</dt><dd>The three axioms Lean proofs commonly rely on. Every certificate here uses only these.</dd>
+</dl>
+
 <footer>
-  Generated by the Lean certificate improvement loop on 2026-10-12 from the PR description, change summary, review, CI status, and merged diff.
+  Generated by the Lean certificate improvement loop on 2026-10-13.
 </footer>
 
 </body>
