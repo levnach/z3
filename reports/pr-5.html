@@ -3,69 +3,78 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
 <title>PR #5: Certify many-sorted QF_UF refutations through one Lean carrier</title>
 <style>
   :root {
+    color-scheme: light dark;
     --bg: #ffffff;
     --fg: #1f2328;
     --muted: #59636e;
     --border: #d0d7de;
-    --accent: #0a5bd3;
-    --surface: #f6f8fa;
-    --pass-bg: #dafbe1;
-    --pass-fg: #116329;
-    --warn-bg: #fff8c5;
-    --warn-fg: #7d4e00;
-    --code-bg: #eff1f3;
+    --code-bg: #f6f8fa;
+    --accent: #0969da;
+    --pass: #1a7f37;
+    --warn: #9a6700;
+    --card: #f6f8fa;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117;
       --fg: #e6edf3;
       --muted: #9198a1;
-      --border: #30363d;
-      --accent: #74b0ff;
-      --surface: #161b22;
-      --pass-bg: #12351f;
-      --pass-fg: #7ee2a0;
-      --warn-bg: #3b2e0a;
-      --warn-fg: #f2cc60;
-      --code-bg: #1c2129;
+      --border: #3d444d;
+      --code-bg: #161b22;
+      --accent: #4493f8;
+      --pass: #3fb950;
+      --warn: #d29922;
+      --card: #161b22;
     }
   }
   html { background: var(--bg); color: var(--fg); }
   body {
     margin: 0 auto;
-    padding: 2rem 1.25rem 3rem;
-    max-width: 58rem;
+    max-width: 52rem;
+    padding: 1.5rem 1.25rem 3rem;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    font-size: 16px;
+    font-size: 1.05rem;
     line-height: 1.55;
   }
   header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
-  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 0.75rem; }
-  h2 { font-size: 1.25rem; margin: 2.2rem 0 0.75rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
-  h3 { font-size: 1.05rem; margin: 1.4rem 0 0.4rem; }
-  p { margin: 0.6rem 0; }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .75rem; }
+  h2 { font-size: 1.3rem; margin: 2rem 0 .6rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.05rem; margin: 1.25rem 0 .4rem; }
+  p { margin: .6rem 0; }
   a { color: var(--accent); }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
-  pre { background: var(--code-bg); padding: 0.75rem 1rem; border-radius: 6px; overflow-x: auto; }
-  pre code { background: none; padding: 0; }
-  dl.meta { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 0; font-size: 0.95rem; }
-  dl.meta dt { color: var(--muted); }
-  dl.meta dd { margin: 0; word-break: break-all; }
-  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0 1rem; font-size: 0.93rem; }
-  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
-  th { background: var(--surface); }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .badge { display: inline-block; padding: 0.05em 0.55em; border-radius: 999px; font-size: 0.82em; font-weight: 600; white-space: nowrap; }
-  .pass { background: var(--pass-bg); color: var(--pass-fg); }
-  .sev { background: var(--warn-bg); color: var(--warn-fg); }
-  .note { background: var(--surface); border-left: 4px solid var(--accent); padding: 0.6rem 0.9rem; border-radius: 4px; margin: 1rem 0; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta dt { display: inline; font-weight: 600; }
+  .meta dd { display: inline; margin: 0 1rem 0 .25rem; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .92em;
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: .1em .3em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .8rem 1rem;
+    overflow-x: auto;
+    line-height: 1.4;
+  }
+  pre code { background: none; padding: 0; font-size: .88rem; }
+  table { border-collapse: collapse; width: 100%; margin: .75rem 0 1rem; font-size: .95rem; }
+  th, td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  .pass { color: var(--pass); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: .95rem; margin-top: -.3rem; }
   ul, ol { padding-left: 1.4rem; }
-  li { margin: 0.3rem 0; }
-  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  li { margin: .3rem 0; }
+  footer { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: .75rem; color: var(--muted); font-size: .9rem; }
+  dl.gloss dt { font-weight: 600; margin-top: .5rem; }
+  dl.gloss dd { margin: 0 0 .2rem 0; }
 </style>
 </head>
 <body>
@@ -73,186 +82,219 @@
 <header>
   <h1>Certify many-sorted QF_UF refutations through one Lean carrier</h1>
   <dl class="meta">
-    <dt>Pull request</dt>
-    <dd><a href="https://github.com/levnach/z3/pull/5">levnach/z3#5</a></dd>
-    <dt>Merge commit</dt>
-    <dd><a href="https://github.com/levnach/z3/commit/72fdb16494dd2fc77fe88307b524adef54facef2"><code>72fdb16494dd2fc77fe88307b524adef54facef2</code></a></dd>
-    <dt>Merged</dt>
-    <dd>2026-10-12T22:52:15Z</dd>
-    <dt>Loop iteration</dt>
-    <dd>5</dd>
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/5">levnach/z3 #5</a></dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/72fdb16494dd2fc77fe88307b524adef54facef2"><code>72fdb16</code></a></dd>
+    <dt>Merged</dt><dd>2026-10-12T22:52:15Z</dd>
+    <dt>Loop iteration</dt><dd>5</dd>
   </dl>
 </header>
 
-<h2 id="summary">In one paragraph</h2>
+<h2>In one paragraph</h2>
 <p>
-Z3's QF_UF certification path previously accepted inputs over exactly one uninterpreted sort. This pull request lets the exporter, the certificate, and the Lean reconstructor handle any number of sorts. The certificate keeps every sort name, Python checks that the proof graph is well-sorted against those names, and Lean renders all sorts as a single type <code>_U</code>. Collapsing sorts is sound for unsatisfiability: a many-sorted model is one instance of the Lean theorem, with <code>_U</code> the disjoint union of the carriers, and well-sorted inputs only compare terms of one sort. The review found that this argument also needs each symbol name to denote a single symbol of the input. Z3's overloading by sort violates that, the binder did not enforce it, and a tampered certificate could be rebound to a satisfiable input. That hole was closed before merge. Many-sorted QF_UF is the shape of the hardware-derived SMT-LIB QF_UF families, which use one sort per bit width.
+The certificate pipeline for unknown functions and equality used to accept inputs over only one
+kind of value. This PR certifies inputs with any number of kinds. The certificate keeps every kind's
+name, Python checks that no step mixes kinds, and Lean sees all kinds as one type. This matters
+because hardware-derived benchmarks declare one kind per bit width, so they were all out of reach.
+A reviewer found that the first version could certify a satisfiable input when one name was reused
+for two symbols. That hole was closed before the merge.
 </p>
 
-<h2 id="background">Background</h2>
+<h2>Background</h2>
 <p>
-The project goal, as stated in the repository's plan document, is unsat results from Z3 that an independent Lean checker accepts without trusting the solver. Z3 produces a native proof object or, for the theory fragments, a clause log from its <code>sat.smt</code> core. A Python exporter turns that evidence into a JSON certificate with a declaration table, a shared term and proof DAG, the assertion roots, and the original SMT-LIB source. A Python reconstructor validates the certificate, binds it structurally against a fresh parse of the input, and emits Lean source. The pinned Lean toolchain then checks that source with <code>--trust=0</code>, and only a successful check publishes the artifact.
-</p>
-<p>
-This work serves milestone 3 of the plan, "Equality and linear arithmetic". The one-sort QF_UF slice through the clause log landed earlier in the loop, and a later iteration added <code>ite</code> terms over the sort. Lifting the one-sort restriction was the first backlog candidate because the clause log needs nothing new: every sort is declared in the log, and the <code>euf</code>, <code>alldiff</code>, <code>tseitin</code>, and <code>rup</code> steps are sort-agnostic.
-</p>
-<p>
-In Lean, a QF_UF theorem quantifies over a type <code>_U</code> and indexed families of elements, functions, and predicates, and states that the assertions imply <code>False</code> under every such interpretation. This PR extends that reading from one sort to several.
-</p>
-
-<h2 id="changes">What changed</h2>
-
-<h3>Exporter</h3>
-<p>
-Fragment classification records a set of uninterpreted sort names instead of insisting on one. Functions may map between sorts. Bool or Real arguments and results, and mixing sorts with arithmetic, stay rejected. A new check rejects a symbol name declared with more than one signature in every fragment, because the certificate binds symbols by name.
+Iterations 2 and 4 built the path for unknown functions: Z3's clause log becomes a certificate,
+a Python reconstructor turns it into a Lean file, and Lean checks it. That path handled unknown
+constants, functions, predicates, if-then-else terms, and "all different", but only over one
+declared kind of value. Z3 already solved many-kind inputs, and its clause log already declared
+every kind, so nothing new was needed from the solver. The work serves milestone 3 of the plan,
+"Equality and linear arithmetic", which asks for equality reasoning to be completed end to end
+before new theories are added.
 </p>
 
-<h3>Clause-log replay</h3>
-<p>
-Unchanged. It already checked <code>declare-sort</code> lines against the input's sort set and rebuilt applications with the input's declarations, so a cross-sort application in the log was already reported as ill-sorted.
-</p>
-
-<h3>Lean reconstruction</h3>
+<h2>What changed</h2>
 <ul>
-  <li><strong>Sort set.</strong> The proof graph records a sorted tuple of sort names instead of one optional sort.</li>
-  <li><strong>Well-sortedness.</strong> Functions take and return uninterpreted sorts only, an <code>ite</code> over sort S must have domain (Bool, S, S), and equality and <code>distinct</code> compare one sort. The per-node argument check then rejects every ill-sorted application.</li>
-  <li><strong>No padding.</strong> A declaration over an uninterpreted sort that no node uses is rejected.</li>
-  <li><strong>Binding against the input.</strong> The sort sets must match, overloaded names are rejected, every bound declaration must carry the input symbol's full signature, and interned terms carry their sort.</li>
-  <li><strong>Generated text.</strong> Unchanged for one sort; with several, the header comment names them all as the one type <code>_U</code>.</li>
+  <li><strong>Several kinds of value are accepted.</strong> You can now certify an input that declares
+      two or more kinds, with functions mapping one kind to another.</li>
+  <li><strong>The certificate stays faithful.</strong> Every exported declaration keeps the kind names
+      from the input.</li>
+  <li><strong>Python checks that kinds are never mixed.</strong> The reconstructor refuses a certificate
+      where a function gets the wrong kind, an equality compares two kinds, or a declared kind is never used.</li>
+  <li><strong>Lean sees one type for all kinds.</strong> Think of marbles of several colours in one box:
+      if nobody ever compares a red marble with a blue one, a proof about the box is a proof about each colour.</li>
+  <li><strong>Reused names are rejected.</strong> Z3 allows one name to be declared twice with different
+      kinds. The pipeline now refuses such inputs at the front door, because its argument needs each name to mean one thing.</li>
+  <li><strong>Binding checks full signatures.</strong> Matching certificate symbols to input symbols now
+      compares argument kinds and result kind, not just the name.</li>
 </ul>
 
-<h3>Tests</h3>
+<table>
+  <thead><tr><th>File</th><th>Role</th><th>Lines changed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Lean end-to-end tests, random many-kind generator, exploit regression test</td><td>274</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: sort checks, signature-aware binding, one Lean type</td><td>153</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests: two-kind inputs, overloaded names rejected, pinned replay</td><td>123</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter: classify any number of kinds, reject reused names</td><td>52</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Scope, bundle format, soundness argument and its precondition</td><td>44</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated progress note including the review finding</td><td>32</td></tr>
+    <tr><td><code>lean/README.md</code></td><td>Describes the one-type encoding</td><td>8</td></tr>
+  </tbody>
+</table>
+<p class="note">Totals: 7 files, 581 lines added, 105 removed. No C++ or Lean library code changed.</p>
+
+<h2>Worked example</h2>
 <p>
-The exporter tests gain two-sort inputs classified as QF_UF, four overloaded inputs rejected, and a pinned two-sort clause-log replay with cross-sort tampering cases. The Lean integration tests gain two two-sort inputs verified end to end, seven tampered declarations, the reviewer's exploit as a regression test, and a random three-sort generator with three pinned seeds checked in Lean.
+The input declares two kinds, <code>A</code> and <code>B</code>. The function <code>f</code> maps an
+<code>A</code> value to a <code>B</code> value, and <code>p</code> is a yes/no question about
+<code>B</code> values. Since <code>a1</code> equals <code>a2</code>, the question cannot have
+different answers for them. The example was cut down from the PR's two-kind tests.
 </p>
 
-<h3>Documentation</h3>
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UF)
+(declare-sort A 0)
+(declare-sort B 0)
+(declare-fun a1 () A)
+(declare-fun a2 () A)
+(declare-fun f (A) B)
+(declare-fun p (B) Bool)
+(assert (= a1 a2))
+(assert (p (f a1)))
+(assert (not (p (f a2))))
+(check-sat)</code></pre>
+
+<h3>(b) Before the PR</h3>
+<p>The exporter from the parent commit stopped at once and produced no certificate. The old
+reconstructor rejects the new certificate with the same message.</p>
+<pre><code>proof_certificate.py: error: only one uninterpreted sort is supported, not B and A</code></pre>
+
+<h3>(c) After the PR</h3>
+<p>The certificate now records <code>f</code> with argument kind <code>A</code> and result kind
+<code>B</code>. The generated Lean file is shown trimmed to the pieces that embody the change.</p>
+
+<pre><code>-- Element 0: "a1"
+-- Element 1: "a2"
+-- Function 0: "f"
+-- Predicate 0: "p"
+-- Uninterpreted sorts "A", "B" are the one type _U; functions and predicates take argument lists.</code></pre>
+<p>The header names the two kinds and states that Lean will treat both as the single type <code>_U</code>.</p>
+
+<pre><code>def term_3 (...) (_U : Type) (_elems : Nat -> _U) (_funs : Nat -> List _U -> _U) ... : _U :=
+  _funs 0 [(term_0 _atoms _U _elems _funs _preds _bool)]
+def formula_4 (...) : Prop := _preds 0 [(term_3 _atoms _U _elems _funs _preds _bool)]
+...</code></pre>
+<p>The term <code>f a1</code> becomes function 0 applied to element 0, over the one type, and the question about it becomes predicate 0.</p>
+
+<pre><code>private theorem th_lemma_14 (...)
+    : (formula_13 _atoms _U _elems _funs _preds _bool) := by
+  unfold formula_13 formula_12 formula_11 formula_6 term_5 formula_4 term_3 formula_2 term_1 term_0
+  grind (splits := 64)</code></pre>
+<p>This lemma is the equality step across kinds: equal inputs give equal outputs, proved by Lean's <code>grind</code> tactic.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -> Prop) (_U : Type) (_elems : Nat -> _U)
+    (_funs : Nat -> List _U -> _U) (_preds : Nat -> List _U -> Prop) (_bool : Prop -> _U)
+    (_h0 : (formula_2 _atoms _U _elems _funs _preds _bool))
+    (_h1 : (formula_4 _atoms _U _elems _funs _preds _bool))
+    (_h2 : (formula_7 _atoms _U _elems _funs _preds _bool))
+    : False :=
+  ...</code></pre>
+<p>The main theorem takes the three input assertions as hypotheses and concludes <code>False</code>.</p>
+<p>The project's Lean check script accepted the file: <code>Lean checks passed.</code></p>
+
+<h2>How it was verified</h2>
 <p>
-The exporter README states the new scope, the soundness argument with its precondition, and where overloading is rejected. The Lean README and the plan document record the change and the review finding.
+Locally, every existing test still passed, and so did the new ones, including random three-kind
+puzzles checked in Lean with the standard axioms only. The reviewer's exploit scripts were rerun
+against the fix and are now rejected. The Boolean and arithmetic Lean matrices showed no regression.
 </p>
 
 <table>
-  <thead><tr><th>File</th><th>Lines changed</th></tr></thead>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">274</td></tr>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">153</td></tr>
-    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">123</td></tr>
-    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">52</td></tr>
-    <tr><td><code>examples/python/README</code></td><td class="num">44</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">32</td></tr>
-    <tr><td><code>lean/README.md</code></td><td class="num">8</td></tr>
-    <tr><th>Total: 7 files</th><th class="num">581 insertions, 105 deletions</th></tr>
+    <tr><td>Exporter unit tests</td><td class="pass">55 tests OK (was 54)</td></tr>
+    <tr><td>Lean reconstruction tests, all fragments</td><td class="pass">160 tests OK in about 298 s (was 157)</td></tr>
+    <tr><td>Lean project build and check</td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>z3test proof suites</td><td class="pass">46 tests OK</td></tr>
+    <tr><td>Boolean Lean matrix</td><td class="pass">6 of 6 lean-verified</td></tr>
+    <tr><td>QF_LRA Lean matrix</td><td class="pass">8 of 8 lean-verified</td></tr>
+    <tr><td>Reviewer's exploit scripts rerun</td><td class="pass">Both rejected</td></tr>
+    <tr><td>Random three-kind instances, 6 seeds</td><td class="pass">6 of 6 unsat, standard axioms only</td></tr>
   </tbody>
 </table>
-<p>No C++ source, Lean library source, or build script changed.</p>
 
-<h2 id="verification">How it was verified</h2>
-
-<h3>Local verification</h3>
 <p>
-The PR body reports these runs on the final branch head <code>ae04200db</code>. An independent verification pass in the loop reproduced the test counts and matrix results. No native rebuild was needed because no C++ changed.
+On GitHub, every required check passed on the first run, with no CI fix rounds and no failures
+judged unrelated. The Lean-backed tests run inside the "Ubuntu build - cmake - releaseClang" job.
 </p>
+
 <table>
-  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <thead><tr><th>Workflow</th><th>Checks</th><th>Status</th><th>Link</th></tr></thead>
   <tbody>
-    <tr><td>Exporter unit tests (<code>test_proof_certificate.py</code>)</td><td>55 tests OK, up from 54</td></tr>
-    <tr><td>Lean-backed reconstruction suites (<code>test_proof_to_lean*.py</code>)</td><td>160 tests OK in about 298 s, up from 157</td></tr>
-    <tr><td>Lean project build and check (<code>scripts/check_lean.sh</code>)</td><td>Build completed, Lean checks passed</td></tr>
-    <tr><td>z3test proof-tool suites</td><td>46 tests OK</td></tr>
-    <tr><td>Boolean proof matrix, legacy proof objects</td><td>6 of 6 <code>lean-verified</code>, exit 0</td></tr>
-    <tr><td>QF_LRA proof matrix, clause log without preprocessing</td><td>8 of 8 <code>lean-verified</code>, exit 0</td></tr>
-    <tr><td>Reviewer's exploit scripts rerun against the fix</td><td>Padded certificate rejected as an unused declaration; overloaded satisfiable input rejected at classification</td></tr>
-    <tr><td>Six random three-sort instances with <code>#print axioms</code></td><td>6 of 6 verified, depending on exactly <code>propext</code>, <code>Classical.choice</code>, <code>Quot.sound</code></td></tr>
-  </tbody>
-</table>
-<p>
-During implementation, 19 unsat instances from the three-sort generator were all Lean-verified with the same three axioms. The matrix cells matter because the binder change applies to every fragment.
-</p>
-
-<h3>Continuous integration</h3>
-<p>
-The PR had one CI round with no fix rounds. All 28 gating checks and all 5 non-gating checks passed, so no failure had to be judged unrelated. The exporter tests run in the Python wheel jobs. The Lean-backed suites, the z3test proof suites, and both Lean proof matrices run in the <code>releaseClang</code> job.
-</p>
-<table>
-  <thead><tr><th>Workflow</th><th>Check</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767519">Ubuntu build - cmake - releaseClang</a> (Lean suites and proof matrices)</td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767363">Python bindings (manylinux Centos AMD64) build</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767005">Python bindings (manylinux Centos ARM64 cross) build</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767736">Ubuntu build - cmake - releaseSTGcc</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767676">Ubuntu build - cmake - debugClang</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767461">Ubuntu build - cmake - debugGcc</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767464">Ubuntu with OCaml</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767308">Ubuntu with OCaml on z3-static</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767462">MacOS build with CMake</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767343">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767423">CMake package - minimum builder and consumer</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767445">CMake package - latest CMake</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590/job/115012767434">Python build-script unit tests</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894556/job/115012768979">build (x64)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894556/job/115012768888">build (x86)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894556/job/115012768871">build (amd64_arm64)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894556/job/115012768576">mingw-build</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706/job/115012769626">Trace (gcc)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706/job/115012769674">Trace (gcc-unsigned-char)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706/job/115012769677">Trace (clang)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706/job/115012769672">Trace (apple-clang)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706/job/115012769686">Trace (msvc)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706/job/115012769342">Trace (libcxx)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706/job/115012769629">Trace (libcxx-random)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706/job/115019042401">Compare exact traces</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894431/job/115012766929">build-test (ubuntu-latest, 5)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894431/job/115012766552">build-test (macos-latest, 5)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894425/job/115012766763">Check</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Determinism Linter (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894478/job/115012768714">Determinism linter (base)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Determinism Linter (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894478/job/115012768453">Determinism linter (head)</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Determinism Linter (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894478/job/115014209507">compare</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Dispatch NFV formal audit (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894538/job/115012769079">dispatch</a></td><td><span class="badge pass">pass</span></td></tr>
-    <tr><td>Mark Pull Requests Ready for Review (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894570/job/115012766722">mark-ready</a></td><td><span class="badge pass">pass</span></td></tr>
+    <tr><td>CI</td><td>13 jobs: Ubuntu release/debug builds, macOS, Python wheels, OCaml, CMake packaging</td><td class="pass">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894590">run</a></td></tr>
+    <tr><td>Solver determinism</td><td>7 trace jobs plus "Compare exact traces"</td><td class="pass">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894706">run</a></td></tr>
+    <tr><td>Windows</td><td>x64, x86, amd64_arm64, mingw builds</td><td class="pass">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894556">run</a></td></tr>
+    <tr><td>OCaml Binding CI</td><td>Ubuntu and macOS build-test</td><td class="pass">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894431">run</a></td></tr>
+    <tr><td>WebAssembly Build</td><td>Check</td><td class="pass">passed</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894425">run</a></td></tr>
+    <tr><td>Determinism Linter (informational)</td><td>base, head, compare</td><td class="pass">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894478">run</a></td></tr>
+    <tr><td>Dispatch NFV formal audit, Mark PRs Ready (informational)</td><td>one job each</td><td class="pass">passed</td><td><a href="https://github.com/levnach/z3/actions/runs/38309894538">run</a></td></tr>
   </tbody>
 </table>
 
-<h2 id="review">Review</h2>
+<h2>Review</h2>
+<p>The reviewer requested changes: one blocker and two minor findings. All three were fixed before the PR was opened.</p>
+
+<h3>Blocker: a certificate could be rebound to a satisfiable input</h3>
 <p>
-The reviewer requested changes: one blocker, two minor findings, no major or nit. The reviewer confirmed that all cited tests passed and that the disjoint-union argument is correct when symbols are bound faithfully, then built a counterexample to faithful binding. All three findings were fixed before the PR was opened, and the integrator reproduced the blocker before fixing it.
+The reconstructor matched certificate symbols to input symbols by name alone, while Z3 allows one
+name to be declared twice with different kinds. The reviewer took the honest certificate of a one-kind
+unsat input and swapped in a satisfiable two-kind input whose assertions print identically. With one
+unused declaration added, the reconstructor accepted it and Lean verified <code>False</code> for a
+satisfiable problem. This broke the trust boundary the project rests on. The fix rejects reused names
+at the front door, checks full signatures when binding, and tags terms with their kind. The exploit
+is now a regression test.
 </p>
 
-<h3><span class="badge sev">blocker</span> Binding by name alone let a certificate be rebound to a satisfiable input</h3>
+<h3>Minor: an unused declaration could pad the set of kinds</h3>
 <p>
-Z3 accepts one name declared at several sorts, such as <code>(declare-fun c () A)</code> with <code>(declare-fun c () B)</code>, disambiguated as <code>(as c A)</code>. The binder matched symbols by bare name, so two symbols differing only by sort matched one certificate declaration. The reviewer took the honest certificate of a one-sort unsat input, swapped its embedded source for a satisfiable two-sort input whose assertions print identically, appended one unused declaration, and obtained a Lean file that passed with <code>--trust=0</code>. The parent commit rejected that input through its single-sort check, so this was a regression.
-</p>
-<p>
-<strong>Resolution.</strong> Classification rejects overloaded names in every fragment, so both the exporter and the reconstructor refuse them before binding. The binder repeats the check, requires each bound declaration to carry the input symbol's full signature, and interns terms with their sort. The exploit is a regression test, exercised with and without the frontend check.
+The exploit needed the padding because the set of kinds was computed from all declarations, used or
+not. The reconstructor now rejects a declaration over a kind that no proof step references.
 </p>
 
-<h3><span class="badge sev">minor</span> The sort set could be padded with unused declarations</h3>
+<h3>Minor: the README claimed more than the code did</h3>
 <p>
-The sort set counted declarations no node referenced, which the exploit used to pass the sort-set comparison. <strong>Resolution.</strong> Graph validation rejects any declaration over an uninterpreted sort that no node uses. A blanket rule was not possible because the clause-log exporter pre-declares proof rules it may not apply.
+The README said reused names were rejected, but only the binder did so, and only when both copies
+reached the proof graph. The rejection now happens at classification, and the README states the
+precondition the soundness argument relies on.
 </p>
 
-<h3><span class="badge sev">minor</span> README claimed overloading was rejected when only the binder did so</h3>
-<p>
-Only the binder rejected overloaded names, and only when both overloads reached the proof graph. <strong>Resolution.</strong> Rejection now happens at classification, and the README states the precondition of the one-carrier argument explicitly.
-</p>
-
-<h2 id="risks">Risks and open questions</h2>
+<h2>Risks and open questions</h2>
 <ul>
-  <li><strong>The one-carrier argument is not formalized.</strong> Soundness of collapsing sorts rests on the documented argument: disjoint-union instance, equality only within a sort, one symbol per name. Like the Real-as-Rat encoding, it lives in the trusted Python frontend rather than in Lean.</li>
-  <li><strong>Python checks are integrity checks, not the trust boundary.</strong> Lean's statement depends only on the structure the binder compares against the parsed input, which is why the rebinding attack was serious.</li>
-  <li><strong>Overloaded names are now rejected in every fragment.</strong> The PR body states that no previously certified input loses certification.</li>
-  <li><strong>Still rejected.</strong> Bool arguments and results of uninterpreted functions, the most common remaining QF_UF rejection on hardware-derived benchmarks, plus QF_UFLRA, QF_LIA, and harmless <code>set-option</code> commands.</li>
-  <li><strong>Unknown.</strong> No run against real SMT-LIB many-sorted QF_UF benchmarks is recorded, so coverage of those families is unmeasured.</li>
+  <li><strong>The one-type argument is not formalised.</strong> Lean checks the collapsed theorem, but the step back to many kinds is a documented paper argument, like treating reals as rationals.</li>
+  <li><strong>Reused names are now rejected everywhere.</strong> This also affects Boolean and arithmetic inputs, but no input that previously certified is lost.</li>
+  <li><strong>One error message changed.</strong> Renaming a kind inside a certificate now fails with <code>wrong argument sort</code>.</li>
+  <li><strong>Still rejected.</strong> Unknown functions taking or returning true/false values, unknown functions mixed with arithmetic, integer arithmetic, and harmless <code>set-option</code> commands.</li>
 </ul>
 
-<h2 id="next">What comes next</h2>
-<ul>
-  <li>Accept uninterpreted functions with Bool arguments or results, the next most common rejection on hardware-derived QF_UF.</li>
-  <li>Add a many-sorted <code>uf_*.smt2</code> set to the Lean regression directory in the z3test repository, which would put QF_UF directly into the CI proof matrix. That is a change outside this repository.</li>
-  <li>Continue toward QF_UFLRA and QF_LIA, which remain rejected, and the other backlog items.</li>
-</ul>
+<h2>What comes next</h2>
+<p>
+True/false arguments and results of unknown functions are now the most common remaining rejection
+in hardware-derived benchmarks. A set of many-kind inputs in the separate z3test repository would put
+this fragment into the CI matrix directly.
+</p>
+
+<h2>Glossary</h2>
+<dl class="gloss">
+  <dt>Kind of value (sort)</dt><dd>A declared category of values, such as <code>A</code> or <code>B</code>, with no built-in meaning.</dd>
+  <dt>Unknown function (uninterpreted function)</dt><dd>A function with a declared signature but no definition; only equal inputs are guaranteed equal outputs.</dd>
+  <dt>Carrier</dt><dd>The Lean type that stands in for a kind of value. This PR uses one carrier, <code>_U</code>, for every kind.</dd>
+  <dt>Well-sorted</dt><dd>Every function receives arguments of the kinds it was declared for, and equalities compare one kind only.</dd>
+  <dt>Overloading</dt><dd>Declaring one name twice with different signatures. Z3 allows it; the pipeline now rejects it.</dd>
+  <dt>Signature</dt><dd>The list of argument kinds and the result kind of a declared symbol.</dd>
+  <dt>Binder</dt><dd>The reconstructor step that matches each certificate symbol to a symbol parsed from the original input.</dd>
+  <dt>Congruence</dt><dd>The rule that equal arguments give equal function results, used by Lean's <code>grind</code> tactic here.</dd>
+  <dt>Standard axioms</dt><dd>The three axioms Lean's library relies on; the generated proofs depend on nothing else.</dd>
+</dl>
 
 <footer>
-  Generated by the Lean certificate improvement loop on 2026-10-12.
+  Generated by the Lean certificate improvement loop on 2026-10-13.
 </footer>
 
 </body>
