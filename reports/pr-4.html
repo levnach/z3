@@ -3,225 +3,260 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
 <title>PR #4: Certify ite terms over the uninterpreted sort in QF_UF refutations</title>
 <style>
   :root {
+    color-scheme: light dark;
     --bg: #ffffff;
-    --fg: #1f2328;
-    --muted: #59636e;
-    --border: #d0d7de;
-    --accent: #0a5bd3;
-    --code-bg: #f3f5f7;
-    --pass: #1a7f37;
-    --warn: #9a6700;
-    --table-stripe: #f6f8fa;
+    --fg: #1d1d1f;
+    --muted: #5b5f66;
+    --line: #d9dce1;
+    --code-bg: #f4f5f7;
+    --accent: #0b5fa5;
+    --pass-bg: #e6f4ea;
+    --pass-fg: #1e6b34;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117;
-      --fg: #e6edf3;
-      --muted: #9198a1;
-      --border: #30363d;
-      --accent: #58a6ff;
-      --code-bg: #161b22;
-      --pass: #3fb950;
-      --warn: #d29922;
-      --table-stripe: #161b22;
+      --bg: #121417;
+      --fg: #e6e7ea;
+      --muted: #a0a4ab;
+      --line: #33373e;
+      --code-bg: #1c1f24;
+      --accent: #7cb7ff;
+      --pass-bg: #163a22;
+      --pass-fg: #9be3ad;
     }
   }
   html { background: var(--bg); color: var(--fg); }
   body {
-    margin: 0 auto;
-    padding: 2rem 1.25rem 3rem;
-    max-width: 52rem;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 1.55;
+    margin: 0 auto; padding: 2rem 1.25rem 4rem; max-width: 52rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.55;
   }
-  header { border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin: 0 0 0.6rem; }
-  h2 { font-size: 1.25rem; margin: 2rem 0 0.6rem; padding-top: 0.4rem; border-top: 1px solid var(--border); }
-  h3 { font-size: 1.05rem; margin: 1.2rem 0 0.4rem; }
-  p { margin: 0.6rem 0; }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .meta { color: var(--muted); font-size: 0.95rem; }
-  .meta dt { font-weight: 600; display: inline; }
-  .meta dd { display: inline; margin: 0; }
-  .meta div { margin: 0.15rem 0; }
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.9em;
-    background: var(--code-bg);
-    padding: 0.1em 0.3em;
-    border-radius: 4px;
-  }
-  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0 1rem; font-size: 0.95rem; }
-  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
-  th { background: var(--table-stripe); }
-  tbody tr:nth-child(even) { background: var(--table-stripe); }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .pass { color: var(--pass); font-weight: 600; }
-  .warn { color: var(--warn); font-weight: 600; }
-  ul, ol { padding-left: 1.4rem; }
-  li { margin: 0.3rem 0; }
-  footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 0.6rem; border-bottom: 1px solid var(--line); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 0.4rem; }
+  p, li { max-width: 46rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-bottom: 0.3rem; }
+  .meta code { font-size: 0.85rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.8rem 1rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0 1.2rem; font-size: 0.93rem; }
+  th, td { text-align: left; border-bottom: 1px solid var(--line); padding: 0.4rem 0.6rem; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { display: inline-block; background: var(--pass-bg); color: var(--pass-fg); padding: 0 0.5em; border-radius: 999px; font-size: 0.85em; font-weight: 600; }
+  .explain { color: var(--muted); font-size: 0.95rem; margin: -0.4rem 0 1.1rem; }
+  dl.gloss dt { font-weight: 600; margin-top: 0.5rem; }
+  dl.gloss dd { margin: 0 0 0 1.2rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Certify <code>ite</code> terms over the uninterpreted sort in QF_UF refutations</h1>
-  <dl class="meta">
-    <div><dt>Pull request:</dt> <dd><a href="https://github.com/levnach/z3/pull/4">levnach/z3 #4</a></dd></div>
-    <div><dt>Merge commit:</dt> <dd><a href="https://github.com/levnach/z3/commit/b3b9b189c823064307abd661e2570378c6548803"><code>b3b9b189c</code></a> on <code>master</code></dd></div>
-    <div><dt>Merged:</dt> <dd>2026-10-12T20:29:29Z</dd></div>
-    <div><dt>Loop iteration:</dt> <dd>4</dd></div>
-  </dl>
+  <h1>Certify ite terms over the uninterpreted sort in QF_UF refutations</h1>
+  <p class="meta">Pull request: <a href="https://github.com/levnach/z3/pull/4">levnach/z3 #4</a></p>
+  <p class="meta">Merge commit: <a href="https://github.com/levnach/z3/commit/b3b9b189c823064307abd661e2570378c6548803"><code>b3b9b189c823064307abd661e2570378c6548803</code></a></p>
+  <p class="meta">Merged: 2026-10-12T20:29:29Z &middot; Loop iteration 4</p>
 </header>
 
 <h2>In one paragraph</h2>
 <p>
-The QF_UF slice of Z3's Lean-checked certificate pipeline used to refuse any input containing an <code>ite</code> (if-then-else) term whose branches have the uninterpreted sort, although Z3 solves such inputs instantly and its clause log already records the two "gate" clauses tying the term to its branches. This PR makes the exporter classify such inputs as QF_UF, makes the clause-log replay add the gate clauses as <code>def-axiom</code> nodes, and makes the Lean reconstructor render the term as Lean's <code>ite</code> over the carrier type, with gates proved exactly as for Real-valued <code>ite</code>. Random stress inputs with nested <code>ite</code> terms also exposed two older replay gaps, fixed here. No trust is widened: every new acceptance path ends in a Lean-checked lemma, and tampered sorts and declarations are rejected in Python before Lean runs. A common shape of hardware-derived QF_UF benchmarks can now be certified by the Lean kernel without trusting the solver.
+The certificate pipeline now handles inputs that pick one of two values of a user-declared type with an if-then-else. A user-declared type is a kind of value with no built-in meaning, so the only facts about it are those the input states. Before, the exporter rejected any such if-then-else, even though Z3 solved the input at once and recorded a full proof. Now the proof becomes a Lean file that Lean accepts with no trusted shortcut. Random testing of the new path also uncovered two older gaps in the proof replay, both fixed here.
 </p>
 
 <h2>Background</h2>
 <p>
-The project's goal is unsat results from Z3 that an independent Lean checker accepts without trusting the solver. Z3 produces native evidence, a legacy proof object or, for theory fragments, a clause log from its <code>sat.smt</code> core. A Python exporter replays that evidence into a versioned JSON certificate, checking the shape of each inference. A reconstructor emits Lean source in which every inference is a lemma, and the Lean kernel checks that the assertions imply <code>False</code> under only the three standard axioms.
-</p>
-<p>
-The PR serves milestone 3 of the plan, "Equality and linear arithmetic", which adds uninterpreted functions and equality reasoning alongside linear real arithmetic, completing each fragment end to end before adding another. The QF_UF slice from loop iteration 2 models the uninterpreted sort as a Lean type variable with indexed families of constants, functions, and predicates, and listed <code>ite</code> over the sort as a known gap. No new hint kind was needed: Z3's <code>euf</code> core keeps an <code>ite</code> term opaque and records <code>(not c) ∨ (ite c a b) = a</code> and <code>c ∨ (ite c a b) = b</code> as <code>tseitin</code> inferences, the same clauses the Real <code>ite</code> support from iteration 1 already handled. The gap was in the adapter, not the certificate format.
+Since iteration 2 the pipeline has certified proofs over one user-declared type with constants, unknown functions, equality, and "all different" constraints. An unknown function is one the input names but never defines. If-then-else over that type was rejected, although it had worked over real numbers since iteration 1 and Z3's proof record treats both alike. The work serves milestone 3 of the plan, which asks to complete each fragment end to end before starting another.
 </p>
 
 <h2>What changed</h2>
-<h3>Exporter</h3>
-<p>
-Fragment classification accepts an <code>ite</code> whose branches have the uninterpreted sort, under any supported condition. The reserved-name and single-sort checks moved into a helper shared with function signatures, so a two-sort <code>ite</code> is still rejected.
-</p>
-<h3>Clause-log replay</h3>
 <ul>
-  <li><strong>Gate clauses for any term sort.</strong> The two branch clauses are added as <code>def-axiom</code> nodes for <code>ite</code> terms of every non-Boolean sort, found by descending into equalities, <code>distinct</code>, and predicate applications.</li>
-  <li><strong>Narrower last-resort <code>cnf</code> lemma.</strong> When no single assertion implies a logged clause, the replay now negates an unsat core of the assertions instead of all of them, and keeps a clause literal that is already the negation of a source rather than resolving it away. This fixes the <code>alldiff</code> clauses Z3 emits after simplifying an <code>ite</code> under an already-asserted unit, which previously produced a unit-resolution step the reconstructor rejected. The change applies to every fragment.</li>
-  <li><strong>Clearer errors.</strong> A core check cut off by the resource limit reports a resource-limit error rather than a mismatched assertion, and an ill-sorted built-in application in the log reports an export error instead of a raw Z3 exception.</li>
+  <li><strong>Exporter.</strong> An input with an if-then-else over the user-declared type is now classified as supported instead of rejected.</li>
+  <li><strong>Replay.</strong> Each such term gets two "gate" rules, like a railway switch: when the condition holds the term equals the first branch, otherwise the second.</li>
+  <li><strong>Lean reconstruction.</strong> The term becomes Lean's own if-then-else, and the gates are proved with two standard Lean lemmas, as for real numbers.</li>
+  <li><strong>True/false if-then-else fix.</strong> Two extra rules Z3 records without the condition were rejected as invalid built-in truths and are now recognized.</li>
+  <li><strong>Fallback lemma fix.</strong> When no single assertion explains a recorded clause, the replay now uses a small conflicting subset of assertions, called an unsat core, and no longer drops a literal it still needs.</li>
+  <li><strong>Clearer errors.</strong> Running out of the replay's resource budget now reports a resource error instead of a misleading mismatch.</li>
 </ul>
-<h3>Lean reconstruction</h3>
-<ul>
-  <li>The declaration table accepts <code>if : (Bool, U, U) -> U</code>, rendered as <code>@ite _U c (Classical.propDecidable _) a b</code> inside <code>noncomputable</code> definitions, as for Real.</li>
-  <li>Gate lemmas cover any term sort, and the <code>def-axiom</code> checker constructively proves the two condition-free Boolean gates <code>(or (not (ite p q r)) q r)</code> and <code>(or (ite p q r) (not q) (not r))</code> that Z3 records and that were previously rejected.</li>
-</ul>
-<h3>Tests and documentation</h3>
-<p>
-Certificate tests gain classification cases and pinned replays for <code>ite</code> over the sort and for the <code>alldiff</code>-under-a-unit input, including rejection of undeclared, ill-sorted, and tampered terms. The two new Boolean gate clauses join the shared <code>def-axiom</code> list, so every literal order is Lean-checked and every weakening rejected. The QF_UF Lean suite adds two documented inputs verified end to end plus three pinned random instances. Both READMEs and the plan document gain a dated note.
-</p>
 
 <table>
-  <thead><tr><th>File</th><th>Added</th><th>Removed</th></tr></thead>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th><th>Role</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">+165</td><td class="num">-1</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">+122</td><td class="num">-3</td></tr>
-    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">+53</td><td class="num">-19</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">+25</td><td class="num">-1</td></tr>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">+22</td><td class="num">-8</td></tr>
-    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">+18</td><td class="num">-8</td></tr>
-    <tr><td><code>examples/python/README</code></td><td class="num">+17</td><td class="num">-7</td></tr>
-    <tr><td><code>lean/README.md</code></td><td class="num">+4</td><td class="num">-3</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">+3</td><td class="num">-0</td></tr>
-    <tr><th>Total (9 files)</th><th class="num">+429</th><th class="num">-50</th></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">18</td><td class="num">8</td><td>Exporter and input classification</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">53</td><td class="num">19</td><td>Replay of Z3's proof record</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">22</td><td class="num">8</td><td>Lean reconstruction</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">165</td><td class="num">1</td><td>Exporter and replay tests</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">3</td><td class="num">0</td><td>Built-in truth tests</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">122</td><td class="num">3</td><td>End-to-end Lean tests for this fragment</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">25</td><td class="num">1</td><td>Dated plan note</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">17</td><td class="num">7</td><td>User documentation</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">4</td><td class="num">3</td><td>Lean project documentation</td></tr>
+    <tr><td><strong>Total, 9 files</strong></td><td class="num"><strong>429</strong></td><td class="num"><strong>50</strong></td><td></td></tr>
   </tbody>
 </table>
-<p class="meta">No C++ source changed, so no solver rebuild was required.</p>
+
+<h2>Worked example</h2>
+<p>
+This input was built from the pull request's new tests and run through the old and the new pipeline. The first assertion says <code>c</code> equals <code>a</code> when the condition holds and <code>b</code> otherwise. The other two rule out both cases.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UF)
+(declare-sort U 0)
+(declare-fun a () U)
+(declare-fun b () U)
+(declare-fun c () U)
+(declare-const q Bool)
+(assert (= c (ite q a b)))
+(assert (or (not q) (not (= c a))))
+(assert (or q (not (= c b))))
+(check-sat)</code></pre>
+
+<h3>(b) Before the change</h3>
+<p>The exporter from the parent commit rejected the input before producing any proof:</p>
+<pre><code>proof_certificate.py: error: unsupported operator over an uninterpreted sort: if</code></pre>
+
+<h3>(c) After the change</h3>
+<p>The current pipeline accepts the input and writes a Lean file of about 140 lines. The parts that carry the new feature are shown below, with cut lines marked "...".</p>
+
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) ... : _U := _elems 0
+def formula_1 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) ... : Prop := _atoms 0
+...
+noncomputable def term_4 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) ... : _U :=
+  (@ite _U (formula_1 ...) (Classical.propDecidable _) (term_2 ...) (term_3 ...))</code></pre>
+<p class="explain">The user-declared type becomes a type variable, and the if-then-else becomes Lean's own if-then-else over it, with a classical instance so Lean need not decide the condition by algorithm.</p>
+
+<pre><code>private theorem def_axiom_15 ... [_df1 : Decidable (formula_1 ...)]
+    : (formula_14 ...) :=
+  @Decidable.byCases (formula_1 ...) _ _df1
+    (fun _hc =&gt; (Or.inr (ite_eq_left _hc))) (fun _hnc =&gt; (Or.inl _hnc))
+
+private theorem def_axiom_18 ... [_df1 : Decidable (formula_1 ...)]
+    : (formula_17 ...) :=
+  @Decidable.byCases (formula_1 ...) _ _df1
+    (fun _hc =&gt; (Or.inl _hc)) (fun _hnc =&gt; (Or.inr (ite_eq_right _hnc)))</code></pre>
+<p class="explain">These are the two gate rules. Each splits on the condition and uses a standard Lean lemma to show the term equals the matching branch.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U)
+    (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    (_h0 : (formula_5 ...))
+    (_h1 : (formula_9 ...))
+    (_h2 : (formula_12 ...))
+    : False :=
+  ...</code></pre>
+<p class="explain">The final theorem says that for any type and any reading of the constants, the three assertions together lead to a contradiction.</p>
+
+<p>The project's Lean check script accepted the file: <code>Lean checks passed.</code></p>
 
 <h2>How it was verified</h2>
-<h3>Local verification</h3>
 <p>
-The implementer, reviewer, and integrator each ran the proof suites on the branch, and an independent verification pass repeated them on the final head. All runs agreed.
-</p>
-<table>
-  <thead><tr><th>Check</th><th>Result</th></tr></thead>
-  <tbody>
-    <tr><td>Certificate exporter unit tests</td><td><span class="pass">OK</span>, 54 tests (was 52)</td></tr>
-    <tr><td>Lean reconstruction suites, all fragments</td><td><span class="pass">OK</span>, 157 tests (was 152), about 285 s</td></tr>
-    <tr><td>Standalone Lean project check</td><td><span class="pass">Lean checks passed</span></td></tr>
-    <tr><td>z3test proof suites</td><td><span class="pass">OK</span>, 46 tests</td></tr>
-    <tr><td>Lean proof matrix, Boolean inputs via legacy proof object</td><td><span class="pass">6 of 6</span> lean-verified</td></tr>
-    <tr><td>Lean proof matrix, QF_LRA inputs via clause log</td><td><span class="pass">8 of 8</span> lean-verified</td></tr>
-    <tr><td>Six hand-written <code>ite</code> edge inputs (identical branches, constant condition, <code>ite</code> only inside <code>distinct</code>, nested and mixed-sort shapes)</td><td><span class="pass">All classified QF_UF and accepted by Lean</span></td></tr>
-  </tbody>
-</table>
-<p>
-Stress testing during implementation ran export, reconstruction, and a trust-zero Lean check on random QF_UF instances with nested <code>ite</code> terms. Before the two replay fixes, 20 of about 400 instances failed. After them, 0 of about 600 failed, every check reporting <code>unsat</code> under exactly the three standard axioms. The reviewer confirmed each new test fails against the pre-change library, and that tampered certificates with swapped branches, ill-sorted arguments, wrong arity, or a Bool-ranged declaration are all rejected in Python.
+Locally, every existing suite still passed, the Lean-backed suite grew by five tests, and an independent re-run on the final commit agreed. About 600 random inputs with nested if-then-else terms were exported, reconstructed, and checked in Lean with trust turned off, and all passed. Before the two replay fixes, 20 of an earlier batch of about 400 had failed. Every Lean check reported only the three standard axioms.
 </p>
 
-<h3>Continuous integration</h3>
-<p>
-All 28 gating checks passed on the PR head in a single round of about 74 minutes, with no CI fix rounds and no failures judged unrelated. Five non-gating checks also passed. The exporter and Boolean Lean tests run in the Python wheel jobs; the Lean-backed suites, z3test proof suites, and Lean proof matrices run in the Ubuntu <code>releaseClang</code> job.
-</p>
 <table>
-  <thead><tr><th>Workflow</th><th>Check</th><th>State</th></tr></thead>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238223">Ubuntu build - cmake - releaseClang</a> (runs the Lean proof suites and matrices)</td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238329">Ubuntu build - cmake - releaseSTGcc</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238147">Ubuntu build - cmake - debugClang</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238189">Ubuntu build - cmake - debugGcc</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238311">Python bindings (manylinux Centos AMD64) build</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238124">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238076">Python build-script unit tests</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238059">MacOS build with CMake</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238081">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238195">Ubuntu with OCaml</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238262">Ubuntu with OCaml on z3-static</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238053">CMake package - latest CMake</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968237991">CMake package - minimum builder and consumer</a></td><td class="pass">pass</td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344521/job/114968238666">build (x64)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344521/job/114968238780">build (x86)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344521/job/114968238749">build (amd64_arm64)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344521/job/114968238409">mingw-build</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237618">Trace (gcc)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237962">Trace (gcc-unsigned-char)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237950">Trace (clang)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237904">Trace (apple-clang)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968238122">Trace (msvc)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237960">Trace (libcxx)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237872">Trace (libcxx-random)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968889270">Compare exact traces</a></td><td class="pass">pass</td></tr>
-    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344509/job/114968237350">build-test (ubuntu-latest, 5)</a></td><td class="pass">pass</td></tr>
-    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344509/job/114968237204">build-test (macos-latest, 5)</a></td><td class="pass">pass</td></tr>
-    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344566/job/114968237448">Check</a></td><td class="pass">pass</td></tr>
-    <tr><td>Determinism Linter (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344473/job/114968237500">Determinism linter (head)</a>, <a href="https://github.com/levnach/z3/actions/runs/38296344473/job/114968238029">(base)</a>, <a href="https://github.com/levnach/z3/actions/runs/38296344473/job/114968829748">compare</a></td><td class="pass">pass</td></tr>
-    <tr><td>Other (non-gating)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344334/job/114968238331">Dispatch NFV formal audit</a>, <a href="https://github.com/levnach/z3/actions/runs/38296344524/job/114968237410">Mark Pull Requests Ready for Review</a></td><td class="pass">pass</td></tr>
+    <tr><td>Exporter unit tests</td><td>54 tests, OK (was 52)</td></tr>
+    <tr><td>Lean-backed reconstruction tests</td><td>157 tests, OK (was 152)</td></tr>
+    <tr><td>z3test proof suites</td><td>46 tests, OK</td></tr>
+    <tr><td>Lean check script on the project's pinned files</td><td>Lean checks passed</td></tr>
+    <tr><td>Proof matrix, six Boolean inputs</td><td>6 of 6 Lean-verified</td></tr>
+    <tr><td>Proof matrix, eight real-arithmetic inputs</td><td>8 of 8 Lean-verified</td></tr>
+    <tr><td>Hand-made edge inputs (identical branches, constant condition, and so on)</td><td>6 of 6 accepted by Lean</td></tr>
+    <tr><td>Random stress inputs after the fixes</td><td>about 600, 0 failures</td></tr>
+  </tbody>
+</table>
+
+<p>
+On GitHub, every gating check passed in a single round, with no CI fix rounds and no failures to judge as unrelated. The exporter tests run in the Python wheel jobs, and the Lean-backed suites run in the Ubuntu release Clang job.
+</p>
+
+<table>
+  <thead><tr><th>Workflow</th><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238223">Ubuntu build - cmake - releaseClang</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238147">Ubuntu build - cmake - debugClang</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238189">Ubuntu build - cmake - debugGcc</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238329">Ubuntu build - cmake - releaseSTGcc</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238195">Ubuntu with OCaml</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238262">Ubuntu with OCaml on z3-static</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238311">Python bindings (manylinux Centos AMD64) build</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238124">Python bindings (manylinux Centos ARM64 cross) build</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238076">Python build-script unit tests</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238059">MacOS build with CMake</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238081">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968238053">CMake package - latest CMake</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344469/job/114968237991">CMake package - minimum builder and consumer</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344521/job/114968238666">build (x64)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344521/job/114968238780">build (x86)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344521/job/114968238749">build (amd64_arm64)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344521/job/114968238409">mingw-build</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344509/job/114968237350">build-test (ubuntu-latest, 5)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344509/job/114968237204">build-test (macos-latest, 5)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344566/job/114968237448">Check</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237950">Trace (clang)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237618">Trace (gcc)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237962">Trace (gcc-unsigned-char)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237960">Trace (libcxx)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237872">Trace (libcxx-random)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968237904">Trace (apple-clang)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968238122">Trace (msvc)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344443/job/114968889270">Compare exact traces</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Determinism Linter (informational)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344473/job/114968237500">Determinism linter (head)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Determinism Linter (informational)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344473/job/114968238029">Determinism linter (base)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Determinism Linter (informational)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344473/job/114968829748">compare</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Dispatch NFV formal audit (informational)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344334/job/114968238331">dispatch</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Mark Pull Requests Ready for Review (informational)</td><td><a href="https://github.com/levnach/z3/actions/runs/38296344524/job/114968237410">mark-ready</a></td><td><span class="pass">pass</span></td></tr>
   </tbody>
 </table>
 
 <h2>Review</h2>
 <p>
-The reviewer approved the change with no blocker, major, or minor findings and three nits, after reading the full diff and surrounding replay and reconstruction code, re-running every suite, and probing tampering and edge cases.
+The reviewer approved the change with no blocker, major, or minor findings. They re-ran every suite, confirmed that each new test fails against the old library, and tampered with inputs. Swapped branches and wrongly typed conditions were all rejected before Lean ran. Three small "nit" findings remained.
 </p>
-<ol>
-  <li><strong>Nit, resource exhaustion looked like a mismatch.</strong> In the new unsat-core helper, a solver answer of <code>unknown</code> surfaced as a mismatched-assertion error, so a user could not tell whether to raise the limit. <strong>Fixed</strong> in the final commit with a distinct resource-limit error, a module-level limit constant, and a test that pins the message.</li>
-  <li><strong>Nit, pinned literal bound depends on core minimality.</strong> A test asserts at most three literals per <code>cnf</code> lemma, assuming Z3's non-minimal core excludes an irrelevant assertion. <strong>Not changed.</strong> The suggested looser bound equals three for this input, the companion Lean test uses the same bound, and QF_UF core extraction involves no platform-dependent arithmetic.</li>
-  <li><strong>Nit, gate clauses not registered for dependency-scoped RUP.</strong> Gate clauses of non-Boolean <code>ite</code> terms enter the clause database but not the gate-entry table, so reverse unit propagation over a trimmed log cannot use them implicitly. <strong>Not changed.</strong> This was already so for Real <code>ite</code>, trimmed logs carry the <code>tseitin</code> clauses explicitly, and no replay fails today.</li>
-</ol>
+<ul>
+  <li><strong>Misleading error when the budget runs out.</strong> The reviewer saw that an inner solver call that ran out of its resource budget was treated like "no conflicting subset exists", so a large input would see a mismatch message that hid the real cause. Fixed in the follow-up commit: the replay now reports a resource-limit error, pinned by a test that lowers the limit to one.</li>
+  <li><strong>A test bound that leans on Z3's choice of core.</strong> One new test pins the fallback lemma to three literals, assuming Z3's conflicting subset leaves out an irrelevant assertion. Not changed: the suggested looser bound equals three here, no platform-dependent arithmetic is involved, and a failure would signal a real change in Z3.</li>
+  <li><strong>Gate rules not indexed for trimmed records.</strong> The new gate rules are not in the index used when a trimmed proof record omits them. Nothing fails today because trimmed records carry those rules explicitly. Not changed, since the same was already true for real numbers and a fix needs a design decision.</li>
+</ul>
 
 <h2>Risks and open questions</h2>
 <ul>
-  <li><strong>The <code>cnf</code> fallback changed for every fragment.</strong> Cores are supersets of a minimal implying set, so the lemma stays valid and a different core only changes which hypotheses <code>grind</code> sees. The QF_LRA matrix still verifies, but this is the one change reaching beyond QF_UF.</li>
-  <li><strong>Large cores, large lemmas.</strong> Z3's cores are not minimal, so many assertions can yield a <code>grind</code> lemma over many hypotheses. Not measured beyond the stress set.</li>
-  <li><strong>Gate discovery visits more nodes</strong> per literal. Inputs without <code>ite</code> gain no clauses and keep identical Lean text, but the traversal cost on large logs is not quantified.</li>
-  <li><strong>Platform sensitivity of the pinned core bound</strong> stays open until the wheel jobs have run across platforms over time.</li>
-  <li><strong>Still rejected:</strong> a second uninterpreted sort, QF_UFLRA, uninterpreted functions with Bool or Real arguments or results, and QF_LIA.</li>
+  <li>The fallback lemma now uses a conflicting subset instead of all assertions, in every fragment. Any such subset still implies the clause, so the lemma stays valid, and the real-arithmetic matrix confirms it.</li>
+  <li>Z3's conflicting subsets are not minimal. On an input with many assertions the fallback could hand Lean a slow lemma with many hypotheses. Not measured beyond the random stress set.</li>
+  <li>The replay visits more nodes per literal when searching for if-then-else terms. For inputs without such terms the generated Lean text is unchanged.</li>
+  <li>Still rejected at merge time: a second user-declared type, mixing the type with arithmetic, unknown functions with true/false or real arguments, and integer arithmetic.</li>
 </ul>
 
 <h2>What comes next</h2>
 <ul>
-  <li>Add a <code>uf_ite_*.smt2</code> input to the separate z3test repository so the new path appears in the CI proof matrix directly.</li>
-  <li>Decide how gate clauses of non-Boolean <code>ite</code> terms are keyed so dependency-scoped RUP over trimmed logs can use them.</li>
-  <li>Continue milestone 3: several uninterpreted sorts, Bool-valued function arguments and results, QF_UFLRA, and integer linear arithmetic.</li>
-  <li>Measure the core-based <code>cnf</code> fallback and the broader gate traversal on larger inputs.</li>
+  <li>Add an input of this kind to the shared regression corpus, which lives outside this repository, so the CI proof matrix covers the path directly.</li>
+  <li>Take up the remaining rejected shapes. The repository history shows the next two pull requests addressed several user-declared types and true/false arguments.</li>
+  <li>Decide how to index gate rules for trimmed proof records, and measure the fallback lemma on inputs with many assertions.</li>
 </ul>
 
+<h2>Glossary</h2>
+<dl class="gloss">
+  <dt>If-then-else term</dt><dd>A value equal to one branch when a condition holds and the other branch otherwise. Written <code>ite</code> in the input language.</dd>
+  <dt>User-declared type</dt><dd>A kind of value the input names without giving it a built-in meaning. The "uninterpreted sort" of the title.</dd>
+  <dt>Unknown function</dt><dd>A function the input names but never defines.</dd>
+  <dt>Gate rule</dt><dd>One of two facts tying an if-then-else to a branch, depending on the condition.</dd>
+  <dt>Built-in truth</dt><dd>A rule Z3 records as true by its shape alone. Called a "def-axiom" in the proof record.</dd>
+  <dt>Proof record and replay</dt><dd>Z3's step-by-step log of derived clauses, and the Python code that checks each step and builds the certificate.</dd>
+  <dt>Fallback lemma</dt><dd>The replay's last resort when no single assertion explains a recorded clause.</dd>
+  <dt>Unsat core</dt><dd>A subset of the assertions that already has no solution. Small, but not always the smallest.</dd>
+  <dt>Trimmed record</dt><dd>A proof record with the steps not needed for the final contradiction removed.</dd>
+  <dt>Resource budget</dt><dd>A limit on the work an inner solver call may do during replay before giving up.</dd>
+  <dt>QF_UF</dt><dd>The input fragment with equality and unknown functions over user-declared types, and no arithmetic.</dd>
+</dl>
+
 <footer>
-  Generated by the Lean certificate improvement loop on 2026-10-12.
+  Generated by the Lean certificate improvement loop on 2026-10-13.
 </footer>
 
 </body>
