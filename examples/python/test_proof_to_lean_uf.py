@@ -1050,6 +1050,15 @@ class TestLegacyProofObjectValidation(unittest.TestCase):
         node(graph.nodes[mono].declaration, premises + [equality])
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "matching heads and arities"):
             proof_to_lean.reconstruct(self.source, certificate)
+        # A premise-less monotonicity step between a constant and itself (never
+        # emitted by Z3) is Eq.refl over the sort, not an ill-typed Iff.refl.
+        certificate, declaration, node = self.tampered()
+        constant = node(graph.nodes[graph.conclusion(mono)].declaration, [elements[0], elements[0]])
+        trivial = node(declaration(z3.Z3_OP_PR_MONOTONICITY, "monotonicity", ["Bool"], "Proof"), [constant])
+        text = proof_to_lean.reconstruct(self.source, certificate)
+        step = text.split("let _step_%d " % trivial, 1)[1].split("let _step_", 1)[0]
+        self.assertIn("(Eq.refl %s)" % proof_to_lean._term(graph, elements[0]), step)
+        self.assertNotIn("Iff.refl", step)
         # commutativity must swap the two arguments of one application, and
         # mp needs an implication or Boolean equivalence, never a term equality.
         certificate, declaration, node = self.tampered()

@@ -842,7 +842,8 @@ def _monotonicity(graph, terms, node, atom_indices, variable_indices):
         else:
             raise ReconstructionError("monotonicity is missing an argument equivalence at node %d" % node)
     if not left_args:
-        return "(Iff.refl %s)" % _formula(graph, left), False
+        # Both sides are the same constant (identical declaration, no arguments).
+        return "(%s.refl %s)" % (_relation(graph, left), _side(graph, left)), False
     kind = graph.kind(left)
     if kind == z3.Z3_OP_UNINTERPRETED:
         # Function or predicate application: every element of the argument
