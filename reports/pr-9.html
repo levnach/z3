@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #9: Certify Bool-only predicates from the legacy proof object in Lean</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1d1d1f;
+    --muted: #5c5c66;
+    --accent: #0b5fa5;
+    --rule: #d9d9e0;
+    --code-bg: #f4f4f7;
+    --th-bg: #ececf1;
+    --ok: #1a7f37;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15161a;
+      --fg: #e6e6ea;
+      --muted: #a2a2ad;
+      --accent: #7cb7ee;
+      --rule: #34353c;
+      --code-bg: #1f2026;
+      --th-bg: #26272e;
+      --ok: #4cc26a;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    margin: 0 auto; padding: 1.5rem 1.25rem 3rem; max-width: 46rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 1.02rem; line-height: 1.55;
+  }
+  header { border-bottom: 1px solid var(--rule); padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.55rem; line-height: 1.3; margin: 0 0 .6rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .6rem; border-bottom: 1px solid var(--rule); padding-bottom: .25rem; }
+  h3 { font-size: 1.05rem; margin: 1.3rem 0 .4rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta span { display: inline-block; margin-right: 1.1rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em;
+         background: var(--code-bg); padding: .08em .3em; border-radius: 3px; }
+  pre { background: var(--code-bg); padding: .8rem .95rem; border-radius: 6px; overflow-x: auto;
+        line-height: 1.4; font-size: .88rem; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0 1rem; font-size: .95rem; }
+  th, td { border: 1px solid var(--rule); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--th-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .note { color: var(--muted); font-size: .93rem; }
+  ul, ol { padding-left: 1.3rem; }
+  li { margin-bottom: .35rem; }
+  dl.glossary dt { font-weight: 600; margin-top: .5rem; }
+  dl.glossary dd { margin: 0 0 .2rem 0; }
+  footer { border-top: 1px solid var(--rule); margin-top: 2.5rem; padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify Bool-only predicates from the legacy proof object in Lean</h1>
+  <p class="meta">
+    <span>Pull request: <a href="https://github.com/levnach/z3/pull/9">levnach/z3 #9</a></span>
+    <span>Merge commit: <a href="https://github.com/levnach/z3/commit/e268600596ced68a5b5c8ffa904d66c2d5eff852"><code>e268600</code></a></span>
+    <span>Merged: 2026-10-14T20:04:46Z</span>
+    <span>Loop iteration: 9</span>
+  </p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+This PR lets the pipeline certify inputs it used to reject: problems whose only special symbols are
+<em>uninterpreted predicates over Booleans</em>. A <strong>predicate</strong> is a function whose
+result is a <strong>Boolean</strong>, a true-or-false value. An <strong>uninterpreted function</strong>
+is a function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.
+Before, such a predicate was accepted only if the input also used an <strong>uninterpreted sort</strong>,
+a user-declared type of values with no built-in structure. Now no sort is needed, which closes a gap
+between what Z3 proves and what Lean confirms. Only Python scripts, tests, and documentation changed.
+</p>
+
+<h2>Background</h2>
+<p>
+The pipeline already certified three <strong>fragments</strong>, named subsets of the input language:
+<strong>propositional</strong> input (Boolean variables and connectives only), <strong>QF_UF</strong>
+(quantifier-free formulas with uninterpreted functions over a declared sort), and <strong>QF_LRA</strong>
+(quantifier-free linear real arithmetic). Proof evidence comes from two sources. The
+<strong>legacy proof object</strong> is a proof tree built by Z3's older solver core. The
+<strong>clause log</strong> is a record of learned clauses from the newer core, where a
+<strong>clause</strong> is an or-list of <strong>literals</strong>, each a Boolean atom or its negation.
+Bool-only predicates fell through both paths, because the newer core applies
+<strong>Ackermannization</strong>, replacing each predicate application by a fresh variable that
+cannot be tied back to the input. The gap, noted in iteration 6, belongs to milestone 3 of the plan.
+</p>
+
+<h2>What changed</h2>
+<ul>
+  <li><strong>Classification.</strong> The exporter now files a Bool-only predicate input under QF_UF instead of raising an error. Mixing such predicates with arithmetic is still rejected.</li>
+  <li><strong>Automatic routing.</strong> With the default <code>--core auto</code> setting, these inputs go to the legacy proof object.</li>
+  <li><strong>Clear rejection on the other path.</strong> Asking for the clause log on such an input now fails up front with a message pointing at the legacy core.</li>
+  <li><strong>Lean encoding without a sort.</strong> The reconstructor no longer assumes a QF_UF certificate declares a sort, so the same Lean shape works when only Booleans are present.</li>
+  <li><strong>Tests and docs.</strong> Five documented inputs, a random problem generator, pinned seeds, tampering tests, and updated READMEs and plan notes.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_certificate.py</code> (exporter)</td><td class="num">48</td><td class="num">13</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code> (reconstructor)</td><td class="num">21</td><td class="num">13</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">69</td><td class="num">6</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">197</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">21</td><td class="num">6</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">4</td><td class="num">1</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">26</td><td class="num">0</td></tr>
+    <tr><th>Total (7 files)</th><th class="num">386</th><th class="num">42</th></tr>
+  </tbody>
+</table>
+
+<h2>Worked example</h2>
+<p>
+The example is the smallest of the PR's five documented test inputs, <code>bp_congruence</code>.
+It rests on <strong>congruence</strong>, the rule that equal arguments give the same predicate value,
+like a vending machine that must give the same snack for the same button. Here the two arguments are
+equal, yet the predicate holds on one and fails on the other. So a <strong>refutation</strong> exists,
+a proof that the assertions lead to a contradiction.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-fun r (Bool) Bool)
+(declare-const p Bool)
+(declare-const q Bool)
+(assert (= p q))
+(assert (r p))
+(assert (not (r q)))
+(check-sat)
+</code></pre>
+<p class="note">This is an SMT-LIB file. <strong>SMT-LIB</strong> is the standard text format for solver inputs.</p>
+
+<h3>(b) Before the PR</h3>
+<p>The exporter from the parent commit rejected the input in both its default and legacy modes. No certificate was produced, so Lean never ran.</p>
+<pre><code>proof_certificate.py: error: uninterpreted functions over Bool alone are not supported without an uninterpreted sort: r
+</code></pre>
+
+<h3>(c) After the PR</h3>
+<p>The exporter now produces a QF_UF certificate with one <code>monotonicity</code> step, Z3's name for a congruence step. The reconstructor wrote the Lean file below, and the check script reported <span class="ok">Lean checks passed</span>.</p>
+
+<pre><code>-- Predicate 0: "r"
+-- No uninterpreted sort: the type _U carries only the Boolean arguments of the predicates.
+-- Boolean arguments of functions and predicates are injected into _U by _bool.
+...
+def formula_3 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := _preds 0 [(_bool (formula_0 _atoms _U _elems _funs _preds _bool))]
+def formula_4 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := _preds 0 [(_bool (formula_1 _atoms _U _elems _funs _preds _bool))]
+...
+</code></pre>
+<p>These declarations encode <code>(r p)</code> and <code>(r q)</code>. Each Boolean argument is wrapped by <code>_bool</code> so it can live in the single carrier type.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    (_h0 : (formula_2 _atoms _U _elems _funs _preds _bool))
+    (_h1 : (formula_3 _atoms _U _elems _funs _preds _bool))
+    (_h2 : (formula_5 _atoms _U _elems _funs _preds _bool))
+    : False :=
+</code></pre>
+<p>The theorem says that for any carrier type, predicates, and Boolean injection, the three assertions imply False.</p>
+
+<pre><code>  let _step_9 : (formula_8 _atoms _U _elems _funs _preds _bool) :=
+    (Iff.of_eq (congrArg (_preds 0) (congr (congrArg List.cons (congrArg _bool (propext _step_7))) (Eq.refl []))))
+  let _step_10 : (formula_4 _atoms _U _elems _funs _preds _bool) :=
+    (Iff.mp _step_9 _step_6)
+  ...
+    (False.elim (_step_11 _step_10))
+</code></pre>
+<p>This is the congruence step. From the equality Lean derives that the two applications are equivalent, which contradicts the third assertion.</p>
+
+
+<h2>How it was verified</h2>
+<p>
+The PR touched only Python examples, tests, and documentation, so the loop merged it on its
+<strong>local gate</strong>, which reruns the relevant CI steps on the loop machine. Every step passed,
+and every regression input in both matrix cells was certified by Lean as before. GitHub CI still runs on <code>master</code>
+after the merge, see the <a href="https://github.com/levnach/z3/actions">Actions page</a>. There were
+no CI fix rounds.
+</p>
+
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter (60 tests)</td><td class="ok">pass</td><td class="num">1 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction (183 tests)</td><td class="ok">pass</td><td class="num">381 s</td></tr>
+    <tr><td>z3test proof script tests (46 tests)</td><td class="ok">pass</td><td class="num">16 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object (6 of 6 inputs)</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log (8 of 8 inputs)</td><td class="ok">pass</td><td class="num">7 s</td></tr>
+  </tbody>
+</table>
+
+<p>
+Beyond the suites, nearly three hundred random problems were exported, reconstructed, and checked by
+Lean with no failure. The reviewer also tampered with inputs and certificates in several ways, and
+every tampered pair was rejected.
+</p>
+
+<table>
+  <thead><tr><th>Extra run</th><th class="num">Instances</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Five documented inputs (implementer)</td><td class="num">5</td><td class="ok">all verified</td></tr>
+    <tr><td>Small random instances, 3 variables (implementer)</td><td class="num">129</td><td class="ok">all verified</td></tr>
+    <tr><td>Larger random instances, 5 variables, depth 3 (implementer)</td><td class="num">118</td><td class="ok">all verified</td></tr>
+    <tr><td>Random instances, seeds 1000 to 1059 (reviewer)</td><td class="num">43</td><td class="ok">all verified</td></tr>
+  </tbody>
+</table>
+
+<h2>Review</h2>
+<p>The verdict was <strong>APPROVE</strong> with no blocker, major, or minor findings. Three nits needed no code change.</p>
+<ol>
+  <li><strong>A misleading table row.</strong> The change summary implied the regression matrix had covered the new inputs. The reviewer checked the output and found only the existing propositional files. This mattered because the separate z3test harness still reports "unsupported" for Bool-predicate files. The integrator confirmed it and worded the PR body accurately. Extending the harness is a follow-up.</li>
+  <li><strong>A slower failure in the harness.</strong> The z3test clause-log producer still uses the older parser, so a Bool-only input runs the solver before failing. The outcome is still "unsupported", so only time is lost. Noted as a follow-up in that repository.</li>
+  <li><strong>A changed error message.</strong> A hand-built certificate with an uninterpreted function over reals is now rejected by a different check. Both checks reject, and the exporter never produces such a certificate, so no change was made.</li>
+</ol>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li><strong>A wider classification.</strong> The exporter now labels inputs as QF_UF that it used to refuse. Every consumer re-checks, and the reconstructor binds each certificate to the original input.</li>
+  <li><strong>A changed consistency test.</strong> The reconstructor's fragment check now also counts uninterpreted symbols with arguments. Existing suites were unaffected.</li>
+  <li><strong>Unused binders.</strong> The Lean theorem quantifies over element and function families that nothing applies. This is harmless.</li>
+  <li><strong>Open question.</strong> Supporting these inputs through the clause log needs either a C++ change or fresh Boolean atoms in the certificate. The second raises a trust question tracked in the backlog.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Bool-only predicates mixed with arithmetic remain rejected, since the arithmetic encoding has no predicate family yet.</li>
+  <li>Teach the z3test harness to accept QF_UF on the legacy path so the regression matrix can exercise this fragment.</li>
+  <li>The clause-log route for Bool-only predicates stays on the backlog pending the trust decision.</li>
+  <li>Widening the accepted <code>set-option</code> commands was measured at two trivial corpus files and deferred.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl class="glossary">
+  <dt>Ackermannization</dt><dd>Replacing each application of an uninterpreted function by a fresh variable, plus constraints that keep equal inputs giving equal outputs.</dd>
+  <dt>Boolean</dt><dd>A value that is either true or false.</dd>
+  <dt>Clause</dt><dd>An or-list of literals.</dd>
+  <dt>Clause log</dt><dd>A record of the clauses Z3's newer solver core learns while solving, used as proof evidence.</dd>
+  <dt>Congruence</dt><dd>The rule that a function or predicate gives the same result on equal arguments. Z3 calls this step <code>monotonicity</code>.</dd>
+  <dt>Fragment</dt><dd>A named subset of the input language, such as propositional, QF_UF, or QF_LRA.</dd>
+  <dt>If-then-else term</dt><dd>A term written <code>ite</code> in SMT-LIB that picks one of two values based on a condition.</dd>
+  <dt>Legacy proof object</dt><dd>The proof tree Z3's older solver core builds while it works, used as proof evidence.</dd>
+  <dt>Literal</dt><dd>A Boolean atom or its negation.</dd>
+  <dt>Predicate</dt><dd>A function whose result is a Boolean.</dd>
+  <dt>Propositional</dt><dd>Input built only from Boolean variables and connectives such as and, or, not.</dd>
+  <dt>QF_LRA</dt><dd>Quantifier-free linear real arithmetic.</dd>
+  <dt>QF_UF</dt><dd>Quantifier-free formulas with uninterpreted functions and equality.</dd>
+  <dt>Refutation</dt><dd>A proof that a set of assertions leads to a contradiction.</dd>
+  <dt>SMT-LIB</dt><dd>The standard text format for solver inputs.</dd>
+  <dt>Sort</dt><dd>The type of a value. An uninterpreted sort is a user-declared type with no built-in structure.</dd>
+  <dt>Uninterpreted function</dt><dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-14.
+</footer>
+
+</body>
+</html>
