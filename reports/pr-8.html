@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #8: Certify QF_LRA refutations from the legacy proof object in Lean</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
+    --accent: #0969da;
+    --pass-bg: #dafbe1;
+    --pass-fg: #1a7f37;
+    --note-bg: #fff8c5;
+    --note-border: #d4a72c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9198a1;
+      --border: #30363d;
+      --code-bg: #161b22;
+      --accent: #4493f8;
+      --pass-bg: #12331c;
+      --pass-fg: #3fb950;
+      --note-bg: #2a2410;
+      --note-border: #9e6a03;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    margin: 0 auto; padding: 1.5rem 1rem 3rem; max-width: 56rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 17px; line-height: 1.55;
+  }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.3rem; margin: 2.2rem 0 0.6rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 0.4rem; }
+  p { margin: 0.6rem 0; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta span { margin-right: 1rem; white-space: nowrap; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.88em; background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.4; font-size: 0.86rem;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; white-space: nowrap; }
+  .pass { display: inline-block; padding: 0 0.5em; border-radius: 1em; background: var(--pass-bg); color: var(--pass-fg); font-weight: 600; font-size: 0.85em; }
+  .note { background: var(--note-bg); border-left: 4px solid var(--note-border); padding: 0.6rem 0.9rem; border-radius: 4px; margin: 0.8rem 0; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: 0.35rem 0; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.5rem; }
+  dl.glossary dd { margin: 0 0 0 1.2rem; }
+  footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  .explain { color: var(--muted); font-size: 0.95rem; margin: -0.4rem 0 1rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify QF_LRA refutations from the legacy proof object in Lean</h1>
+  <p class="meta">
+    <span>Pull request <a href="https://github.com/levnach/z3/pull/8">#8</a></span>
+    <span>Merge commit <a href="https://github.com/levnach/z3/commit/b4f85f238a9c201bf7ce018b0429a3b22c35297c"><code>b4f85f2</code></a></span>
+    <span>Merged 2026-10-14T19:05:51Z</span>
+    <span>Loop iteration 8</span>
+  </p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+This PR makes Z3's default solver core record the evidence behind each arithmetic step, so its QF_LRA proofs can become Lean files.
+A <strong>refutation</strong> is a proof that a set of formulas cannot all be true at once.
+<strong>QF_LRA</strong> is the fragment of linear constraints over real-valued variables, without quantifiers.
+Until now the default core's <strong>theory lemmas</strong> (steps justified by arithmetic rather than pure logic) said only "these facts clash" without saying how.
+Each now carries <strong>Farkas coefficients</strong>, the multipliers showing which weighted sum of the premises adds up to a contradiction.
+The exporter re-derives every sum exactly, and the Lean reconstructor states each step as an implication from its premises.
+The trust boundary is unchanged.
+</p>
+
+<h2>Background</h2>
+<p>
+Z3 has two proof producers.
+The newer core writes a <strong>clause log</strong>, a list of learned clauses with hints, and the pipeline already certified QF_LRA from it.
+The default core writes a <strong>proof object</strong>, a complete tree of inference steps including preprocessing.
+That path was certified only for propositional input and for QF_UF, the fragment with <strong>uninterpreted functions</strong> (function symbols with no fixed meaning, only the rule that equal inputs give equal outputs).
+The plan listed this PR as the last of two legacy items under milestone 3, "Equality and linear arithmetic".
+</p>
+
+<h2>What changed</h2>
+<ul>
+  <li><strong>Solver core.</strong> The arithmetic module now records Farkas coefficients on every conflict and every <strong>bound propagation</strong> (deriving a new limit on a variable from existing limits).</li>
+  <li><strong>Exporter.</strong> It accepts QF_LRA from the default core's proof object, writes the <strong>sort</strong> (the type of a value) <code>Real</code> with its numerals, and unifies the three hint conventions Z3's arithmetic modules use.</li>
+  <li><strong>Reconstructor.</strong> A theory lemma may now have <strong>premises</strong> (earlier steps it rests on), and Lean proves the implication from their conclusions to the step's conclusion.</li>
+  <li><strong>Reconstructor.</strong> <strong>Congruence</strong> (equal inputs give equal outputs) through arithmetic operators and comparisons is now proved too.</li>
+  <li><strong>Safety.</strong> A theory lemma without coefficients, or one using an integer-only rule, is rejected at export.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th>Role</th><th class="num">Lines changed</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/smt/theory_lra.cpp</code></td><td>Solver core: record coefficients</td><td class="num">55</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">76</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">109</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests</td><td class="num">97</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Reconstructor and Lean tests</td><td class="num">295</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">78</td></tr>
+    <tr><td><code>lean/README.md</code></td><td>Lean side documentation</td><td class="num">9</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note</td><td class="num">30</td></tr>
+    <tr><th>Total</th><th>8 files</th><th class="num">675 added, 74 removed</th></tr>
+  </tbody>
+</table>
+
+<h2>Worked example</h2>
+<p>
+The input is the reviewer's command-line test from the PR, with a logic declaration added.
+Adding the last two facts gives x plus y at least 2, which contradicts the first.
+That sum, with weight 1 on each fact, is what the Farkas coefficients <code>1 1 1</code> record.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(assert (&lt;= (+ x y) 1.0))
+(assert (&gt;= x 2.0))
+(assert (&gt;= y 0.0))
+(check-sat)
+</code></pre>
+
+<h3>(b) Before the PR</h3>
+<p>The parent commit's exporter, asked for the default core's proof object, refused the input.</p>
+<pre><code>$ proof_certificate.py --core legacy example.smt2
+proof_certificate.py: error: arithmetic requires the clause-log exporter (fragment qf_lra)
+</code></pre>
+<p>The old reconstructor also rejects the new certificate:</p>
+<pre><code>$ proof_to_lean.py example.smt2 example_legacy.json
+proof_to_lean.py: error: invalid th-lemma declaration
+</code></pre>
+<div class="note">
+In automatic mode the exporter used the clause log for this input before and after the PR, with identical output. The PR adds a second route and leaves the automatic choice unchanged.
+</div>
+
+<h3>(c) After the PR</h3>
+<p>The current exporter accepts the input in legacy mode and the reconstructor writes the file below, which the project's Lean checker accepted with "Lean checks passed."</p>
+
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 1
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((term_0 _atoms _vars) + (term_1 _atoms _vars))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_2 _atoms _vars) &lt;= (term_3 _atoms _vars))
+...
+def formula_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &gt;= (term_5 _atoms _vars))
+...
+def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_1 _atoms _vars) &gt;= (term_7 _atoms _vars))
+def formula_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := False
+</code></pre>
+<p class="explain">Each variable becomes a rational-valued table entry, and each assertion a named formula.</p>
+
+<pre><code>private theorem th_lemma_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_8 _atoms _vars) -&gt; (formula_6 _atoms _vars) -&gt; (formula_4 _atoms _vars) -&gt; (formula_12 _atoms _vars) := by
+  unfold formula_12 formula_8 term_7 formula_6 term_5 formula_4 term_3 term_2 term_1 term_0
+  grind (splits := 64)
+</code></pre>
+<p class="explain">The new shape: the theory lemma is an implication from its three premises to False, proved by Lean's <code>grind</code> tactic after Python re-derived the weighted sum.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_4 _atoms _vars))
+    (_h1 : (formula_6 _atoms _vars))
+    (_h2 : (formula_8 _atoms _vars))
+    : False :=
+  ...
+  let _step_13 : (formula_12 _atoms _vars) :=
+    (th_lemma_13 _atoms _vars _step_9 _step_10 _step_11)
+  _step_13
+</code></pre>
+<p class="explain">The main theorem takes exactly the three original assertions and applies the lemma to them.</p>
+
+<h2>How it was verified</h2>
+<p>
+Locally, all documented arithmetic inputs, about two hundred random instances, and ten <strong>difference-logic</strong> inputs (constraints on the difference of two variables) were certified end to end from the default core's proof object.
+Every existing suite still passed, and the SMT-LIB regression files gave unchanged answers.
+</p>
+
+<table>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Build and Z3's own proof-checker unit test</td><td>OK, PASS</td></tr>
+    <tr><td>Exporter unit tests</td><td>59 tests OK</td></tr>
+    <tr><td>Reconstructor and Lean integration tests</td><td>181 tests OK in 372.6 s</td></tr>
+    <tr><td>Project Lean check script</td><td>Lean checks passed</td></tr>
+    <tr><td>z3test proof-script tests</td><td>46 tests OK</td></tr>
+    <tr><td>SMT-LIB regression files, answers compared</td><td>952 files, no mismatch</td></tr>
+    <tr><td>Matrix: Boolean inputs through the legacy proof object</td><td>6 of 6 Lean-verified</td></tr>
+    <tr><td>Matrix: QF_LRA inputs through the clause log</td><td>8 of 8 Lean-verified</td></tr>
+    <tr><td>Stress: random QF_LRA instances through the legacy proof object</td><td>188 verified, largest 571 steps, slowest 4.4 s</td></tr>
+    <tr><td>Stress: hint inventory over random instances</td><td>248 instances, only <code>farkas</code> and <code>bound</code> hints seen</td></tr>
+    <tr><td>Review fix: random instances with aggressive bound propagation enabled</td><td>44 of 44 exported and reconstructed (1 rejected before the fix)</td></tr>
+  </tbody>
+</table>
+
+<p>
+On GitHub, every required and informational check passed on the first run. There were no CI fix rounds and no failures judged unrelated.
+</p>
+
+<table>
+  <thead><tr><th>Workflow</th><th>Check</th><th>State</th></tr></thead>
+  <tbody>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015038095">Ubuntu build - cmake - releaseClang</a> (runs the new Lean tests)</td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015038066">Ubuntu build - cmake - debugGcc</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015038018">Ubuntu build - cmake - debugClang</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015038154">Ubuntu build - cmake - releaseSTGcc</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015038236">Python build-script unit tests</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015037754">Python bindings (manylinux Centos AMD64) build</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015037727">Python bindings (manylinux Centos ARM64 cross) build</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015037980">CMake package - latest CMake</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015037756">CMake package - minimum builder and consumer</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015037838">MacOS build with CMake</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015037768">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015037252">Ubuntu with OCaml</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292004/job/116015037797">Ubuntu with OCaml on z3-static</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291964/job/116016310177">Compare exact traces</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291964/job/116015030316">Trace (apple-clang)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291964/job/116015030298">Trace (clang)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291964/job/116015030400">Trace (gcc)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291964/job/116015030308">Trace (gcc-unsigned-char)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291964/job/116015030556">Trace (libcxx)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291964/job/116015030497">Trace (libcxx-random)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291964/job/116015029853">Trace (msvc)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292158/job/116015031498">build (x64)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292158/job/116015032064">build (x86)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292158/job/116015032138">build (amd64_arm64)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292158/job/116015032155">mingw-build</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>OCaml Binding CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292089/job/116015032235">build-test (ubuntu-latest, 5)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>OCaml Binding CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292089/job/116015032104">build-test (macos-latest, 5)</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292005/job/116015029684">Check</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td colspan="3"><em>Informational, not required for merge</em></td></tr>
+    <tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292068/job/116015030738">Determinism linter (head)</a>, <a href="https://github.com/levnach/z3/actions/runs/38611292068/job/116015031119">(base)</a>, <a href="https://github.com/levnach/z3/actions/runs/38611292068/job/116015747978">compare</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Finite-field regressions</td><td><a href="https://github.com/levnach/z3/actions/runs/38611292099/job/116015049518">acceptance</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Dispatch NFV formal audit</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291770/job/116015033632">dispatch</a></td><td><span class="pass">pass</span></td></tr>
+    <tr><td>Mark Pull Requests Ready for Review</td><td><a href="https://github.com/levnach/z3/actions/runs/38611291996/job/116015029288">mark-ready</a></td><td><span class="pass">pass</span></td></tr>
+  </tbody>
+</table>
+
+<h2>Review</h2>
+<p>The reviewer approved with no blocking or major findings: one minor issue and three nits, all fixed before the PR was opened.</p>
+<ol>
+  <li>
+    <strong>Minor: one propagation path still wrote empty evidence.</strong>
+    The reviewer found a second place where the arithmetic module asserts a fresh bound <strong>literal</strong> (an atomic formula or its negation), used only under an optional aggressive propagation setting, that still left the coefficient list empty.
+    The integrator confirmed it: with the setting on, one of 44 random instances carried a bare theory lemma and the exporter refused the whole certificate.
+    The fix records <code>bound</code> coefficients there too and adds a test for that mode. The rejected instance now checks in Lean.
+    It mattered because a correct proof would have been reported as uncheckable.
+  </li>
+  <li>
+    <strong>Nit: tests pinned solver heuristics.</strong>
+    Some tests asserted facts that depend on which arithmetic module Z3 picks, so a tuning change would have broken CI with no real defect.
+    They now check the exporter's promises instead: coefficient count equals premises plus clause literals, and every coefficient is positive.
+  </li>
+  <li>
+    <strong>Nit: a debug trace</strong> printed the coefficient list before it was filled, so it always showed empty. It was moved after the fill.
+  </li>
+  <li>
+    <strong>Nit: an error message</strong> said "coefficients for N literals" although the count includes premises. It now reports both separately.
+  </li>
+</ol>
+<p>
+The reviewer also relabelled a step as an implied equality that passed the Python shape check, and confirmed that Lean refused it and nothing was published.
+</p>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li>The C++ change runs on every proof-enabled arithmetic solve in the default core, but it only fills a list, and nothing changes without proofs.</li>
+  <li>Coefficients are <strong>hints</strong>: the reconstructor re-derives each weighted sum exactly before Lean runs, so a wrong convention causes a rejection, not an unsound proof.</li>
+  <li>No input produced an <strong>equality propagation</strong> step (a derived equality between two variables) from the default core, so that shape has no end-to-end test.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Inputs with a real-valued <strong>if-then-else term</strong> (written <code>ite</code> in SMT-LIB) are still rejected on this path, because the default core names each one by a fresh definition the certificate cannot tie to the input. The plan names this as the next legacy item.</li>
+  <li>Until then, automatic mode keeps the clause log for arithmetic.</li>
+  <li>The regression matrix cell for the default core's proof object still checks propositional input only.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl class="glossary">
+  <dt>Refutation</dt><dd>A proof that a set of formulas cannot all be true at the same time.</dd>
+  <dt>QF_LRA</dt><dd>Quantifier-free linear real arithmetic: inputs made of linear constraints over real-valued variables.</dd>
+  <dt>QF_UF</dt><dd>Quantifier-free formulas with uninterpreted functions and equality.</dd>
+  <dt>Uninterpreted function</dt><dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.</dd>
+  <dt>Sort</dt><dd>The type of a value, such as Bool or Real.</dd>
+  <dt>Literal</dt><dd>An atomic formula or its negation.</dd>
+  <dt>Clause</dt><dd>A disjunction (an "or") of literals.</dd>
+  <dt>Premise</dt><dd>An earlier proof step that a later step rests on.</dd>
+  <dt>Theory lemma</dt><dd>A proof step justified by a theory such as arithmetic, rather than by pure logic.</dd>
+  <dt>Farkas coefficients</dt><dd>Non-negative multipliers showing which weighted sum of linear constraints adds up to a contradiction.</dd>
+  <dt>Bound propagation</dt><dd>Deriving a new upper or lower limit on a variable from existing constraints.</dd>
+  <dt>Equality propagation</dt><dd>Deriving that two variables must be equal from existing constraints.</dd>
+  <dt>Congruence</dt><dd>If the inputs of an operation are equal, its outputs are equal.</dd>
+  <dt>If-then-else term</dt><dd>A term whose value is one of two branches depending on a condition, written <code>ite</code> in SMT-LIB.</dd>
+  <dt>Difference logic</dt><dd>The sub-fragment where every constraint compares the difference of two variables with a constant.</dd>
+  <dt>Proof object</dt><dd>The complete inference tree the default core produces, including preprocessing steps.</dd>
+  <dt>Clause log</dt><dd>The list of learned clauses with hints that the newer core produces.</dd>
+  <dt>Hint</dt><dd>Untrusted evidence attached to a step, re-derived by the checker before it is used.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-14.
+</footer>
+</body>
+</html>
