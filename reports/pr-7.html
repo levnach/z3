@@ -7,114 +7,101 @@
 <style>
   :root {
     color-scheme: light dark;
-    --bg: #ffffff;
-    --fg: #1f2328;
-    --muted: #59636e;
-    --border: #d0d7de;
-    --code-bg: #f6f8fa;
-    --link: #0a58ca;
-    --accent: #1a7f37;
-    --warn: #9a6700;
-    --row: #f6f8fa;
+    --bg: #ffffff; --fg: #1b1f23; --muted: #57606a; --line: #d0d7de;
+    --code-bg: #f6f8fa; --link: #0a5bd6; --accent: #2b6e3a; --ok-bg: #dafbe1; --ok-fg: #116329;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117;
-      --fg: #e6edf3;
-      --muted: #9198a1;
-      --border: #30363d;
-      --code-bg: #161b22;
-      --link: #58a6ff;
-      --accent: #3fb950;
-      --warn: #d29922;
-      --row: #161b22;
+      --bg: #0f1216; --fg: #e6edf3; --muted: #9da7b3; --line: #30363d;
+      --code-bg: #161b22; --link: #74b4ff; --accent: #7ee2a8; --ok-bg: #12351f; --ok-fg: #7ee2a8;
     }
   }
   html { background: var(--bg); color: var(--fg); }
-  body {
-    margin: 0 auto; padding: 2rem 1.25rem 4rem; max-width: 52rem;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    font-size: 17px; line-height: 1.55;
-  }
-  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .5rem; }
-  h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--border); }
-  h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
-  p, li { max-width: 46rem; }
+  body { margin: 0 auto; max-width: 56rem; padding: 2rem 1.25rem 3rem; font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .5rem; }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; color: var(--accent); }
+  p, li { max-width: 48rem; }
   a { color: var(--link); }
   .meta { color: var(--muted); font-size: .95rem; }
-  .meta dt { display: inline; font-weight: 600; }
-  .meta dd { display: inline; margin: 0 1rem 0 .25rem; }
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: .88em; background: var(--code-bg); padding: .1em .3em; border-radius: 4px;
-  }
-  pre {
-    background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
-    padding: .8rem 1rem; overflow-x: auto; line-height: 1.4;
-  }
-  pre code { background: none; padding: 0; font-size: .82rem; }
-  table { border-collapse: collapse; margin: .6rem 0 1rem; font-size: .93rem; width: 100%; }
-  th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
-  th { background: var(--row); }
-  tbody tr:nth-child(even) { background: var(--row); }
-  .pass { color: var(--accent); font-weight: 600; }
+  .meta span { display: inline-block; margin-right: 1.2rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: .84rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; margin: .8rem 0 1.2rem; font-size: .93rem; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: .4rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { background: var(--ok-bg); color: var(--ok-fg); font-weight: 600; padding: .05rem .4rem; border-radius: 4px; }
   .note { color: var(--muted); font-size: .92rem; }
-  .explain { margin: -.4rem 0 1.2rem; color: var(--muted); font-size: .95rem; }
-  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+  dl.glossary dt { font-weight: 600; margin-top: .5rem; }
+  dl.glossary dd { margin: 0 0 .2rem 0; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Certify QF_UF refutations from the legacy proof object in Lean</h1>
-  <dl class="meta">
-    <dt>Pull request:</dt><dd><a href="https://github.com/levnach/z3/pull/7">levnach/z3 #7</a></dd>
-    <dt>Merge commit:</dt><dd><a href="https://github.com/levnach/z3/commit/41dbe2b077aa7ce9ebb4330a31198715c75931c2"><code>41dbe2b</code></a></dd>
-    <dt>Merged:</dt><dd>2026-10-14T16:33:25Z</dd>
-    <dt>Loop iteration:</dt><dd>7</dd>
-  </dl>
+  <p class="meta">
+    <span>Pull request: <a href="https://github.com/levnach/z3/pull/7">levnach/z3 #7</a></span>
+    <span>Merge commit: <a href="https://github.com/levnach/z3/commit/41dbe2b077aa7ce9ebb4330a31198715c75931c2"><code>41dbe2b0</code></a></span>
+    <span>Merged: 2026-10-14T16:33:25Z</span>
+    <span>Loop iteration: 7</span>
+  </p>
 </header>
 
 <h2>In one paragraph</h2>
 <p>
-Z3's older engine, called the legacy core, writes down a complete proof object: a full chain of reasoning steps, including every step that shows two things are equal. Before this PR, that proof object could be exported and checked in Lean only for problems made of plain true/false variables. This PR extends the export and the Lean reconstruction to problems with unknown functions, that is functions with a name but no definition, over values of any declared type. Each equality step becomes an explicit Lean proof term, and Lean's type checker confirms the whole chain without automation rediscovering the reasoning.
+This PR lets the pipeline certify refutations in the QF_UF fragment from Z3's legacy proof object.
+A <strong>refutation</strong> is a proof that a set of assertions cannot all be true at once.
+<strong>QF_UF</strong> is the fragment of inputs built from equality and <strong>uninterpreted functions</strong>, which are function symbols with no fixed meaning, only the rule that equal inputs give equal outputs.
+Each value has a <strong>sort</strong>, which is the type of the value, such as a user-declared sort or Boolean.
+The <strong>legacy proof object</strong> is the step-by-step proof that Z3's default solver core records when proofs are requested.
+The exporter now accepts it for QF_UF, and the reconstructor turns each equality step into an explicit Lean proof term that the kernel checks directly, instead of re-proving it with an automated tactic.
 </p>
 
 <h2>Background</h2>
 <p>
-Before this PR, problems with unknown functions were certified only through the clause log, a record of learned clauses from Z3's newer engine. That route leaves equality reasoning as hints for a Lean automation tactic to fill in, and it starts after Z3's preprocessing. The legacy proof object already had the missing steps, but the exporter refused it beyond plain true/false problems, and the reconstructor only knew equality rules between statements, not between values. This serves the plan's third milestone, equality and linear arithmetic, and was the first item on its backlog.
+Before this PR the pipeline could certify QF_UF only through the clause log of the newer solver core.
+That route starts after preprocessing and relies on Lean's <code>grind</code> tactic to re-prove each equality hint.
+The legacy proof object records every equality step explicitly, but the exporter rejected it for QF_UF input.
+The reconstructor also knew the equality rules only for Boolean formulas.
+This work serves milestone 3 of the plan, "Equality and linear arithmetic", and was the first item on its backlog.
 </p>
 
 <h2>What changed</h2>
 <ul>
-  <li><strong>Export from the legacy core.</strong> You can now export the legacy proof object of a problem with unknown functions, where before the exporter refused.</li>
-  <li><strong>Equalities between values.</strong> Steps like "a equals b and b equals c, so a equals c" become Lean proof terms when a, b, and c are values, not just statements.</li>
-  <li><strong>Equal inputs give equal outputs.</strong> "a equals b, so f(a) equals f(b)" is now a direct Lean term, like two identical keys opening the same lock. This also covers if-then-else values and "all different" claims.</li>
-  <li><strong>Swapped sides.</strong> A new rule accepts Z3's step that swaps the two sides of an equality or of an and/or.</li>
-  <li><strong>Fewer helper lemmas.</strong> A rewrite that changes nothing is proved in place, so most of these proofs need no automation tactic.</li>
-  <li><strong>Unchanged defaults.</strong> Automatic mode still sends these problems to the clause log. Users opt in with <code>--core legacy</code>.</li>
+  <li><strong>Exporter.</strong> With <code>--core legacy</code> you can now export QF_UF refutations from the legacy proof object, with sort names kept, while linear arithmetic is still rejected.</li>
+  <li><strong>Equality steps.</strong> Reflexivity, symmetry, and transitivity, which say equality holds for a term with itself, can be flipped, and can be chained, now become Lean equality terms when the sides are terms of a sort.</li>
+  <li><strong>Congruence.</strong> A <strong>congruence</strong> step says that applying the same function or predicate to equal arguments gives equal results. Lean now checks it one argument at a time, like matching two shopping lists item by item before concluding the totals agree.</li>
+  <li><strong>If-then-else and distinct.</strong> Congruence through an <strong>if-then-else term</strong>, written <code>ite</code> in SMT-LIB, uses one helper lemma per file, and the <strong>distinct</strong> operator, which says several terms are pairwise unequal, is matched against its expansion into disequalities.</li>
+  <li><strong>Commutativity and rewrites.</strong> A <strong>commutativity</strong> rule, which swaps the two sides of a symmetric operator, is now supported, and a rewrite that changes nothing is proved by reflexivity in place.</li>
+  <li><strong>No solver changes.</strong> Only Python, tests, and documentation changed, and the default route for QF_UF still uses the clause log.</li>
 </ul>
 
 <table>
-  <thead><tr><th>File</th><th>Role</th><th>Lines changed</th></tr></thead>
+  <thead><tr><th>File</th><th>Added</th><th>Removed</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: new equality rules in Lean</td><td>201</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Tests, with and without Lean</td><td>261</td></tr>
-    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter: legacy core accepts unknown functions</td><td>49</td></tr>
-    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests</td><td>24</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>User documentation</td><td>64</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td>28</td></tr>
-    <tr><td><code>lean/README.md</code></td><td>Lean-side documentation</td><td>6</td></tr>
-    <tr><td colspan="2">Total: 7 files</td><td>587 added, 46 removed</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">182</td><td class="num">19</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">261</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">36</td><td class="num">13</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">22</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">53</td><td class="num">11</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">28</td><td class="num">0</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">5</td><td class="num">1</td></tr>
+    <tr><th>Total (7 files)</th><th class="num">587</th><th class="num">46</th></tr>
   </tbody>
 </table>
-<p class="note">No C++ code changed.</p>
 
 <h2>Worked example</h2>
 <p>
-This input declares a type, two values of it, an unknown function f, and an unknown test p. It says a and b are equal, p holds for f(a), and p fails for f(b). That cannot all be true.
+The input below was built from the shapes in the PR's new tests and run through the real pipeline for this report.
+It declares a sort, two constants of that sort, a function, and a <strong>predicate</strong>, which is a function whose result is Boolean.
+The three <strong>assertions</strong>, the facts the input claims, are contradictory because of congruence.
 </p>
-<h3>Input</h3>
+
+<h3>(a) The input</h3>
 <pre><code>(set-logic QF_UF)
 (declare-sort U 0)
 (declare-fun a () U)
@@ -124,139 +111,154 @@ This input declares a type, two values of it, an unknown function f, and an unkn
 (assert (= a b))
 (assert (p (f a)))
 (assert (not (p (f b))))
-(check-sat)</code></pre>
+(check-sat)
+</code></pre>
 
-<h3>Before</h3>
-<p>The exporter from the parent commit, asked for the legacy proof object, stopped with this error and exit code 2:</p>
-<pre><code>proof_certificate.py: error: uninterpreted functions requires the clause-log exporter (fragment qf_uf)</code></pre>
-<p>Feeding the new certificate to the old reconstructor also failed, because it only knew congruence between statements:</p>
-<pre><code>proof_to_lean.py: error: unsupported Boolean congruence</code></pre>
-<p class="note">The old default mode did accept this input through the clause log. The new path is the legacy proof object, which the old code rejected as shown.</p>
+<h3>(b) Before the PR</h3>
+<p>The exporter from the parent commit, asked for the legacy proof object, refused the input:</p>
+<pre><code>proof_certificate.py: error: uninterpreted functions requires the clause-log exporter (fragment qf_uf)
+</code></pre>
+<p>Given the new legacy certificate, the old reconstructor also refused it:</p>
+<pre><code>proof_to_lean.py: error: unsupported Boolean congruence
+</code></pre>
+<p class="note">The old exporter in its default mode did certify this input, but only through the clause-log route.</p>
 
-<h3>After</h3>
-<p>The current exporter with <code>--core legacy</code> produced a certificate with two congruence steps, and the reconstructor generated this Lean file.</p>
-<pre><code>def term_0 (...) : _U := _elems 0
-def term_1 (...) : _U := _elems 1
-def formula_2 (...) : Prop := ((term_0 ...) = (term_1 ...))
-def term_3 (...) : _U := _funs 0 [(term_0 ...)]
-def formula_4 (...) : Prop := _preds 0 [(term_3 ...)]
-def term_5 (...) : _U := _funs 0 [(term_1 ...)]
-def formula_6 (...) : Prop := _preds 0 [(term_5 ...)]
-def formula_7 (...) : Prop := (Not (formula_6 ...))
-...</code></pre>
-<p class="explain">These name the pieces: a and b are elements 0 and 1, f(a) and f(b) are function 0 applied to each, and p(f(a)) and p(f(b)) are test 0 applied to those.</p>
-<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U)
-    (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
-    (_h0 : (formula_2 ...))
-    (_h1 : (formula_4 ...))
-    (_h2 : (formula_7 ...))
+<h3>(c) After the PR</h3>
+<p>The current exporter produced a certificate whose fragment is <code>qf_uf</code> with two congruence steps. The reconstructor generated the Lean file below, trimmed.</p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _elems 0
+def term_1 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _elems 1
+def formula_2 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := ((term_0 _atoms _U _elems _funs _preds _bool) = (term_1 _atoms _U _elems _funs _preds _bool))
+def term_3 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _funs 0 [(term_0 _atoms _U _elems _funs _preds _bool)]
+def formula_4 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := _preds 0 [(term_3 _atoms _U _elems _funs _preds _bool)]
+def term_5 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _funs 0 [(term_1 _atoms _U _elems _funs _preds _bool)]
+def formula_6 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := _preds 0 [(term_5 _atoms _U _elems _funs _preds _bool)]
+def formula_7 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := (Not (formula_6 _atoms _U _elems _funs _preds _bool))
+...
+</code></pre>
+<p>The sort <code>U</code> becomes a Lean type, the constants become elements, and the function and predicate take argument lists, so the three assertions become the formulas numbered 2, 4, and 7.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    (_h0 : (formula_2 _atoms _U _elems _funs _preds _bool))
+    (_h1 : (formula_4 _atoms _U _elems _funs _preds _bool))
+    (_h2 : (formula_7 _atoms _U _elems _funs _preds _bool))
     : False :=
-  ...</code></pre>
-<p class="explain">The theorem says: for any type, any elements, any functions, and any tests, the three assertions together lead to a contradiction.</p>
-<pre><code>  let _step_17 : (formula_16 ...) :=
-    (congrArg (_funs 0) (congr (congrArg List.cons _step_15) (Eq.refl [])))
-  let _step_19 : (formula_18 ...) :=
-    (Iff.of_eq (congrArg (_preds 0) (congr (congrArg List.cons _step_17) (Eq.refl []))))
-  let _step_20 : (formula_6 ...) :=
-    (Iff.mp _step_19 _step_11)
   ...
-  let _step_26 : False :=
-    (False.elim (_step_24 _step_20))</code></pre>
-<p class="explain">Step 17 is the new feature: from a = b it builds f(a) = f(b) by applying f to equal argument lists. Step 19 does the same for p, giving "p(f(a)) if and only if p(f(b))", and the final steps combine that with the assertions into a contradiction.</p>
-<p>The Lean check accepted the file. Its output ended with <code>Lean checks passed.</code></p>
+</code></pre>
+<p>The theorem says that for any choice of sort, elements, functions, and predicates, the three assertions together imply False.</p>
+
+<pre><code>  let _step_17 : (formula_16 _atoms _U _elems _funs _preds _bool) :=
+    (congrArg (_funs 0) (congr (congrArg List.cons _step_15) (Eq.refl [])))
+  let _step_19 : (formula_18 _atoms _U _elems _funs _preds _bool) :=
+    (Iff.of_eq (congrArg (_preds 0) (congr (congrArg List.cons _step_17) (Eq.refl []))))
+  ...
+</code></pre>
+<p>These are the two new congruence steps: the first proves <code>f a = f b</code> from <code>a = b</code> by matching the one-item argument lists, and the second lifts that to the predicate.</p>
+<p>Lean accepted the generated file. The check printed <code>Lean checks passed.</code></p>
 
 <h2>How it was verified</h2>
 <p>
-Locally, every test suite that touches the proof pipeline passed, including the Lean-checked suite, which grew by seven tests. Beyond the suites, all documented example inputs, about a hundred randomly generated puzzles, and two large equality chains were exported through the legacy core, rebuilt in Lean, and accepted. The true/false and arithmetic paths were rerun to confirm they did not change.
+Locally, the Lean-checked test suite, the exporter's unit tests, and the companion z3test suite all passed.
+Beyond the tests, every documented QF_UF input, over a hundred random instances, and two large equality diamonds went through the new route, and Lean accepted all of them under its standard axioms.
+The Boolean and arithmetic routes were rerun through the regression matrix and were unchanged.
 </p>
 <table>
   <thead><tr><th>Local check</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td>Lean-checked reconstruction suites</td><td class="pass">170 tests OK</td></tr>
-    <tr><td>Exporter unit tests</td><td class="pass">58 tests OK</td></tr>
-    <tr><td>z3test proof suites</td><td class="pass">46 tests OK</td></tr>
-    <tr><td>Project Lean check script</td><td class="pass">passed</td></tr>
-    <tr><td>Documented inputs with unknown functions, end to end</td><td class="pass">10 of 10 verified</td></tr>
-    <tr><td>Random instances, four generators, end to end</td><td class="pass">109 of 109 verified</td></tr>
-    <tr><td>Equality diamonds, 5 and 7 levels (341 and 1,230 steps)</td><td class="pass">2 of 2 verified</td></tr>
-    <tr><td>Regression matrix, true/false inputs through the legacy core</td><td class="pass">6 of 6 verified</td></tr>
-    <tr><td>Regression matrix, arithmetic inputs through the clause log</td><td class="pass">8 of 8 verified</td></tr>
+    <tr><td>Lean-checked reconstructor tests (<code>test_proof_to_lean*.py</code>)</td><td>170 tests OK, 342.6 s</td></tr>
+    <tr><td>Exporter tests (<code>test_proof_certificate.py</code>)</td><td>58 tests OK</td></tr>
+    <tr><td>z3test proof scripts suite</td><td>46 tests OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+    <tr><td>Documented QF_UF inputs through the legacy route</td><td>10 of 10 verified</td></tr>
+    <tr><td>Random QF_UF instances, four generators, core of 3 or more</td><td>109 of 109 verified</td></tr>
+    <tr><td>Equality diamonds, 5 and 7 levels (341 and 1,230 steps)</td><td>2 of 2 verified</td></tr>
+    <tr><td>Matrix, Boolean inputs, legacy proof object cell</td><td>6 of 6 lean-verified</td></tr>
+    <tr><td>Matrix, arithmetic inputs, clause log cell</td><td>8 of 8 lean-verified</td></tr>
   </tbody>
 </table>
 <p>
-On GitHub, every required check passed on the first run, with no CI fix rounds and no failures judged unrelated. The Lean-checked tests run inside the Ubuntu release build with Clang, where Lean is installed. Five non-required checks also passed.
+All required CI checks passed on the first run, with no CI fix rounds and no failures judged unrelated.
+The new Lean-checked tests run in the Ubuntu releaseClang job and added about 27 seconds.
+Five non-gating checks, such as the determinism linter, also passed.
 </p>
 <table>
-  <thead><tr><th>Workflow</th><th>Check</th><th>Status</th></tr></thead>
+  <thead><tr><th>Workflow</th><th>Check</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963582026">Ubuntu build - cmake - releaseClang</a> (runs the Lean tests)</td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963581634">Ubuntu build - cmake - debugClang</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963608395">Ubuntu build - cmake - debugGcc</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963580315">Ubuntu build - cmake - releaseSTGcc</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963524610">MacOS build with CMake</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963575380">MacOS JNI cross-compile (ARM64 -&gt; x64)</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963525283">Ubuntu with OCaml</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963524613">Ubuntu with OCaml on z3-static</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963601711">Python bindings (manylinux Centos AMD64) build</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963572960">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963600688">CMake package - minimum builder and consumer</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963579025">CMake package - latest CMake</a></td><td class="pass">pass</td></tr>
-    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963525304">Python build-script unit tests</a></td><td class="pass">pass</td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099913/job/115928408898">build (x64)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099913/job/115928409524">build (x86)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099913/job/115928409255">build (amd64_arm64)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099913/job/115928409289">mingw-build</a></td><td class="pass">pass</td></tr>
-    <tr><td>OCaml Binding CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099716/job/115928406252">build-test (ubuntu-latest, 5)</a></td><td class="pass">pass</td></tr>
-    <tr><td>OCaml Binding CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099716/job/115928406340">build-test (macos-latest, 5)</a></td><td class="pass">pass</td></tr>
-    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099264/job/115928402695">Check</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115929624636">Compare exact traces</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404735">Trace (gcc)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404203">Trace (gcc-unsigned-char)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404673">Trace (clang)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404888">Trace (apple-clang)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404908">Trace (libcxx)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404594">Trace (libcxx-random)</a></td><td class="pass">pass</td></tr>
-    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404687">Trace (msvc)</a></td><td class="pass">pass</td></tr>
-    <tr><td colspan="2">Required checks</td><td class="pass">28 of 28 passed</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963582026">Ubuntu build - cmake - releaseClang</a> (runs the Lean checks)</td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963581634">Ubuntu build - cmake - debugClang</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963608395">Ubuntu build - cmake - debugGcc</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963580315">Ubuntu build - cmake - releaseSTGcc</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963524610">MacOS build with CMake</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963575380">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963525283">Ubuntu with OCaml</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963524613">Ubuntu with OCaml on z3-static</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963601711">Python bindings (manylinux Centos AMD64) build</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963572960">Python bindings (manylinux Centos ARM64 cross) build</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963600688">CMake package - minimum builder and consumer</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963579025">CMake package - latest CMake</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099790/job/115963525304">Python build-script unit tests</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099913/job/115928408898">build (x64)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099913/job/115928409524">build (x86)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099913/job/115928409255">build (amd64_arm64)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099913/job/115928409289">mingw-build</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099716/job/115928406252">build-test (ubuntu-latest, 5)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099716/job/115928406340">build-test (macos-latest, 5)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099264/job/115928402695">Check</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404735">Trace (gcc)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404203">Trace (gcc-unsigned-char)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404673">Trace (clang)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404908">Trace (libcxx)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404594">Trace (libcxx-random)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404888">Trace (apple-clang)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115928404687">Trace (msvc)</a></td><td><span class="ok">pass</span></td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/38586099157/job/115929624636">Compare exact traces</a></td><td><span class="ok">pass</span></td></tr>
   </tbody>
 </table>
 
 <h2>Review</h2>
-<p>The reviewer approved with no blocking, major, or minor findings. They re-ran the suites, drove the command line end to end, and built several tampered certificates by hand. Every forgery was rejected, by the Python checks or by Lean. Four small findings, called nits, remained.</p>
-<ol>
-  <li><strong>Ill-typed fallback (fixed).</strong> The reviewer imagined a congruence step with no arguments, concluding that a value equals itself. The code would have emitted a term for statements, so Lean would reject a valid certificate. Z3 never emits that step, and the outcome was a false rejection, never a false acceptance. It was fixed anyway, with a new test and a one-off Lean check.</li>
-  <li><strong>Outdated documentation (fixed).</strong> One README sentence still said every rewrite is checked by a truth table. It now lists the three cases and points to the new section.</li>
-  <li><strong>Pinned random seeds (kept).</strong> The new tests pin random seeds and require a certain amount of congruence reasoning, so an unrelated change to Z3's search could break them. This matches an existing pattern, and the failure message says to re-pick the seed.</li>
-  <li><strong>Duplicate classification (kept).</strong> One function re-classifies assertions its callers already classified. The extra pass is cheap, and changing the signature would break a caller in the companion test repository.</li>
-</ol>
+<p>
+The reviewer approved the PR with no blocking, major, or minor findings and four nits.
+They also tried several forged certificates, such as a congruence step with swapped sides, and Python rejected each one before Lean ran.
+</p>
+<ul>
+  <li><strong>Nit, fixed: congruence with no arguments.</strong> Such a step always produced a Boolean reflexivity term, even for sides that were terms of a sort, so Lean would have failed with a type error instead of Python giving a clear message. Z3 never emits this step, so the outcome was only a false rejection. The code now picks the term by sort, and a new test covers it.</li>
+  <li><strong>Nit, fixed: outdated README sentence.</strong> The Boolean section still said every rewrite is checked by a truth table, which the new QF_UF section contradicted. The sentence now lists the three cases.</li>
+  <li><strong>Nit, not changed: pinned random seeds.</strong> The new test pins random seeds and expects at least ten congruence steps, so an unrelated solver change could require new seeds. This matches an existing test pattern.</li>
+  <li><strong>Nit, not changed: duplicate classification.</strong> The exporter classifies the assertions twice on the legacy path, which is cheap and keeps a function signature that z3test depends on.</li>
+</ul>
 
 <h2>Risks and open questions</h2>
 <ul>
-  <li>Shared code paths now branch on whether a step relates values or statements. For statements the emitted text is unchanged, as the existing suites confirm.</li>
-  <li>Gate clauses are matched differently, so an "all different" claim is identified with its pairwise inequalities. A wrong match can only cause a Lean rejection, since the lemma is always checked.</li>
-  <li>The swapped-sides rule for and, or, and exclusive-or was exercised only by a hand-written Lean probe. Z3 did not emit those shapes on any scanned input.</li>
-  <li>The largest proof measured had about 1,230 steps. Behaviour on much larger proofs is unknown.</li>
+  <li>Three reconstructor functions now branch on the sort of the sides for every fragment. The Boolean output is unchanged and its suites pass.</li>
+  <li>Gate-clause matching now identifies <code>distinct</code> with its expansion. A wrong match can only make the Lean lemma fail, since the lemma is checked, never trusted.</li>
+  <li>Boolean commutativity shapes were checked only in a Lean probe, since Z3 did not emit them on any scanned input.</li>
+  <li>Legacy QF_UF proofs beyond about 1,200 steps were not measured.</li>
 </ul>
 
 <h2>What comes next</h2>
 <ul>
-  <li>Add unknown-function inputs and a legacy-core cell to the regression matrix in the companion test repository, so this path is exercised beyond unit tests.</li>
-  <li>Make the legacy proof object usable for linear arithmetic, which needs Z3's C++ side to record coefficients its arithmetic lemmas currently omit.</li>
-  <li>Measure much larger legacy proofs with unknown functions.</li>
+  <li>Add QF_UF inputs and a legacy QF_UF cell to the z3test regression matrix, so this route is exercised beyond unit tests.</li>
+  <li>The default route still sends QF_UF to the clause log, and switching it is a separate decision.</li>
+  <li>Linear arithmetic over the legacy proof object still needs Farkas coefficients from the C++ side.</li>
 </ul>
 
 <h2>Glossary</h2>
-<ul>
-  <li><strong>Legacy core:</strong> Z3's older, default engine, which records a complete proof object when proofs are requested.</li>
-  <li><strong>Proof object:</strong> the full tree of reasoning steps the legacy core produces, including every equality step.</li>
-  <li><strong>Clause log:</strong> the learned-clause record of Z3's newer engine, which leaves equality reasoning as hints.</li>
-  <li><strong>Unknown function (uninterpreted function):</strong> a function with a name and argument types but no definition.</li>
-  <li><strong>Congruence (monotonicity step):</strong> equal inputs give equal outputs, so a = b implies f(a) = f(b).</li>
-  <li><strong>Commutativity step:</strong> Z3's step that swaps the two sides of an equality or of an and/or.</li>
-  <li><strong>Gate clause (def-axiom):</strong> a clause relating a compound expression to its parts.</li>
-  <li><strong>Proof term:</strong> an explicit Lean expression checked by Lean's core without automation.</li>
-  <li><strong>grind:</strong> a Lean automation tactic that searches for a proof on its own.</li>
-</ul>
+<dl class="glossary">
+  <dt>Assertion</dt><dd>A fact that an input claims to be true.</dd>
+  <dt>Boolean</dt><dd>A value that is either true or false.</dd>
+  <dt>Clause log</dt><dd>The record of learned clauses and theory hints kept by the newer solver core, used as the alternative proof route.</dd>
+  <dt>Commutativity</dt><dd>A rule that swaps the two sides of a symmetric operator, such as equality or "and".</dd>
+  <dt>Congruence</dt><dd>Applying the same function or predicate to equal arguments gives equal results.</dd>
+  <dt>Distinct</dt><dd>An operator saying several terms are pairwise unequal.</dd>
+  <dt>If-then-else term</dt><dd>A term that picks one of two values depending on a Boolean condition, written <code>ite</code> in SMT-LIB.</dd>
+  <dt>Legacy proof object</dt><dd>The step-by-step proof recorded by Z3's default solver core when proofs are requested.</dd>
+  <dt>Predicate</dt><dd>A function whose result is Boolean.</dd>
+  <dt>QF_UF</dt><dd>The fragment of inputs built from equality and uninterpreted functions, with no quantifiers.</dd>
+  <dt>Reflexivity, symmetry, transitivity</dt><dd>Equality holds for a term with itself, can be flipped, and can be chained.</dd>
+  <dt>Refutation</dt><dd>A proof that a set of assertions cannot all be true at once.</dd>
+  <dt>Rewrite</dt><dd>A step that replaces a term or formula by an equivalent one, often during preprocessing.</dd>
+  <dt>Sort</dt><dd>The type of a value, such as a user-declared sort or Boolean.</dd>
+  <dt>Uninterpreted function</dt><dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.</dd>
+</dl>
 
 <footer>
   Generated by the Lean certificate improvement loop on 2026-10-14.
