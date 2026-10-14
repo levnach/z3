@@ -750,8 +750,9 @@ cell.
 conflict carries `farkas` with the explanation's multipliers, one per
 premise in the order the justification lists them (literals, then
 equalities); a bound propagation from the LP carries `bound` with the same
-multipliers and 1 for the consequent, mirroring the sat.smt `bound` hint;
-an equality propagation is labelled `implied-eq`. Scanning the proofs showed
+multipliers and 1 for the consequent, mirroring the sat.smt `bound` hint
+(the fresh bound literals of `smt.arith.propagation_mode=2` included); an
+equality propagation is labelled `implied-eq`. Scanning the proofs showed
 two more producers on the same inputs: `arith_eq_adapter`'s `triangle-eq`
 axioms, and the older `theory_arith`, which the smt core still selects for
 difference-logic-shaped input and whose `assign-bounds` steps weight the

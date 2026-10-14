@@ -1636,8 +1636,8 @@ def _check_th_lemma(graph, node):
         # summed: only the literal shapes are checked below.
         coefficients = [Fraction(1)] * (len(premises) + len(literals))
     if len(coefficients) != len(premises) + len(literals):
-        raise ReconstructionError("th-lemma %s has %d coefficients for %d literals at node %d" % (
-            parameters[0], len(coefficients), len(premises) + len(literals), node))
+        raise ReconstructionError("th-lemma %s has %d coefficients for %d premises and %d clause literals at node %d" % (
+            parameters[0], len(coefficients), len(premises), len(literals), node))
     if parameters[0] == "implied-eq":
         if not literals:
             raise ReconstructionError("implied-eq th-lemma must end in a Real equality")

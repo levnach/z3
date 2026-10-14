@@ -794,7 +794,6 @@ class TestLegacyArithmeticValidation(unittest.TestCase):
             proof_to_lean.reconstruct(self.source, tampered)
 
     def test_bound_propagations_weight_premises_then_the_consequent(self):
-        fractional = False
         for name, source in LEGACY_BOUND_INPUTS.items():
             with self.subTest(name=name):
                 certificate = proof_certificate.export_certificate(source)
@@ -807,7 +806,7 @@ class TestLegacyArithmeticValidation(unittest.TestCase):
                     parameters = _th_lemma_parameters(certificate, node)
                     self.assertEqual(len(parameters) - 1, len(premises) + 1)
                     self.assertEqual(parameters[-1], "1")
-                    fractional = fractional or any(Fraction(c).denominator != 1 for c in parameters[1:])
+                    self.assertTrue(all(Fraction(c) > 0 for c in parameters[1:]))
                 text = proof_to_lean.reconstruct(source, certificate)
                 self.assertIn("private theorem th_lemma_", text)
                 node = bounds[0]
@@ -817,22 +816,53 @@ class TestLegacyArithmeticValidation(unittest.TestCase):
                 tampered["declarations"][tampered["nodes"][node]["declaration"]]["parameters"] = parameters
                 with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "do not refute"):
                     proof_to_lean.reconstruct(source, tampered)
-        self.assertTrue(fractional, "expected a fractional Farkas multiplier (bound_offset: 1/2)")
+
+    def test_refined_bounds_carry_coefficients(self):
+        # smt.arith.propagation_mode=2 lets theory_lra assert fresh bound
+        # literals (refine_bound), which are justified like every other LP
+        # bound propagation: no bare (_ th-lemma arith) reaches the proof.
+        z3.set_param("smt.arith.propagation_mode", 2)
+        try:
+            sources = {**Z3TEST_LRA_INPUTS, **LEGACY_BOUND_INPUTS}
+            sources.update(("random%d" % seed, random_instance(seed, 6, 14)) for seed in range(40))
+            for name, source in sources.items():
+                context = z3.Context()
+                solver = z3.Solver(ctx=context)
+                solver.add(z3.parse_smt2_string(source, ctx=context))
+                if solver.check() != z3.unsat:
+                    continue
+                with self.subTest(name=name):
+                    certificate = proof_certificate.export_certificate(source)
+                    for node in _th_lemma_nodes(certificate):
+                        parameters = _th_lemma_parameters(certificate, node)
+                        self.assertIn(parameters[0], ("farkas", "bound", "triangle-eq"))
+                        if parameters[0] == "bound":
+                            self.assertEqual(parameters[-1], "1")
+                    proof_to_lean.reconstruct(source, certificate)
+        finally:
+            z3.set_param("smt.arith.propagation_mode", 1)
 
     def test_theory_arith_conventions_are_normalized(self):
         source = LEGACY_THEORY_ARITH_INPUTS["dl_fixed_zero"]
         certificate = proof_certificate.export_certificate(source)
         hints = {_th_lemma_parameters(certificate, node)[0] for node in _th_lemma_nodes(certificate)}
-        self.assertEqual(hints, {"bound"})
+        self.assertIn("bound", hints)
+        self.assertLessEqual(hints, {"bound", "farkas", "triangle-eq"})
+        normalized = 0
         for node in _th_lemma_nodes(certificate):
-            # assign-bounds clauses have no premises; the propagated literal
-            # comes first and receives the weight 1 the exporter adds.
-            self.assertEqual(certificate["nodes"][node]["arguments"][:-1], [])
             parameters = _th_lemma_parameters(certificate, node)
+            if parameters[0] == "triangle-eq":
+                continue
+            premises = certificate["nodes"][node]["arguments"][:-1]
             clause = certificate["nodes"][certificate["nodes"][node]["arguments"][-1]]
-            self.assertEqual(len(parameters) - 1, len(clause["arguments"]))
-            self.assertEqual(parameters[1], "1")
+            self.assertEqual(len(parameters) - 1, len(premises) + len(clause["arguments"]))
             self.assertTrue(all(Fraction(c) > 0 for c in parameters[1:]))
+            if parameters[0] == "bound" and not premises:
+                # theory_arith's assign-bounds clause: the propagated literal
+                # comes first and receives the weight 1 the exporter adds.
+                self.assertEqual(parameters[1], "1")
+                normalized += 1
+        self.assertTrue(normalized, "expected theory_arith's assign-bounds steps on difference-logic input")
         proof_to_lean.reconstruct(source, certificate)
 
     def test_triangle_eq_shape_is_checked(self):

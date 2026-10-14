@@ -2653,7 +2653,8 @@ public:
         ++m_stats.m_bound_propagations1;
         reset_evidence();
         m_explanation.clear();
-        lp().explain_implied_bound(be, m_bp);                       
+        lp().explain_implied_bound(be, m_bp);
+        set_proof_params("bound", true);
         ctx().mark_as_relevant(bound);
         assign(bound, m_core, m_eqs, m_params);              
     }
@@ -3860,15 +3861,15 @@ public:
         // lp().shrink_explanation_to_minimum(m_explanation); // todo, enable when perf is fixed
         ++m_num_conflicts;
         ++m_stats.m_conflicts;
+        for (auto ev : m_explanation)
+            set_evidence(ev.ci(), m_core, m_eqs);
+        if (is_conflict && core.empty())
+            set_proof_params("farkas", false);
         TRACE(arith_conflict,
               tout << "@" << ctx().get_scope_level() << (is_conflict ? " conflict":" lemma");
               for (auto const& p : m_params) tout << " " << p;
               tout << "\n";
               display_evidence(tout << core << " ", m_explanation););
-        for (auto ev : m_explanation)
-            set_evidence(ev.ci(), m_core, m_eqs);
-        if (is_conflict && core.empty())
-            set_proof_params("farkas", false);
 
         if (params().m_arith_validate)
             VERIFY(validate_conflict());
