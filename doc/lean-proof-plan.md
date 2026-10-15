@@ -799,7 +799,49 @@ verify under `propext` alone with no failure; three seeds with 33
 to 41 monotonicity steps are pinned in `test_proof_to_lean_uf.py`, and
 `test_proof_certificate.py` checks the classification, the routing, and the
 clause-log rejection. Still rejected: Bool-only predicates together with
-arithmetic (the qf_lra encoding has no predicate family).
+arithmetic (the qf_lra encoding has no predicate family; accepted since
+2026-10-15, see below).
+
+**QF_UFLRA: uninterpreted functions mixed with arithmetic (2026-10-15).**
+Every slice so far rejected an input combining an uninterpreted sort or
+function with linear real arithmetic, although the clause log treats the
+combination like its parts: an application with a Real result is an opaque
+variable of the `farkas`, `bound`, and `implied-eq` hints (as a Real `ite`
+already was), `euf` hints carry the congruences between applications, and
+`implied-eq` hints supply the equalities between Real terms they rest on;
+the legacy proof object proves the same congruences by `monotonicity`
+through Real arguments. The exporter now classifies such inputs as a fourth
+fragment `qf_uflra` (functions and predicates may take and return Real), both
+cores export it, and the reconstructor's Lean theorem takes the Rat
+valuation and the carrier binders together plus `_real : Rat -> _U`, which
+injects Real arguments into the disjoint-union carrier as `_bool` injects
+Boolean ones, and `_rfuns : Nat -> List _U -> Rat` for functions with a Real
+result. One `grind` gap appeared on random instances: congruence closure
+compares function arguments as terms, so `(f (- x y))` and `(f (+ x (* -1
+y)))`, one term to Z3's rewriter, stayed apart (3 of 130 random instances
+failed); each `grind` lemma now states the equality of every pair of
+reachable Real arguments with the same linear form, proved by `grind` as an
+atom first, and none fails. Also fixed on the way: the replay's canonical
+formula keys identified all numerals in function arguments, and the
+atom-normalizing rewrite shape indexed linear forms by variable, which an
+`ite` or application atom does not have (it now falls back to the plain
+`grind` lemma). Nine documented inputs and 131 random instances (65 with an
+uninterpreted sort next to the Real functions) verify through both cores
+under the standard axioms; `test_proof_to_lean_uflra.py` pins seven seeds.
+The mixed inputs also produced the legacy `implied-eq` step that the
+2026-10-14 note had mapped without observing it: `theory_lra` propagates
+`x = y` from `x <= y` and `x >= y` when the egraph needs the equality for a
+congruence `(h x) = (h y)`, as a `th-lemma` with the two bound premises, no
+coefficients, and the equality as conclusion; the reconstructor's existing
+shape check and `grind` lemma accept it, and `test_proof_certificate.py`
+pins the shape. Two limits, both rejected explicitly: predicates over Bool alone applied to
+Real atoms are Ackermannized by the sat.smt core like in QF_UF (`--core
+auto` routes them to the legacy proof object, which certifies them), and a
+Real variable occurring in a single function argument is eliminated by the
+sat.smt path's unconstrained-variable simplifier regardless of
+`smt.elim_unconstrained=false`, so the log declares a fresh `k!N` constant
+(the legacy core names the term by `intro-def`); plumbing that option
+through `simplifier_solver` is a C++ follow-up.
 
 ## Arithmetic proof infrastructure
 
