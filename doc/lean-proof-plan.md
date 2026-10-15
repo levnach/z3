@@ -880,7 +880,8 @@ the rewriter's normal form (`(ite (<= x 0) (* -1 x) x)` for `(ite (> x 0) x
 (- x))`), which `grind` cannot identify under a function application, so the
 Real-argument helpers of each `grind` lemma key `ite` atoms up to that
 normalization (`_real_argument_key`) and state the equality, which `grind`
-proves on its own. On the legacy side the proofs changed more: the smt core
+proves on its own (an `ite` whose condition is no linear atom stays an
+opaque atom, `uflra_opaque_ite_conditions`). On the legacy side the proofs changed more: the smt core
 reached directly keeps Real `ite` terms (no `intro-def`), so all seven
 `ite` inputs of `test_proof_to_lean_arith.py` now verify through the legacy
 core too; difference-logic inputs are proved by `theory_lra`'s bound

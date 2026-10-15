@@ -1610,7 +1610,12 @@ class TestClauseLogReplay(unittest.TestCase):
                 with patch.object(proof_clause_log, "_NO_PREPROCESSING",
                                   proof_certificate._NO_PREPROCESSING.replace(bypass, "")):
                     tactic_log = proof_clause_log.run_clause_log(z3_executable, commands)
-                self.assertTrue("!" in tactic_log or "(infer" not in tactic_log, tactic_log)
+                # This half pins Z3's preamble (elim-uncnstr, Ackermannization),
+                # not the exporter: if it fails, the preamble no longer rewrites
+                # this input and the bypass needs a new witness.
+                self.assertTrue("!" in tactic_log or "(infer" not in tactic_log,
+                                "the tactic preamble (elim-uncnstr / Ackermannization) left the input's symbols "
+                                "intact; pick another witness for the bypass:\n" + tactic_log)
                 log = proof_clause_log.run_clause_log(z3_executable, commands)
                 self.assertIn("(infer", log)
                 self.assertNotIn("!", log)

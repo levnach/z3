@@ -162,6 +162,21 @@ UFLRA_INPUTS = {
 (assert (= (f 0.0) 4.0))
 (check-sat)
 """,
+    # Real ite terms whose conditions are a Bool variable and a predicate:
+    # no linear atom to key them by, so the argument helpers leave them as
+    # opaque atoms and grind relates the two through (= p (q x)) alone.
+    "uflra_opaque_ite_conditions": """\
+(set-logic QF_UFLRA)
+(declare-fun f (Real) Real)
+(declare-fun q (Real) Bool)
+(declare-const p Bool)
+(declare-const x Real)
+(declare-const y Real)
+(assert (= (f (ite p x y)) 1.0))
+(assert (= (f (ite (q x) x y)) 2.0))
+(assert (= p (q x)))
+(check-sat)
+""",
 }
 
 # A predicate over Bool alone applied to Real atoms: QF_UFLRA without a
@@ -357,12 +372,26 @@ class TestMixedValidation(unittest.TestCase):
         self.assertNotEqual(then_key, else_key)
         text = proof_to_lean.reconstruct(source, certificate)
         self.assertRegex(text, r"have _r\d+_\d+ : .*@ite Rat .* = .*@ite Rat .* := by grind")
-        # A variable, an application, and an ite over a non-arithmetic condition are opaque atoms.
-        opaque = [node for node in range(len(graph.nodes)) if graph.is_real(node) and graph.kind(node) != z3.Z3_OP_ITE
+        # A variable and an application are opaque atoms.
+        opaque = [node for node in range(len(graph.nodes)) if graph.is_real(node)
                   and graph.kind(node) == z3.Z3_OP_UNINTERPRETED]
         self.assertTrue(opaque)
         for node in opaque:
             self.assertEqual(proof_to_lean._real_atom_key(graph, node), ("atom", node))
+        # So is an ite whose condition is no linear atom (a Bool variable, a
+        # predicate): the two ite terms keep different keys and no helper
+        # states their equality.
+        source = UFLRA_INPUTS["uflra_opaque_ite_conditions"]
+        for certificate in (proof_certificate.export_clause_log_certificate(source),
+                            proof_certificate.export_certificate(source)):
+            graph = proof_to_lean._validate_graph(source, certificate)
+            ites = [node for node in range(len(graph.nodes)) if graph.kind(node) == z3.Z3_OP_ITE]
+            self.assertEqual(len(ites), 2)
+            for node in ites:
+                self.assertEqual(graph.kind(graph.arguments(node)[0]), z3.Z3_OP_UNINTERPRETED)
+                self.assertEqual(proof_to_lean._real_atom_key(graph, node), ("atom", node))
+            self.assertEqual(len({proof_to_lean._real_argument_key(graph, node) for node in ites}), 2)
+            self.assertNotIn("have _r", proof_to_lean.reconstruct(source, certificate))
 
     def test_fragment_consistency(self):
         for fragment, message in [("qf_uf", "qf_uf certificates cannot contain arithmetic"),
