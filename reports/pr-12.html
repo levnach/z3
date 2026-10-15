@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #12: Certify QF_LIA refutations in Lean through the clause log</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1d1d1f;
+    --muted: #5c5c66;
+    --accent: #0b5cad;
+    --border: #d6d6de;
+    --code-bg: #f3f3f7;
+    --ok: #1b7f3b;
+    --warn: #a35a00;
+    --row: #f8f8fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141417;
+      --fg: #e8e8ec;
+      --muted: #a4a4b0;
+      --accent: #7fb3f0;
+      --border: #3a3a44;
+      --code-bg: #1f1f26;
+      --ok: #5fcf85;
+      --warn: #f0b35c;
+      --row: #1a1a20;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    margin: 0 auto; padding: 2rem 1.25rem 3rem; max-width: 52rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55; font-size: 17px;
+  }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.2rem; margin: 2.2rem 0 0.6rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; margin: 1.4rem 0 0.4rem; }
+  a { color: var(--accent); }
+  p, li { max-width: 46rem; }
+  .meta { color: var(--muted); font-size: 0.92rem; margin-bottom: 1.5rem; }
+  .meta span { display: inline-block; margin-right: 1.2rem; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.88em; background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.8rem 1rem; overflow-x: auto; font-size: 0.84rem; line-height: 1.45;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 0.6rem 0 1rem; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-weight: 600; }
+  tbody tr:nth-child(even) { background: var(--row); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .caption { color: var(--muted); font-size: 0.88rem; margin: -0.4rem 0 1rem; }
+  .note { color: var(--muted); font-size: 0.92rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.5rem; }
+  dl.glossary dd { margin: 0 0 0 1.2rem; }
+  footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify QF_LIA refutations in Lean through the clause log</h1>
+  <div class="meta">
+    <span>Pull request: <a href="https://github.com/levnach/z3/pull/12">levnach/z3 #12</a></span>
+    <span>Merge commit: <a href="https://github.com/levnach/z3/commit/24813ce084f934e49cd5f169c2a67597b1f75ecf"><code>24813ce</code></a></span>
+    <span>Merged: 2026-10-15T19:42:38Z</span>
+    <span>Loop iteration: 12</span>
+  </div>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+This PR adds a fifth fragment to the pipeline: QF_LIA, which is quantifier-free linear integer arithmetic. "Quantifier-free" means no "for all" or "there exists". "Linear" means variables are only added, subtracted, or multiplied by a fixed number. "Integer" means every variable has the sort <code>Int</code>, where a sort is the type of a value. Before, any input with an integer variable was turned away at the first step. Now it is exported, replayed, translated into Lean, and checked by Lean's kernel. Integer reasoning uses steps that Z3's own C++ checker never verifies. Lean now proves those steps itself, so nothing new is trusted.
+</p>
+
+<h2>Background</h2>
+<p>
+Before this PR the pipeline certified four fragments: propositional logic over Boolean variables, equality with uninterpreted functions, linear real arithmetic (QF_LRA), and their mix (QF_UFLRA). An uninterpreted function is a function symbol with no fixed meaning, only the rule that equal inputs give equal outputs. Integer input failed at the exporter with "unsupported sort: Int". The obstacle was the <code>cut</code> hint, a proof step for which Z3 records no checkable coefficients. This work belongs to milestone 3 of the plan, "equality and linear arithmetic".
+</p>
+
+<h2>What changed</h2>
+<ul>
+  <li><strong>Integer input is exported.</strong> An Int-only input is now the fragment <code>qf_lia</code>. Int mixed with Real or with uninterpreted symbols is still rejected, with clear messages.</li>
+  <li><strong>The clause log is replayed with integer rules.</strong> A clause log is Z3's record of every learned clause, where a clause is an "or" of literals and a literal is an atom or its negation. A strict bound such as x &lt; 3 is tightened to x &le; 2, since a whole number below 3 is at most 2.</li>
+  <li><strong>Cuts are proved by Lean alone.</strong> A cut is an integer-only inference, such as "2x = 2y + 1 is impossible because one side is even and the other odd". Z3 writes no coefficients for a cut, so the clause goes to Lean's <code>omega</code> tactic, a decision procedure for linear integer arithmetic.</li>
+  <li><strong>Farkas lemmas fall back to Lean.</strong> A Farkas lemma refutes literals by adding them with nonnegative coefficients. When Z3's integer coefficients rest on an earlier cut, the lemma is kept without them and Lean proves it.</li>
+  <li><strong>The Lean file speaks Int.</strong> Variables are integers, if-then-else terms (written <code>ite</code> in SMT-LIB) are rendered over Int, and each lemma is proved by omega first and grind second.</li>
+  <li><strong>Wide integer rewrites work.</strong> After the review, a strict atom and the bound it contradicts share one name, so the propositional proof sees they are complements.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code> (new)</td><td class="num">487</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">195</td><td class="num">4</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">178</td><td class="num">48</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">154</td><td class="num">68</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">71</td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">69</td><td class="num">19</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">49</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">8</td><td class="num">4</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">7</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td class="num">4</td><td class="num">3</td></tr>
+    <tr><td><strong>Total (10 files)</strong></td><td class="num"><strong>1222</strong></td><td class="num"><strong>157</strong></td></tr>
+  </tbody>
+</table>
+<p class="caption">No C++ source was touched. All changes are in the Python examples, the Lean project notes, and the plan.</p>
+
+<h2>Worked example</h2>
+<p>
+The input is the gcd conflict from the PR's new test module. It asks for integers x and y with 2x = 2y + 1, an even number equal to an odd one. Its refutation, a proof that the assertions cannot all be true, needs a cut.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIA)
+(declare-const x Int)
+(declare-const y Int)
+(assert (= (* 2 x) (+ (* 2 y) 1)))
+(check-sat)
+</code></pre>
+
+<h3>(b) Before the PR</h3>
+<p>The exporter from the parent commit stops at the first integer declaration.</p>
+<pre><code>proof_certificate.py: error: unsupported sort: Int
+</code></pre>
+
+<h3>(c) After the PR</h3>
+<p>The current exporter labels the certificate <code>qf_lia</code> and records two theory lemmas, one hinted as a cut. The generated Lean file follows, trimmed.</p>
+
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((2 : Int))
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) * (term_1 _atoms _vars))
+...
+def formula_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_2 _atoms _vars) = (term_6 _atoms _vars))
+...
+def formula_14 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_10 _atoms _vars))
+def formula_15 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_14 _atoms _vars) (formula_14 _atoms _vars))
+</code></pre>
+<p class="caption">The declarations. Every variable lives in <code>Int</code>, and the assertion becomes the proposition <code>formula_7</code>.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_16 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_15 _atoms _vars) := by
+  unfold formula_15 formula_14 formula_10 term_9 term_5 term_4 term_3 term_2 term_1 term_0
+  first | omega | grind (splits := 64)
+</code></pre>
+<p class="caption">The cut lemma. It states that the equation is false, and omega proves it without any coefficients from Z3.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_7 _atoms _vars))
+    : False :=
+  ...
+  let _step_16 : (formula_15 _atoms _vars) :=
+    (th_lemma_16 _atoms _vars)
+  ...
+  _step_21
+</code></pre>
+<p class="caption">The final theorem. From the one original assertion it derives <code>False</code> by chaining the rewrite, the cut lemma, and unit resolution.</p>
+<p><span class="pass">Lean accepted the file.</span> The check script reported "Lean checks passed."</p>
+
+<h2>How it was verified</h2>
+<p>
+The PR touched only the Python examples, the Lean project notes, and documentation. The loop therefore merged it on its local gate instead of waiting for GitHub CI. The gate runs the steps of the relevant CI job on the loop machine, and every step passed. GitHub CI still runs on <code>master</code> after the merge, see <a href="https://github.com/levnach/z3/actions">the repository's Actions page</a>. No CI fix rounds were needed.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">1 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">481 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">15 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+<p>
+Beyond the gate, the implementer ran about five hundred random integer puzzles, and all verified in Lean after the fixes. The earlier fragments were re-checked and are unchanged.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Exporter unit tests</td><td>67 OK</td></tr>
+    <tr><td>Lean reconstruction tests (all fragments)</td><td>211 OK, up from 199 in iteration 11</td></tr>
+    <tr><td>Random QF_LIA instances, 4 to 6 variables, with and without <code>ite</code></td><td>520 of 520 verified (first pass had 2 export rejections and 5 Lean failures, all fixed)</td></tr>
+    <tr><td>Documented QF_LIA inputs</td><td>9 of 9 verified, all five hint kinds observed</td></tr>
+    <tr><td>QF_LRA regression inputs through the clause log</td><td>8 of 8 Lean-verified</td></tr>
+    <tr><td>Boolean regression inputs through the legacy proof object</td><td>6 of 6 Lean-verified</td></tr>
+    <tr><td>Reviewer's 18-literal input</td><td>failed before the review fix, verifies after it</td></tr>
+  </tbody>
+</table>
+<p class="caption">The stress runs were not repeated after the review fix, which touches only a path no random instance reaches.</p>
+
+<h2>Review</h2>
+<p>The reviewer asked for changes. They found one major issue, one minor issue, and two nits.</p>
+<ul>
+  <li><strong>Major, fixed.</strong> The reviewer built an input with nine integer variables and one clause of eighteen literals. Export succeeded, but Lean could not prove the wide rewrite, while the same input over Real verified. Tightening turned x &lt; 5 into x &le; 4, and its complement x &ge; 5 got an unrelated name. The propositional proof treats atoms as opaque, so it could not see they were negations of each other. The fix keys an integer atom by its complement, as the replay already did. The reviewer's input now verifies, and two tests cover the path.</li>
+  <li><strong>Minor, documented and not fixed.</strong> An if-then-else term inside the condition of another pushed one lemma past Lean's heartbeat budget, its limit on work per proof. The certificate was rejected, never misproved, so this is a completeness limit. It is recorded in the README and the plan.</li>
+  <li><strong>Nit, fixed.</strong> The generated Lean header said the lemmas are proved by grind. It now says by omega, else grind.</li>
+  <li><strong>Nit, fixed.</strong> A cut hint with no literals gave the wrong error message. It now says "cut hint without literals".</li>
+</ul>
+<p>
+The reviewer also tampered with certificates. Changed numerals, relabelled sorts, a Real twin of the input, and a false cut were all rejected, in Python or by Lean.
+</p>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li><strong>Soundness rests on Lean.</strong> The Python checks are pre-filters that can only fail early. Every integer lemma is a Lean theorem over the certificate's own clause.</li>
+  <li><strong>A policy change for integers only.</strong> A lemma whose coefficients do not add up is handed to Lean rather than rejected, so tampered coefficients are caught by Lean instead of Python.</li>
+  <li><strong>The bound rounding path is lightly exercised.</strong> Only unit tests and one constructed log reach it.</li>
+  <li><strong>Nested if-then-else terms can time out.</strong> See the minor review finding above.</li>
+  <li><strong>The integer fragment is opt-in in the parser.</strong> The upstream z3test harness still expects integer input to be reported as unsupported.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>QF_LIRA, integers mixed with reals, and QF_UFLIA, integers next to uninterpreted functions. Neither has an encoding yet.</li>
+  <li>Integer steps in the legacy proof object, which still rejects integer input.</li>
+  <li>In z3test: opt in to the integer fragment, add integer regression inputs and a matrix cell.</li>
+  <li>Rename the CI step "Check native Boolean proofs in Lean", which now covers five fragments.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl class="glossary">
+  <dt>Atom</dt><dd>The smallest statement in a formula, such as x &le; 4 or p.</dd>
+  <dt>Boolean</dt><dd>A value that is either true or false.</dd>
+  <dt>Bound lemma</dt><dd>A clause that derives one bound on a term from other bounds.</dd>
+  <dt>Clause</dt><dd>An "or" of literals.</dd>
+  <dt>Clause log</dt><dd>Z3's record of every clause it learned during a run.</dd>
+  <dt>Complement</dt><dd>The negation of a literal, such as x &ge; 5 for x &lt; 5.</dd>
+  <dt>Congruence</dt><dd>The rule that equal inputs to the same function give equal outputs.</dd>
+  <dt>Cut</dt><dd>An inference that uses only the fact that variables are integers, such as a parity or gcd argument.</dd>
+  <dt>Farkas lemma</dt><dd>A refutation of a set of linear literals by adding them with nonnegative coefficients.</dd>
+  <dt>Fragment</dt><dd>A class of inputs the pipeline handles, named after its SMT-LIB logic.</dd>
+  <dt>Heartbeat budget</dt><dd>Lean's limit on how much work one proof may take before it is abandoned.</dd>
+  <dt>If-then-else term</dt><dd>A term that picks one of two values depending on a condition, written <code>ite</code> in SMT-LIB.</dd>
+  <dt>Linear arithmetic</dt><dd>Arithmetic where variables are only added, subtracted, or multiplied by fixed numbers.</dd>
+  <dt>Literal</dt><dd>An atom or its negation.</dd>
+  <dt>Quantifier-free</dt><dd>Containing no "for all" or "there exists".</dd>
+  <dt>Refutation</dt><dd>A proof that a set of assertions cannot all be true.</dd>
+  <dt>Rewrite</dt><dd>A step that replaces a formula by an equivalent simpler one.</dd>
+  <dt>Sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt>Tactic</dt><dd>A Lean procedure that builds a proof automatically. <code>omega</code> decides linear integer arithmetic, and <code>grind</code> is a general-purpose prover.</dd>
+  <dt>Theory lemma</dt><dd>A clause that is true by the rules of a theory such as arithmetic, with no further premises.</dd>
+  <dt>Tightening</dt><dd>Turning a strict integer bound into the equivalent non-strict one, x &lt; 3 into x &le; 2.</dd>
+  <dt>Uninterpreted function</dt><dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.</dd>
+  <dt>Unit resolution</dt><dd>Removing from a clause every literal whose negation is already known true.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-15.
+</footer>
+
+</body>
+</html>
