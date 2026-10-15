@@ -927,10 +927,17 @@ Boolean structure, Int `ite`, `distinct`, equality elimination), three
 pinned seeds, and 520 random instances (4 to 6 variables, 10 to 16
 constraints, with and without `ite`) verify under the standard axioms; the
 first pass had 2 export rejections and 5 Lean failures, all of the two
-kinds above and none after. Not done: QF_LIRA and QF_UFLIA (no mixed
-encoding), the legacy core's integer steps, and the `bound` rounding path
-is exercised by unit tests and a pinned log only (no random instance
-needed it).
+kinds above and none after. Review of the iteration found the
+normalized-rewrite path (more than 16 linear atoms in one rewrite) broken
+over Int, because a tightened strict atom and the bound it contradicts got
+two unrelated names; the atoms are now keyed up to complement as in the
+replay's `_Normalizer`, with a nine-variable, 18-literal input in the test
+module. Not done: QF_LIRA and QF_UFLIA (no mixed encoding), the legacy
+core's integer steps, the `bound` rounding path is exercised by unit tests
+and a pinned log only (no random instance needed it), and an Int `ite`
+nested inside another `ite`'s condition can push `omega` and `grind` past
+the heartbeat budget (one such instance in the reviewer's stress run; the
+certificate is rejected, not misproved).
 
 ## Arithmetic proof infrastructure
 

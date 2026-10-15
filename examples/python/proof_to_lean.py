@@ -1313,8 +1313,15 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         negated = relation == "<"
         if negated:
             terms, constant, relation = {var: -value for var, value in terms.items()}, -constant, "<="
+        first = min(terms, key=lambda var: variable_indices[graph.nodes[var].declaration]) if terms else None
+        if graph.numeric == "Int" and relation == "<=" and terms and terms[first] < 0:
+            # Over Int every atom is already tightened to t <= 0, whose
+            # complement is -t + 1 <= 0: key the row with a negative leading
+            # coefficient as the negation of its complement, so that (< x 5)
+            # and (>= x 5) share one atom (the replay's _Normalizer does the
+            # same) and the propositional lemma sees them as complementary.
+            terms, constant, negated = {var: -value for var, value in terms.items()}, -constant + 1, True
         if terms:
-            first = min(terms, key=lambda var: variable_indices[graph.nodes[var].declaration])
             scale = terms[first] if relation == "=" else abs(terms[first])
             terms, constant = {var: value / scale for var, value in terms.items()}, constant / scale
         ordered = tuple(sorted((variable_indices[graph.nodes[var].declaration], value)
@@ -2085,7 +2092,7 @@ def reconstruct(source, certificate):
         for name, decl in sorted(tables[table].items(), key=lambda item: indices[table][item[1]]):
             lines.append("-- %s %d: %s" % (label, indices[table][decl], json.dumps(name, ensure_ascii=True)))
     if graph.arithmetic and graph.numeric == "Int":
-        lines.append("-- Int variables are encoded as Int; the integer lemmas are proved by grind.")
+        lines.append("-- Int variables are encoded as Int; the integer lemmas are proved by omega, else grind.")
     elif graph.arithmetic:
         lines.append("-- Real variables are encoded as Rat; see the exporter documentation.")
     if graph.arithmetic and graph.uninterpreted:

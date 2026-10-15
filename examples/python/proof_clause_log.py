@@ -492,6 +492,8 @@ def check_linear_hint(name, pairs):
         constraints.append((coefficient, relation, terms, constant))
         integer = integer or z3.is_int(_strip(literal)[0].arg(0))
     if name == "cut":
+        if not pairs:
+            raise ProofExportError("cut hint without literals")
         if not integer:
             raise ProofExportError("cut hint over Real atoms")
         return False

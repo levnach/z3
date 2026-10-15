@@ -174,6 +174,24 @@ def random_instance(seed, variables=4, constraints=10, ite=False):
     return source if solver.check() == z3.unsat else None
 
 
+def wide_rewrite_instance(variables=9):
+    """Every variable in [5, 7] and one clause asking for one of them outside.
+
+    The clause is a single rewrite over 2 * variables linear atoms, more than
+    proof_to_lean._NORMALIZED_REWRITE_ATOMS for nine variables, so it takes the
+    normalized-rewrite path, where every strict atom must be keyed as the
+    complement of the bound it contradicts.
+    """
+    names = ["x%d" % i for i in range(variables)]
+    lines = ["(set-logic QF_LIA)"] + ["(declare-const %s Int)" % name for name in names]
+    lines.append("(assert (or %s %s))" % (" ".join("(< %s 5)" % name for name in names),
+                                          " ".join("(> %s 7)" % name for name in names)))
+    for name in names:
+        lines.extend(["(assert (>= %s 5))" % name, "(assert (<= %s 7))" % name])
+    lines.append("(check-sat)")
+    return "\n".join(lines) + "\n"
+
+
 # Random seeds whose refutations use cut hints and bound propagations next
 # to the Farkas steps (seed 97 also an implied equality), with 17 to 25
 # theory lemmas each when they were pinned.
@@ -357,6 +375,22 @@ class TestIntegerValidation(unittest.TestCase):
             self.assertEqual(relation, "<=")
             self.assertEqual(constant.denominator, 1)
 
+    def test_wide_rewrite_keys_strict_integer_atoms_as_complements(self):
+        # A rewrite over more than _NORMALIZED_REWRITE_ATOMS atoms names each
+        # linear atom once and treats the names as opaque: a tightened strict
+        # atom (x < 5 is x - 4 <= 0) must get the name of the bound it
+        # contradicts (x >= 5 is Not (x - 4 <= 0)), as over Real, or the
+        # propositional lemma cannot see that they are complementary.
+        source = wide_rewrite_instance()
+        text = proof_to_lean.reconstruct(source, proof_certificate.export_clause_log_certificate(source))
+        self.assertIn("private theorem normalized_rewrite_", text)
+        self.assertEqual(text.count("  let _atom"), 18)
+        self.assertEqual(text.count("<-> (Not _atom"), 18)
+        self.assertIn("(Not _atom0)", text)
+        # The empty cut hint names its own defect, not the sort.
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, "cut hint without literals"):
+            proof_clause_log.check_linear_hint("cut", [])
+
 
 class TestIntegerLeanIntegration(unittest.TestCase):
     """End-to-end: z3 clause log, certificate, Lean reconstruction, kernel check."""
@@ -414,6 +448,11 @@ class TestIntegerLeanIntegration(unittest.TestCase):
             if checked == 3:
                 break
         self.assertEqual(checked, 3)
+
+    def test_wide_rewrite_verifies_through_the_normalized_path(self):
+        source = wide_rewrite_instance()
+        certificate = self.check(source)
+        self.assertIn("private theorem normalized_rewrite_", proof_to_lean.reconstruct(source, certificate))
 
     def test_outlined_integer_proofs_preserve_the_statement(self):
         with patch.object(proof_to_lean, "_OUTLINE_PROOF_STEPS", 0):

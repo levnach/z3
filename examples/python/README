@@ -531,7 +531,14 @@ A cut, or a farkas or bound without coefficients (see the clause-log
 section), reaches Lean with its literal shapes checked only; a false one
 fails there and no proof is published. Coefficients that are present are
 re-derived over the tightened integer constraints, with the bound rounding
-of Z3's checker, and rejected when they do not refute the lemma.
+of Z3's checker, and rejected when they do not refute the lemma. In a
+rewrite over more than 16 linear atoms (the normalized path above) a
+tightened strict atom is keyed as the negation of the bound it contradicts,
+so (< x 5) and (>= x 5) share one atom name, as they share one key in the
+exporter's replay. Known limit: an Int ite nested inside the condition of
+another ite can push omega and grind past the heartbeat budget on the
+th-lemma that reaches it; the certificate is then rejected (no proof is
+published), never misproved.
 
 Lean core's Rat library itself depends on propext, Classical.choice, and
 Quot.sound, so arithmetic theorems necessarily report those three standard
