@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #10: Certify QF_UFLRA refutations in Lean through both proof cores</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1c1e21; --muted: #5b6168; --line: #d9dde2;
+    --code-bg: #f4f6f8; --accent: #0b5cad; --ok: #1d7a3a; --warn: #a15c00; --th-bg: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181c; --fg: #e6e8eb; --muted: #a0a7b0; --line: #343a42;
+      --code-bg: #1f242a; --accent: #6db3f2; --ok: #5fc47a; --warn: #e3a34a; --th-bg: #232930;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         line-height: 1.55; max-width: 60rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .5rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+  h3 { font-size: 1.05rem; margin: 1.25rem 0 .4rem; }
+  p, li { max-width: 48rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: .95rem; margin-bottom: 1rem; }
+  .meta span { margin-right: 1rem; white-space: nowrap; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em;
+         background: var(--code-bg); padding: .05em .3em; border-radius: 3px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem;
+        overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: .85rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; margin: .75rem 0 1.25rem; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--th-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: .92rem; }
+  dl.glossary dt { font-weight: 600; margin-top: .5rem; }
+  dl.glossary dd { margin: 0 0 .25rem 0; }
+  footer { margin-top: 3rem; padding-top: .75rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify QF_UFLRA refutations in Lean through both proof cores</h1>
+  <p class="meta">
+    <span>Pull request: <a href="https://github.com/levnach/z3/pull/10">levnach/z3#10</a></span>
+    <span>Merge commit: <a href="https://github.com/levnach/z3/commit/cfee4d8ae5f2161df377ddfb7e782a85d47b0c4a"><code>cfee4d8ae</code></a></span>
+    <span>Merged: 2026-10-15T16:08:33Z</span>
+    <span>Loop iteration: 10</span>
+  </p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+This PR lets the pipeline certify refutations for the SMT-LIB logic QF_UFLRA. A refutation is a proof that a set of assertions cannot all be true. QF_UFLRA is the fragment, meaning the restricted input language, that mixes uninterpreted functions with linear real arithmetic. An uninterpreted function is a function symbol with no fixed meaning, only the rule that equal inputs give equal outputs. Linear real arithmetic is reasoning about real numbers with addition, comparison, and multiplication by constants. Before this PR the exporter refused any input that combined the two. Now such inputs are exported through both proof cores and become a Lean theorem that Lean checks with no new axiom or trusted step.
+</p>
+
+<h2>Background</h2>
+<p>
+Before this PR the pipeline handled three fragments: propositional inputs built only from Boolean values, QF_UF with uninterpreted functions over a sort, and QF_LRA with linear real arithmetic. A sort is the type of a value, such as Real or a user-declared type. Each fragment worked through both proof cores. The clause log is a list of clauses the newer solver learned, each tagged with a hint naming the reasoning behind it. The legacy proof object is the complete proof tree of the older solver. Neither path accepted a function that takes or returns a real number. This PR fills that gap under milestone 3 of the plan, equality and linear arithmetic, which must be complete before broader theories are attempted.
+</p>
+
+<h2>What changed</h2>
+<ul>
+  <li><strong>Classification.</strong> The exporter now labels an input <code>qf_uflra</code> when arithmetic meets a sort or an uninterpreted function, instead of stopping with an error.</li>
+  <li><strong>Lean encoding.</strong> The theorem gains two universally quantified binders, meaning variables it holds for under every possible choice. One maps reals into the shared carrier type, and one interprets functions with a Real result. The carrier is one bag holding sort elements, Booleans, and now reals, so one notion of equality covers them all.</li>
+  <li><strong>Congruence through both cores.</strong> Congruence is the rule that equal arguments give equal function results. Both cores now yield Lean proofs of congruence over real-valued arguments.</li>
+  <li><strong>Argument normalization.</strong> Z3 merges arguments with the same linear form, such as <code>x - y</code> and <code>x + (-1)*y</code>. Lean's automation kept them apart and failed on 3 of 130 random inputs. Each lemma now proves such pairs equal first.</li>
+  <li><strong>Two completeness fixes.</strong> Numerals as function arguments were wrongly treated as identical when matching clauses. A rewrite lemma crashed on an if-then-else term, written <code>ite</code> in SMT-LIB, used as an atom.</li>
+  <li><strong>Cross-checked labels.</strong> A certificate whose fragment label disagrees with its declarations or with the input's classification is rejected.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th>Lines changed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/test_proof_to_lean_uflra.py</code> (new)</td><td class="num">515</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">151</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">103</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">92</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">81</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">57</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">19</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">5</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">4</td></tr>
+    <tr><td>Total: 10 files</td><td class="num">911 added, 125 removed</td></tr>
+  </tbody>
+</table>
+
+<h2>Worked example</h2>
+<p>
+The input below is the first documented test of the new module. It asserts that two reals are equal and that an uninterpreted function gives a strictly smaller result on the first. Congruence makes the two results equal, so the strict inequality is impossible.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UFLRA)
+(declare-fun f (Real) Real)
+(declare-const x Real)
+(declare-const y Real)
+(assert (= x y))
+(assert (&lt; (f x) (f y)))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The exporter at the parent of the merge commit rejected the input before running Z3, with either proof core selected.</p>
+<pre><code>proof_certificate.py: error: uninterpreted functions are not supported: f</code></pre>
+
+<h3>(c) After</h3>
+<p>The current exporter produced a clause-log certificate labeled <code>qf_uflra</code> with the hint kinds <code>euf</code> and <code>farkas</code>. The generated Lean file is trimmed below to the pieces that show the new feature.</p>
+
+<pre><code>-- Real function 0: "f"
+-- Real arguments of functions and predicates are injected into _U by _real; functions with a Real result are the family _rfuns.
+...
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_real : Rat -&gt; _U) (_rfuns : Nat -&gt; List _U -&gt; Rat) : Rat := _rfuns 0 [(_real (term_0 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))]
+...</code></pre>
+<p class="note">The application <code>(f x)</code> becomes real function 0 applied to the variable after injection into the carrier.</p>
+
+<pre><code>private theorem th_lemma_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_real : Rat -&gt; _U) (_rfuns : Nat -&gt; List _U -&gt; Rat)
+    : (formula_18 _atoms _vars _U _elems _funs _preds _bool _real _rfuns) := by
+  unfold formula_18 formula_17 formula_13 term_4 term_3 formula_2 term_1 term_0
+  grind (splits := 64)</code></pre>
+<p class="note">The congruence step from the <code>euf</code> hint: the clause "f(x) = f(y) or x ≠ y", proved by Lean's automation.</p>
+
+<pre><code>private theorem th_lemma_16 ...
+    : (formula_15 _atoms _vars _U _elems _funs _preds _bool _real _rfuns) := by
+  unfold formula_15 formula_14 formula_13 formula_8 term_4 term_3 term_1 term_0
+  grind (splits := 64)</code></pre>
+<p class="note">This is the Farkas step, a weighted sum of inequalities that yields a contradiction. It treats f(x) and f(y) as opaque real atoms.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_real : Rat -&gt; _U) (_rfuns : Nat -&gt; List _U -&gt; Rat)
+    (_h0 : (formula_2 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))
+    (_h1 : (formula_5 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))
+    : False :=
+  ...
+  _step_23</code></pre>
+<p class="note">The main theorem takes the two assertions as hypotheses and derives False, for every choice of the binders.</p>
+
+<p>
+Lean accepted the file: the check script reported "Lean checks passed." Through the legacy proof object the congruence appears as an explicit term using <code>congrArg _real</code>, and Lean accepted that file too.
+</p>
+
+<h2>How it was verified</h2>
+<p>
+The PR touched only documentation, the Python examples, and the Lean project, so the loop merged it on its local gate instead of waiting for GitHub CI. The gate mirrors the steps of the Ubuntu releaseClang CI job that exercise this work, run on the loop machine. Every step passed: all unit tests, and every Lean-certified matrix input still verified. GitHub CI still runs on master after the merge at <a href="https://github.com/levnach/z3/actions">github.com/levnach/z3/actions</a>. No CI fix rounds were needed.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter (61 tests)</td><td class="ok">pass</td><td>1 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction (196 tests)</td><td class="ok">pass</td><td>420 s</td></tr>
+    <tr><td>z3test proof script tests (46 tests)</td><td class="ok">pass</td><td>17 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object (6 of 6)</td><td class="ok">pass</td><td>4 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log (8 of 8)</td><td class="ok">pass</td><td>7 s</td></tr>
+  </tbody>
+</table>
+<p>
+Beyond the gate, about 130 random QF_UFLRA puzzles all verified through both cores after the argument-normalization fix. Every Lean file reported only the three standard Lean axioms.
+</p>
+<table>
+  <thead><tr><th>Stress run</th><th>Instances</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Documented probe inputs, both cores</td><td class="num">10</td><td>10 verified through the legacy core, 9 through the clause log, 1 rejected by design</td></tr>
+    <tr><td>Random instances with Real functions</td><td class="num">66</td><td>66 of 66 verified through both cores</td></tr>
+    <tr><td>Random instances with a sort added</td><td class="num">65</td><td>65 of 65 verified through both cores</td></tr>
+    <tr><td>Reviewer's adversarial inputs</td><td class="num">9</td><td>7 verified through both cores, 2 rejected by the clause log under a documented limit and verified by the legacy core</td></tr>
+  </tbody>
+</table>
+
+<h2>Review</h2>
+<p>The reviewer approved with no blocking or major findings. Three smaller findings were fixed before merge.</p>
+<ul>
+  <li><strong>Minor, stale plan notes.</strong> Four earlier dated entries in the plan document still said QF_UFLRA was rejected. Each now carries a forward annotation pointing to the new entry.</li>
+  <li><strong>Nit, incomplete README limit.</strong> The reviewer built an input with <code>(distinct (f x) (f y))</code> where Z3 eliminates the application as unconstrained. It was rejected as intended, but with a second message the README did not mention. The README now names both.</li>
+  <li><strong>Nit, tests silently skipped.</strong> Three checks that need neither the z3 executable nor Lean sat in a class skipped without z3. They were moved to an in-process class.</li>
+</ul>
+<p>
+The reviewer also re-checked soundness. Nothing assumes the injection of reals is one-to-one, and every new helper is proved by Lean's automation. A wrong helper can make Lean fail but never accept a bad proof.
+</p>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li><strong>Behavior change for callers.</strong> Inputs that used to produce an error message now produce a certificate. Tools that matched on the old message will see different output.</li>
+  <li><strong>Known limit on the clause-log path.</strong> A real variable that occurs in only one function argument is eliminated by Z3's unconstrained-variable simplifier, even with the option to disable it set. Such inputs are rejected explicitly on that path. The fix needs C++ plumbing.</li>
+  <li><strong>Bool-only predicates over reals.</strong> A predicate is a function whose result is Boolean. The newer core Ackermannizes these, meaning it replaces applications by fresh variables plus congruence constraints, so they route to the legacy core only.</li>
+  <li><strong>Runtime and scale.</strong> Each pair of real arguments with equal linear forms adds one automation call. The full suite grew by about half a minute. Real SMT-LIB QF_UFLRA benchmarks have not been tried.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Add a <code>uflra_*.smt2</code> cell to the z3test regression matrix so QF_UFLRA gets the same CI gate as QF_LRA.</li>
+  <li>Honor the unconstrained-variable option in the newer solver path to remove the documented limit.</li>
+  <li>Try real SMT-LIB QF_UFLRA benchmarks.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl class="glossary">
+  <dt>Ackermannization</dt><dd>Replacing function applications by fresh variables plus constraints that equal arguments give equal results.</dd>
+  <dt>Binder, universally quantified</dt><dd>A variable in a theorem statement that the theorem holds for every possible choice of.</dd>
+  <dt>Boolean</dt><dd>A value that is either true or false.</dd>
+  <dt>Carrier</dt><dd>The one Lean type that holds every value the theorem reasons about, here sort elements, Booleans, and reals.</dd>
+  <dt>Clause</dt><dd>A disjunction, an "or", of literals.</dd>
+  <dt>Clause log</dt><dd>A list of clauses the solver learned, each tagged with a hint naming the reasoning that produced it.</dd>
+  <dt>Congruence</dt><dd>The rule that a function applied to equal arguments gives equal results.</dd>
+  <dt>Farkas step</dt><dd>A weighted sum of linear inequalities that yields a contradiction.</dd>
+  <dt>Fragment</dt><dd>A restricted language of inputs, such as QF_UF or QF_UFLRA, that the pipeline handles with one encoding.</dd>
+  <dt>If-then-else term</dt><dd>A term that picks one of two values depending on a condition, written <code>ite</code> in SMT-LIB.</dd>
+  <dt>Legacy proof object</dt><dd>The complete proof tree recorded by the older solver core, with explicit equality steps.</dd>
+  <dt>Linear form</dt><dd>A sum of variables multiplied by constants, plus a constant.</dd>
+  <dt>Linear real arithmetic</dt><dd>Reasoning about real numbers with addition, comparison, and multiplication by constants.</dd>
+  <dt>Literal</dt><dd>An atomic formula or its negation.</dd>
+  <dt>Predicate</dt><dd>A function whose result is Boolean.</dd>
+  <dt>QF_UFLRA</dt><dd>The SMT-LIB logic of quantifier-free formulas mixing uninterpreted functions with linear real arithmetic.</dd>
+  <dt>Refutation</dt><dd>A proof that a set of assertions cannot all be true at once.</dd>
+  <dt>Sort</dt><dd>The type of a value, such as Real, Bool, or a user-declared type.</dd>
+  <dt>Uninterpreted function</dt><dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-15.
+</footer>
+
+</body>
+</html>
