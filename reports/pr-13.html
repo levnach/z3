@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #13: Certify QF_UFLIA refutations in Lean through the clause log</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #57606a;
+    --link: #0a58ca;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
+    --accent: #eaf2fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9da7b3;
+      --link: #6cb6ff;
+      --border: #30363d;
+      --code-bg: #161b22;
+      --accent: #122033;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
+  }
+  a { color: var(--link); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta span { margin-right: 1rem; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--code-bg);
+    padding: 0.1em 0.3em;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  pre code { background: none; padding: 0; font-size: 0.85em; }
+  table { border-collapse: collapse; margin: 0.8rem 0 1.2rem; width: 100%; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--accent); }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .pass { color: #1a7f37; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .pass { color: #3fb950; } }
+  .note { font-size: 0.95rem; color: var(--muted); margin: -0.4rem 0 1rem; }
+  dl dt { font-weight: 600; margin-top: 0.7rem; }
+  dl dd { margin-left: 0; margin-top: 0.1rem; }
+  footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify QF_UFLIA refutations in Lean through the clause log</h1>
+  <p class="meta">
+    <span>Pull request <a href="https://github.com/levnach/z3/pull/13">#13</a></span>
+    <span>Merge commit <a href="https://github.com/levnach/z3/commit/8d6aa542ce3adb30d05b657ea8c630cee4e0d661"><code>8d6aa542</code></a></span>
+    <span>Merged 2026-10-15T23:44:53Z</span>
+    <span>Loop iteration 13</span>
+  </p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+This PR adds a sixth certified <a href="#g-fragment">fragment</a>, <a href="#g-qf-uflia">QF_UFLIA</a>.
+That is <a href="#g-lia">linear integer arithmetic</a> mixed with <a href="#g-uninterpreted-sort">uninterpreted sorts</a> and <a href="#g-uninterpreted-function">uninterpreted functions</a>.
+Before, the exporter rejected every input that placed an Int-valued uninterpreted function next to integer <a href="#g-literal">literals</a>.
+Now such an input is exported through the <a href="#g-clause-log">clause log</a>, turned into a Lean file, and checked by the Lean <a href="#g-kernel">kernel</a>.
+Each integer <a href="#g-theory-lemma">theory lemma</a> is proved by the <a href="#g-tactic">tactic</a> <code>omega</code>, with <code>grind</code> as the fallback.
+The stress runs also found a gap unrelated to integers.
+An <a href="#g-ite">if-then-else term</a> whose two branches are the same term produced <a href="#g-gate-clause">gate clauses</a> that the reconstructor rejected.
+Those are now proved by a <a href="#g-case-split">case split</a> on the condition.
+Nothing new is trusted. Every lemma is still checked under Lean's three standard <a href="#g-axiom">axioms</a>.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR the pipeline certified five fragments, from pure <a href="#g-boolean">Boolean</a> reasoning up to QF_LIA.
+Int next to an uninterpreted symbol was the one combination of already certified pieces still rejected at the exporter.
+A probe of the clause log showed that Z3 emits no new <a href="#g-hint">hint</a> kind for this fragment.
+An <a href="#g-application">application</a> with an Int result is just an opaque integer atom inside the <a href="#g-farkas">Farkas</a>, <a href="#g-bound">bound</a>, <a href="#g-implied-equality">implied equality</a>, and <a href="#g-cut">cut</a> hints, and <a href="#g-congruence">congruence</a> steps arrive as before.
+The work serves milestone 3 of the plan, equality and linear arithmetic, which asks that each fragment be completed end to end before the next one is added.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+  <li><strong>Exporter.</strong> An input with Int arithmetic next to uninterpreted sorts or functions is now classified as <code>qf_uflia</code> and exported through the clause log instead of being rejected. Mixing Int with Real is still rejected.</li>
+  <li><strong>Reconstructor.</strong> The Lean file for this fragment binds integer variables, an <a href="#g-injection">injection</a> from Int into the carrier type, and a family of Int-valued functions, then proves every theory lemma with <code>omega</code> first and <code>grind</code> second.</li>
+  <li><strong>Same-branch if-then-else.</strong> A gate clause for <code>(ite c a a)</code> in either orientation, and the bare <a href="#g-unit-clause">unit clause</a> saying it equals <code>a</code>, are now proved by splitting on <code>c</code>. Think of a fork where both roads lead to the same town: whichever way you go, you arrive at <code>a</code>.</li>
+  <li><strong>Validation.</strong> A <a href="#g-certificate">certificate</a> with the wrong fragment label is rejected with a message naming the allowed fragments. The <a href="#g-legacy-proof-object">legacy proof object</a> still rejects both integer fragments.</li>
+  <li><strong>Tests and documentation.</strong> A new test module holds twelve documented inputs and a random generator in three shapes. Four sibling modules and three documents were updated.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th class="num">Lines changed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code> (new)</td><td class="num">647</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">233</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">108</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">65</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">56</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">41</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td class="num">10</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">6</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">6</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">5</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">2</td></tr>
+    <tr><th>Total: 11 files</th><th class="num">+1025 / &minus;154</th></tr>
+  </tbody>
+</table>
+
+<h2 id="worked-example">Worked example</h2>
+<p>
+The input below is one of the twelve documented inputs of the new test module, with unused declarations removed.
+Two elements of an uninterpreted sort are equal, yet an Int-valued function maps them to values more than one apart.
+The <a href="#g-refutation">refutation</a> needs one congruence step and one Farkas step.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UFLIA)
+(declare-sort U 0)
+(declare-fun g (U) Int)
+(declare-const a U)
+(declare-const b U)
+(assert (= a b))
+(assert (&gt; (g a) (+ (g b) 1)))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The exporter from the parent commit stopped at the function declaration and exported nothing. Exit code 2.</p>
+<pre><code>proof_certificate.py: error: uninterpreted functions over Int are not supported: g</code></pre>
+
+<h3>(c) After</h3>
+<p>The current exporter produced a certificate with one <code>farkas</code> hint and one <code>euf</code> hint. The excerpts below are real lines from the Lean file the reconstructor wrote.</p>
+
+<pre><code>-- Element 0: "a"
+-- Element 1: "b"
+-- Int function 0: "g"
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_int : Int -&gt; _U) (_ifuns : Nat -&gt; List _U -&gt; Int) : _U := _elems 0
+...
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_int : Int -&gt; _U) (_ifuns : Nat -&gt; List _U -&gt; Int) : Int := _ifuns 0 [(term_0 _atoms _vars _U _elems _funs _preds _bool _int _ifuns)]
+...</code></pre>
+<p class="note">The constant <code>a</code> becomes element 0 of the carrier type, and <code>g a</code> becomes Int function 0 applied to it. The binder <code>_ifuns</code> is new in this PR.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_int : Int -&gt; _U) (_ifuns : Nat -&gt; List _U -&gt; Int)
+    (_h0 : (formula_2 _atoms _vars _U _elems _funs _preds _bool _int _ifuns))
+    (_h1 : (formula_7 _atoms _vars _U _elems _funs _preds _bool _int _ifuns))
+    : False :=
+  ...</code></pre>
+<p class="note">The theorem says: for any carrier type and any reading of the symbols, the two assertions together imply False.</p>
+
+<pre><code>private theorem th_lemma_22 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_int : Int -&gt; _U) (_ifuns : Nat -&gt; List _U -&gt; Int)
+    : (formula_21 _atoms _vars _U _elems _funs _preds _bool _int _ifuns) := by
+  unfold formula_21 formula_20 formula_16 term_4 term_3 formula_2 term_1 term_0
+  first | omega | grind (splits := 64)</code></pre>
+<p class="note">This is the congruence step: if <code>a = b</code> then <code>g a = g b</code>. The integer tactic cannot prove it, so <code>grind</code> takes over.</p>
+
+<pre><code>private theorem th_lemma_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_int : Int -&gt; _U) (_ifuns : Nat -&gt; List _U -&gt; Int)
+    : (formula_18 _atoms _vars _U _elems _funs _preds _bool _int _ifuns) := by
+  unfold formula_18 formula_17 formula_16 formula_11 term_10 term_5 term_4 term_3 term_1 term_0
+  first | omega | grind (splits := 64)</code></pre>
+<p class="note">This is the Farkas step: from <code>g a = g b</code> it follows that <code>g a &lt;= g b + 1</code>, which contradicts the second assertion. Here <code>omega</code> treats the two applications as plain integer atoms.</p>
+
+<p>The Lean check accepted the file. The project check script reported "Lean checks passed."</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+This PR touched only Python examples, the Lean project, and documentation.
+The loop therefore merged it on its local gate, run on the loop machine, instead of waiting for GitHub CI.
+The gate mirrors the steps of the Ubuntu CI job that exercise this work, and all five steps passed.
+GitHub CI still runs on <code>master</code> after the merge, at <a href="https://github.com/levnach/z3/actions">github.com/levnach/z3/actions</a>.
+No CI status was recorded for this PR, and there were no CI fix rounds.
+</p>
+
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter (69 tests)</td><td class="pass">pass</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction (225 tests)</td><td class="pass">pass</td><td class="num">509 s</td></tr>
+    <tr><td>z3test proof script tests (46 tests)</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object (6 of 6)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log (8 of 8)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
+  </tbody>
+</table>
+
+<p>
+The implementer also ran random stress tests before the review.
+Every random instance was exported through the clause log, reconstructed, and checked by Lean with its axioms printed.
+All passed after the same-branch fix, which the first if-then-else run had exposed.
+</p>
+
+<table>
+  <thead><tr><th>Stress run</th><th class="num">Instances</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Plain integer inputs</td><td class="num">38</td><td>all verified</td></tr>
+    <tr><td>With an uninterpreted sort</td><td class="num">25</td><td>all verified</td></tr>
+    <tr><td>With if-then-else terms, before the gate fix</td><td class="num">38</td><td>32 verified, 6 rejected</td></tr>
+    <tr><td>With if-then-else terms, after the gate fix</td><td class="num">38</td><td>all verified</td></tr>
+    <tr><td>With a sort and if-then-else terms</td><td class="num">23</td><td>all verified</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blocker, major, or minor findings, only three nits. All three were fixed in a follow-up commit before the merge.</p>
+<ul>
+  <li><strong>Nit: dead code.</strong> A scan of the three gate functions found one local variable that was assigned and never read, left behind when the unit-clause case moved into its own function. It mattered only for clarity. The variable was removed.</li>
+  <li><strong>Nit: a docstring promised too much.</strong> Two test classes claimed their checks "run on every runner". The reviewer read the CI workflow and saw that these classes run only in the Lean job. A reader could have assumed Windows or manylinux coverage that does not exist. The docstrings now say the checks need neither the z3 executable nor Lean.</li>
+  <li><strong>Nit: a documentation claim went beyond the evidence.</strong> The README said the same-branch fix applies "in every fragment". The reviewer tried Real and uninterpreted-sort inputs and found that Z3 simplified the if-then-else away, so no gate clause was logged there. The text now says the lemma is fragment-independent while the Z3-logged evidence is Int-only.</li>
+</ul>
+<p>
+The reviewer also confirmed the trust boundary directly: one arithmetic sort per certificate, the original input bound by its terms and signatures, and no <code>sorry</code> or new axiom. Tampered gate clauses with distinct branches were rejected before Lean ran.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li><strong>Soundness is unchanged.</strong> Int atoms under applications go through the same tightening, rounding, and Farkas re-derivation as Int variables. Cut steps are shape-checked and then proved by Lean alone, and a new test shows Lean rejecting false ones over an application.</li>
+  <li><strong>The injection is never assumed one-to-one.</strong> No injectivity axiom was added for <code>_int</code>, so the encoding proves nothing it should not.</li>
+  <li><strong>Behaviour changes only for inputs that were rejected before.</strong> QF_UFLIA is opt-in through the Python API, so z3test's harness still reports it as unsupported until it opts in.</li>
+  <li><strong>The same-branch evidence from Z3 is Int-only.</strong> Over Real and uninterpreted sorts Z3 simplified the term away in every input tried. Whether it ever logs such a clause there is unknown.</li>
+  <li><strong>Random instances are often trivial.</strong> Many are refuted by a single numeral comparison such as <code>(= 2 -1)</code>, so the pinned seeds were filtered for larger conflicts.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>QF_LIRA, meaning Int mixed with Real, stays rejected and is the obvious next fragment.</li>
+  <li>The legacy proof object still rejects both integer fragments.</li>
+  <li>No QF_UFLIA matrix cell exists in z3test yet. The twelve documented inputs are the candidates.</li>
+  <li>The random generator could avoid trivial numeral atoms.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-application">application</dt>
+  <dd>A function symbol applied to arguments, such as <code>(g a)</code>.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. Lean's three standard axioms are propositional extensionality, choice, and quotient soundness, and every generated proof is checked to use no others.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort of truth values, true and false.</dd>
+  <dt id="g-bound">bound</dt>
+  <dd>A hint that an inequality over integers was tightened or rounded, for example turning <code>x &lt; 3</code> into <code>x &lt;= 2</code>.</dd>
+  <dt id="g-case-split">case split</dt>
+  <dd>A proof that handles a statement separately for the case where a condition holds and for the case where it does not.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The exported JSON record of a refutation, together with the declarations and original input it depends on.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as "not (a = b) or g a = g b".</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>The stream of clauses, each tagged with a hint, that Z3's SAT-based SMT core writes while solving. One of the two proof cores the exporter can read.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results: if <code>a = b</code> then <code>g a = g b</code>.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An integer reasoning step that derives a new inequality not implied over the reals, using the fact that the variables are whole numbers.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>The rule that a non-negative weighted sum of true linear inequalities is also true. Z3 reports the weights as a <code>farkas</code> hint.</dd>
+  <dt id="g-fragment">fragment</dt>
+  <dd>A restricted class of inputs, defined by which sorts and operators may appear, that the pipeline handles with one fixed encoding.</dd>
+  <dt id="g-gate-clause">gate clause</dt>
+  <dd>A clause that defines a compound term by its parts, such as "not c or (ite c a b) = a". Z3 logs these under the name <code>def-axiom</code>.</dd>
+  <dt id="g-hint">hint</dt>
+  <dd>The short tag on a logged clause, such as <code>farkas</code> or <code>euf</code>, that says which kind of reasoning produced it.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term written <code>(ite c a b)</code> in SMT-LIB that equals <code>a</code> when <code>c</code> holds and <code>b</code> otherwise.</dd>
+  <dt id="g-implied-equality">implied equality</dt>
+  <dd>A hint that two bounds, such as <code>x &lt;= y</code> and <code>x &gt;= y</code>, together force an equality <code>x = y</code>.</dd>
+  <dt id="g-injection">injection</dt>
+  <dd>Here, the map that places integer values inside the carrier type so that a function over an uninterpreted sort can take an Int argument. The Lean binder is <code>_int</code>.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small trusted core of Lean that re-checks every proof term. A tactic only helps produce the term. The kernel decides whether it is valid.</dd>
+  <dt id="g-legacy-proof-object">legacy proof object</dt>
+  <dd>Z3's older tree-shaped proof format. It is the other proof core the exporter can read, and it does not yet cover integer steps.</dd>
+  <dt id="g-lia">linear integer arithmetic</dt>
+  <dd>Reasoning about Int variables with addition, multiplication by constants, and comparisons. SMT-LIB calls the pure form QF_LIA.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic statement or its negation, such as <code>x &lt; 3</code> or <code>not (a = b)</code>.</dd>
+  <dt id="g-qf-uflia">QF_UFLIA</dt>
+  <dd>The SMT-LIB logic of quantifier-free formulas over uninterpreted functions and linear integer arithmetic.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to a contradiction, ending in the empty clause or False.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, Bool, or a user-declared sort <code>U</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean program that searches for a proof of a goal. <code>omega</code> handles linear integer arithmetic and <code>grind</code> handles equalities and congruence.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that is true by the rules of a theory alone, such as arithmetic or equality, independent of the input assertions.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with a declared signature but no fixed meaning. Only congruence constrains it.</dd>
+  <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+  <dd>A user-declared sort with no fixed set of values, such as <code>(declare-sort U 0)</code>.</dd>
+  <dt id="g-unit-clause">unit clause</dt>
+  <dd>A clause with exactly one literal, such as <code>(ite c a a) = a</code> on its own.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-15.
+</footer>
+
+</body>
+</html>
