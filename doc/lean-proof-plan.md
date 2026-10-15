@@ -581,7 +581,8 @@ each, and reports the three standard axioms. Python checks only shapes for
 `euf` hints, so a false `euf` lemma is rejected by Lean alone (covered by a
 tampering test). Still rejected: a second uninterpreted sort, mixing the sort
 with arithmetic (QF_UFLRA), functions with Bool or Real arguments or results,
-and `ite` over the sort (the last accepted since 2026-10-12, see below).
+and `ite` over the sort (a second sort, `ite`, and Bool accepted since
+2026-10-12, QF_UFLRA and Real since 2026-10-15, see below).
 
 **Long refutations in every fragment (2026-10-12).** The lemma outlining
 added for LassoRanker applied only to arithmetic certificates with more than
@@ -623,7 +624,8 @@ the negation of a source as a literal (resolving it away produced a
 unit-resolution the reconstructor rejected). 20 of 400 random stress
 instances failed before these fixes, none after. Still rejected: a second
 sort (accepted since 2026-10-12, see below), QF_UFLRA, and Bool or Real
-arguments or results of uninterpreted functions.
+arguments or results of uninterpreted functions (Bool accepted since
+2026-10-12, QF_UFLRA and Real since 2026-10-15, see below).
 
 **Several uninterpreted sorts (2026-10-12).** Inputs over more than one
 uninterpreted sort were rejected at the exporter, although Z3's clause log
@@ -651,8 +653,8 @@ reconstructor parses the input itself, by the binder), the binder requires
 every bound declaration to carry the input's full signature and interns
 terms with their sort, and a declaration over an uninterpreted sort that no
 node uses is rejected. Still rejected: QF_UFLRA and Bool or Real arguments
-or results of uninterpreted functions (Bool accepted since 2026-10-12, see
-below).
+or results of uninterpreted functions (Bool accepted since 2026-10-12,
+QF_UFLRA and Real since 2026-10-15, see below).
 
 **Bool arguments of uninterpreted functions (2026-10-12).** Functions and
 predicates with Bool arguments (`(declare-fun f (Bool) U)`, `(declare-fun r
@@ -690,7 +692,8 @@ accepted only together with an uninterpreted sort: without one the sat.smt
 core Ackermannizes them with fresh symbols the log cannot be tied to the
 input, so the exporter rejects that case explicitly. Two documented inputs
 and five pinned random instances verify end to end under the standard
-axioms. Still rejected: QF_UFLRA and Real arguments or results.
+axioms. Still rejected: QF_UFLRA and Real arguments or results (accepted
+since 2026-10-15, see below).
 
 **Legacy core proof objects (2026-10-13).** The theory slices above all read
 the `sat.smt=true` clause log. The legacy smt core (`sat.smt=false`) is the

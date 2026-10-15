@@ -378,6 +378,10 @@ class TestMixedValidation(unittest.TestCase):
         with self.assertRaises(proof_to_lean.ReconstructionError):
             proof_to_lean.reconstruct(other, self.certificate)
 
+
+class TestMixedInProcess(unittest.TestCase):
+    """Checks that need neither the z3 executable nor Lean, so they run on every runner."""
+
     def test_numerals_as_arguments_have_distinct_normalizer_keys(self):
         context = z3.Context()
         q = z3.Function("q", z3.RealSort(context), z3.BoolSort(context))
@@ -388,6 +392,7 @@ class TestMixedValidation(unittest.TestCase):
         self.assertNotEqual(normalizer.key(q(one)), normalizer.key(z3.Not(q(one))))
 
     def test_bool_only_predicates_with_arithmetic_need_the_legacy_core(self):
+        # The clause-log rejection is decided from the parsed input, before z3 runs.
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "Ackermannized.*--core legacy"):
             proof_certificate.export_clause_log_certificate(BOOL_PREDICATE_WITH_ARITHMETIC)
         certificate = proof_certificate.export_certificate(BOOL_PREDICATE_WITH_ARITHMETIC)

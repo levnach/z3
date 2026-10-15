@@ -262,10 +262,12 @@ limits, both rejected explicitly: predicates over Bool alone applied to
 Real atoms are Ackermannized like their QF_UF counterparts (the legacy
 proof object certifies them), and a Real variable that occurs in one
 function argument only is eliminated by Z3's unconstrained-variable
-simplifier even with smt.elim_unconstrained disabled, so the log declares a
-fresh k!N constant and the exporter stops ("declares a symbol absent from
-the input"); the legacy core names the same term by intro-def, rejected as
-before.
+simplifier even with smt.elim_unconstrained disabled, so the log refers to
+a fresh k!N constant and the exporter stops ("declares a symbol absent from
+the input" when the log declares it, "uses an undeclared or fresh symbol"
+when it first appears inside a clause, as for an eliminated application
+such as (f x) in (distinct (f x) (f y))); the legacy core names the same
+term by intro-def, rejected as before.
 
 Uninterpreted functions through the legacy proof object
 -------------------------------------------------------
