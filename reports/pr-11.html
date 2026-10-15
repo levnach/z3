@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #11: Bypass the frontend's tactic preamble in both proof exporters</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1c1e21; --muted: #5b6168; --line: #d9dde2;
+    --code-bg: #f4f6f8; --accent: #0b5cad; --ok: #1d7a3a; --warn: #a15c00; --th-bg: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181c; --fg: #e6e8eb; --muted: #a0a7b0; --line: #343a42;
+      --code-bg: #1f242a; --accent: #6db3f2; --ok: #5fc47a; --warn: #e3a34a; --th-bg: #232930;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         line-height: 1.55; max-width: 60rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .5rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+  h3 { font-size: 1.05rem; margin: 1.25rem 0 .4rem; }
+  p, li { max-width: 48rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: .95rem; margin-bottom: 1rem; }
+  .meta span { margin-right: 1rem; white-space: nowrap; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em;
+         background: var(--code-bg); padding: .05em .3em; border-radius: 3px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem;
+        overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: .85rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; margin: .75rem 0 1.25rem; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--th-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: .92rem; }
+  dl.glossary dt { font-weight: 600; margin-top: .5rem; }
+  dl.glossary dd { margin: 0 0 .25rem 0; }
+  footer { margin-top: 3rem; padding-top: .75rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Bypass the frontend's tactic preamble in both proof exporters</h1>
+  <p class="meta">
+    <span>Pull request: <a href="https://github.com/levnach/z3/pull/11">levnach/z3#11</a></span>
+    <span>Merge commit: <a href="https://github.com/levnach/z3/commit/54beea1c83c60d75218b1dc6aeef6687826a7818"><code>54beea1c8</code></a></span>
+    <span>Merged: 2026-10-15T17:56:25Z</span>
+    <span>Loop iteration: 11</span>
+  </p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+Both proof exporters now tell Z3 to skip its tactic preamble. A tactic is a rewriting pass that simplifies the input before solving, and the preamble is the fixed chain of such passes that Z3 runs first. The assertions now go straight to a proof core, the part of the solver that searches for a refutation and records the evidence. A refutation is a proof that a set of assertions cannot all be true at once. There are two cores: the clause log, which records every clause the solver assumes or infers, and the legacy proof object, which records a proof tree. A clause is an "or" of literals, and a literal is an atomic statement or its negation. The preamble invented fresh symbols absent from the input, and Lean refuses any certificate that mentions an undeclared symbol. Four separate rejections from earlier iterations had this one cause, and one option on each path removes them all.
+</p>
+
+<h2>Background</h2>
+<p>
+Before this PR the pipeline certified propositional input, uninterpreted functions, linear real arithmetic, and their QF_UFLRA mix through both cores. An uninterpreted function is a function symbol with no fixed meaning, only the rule that equal inputs give equal outputs. Four gaps remained. A Real variable occurring in a single function argument became a fresh constant, and the certificate was rejected. A predicate over Bool alone, a function whose arguments and result are all Boolean, certified only through the legacy proof object. Arithmetic input with an if-then-else term failed on the legacy path. And a phantom constant appeared in some clause logs. Earlier iterations blamed the cores' own simplifiers. The work serves milestone 3 of the plan, equality and linear arithmetic, completed one fragment at a time.
+</p>
+
+<h2>What changed</h2>
+<ul>
+  <li><strong>Exporters bypass the preamble.</strong> Both paths set one Z3 option, <code>combined_solver.ignore_solver1</code>, so a QF_UFLRA input with a variable in a single function argument now certifies through both cores.</li>
+  <li><strong>Bool-only predicates use the clause log too.</strong> The special routing to the legacy core is gone. The automatic core choice is now "legacy for propositional input, clause log otherwise".</li>
+  <li><strong>If-then-else terms certify on the legacy path.</strong> An if-then-else term, written <code>ite</code> in SMT-LIB, picks one of two values based on a condition. All seven arithmetic inputs with such terms now verify through the legacy proof object.</li>
+  <li><strong>The reconstructor recognises rewritten if-then-else terms.</strong> Z3's rewriter puts terms into a normal form, a standard spelling that equal terms share. For an <code>ite</code> it may flip the condition and swap the branches. The Lean lemmas now group such terms by normal form and state their equality, which Lean proves itself. It is like seeing that "if not raining, stay in, else go out" means "if raining, go out, else stay in".</li>
+  <li><strong>Tests and documentation follow.</strong> Two new documented inputs cover the cases above, and fixtures moved to inputs that still produce the old proof shapes.</li>
+</ul>
+<table>
+  <thead><tr><th>File</th><th>Lines changed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">155</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">126</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td class="num">98</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">87</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">81</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">62</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">48</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">45</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">3</td></tr>
+    <tr><td>Total: 9 files</td><td class="num">477 added, 228 removed</td></tr>
+  </tbody>
+</table>
+<p class="note">No C++ or Lean source files changed. No new axiom, <code>sorry</code>, or trust setting was added.</p>
+
+<h2>Worked example</h2>
+<p>
+The input is the new documented test for the single-occurrence case. A sort is the type of a value, here Real or Bool. After Z3's rewriter normalizes the two spellings of <code>x - y</code>, the variable <code>y</code> appears in exactly one function argument. That is the pattern the preamble replaced by a fresh constant.
+</p>
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UFLRA)
+(declare-fun f (Real) Real)
+(declare-fun q (Real) Bool)
+(declare-const x Real)
+(declare-const y Real)
+(assert (q (f (- x y))))
+(assert (or (not (q (f (+ x (* (- 1.0) y))))) (&lt; (f (+ 2.0 2.0)) 4.0)))
+(assert (&gt;= (f 4.0) (f (- x x))))
+(assert (= (f 0.0) 4.0))
+(check-sat)
+</code></pre>
+<h3>(b) Before</h3>
+<p>The pre-PR exporter, with its default core choice, stopped with this error:</p>
+<pre><code>proof_certificate.py: error: the clause log declares a symbol absent from the input: k!1
+</code></pre>
+<p>The legacy core did export a certificate, but it declared the fresh constants <code>k!0</code> and <code>k!1</code> with definition steps, and the pre-PR reconstructor refused it:</p>
+<pre><code>proof_to_lean.py: error: unsupported native proof rule: intro-def
+</code></pre>
+<h3>(c) After</h3>
+<p>The current pipeline exports a clause-log certificate and generates this Lean file. Lean accepted it: the check script printed <code>Lean checks passed.</code></p>
+<pre><code>-- Original input SHA-256: 4056763c6dacef1e411a31216f23274e6cd78e19b69c22e2148efd03b37e1d7a
+-- Variable 0: "x"
+-- Variable 1: "y"
+-- Predicate 0: "q"
+-- Real function 0: "f"
+-- Real variables are encoded as Rat; see the exporter documentation.
+-- Real arguments of functions and predicates are injected into _U by _real; functions with a Real result are the family _rfuns.
+-- No uninterpreted sort: the type _U carries only the Boolean arguments of the predicates.
+...
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_real : Rat -&gt; _U) (_rfuns : Nat -&gt; List _U -&gt; Rat) : Rat := ((term_0 _atoms _vars _U _elems _funs _preds _bool _real _rfuns) - (term_1 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_real : Rat -&gt; _U) (_rfuns : Nat -&gt; List _U -&gt; Rat) : Rat := _rfuns 0 [(_real (term_2 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))]
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_real : Rat -&gt; _U) (_rfuns : Nat -&gt; List _U -&gt; Rat) : Prop := _preds 0 [(_real (term_3 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))]
+...
+</code></pre>
+<p>The header lists only the input's own symbols, and <code>f (x - y)</code> is built from them with no fresh constant.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_35 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_real : Rat -&gt; _U) (_rfuns : Nat -&gt; List _U -&gt; Rat)
+    : (formula_34 _atoms _vars _U _elems _funs _preds _bool _real _rfuns) := by
+  unfold formula_34 formula_33 formula_32 formula_31 formula_30 term_18 formula_17 formula_16 term_15 term_14 term_13 term_12 formula_11 formula_10 term_9 term_8 term_7 term_6 term_5 formula_4 term_3 term_2 term_1 term_0
+  have _r2_8 : ((_vars 0) - (_vars 1)) = ((_vars 0) + ((((-(((1 : Rat))))) * (_vars 1)))) := by grind
+  have _r13_15 : ((((2 : Rat))) + (((2 : Rat)))) = ((4 : Rat)) := by grind
+  grind (splits := 64)
+</code></pre>
+<p>This theory lemma, a clause justified by a theory rather than by pure logic, covers the subterm the preamble used to erase. It proves that <code>x - y</code> equals <code>x + (-1) * y</code> and then applies congruence, the rule that equal arguments give equal function values.</p>
+<pre><code>set_option maxRecDepth 100000 in
+theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) (_real : Rat -&gt; _U) (_rfuns : Nat -&gt; List _U -&gt; Rat)
+    (_h0 : (formula_4 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))
+    (_h1 : (formula_17 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))
+    (_h2 : (formula_21 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))
+    (_h3 : (formula_24 _atoms _vars _U _elems _funs _preds _bool _real _rfuns))
+    : False :=
+  ...
+</code></pre>
+<p>The main theorem takes the four assertions as hypotheses and derives <code>False</code>, which is what a refutation means.</p>
+
+<h2>How it was verified</h2>
+<p>
+This PR touched only the Python examples and documentation, so the loop merged it on its local gate instead of waiting for GitHub CI. The gate reruns on the loop machine the steps of the CI job that exercise this work. In plain terms, every test and both Lean-certified matrix cells passed. GitHub CI still runs on <code>master</code> after the merge, see <a href="https://github.com/levnach/z3/actions">the actions page</a>. Its result was not available when this report was written. There were no CI fix rounds.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter (62 tests)</td><td class="ok">pass</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction (199 tests)</td><td class="ok">pass</td><td class="num">472 s</td></tr>
+    <tr><td>z3test proof script tests (46 tests)</td><td class="ok">pass</td><td class="num">17 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object (6 of 6 inputs)</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log (8 of 8 inputs)</td><td class="ok">pass</td><td class="num">7 s</td></tr>
+  </tbody>
+</table>
+<p>
+Beyond the gate, roughly eighty random instances verified in Lean through both cores, and the raw clause logs of the eight QF_LRA matrix inputs were byte-identical with and without the new option.
+</p>
+<table>
+  <thead><tr><th>Extra run (not committed)</th><th>Instances</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Random Bool-only predicate inputs, clause log</td><td class="num">24</td><td class="ok">all verified</td></tr>
+    <tr><td>Random QF_UFLRA inputs, both cores</td><td class="num">49</td><td class="ok">all verified</td></tr>
+    <tr><td>Random QF_UF inputs, both cores</td><td class="num">5</td><td class="ok">all verified</td></tr>
+    <tr><td>Arithmetic inputs with if-then-else terms, legacy core</td><td class="num">7</td><td class="ok">all verified (rejected before)</td></tr>
+    <tr><td>Reviewer's hand-written if-then-else probes, both cores</td><td class="num">7 × 2</td><td class="ok">all verified, standard axioms only</td></tr>
+  </tbody>
+</table>
+
+<h2>Review</h2>
+<p>The reviewer approved the change with no blocker or major finding. Four smaller findings were recorded.</p>
+<ul>
+  <li><strong>Minor: an untested fallback.</strong> The reviewer read the new grouping test and saw that its check for "opaque" conditions, meaning conditions that are not linear comparisons, never met such a term. A later edit could break that fallback with no test failing. The fix added a documented input whose conditions are a Bool variable and a predicate. Both cores certify it, and the test asserts that the two terms stay apart with no helper equality.</li>
+  <li><strong>Nit: a test that pins Z3.</strong> Half of the new preamble test runs Z3 without the option and expects a fresh symbol. That pins Z3's preamble, so an upstream Z3 change could fail it although the exporter is correct. It was kept as the witness that the bypass matters, with a failure message naming the responsible passes.</li>
+  <li><strong>Nit: a mismatch in z3test.</strong> The external matrix script keeps its own copy of the options without the bypass, so its raw replay runs the preamble while its Lean column does not. CI clones upstream z3test, so this is a recorded follow-up. Today the eight QF_LRA logs are identical either way.</li>
+  <li><strong>Nit: unreachable code.</strong> The handling of the older arithmetic engine's hint names is no longer reached by real inputs and is covered by constructed declarations only. No change, because a Z3 option still reaches it.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li>The clause log now shows assertions after the core's own rewriter only. Unknown inputs may surface normal forms the Lean bridging has not seen, as the if-then-else case did. Such cases fail in Lean, never pass.</li>
+  <li>The legacy proofs changed shape, so fixtures for transitivity and if-then-else congruence moved to other inputs. The reconstructor's rules are unchanged.</li>
+  <li>If-then-else conditions rewritten beyond a polarity flip, for example scaled by a constant, are not grouped and stay opaque.</li>
+  <li>The GitHub CI result for the merge commit was unknown when this report was written.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Align the z3test matrix script's options with the exporter's and add a matrix cell for uninterpreted-function inputs.</li>
+  <li>Decide whether to group if-then-else conditions rewritten beyond polarity.</li>
+  <li>Continue milestone 3: the plan names real and integer linear arithmetic, and the exporter still rejects integer rules.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl class="glossary">
+  <dt>Assertion</dt><dd>A statement the input declares to be true.</dd>
+  <dt>Boolean</dt><dd>A value that is either true or false.</dd>
+  <dt>Sort</dt><dd>The type of a value, such as Real or Bool.</dd>
+  <dt>Literal</dt><dd>An atomic statement or its negation.</dd>
+  <dt>Clause</dt><dd>An "or" of literals.</dd>
+  <dt>Refutation</dt><dd>A proof that a set of assertions cannot all be true at once.</dd>
+  <dt>Uninterpreted function</dt><dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.</dd>
+  <dt>Predicate</dt><dd>A function whose result is Boolean. A predicate over Bool alone also takes only Boolean arguments.</dd>
+  <dt>Congruence</dt><dd>The rule that equal arguments give equal function values.</dd>
+  <dt>If-then-else term</dt><dd>A term, written <code>ite</code> in SMT-LIB, that picks one of two values based on a condition.</dd>
+  <dt>Tactic</dt><dd>A rewriting pass that simplifies the input before solving starts.</dd>
+  <dt>Tactic preamble</dt><dd>The fixed chain of tactics that Z3's frontend runs before handing the input to a proof core.</dd>
+  <dt>Proof core</dt><dd>The part of the solver that searches for a refutation and records the evidence.</dd>
+  <dt>Clause log</dt><dd>A proof core's record of every clause it assumes or infers.</dd>
+  <dt>Legacy proof object</dt><dd>The older proof format, a tree of inference steps produced by the other proof core.</dd>
+  <dt>Fresh constant</dt><dd>A new symbol the solver invents during simplification, absent from the input.</dd>
+  <dt>Normal form</dt><dd>The standard spelling a rewriter gives to a term, so that equal terms share one spelling.</dd>
+  <dt>Polarity</dt><dd>Whether a condition is stated positively or as its negation. Flipping it swaps the branches of an if-then-else term.</dd>
+  <dt>Opaque condition</dt><dd>An if-then-else condition that is not a linear comparison, so the reconstructor treats it as an unanalysed atom.</dd>
+  <dt>Theory lemma</dt><dd>A clause justified by a theory, such as arithmetic or congruence, rather than by pure propositional logic.</dd>
+  <dt>QF_UFLRA</dt><dd>The SMT-LIB fragment mixing uninterpreted functions with linear real arithmetic, without quantifiers.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-15.
+</footer>
+
+</body>
+</html>
