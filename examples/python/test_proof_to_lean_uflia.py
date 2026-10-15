@@ -506,7 +506,7 @@ class TestIntegerMixedValidation(unittest.TestCase):
 
 
 class TestIntegerMixedInProcess(unittest.TestCase):
-    """Checks that need neither the z3 executable nor Lean, so they run on every runner."""
+    """Checks that need neither the z3 executable nor Lean (only the Python bindings)."""
 
     def test_applications_are_opaque_integer_atoms_of_the_replay(self):
         context = z3.Context()

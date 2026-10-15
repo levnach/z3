@@ -553,7 +553,10 @@ published), never misproved. An ite whose two branches are one term,
 (ite c a a), which Z3 keeps when it occurs inside an application or a
 product, gets its two gate clauses and the bare equality (ite c a a) = a
 that Z3 logs as a tseitin step; all three are proved by a case split on c
-with ite_eq_left and ite_eq_right, in every fragment.
+with ite_eq_left and ite_eq_right. The lemma does not depend on the
+fragment, but Z3 has only been observed to log these clauses for Int input:
+over Real and the uninterpreted sorts it simplified (ite c a a) away in
+every input tried.
 
 Lean core's Rat library itself depends on propext, Classical.choice, and
 Quot.sound, so arithmetic theorems necessarily report those three standard

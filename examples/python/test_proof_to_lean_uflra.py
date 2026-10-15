@@ -449,7 +449,7 @@ class TestMixedValidation(unittest.TestCase):
 
 
 class TestMixedInProcess(unittest.TestCase):
-    """Checks that need neither the z3 executable nor Lean, so they run on every runner."""
+    """Checks that need neither the z3 executable nor Lean (only the Python bindings)."""
 
     def test_numerals_as_arguments_have_distinct_normalizer_keys(self):
         context = z3.Context()

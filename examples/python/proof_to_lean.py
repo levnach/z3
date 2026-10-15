@@ -1628,7 +1628,6 @@ def _ite_gate_by_cases(graph, node, condition, cases):
 
 def _ite_gate_case(graph, terms, node, literals, position, condition, equation, guard_polarity, flipped):
     """The gate lemma for one orientation of the ite equality, or None when its guard literal is absent."""
-    conclusion = graph.conclusion(node)
     if flipped:
         equation = "(Eq.symm %s)" % equation
     for guard_position, guard in enumerate(literals):

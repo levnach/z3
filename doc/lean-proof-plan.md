@@ -964,9 +964,13 @@ and for which it logs both gate clauses and the bare equality
 `(ite c a a) = a` as a tseitin step; the gate lemma tried only the
 then-branch orientation (so the else gate `c or (ite c a a) = a` was
 rejected) and had no case for the unit clause. Both are now proved by a
-case split on `c` with `ite_eq_left` and `ite_eq_right`, in every fragment
-(6 of 38 random `ite` instances failed before, none after; the shape is
-pinned by a documented input and a random seed). Twelve documented inputs
+case split on `c` with `ite_eq_left` and `ite_eq_right`; the lemma is
+fragment-independent, though Z3 was observed to log these clauses only for
+Int input (over Real and the uninterpreted sorts it simplified the `ite`
+away in every input tried; a hand-added sort-valued unit gate on a QF_UF
+certificate is accepted and Lean-verified). 6 of 38 random `ite` instances
+failed before, none after; the shape is pinned by a documented input and a
+random seed. Twelve documented inputs
 (the Int twins of the QF_UFLRA set, a gcd conflict and tightened and
 rounded bounds through an application, the same-branch `ite`, a Bool-only
 predicate over Int atoms, and one input showing all five hint kinds), eight
