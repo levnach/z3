@@ -90,6 +90,9 @@ _MIXED_FRAGMENTS = {"Real": "qf_uflra", "Int": "qf_uflia"}
 _OUTLINE_PROOF_STEPS = 500
 _OUTLINE_CHUNK_STEPS = 500
 _NORMALIZED_REWRITE_ATOMS = 16
+# Propagation steps and atom splits a propositional rewrite's direct proof may
+# take before the truth table is used instead (see _PropositionalProver).
+_STRUCTURAL_REWRITE_STEPS = 20000
 _RESERVED_SORTS = ("Bool", "Real", "Int", "Proof")
 # The uninterpreted sorts are one type variable; constants, functions, and
 # predicates are indexed families over argument lists, so one signature serves
@@ -1315,11 +1318,334 @@ def _real_atom_key(graph, atom):
     return ("ite", condition_key, _real_argument_key(graph, then_branch), _real_argument_key(graph, else_branch))
 
 
-def _rewrite_lemma(graph, node, atom_indices, variable_indices=None, terms=None):
-    """Generate a Lean lemma checking every truth assignment by kernel reduction.
+def _boolean_structure(graph, node, atom_indices):
+    """Return the propositional structure of a Boolean node over the atoms, as Lean reads it.
 
-    Theory rewrites go to grind, except that a rewrite between two identical
-    formulas (the legacy core records one per assertion) is Iff.refl.
+    The structure is a nested tuple: ("atom", index), ("true",), ("false",),
+    ("not", a), ("and", a, b, ...), ("or", a, b, ...), ("implies", a, b),
+    ("iff", a, b). xor, Boolean ite, distinct, and conjunctions or
+    disjunctions of fewer than two arguments are expanded exactly as
+    _formula_body renders them, so a proof term built over the structure
+    type-checks against the unfolded definitions.
+    """
+    kind, arguments = graph.kind(node), graph.arguments(node)
+    if kind == z3.Z3_OP_UNINTERPRETED and not arguments:
+        return ("atom", atom_indices[graph.nodes[node].declaration])
+    children = [_boolean_structure(graph, argument, atom_indices) for argument in arguments]
+    if kind == z3.Z3_OP_TRUE:
+        return ("true",)
+    if kind == z3.Z3_OP_FALSE:
+        return ("false",)
+    if kind == z3.Z3_OP_NOT:
+        return ("not", children[0])
+    if kind == z3.Z3_OP_AND:
+        return _structure_fold("and", children)
+    if kind == z3.Z3_OP_OR:
+        return _structure_fold("or", children)
+    if kind == z3.Z3_OP_IMPLIES:
+        return ("implies",) + tuple(children)
+    if kind in (z3.Z3_OP_EQ, z3.Z3_OP_IFF):
+        return ("iff",) + tuple(children)
+    if kind == z3.Z3_OP_XOR:
+        left, right = children
+        return ("or", ("and", left, ("not", right)), ("and", ("not", left), right))
+    if kind == z3.Z3_OP_ITE:
+        condition, then_branch, else_branch = children
+        return ("or", ("and", condition, then_branch), ("and", ("not", condition), else_branch))
+    if kind == z3.Z3_OP_DISTINCT:
+        return _structure_fold("and", [("not", ("iff", left, right))
+                                       for index, left in enumerate(children) for right in children[index + 1:]])
+    raise ReconstructionError("unsupported Boolean expression")
+
+
+def _structure_fold(operator, children):
+    """An and/or over fewer than two children renders as its unit or as the child itself."""
+    if not children:
+        return ("true",) if operator == "and" else ("false",)
+    if len(children) == 1:
+        return children[0]
+    return (operator,) + tuple(children)
+
+
+def _structure_children(structure):
+    return structure[1:] if structure[0] in ("not", "and", "or", "implies", "iff") else ()
+
+
+def _render_structure(structure):
+    """Render a structure as the Lean proposition the unfolded definitions reduce to."""
+    kind = structure[0]
+    if kind == "atom":
+        return "(_atoms %d)" % structure[1]
+    if kind == "true":
+        return "True"
+    if kind == "false":
+        return "False"
+    children = [_render_structure(child) for child in _structure_children(structure)]
+    if kind == "not":
+        return "(Not %s)" % children[0]
+    if kind == "and":
+        return _fold("And", children, "True")
+    if kind == "or":
+        return _fold("Or", children, "False")
+    if kind == "implies":
+        return "(%s -> %s)" % tuple(children)
+    return "(Iff %s %s)" % tuple(children)
+
+
+def _eliminate_or(proof, handlers):
+    """Apply one handler per disjunct of a right-nested disjunction proof."""
+    result = handlers[-1]
+    for handler in reversed(handlers[:-1]):
+        result = "(fun _tail => Or.elim _tail %s %s)" % (handler, result)
+    return "(%s %s)" % (result, proof)
+
+
+class _PropositionalProver:
+    """Prove a propositional equivalence by a direct Lean term, without a truth table.
+
+    The two sides are gates over shared atoms. A direction is proved by
+    assuming one side, propagating truth values through the gates (each
+    propagation step is a typed `have` whose proof uses only the immediate
+    operands, as in _gate_contradiction), and, while propagation alone does
+    not settle the other side, splitting on an atom with Decidable.em; a
+    branch ends with the other side proved or with a contradiction. Double
+    negations are cancelled by Decidable.byContradiction on atoms only, so
+    the term needs no decidability instance for a compound formula, and only
+    the atoms whose decidability it uses become instance parameters of the
+    lemma. The term is free of axioms. A direction not settled within
+    _STRUCTURAL_REWRITE_STEPS, or whose splits reach a satisfying assignment
+    (the equivalence does not hold), returns None and the caller falls back
+    to the truth table; Lean checks the term as it checks any other, so a
+    wrong term is rejected, never trusted.
+    """
+
+    def __init__(self, left, right):
+        self.parents = {}
+        self.needed = set()
+        self.fresh = 0
+        self.steps = 0
+        for root in (left, right):
+            self._index(root)
+        self.constants = [(structure, structure[0] == "true", "True.intro" if structure[0] == "true"
+                           else "(fun _absurd => _absurd)")
+                          for structure in (("true",), ("false",)) if structure in self.parents]
+
+    def _index(self, structure):
+        if structure in self.parents:
+            return
+        self.parents[structure] = {}
+        for child in _structure_children(structure):
+            self._index(child)
+            self.parents[child][structure] = None
+
+    def _name(self):
+        self.fresh += 1
+        return "_f%d" % self.fresh
+
+    def equivalence(self, left, right):
+        forward = self.implication(left, right)
+        backward = self.implication(right, left) if forward is not None else None
+        if backward is None:
+            return None
+        return "(Iff.intro %s %s)" % (forward, backward)
+
+    def implication(self, source, target):
+        """A term of type source -> target, or None."""
+        hypothesis = self._name()
+        body = self._prove(dict(), target, self.constants + [(source, True, hypothesis)])
+        if body is None:
+            return None
+        return "(fun (%s : %s) => (%s : %s))" % (
+            hypothesis, _render_structure(source), body, _render_structure(target))
+
+    def _prove(self, state, target, facts):
+        """A term of type target under the state extended by the facts, or None."""
+        lines, pending = [], []
+        conflict = None
+        for structure, truth, proof in facts:
+            conflict = conflict or self._assign(state, lines, pending, structure, truth, proof)
+        conflict = conflict or self._propagate(state, lines, pending)
+        if conflict is not None:
+            return self._block(lines, "(False.elim %s)" % conflict)
+        if target in state and state[target][0]:
+            return self._block(lines, state[target][1])
+        atoms = sorted((-len(self.parents[atom]), atom[1]) for atom in self.parents
+                       if atom[0] == "atom" and atom not in state)
+        self.steps += 1
+        if not atoms or self.steps > _STRUCTURAL_REWRITE_STEPS:
+            return None  # every atom assigned without the target holding: the equivalence does not hold
+        atom = ("atom", atoms[0][1])
+        self.needed.add(atom[1])
+        branches = []
+        for value in (True, False):
+            name = self._name()
+            branch = self._prove(dict(state), target, [(atom, value, name)])
+            if branch is None:
+                return None
+            branches.append("(fun %s => %s)" % (name, branch))
+        return self._block(lines, "(Or.elim (Decidable.em (_atoms %d)) %s %s)" % ((atom[1],) + tuple(branches)))
+
+    @staticmethod
+    def _block(lines, body):
+        return "(%s %s)" % (" ".join(lines), body) if lines else body
+
+    def _assign(self, state, lines, pending, structure, truth, proof):
+        """Record a truth value with its proof; return a proof of False if it contradicts the state."""
+        if structure in state:
+            if state[structure][0] == truth:
+                return None
+            positive, negative = (proof, state[structure][1]) if truth else (state[structure][1], proof)
+            return "(%s %s)" % (negative, positive)
+        self.steps += 1
+        if not re.fullmatch(r"_f\d+", proof):
+            name = self._name()
+            rendered = _render_structure(structure)
+            lines.append("have %s : %s := %s;" % (name, rendered if truth else "(Not %s)" % rendered, proof))
+            proof = name
+        state[structure] = (truth, proof)
+        pending.append(structure)
+        pending.extend(self.parents[structure])
+        return None
+
+    def _propagate(self, state, lines, pending):
+        while pending:
+            if self.steps > _STRUCTURAL_REWRITE_STEPS:
+                return None
+            structure = pending.pop()
+            for target, truth, proof in self._consequences(state, structure):
+                conflict = self._assign(state, lines, pending, target, truth, proof)
+                if conflict is not None:
+                    return conflict
+        return None
+
+    def _consequences(self, state, structure):
+        """The truth values one gate determines from its own value and its operands' values."""
+        kind = structure[0]
+        children = _structure_children(structure)
+        value = state.get(structure)
+        values = [state.get(child) for child in children]
+        truths = [None if v is None else v[0] for v in values]
+        proofs = [None if v is None else v[1] for v in values]
+        count = len(children)
+        out = []
+        if kind == "not":
+            (child,), (truth,), (proof,) = children, truths, proofs
+            if value is not None:
+                if value[0]:
+                    out.append((child, False, value[1]))
+                elif child[0] == "atom":
+                    self.needed.add(child[1])
+                    out.append((child, True, "(Decidable.byContradiction (fun _g => %s _g))" % value[1]))
+            if truth is True:
+                out.append((structure, False, "(fun _g => _g %s)" % proof))
+            elif truth is False:
+                out.append((structure, True, proof))
+        elif kind == "and":
+            if value is not None and value[0]:
+                out.extend((child, True, _project(i, count, value[1])) for i, child in enumerate(children))
+            if value is not None and not value[0] and truths.count(None) == 1 and False not in truths:
+                position = truths.index(None)
+                parts = ["_g" if i == position else proof for i, proof in enumerate(proofs)]
+                out.append((children[position], False,
+                            "(fun _g => %s %s)" % (value[1], _fold("And.intro", parts, "True.intro"))))
+            if False in truths:
+                position = truths.index(False)
+                out.append((structure, False,
+                            "(fun _g => %s %s)" % (proofs[position], _project(position, count, "_g"))))
+            elif None not in truths:
+                out.append((structure, True, _fold("And.intro", proofs, "True.intro")))
+        elif kind == "or":
+            if value is not None and not value[0]:
+                out.extend((child, False, "(fun _g => %s %s)" % (value[1], _inject(i, count, "_g")))
+                           for i, child in enumerate(children))
+            if value is not None and value[0] and truths.count(None) == 1 and True not in truths:
+                position = truths.index(None)
+                handlers = ["(fun _g => _g)" if i == position else "(fun _g => absurd _g %s)" % proof
+                            for i, proof in enumerate(proofs)]
+                out.append((children[position], True, _eliminate_or(value[1], handlers)))
+            if True in truths:
+                position = truths.index(True)
+                out.append((structure, True, _inject(position, count, proofs[position])))
+            elif None not in truths:
+                out.append((structure, False, "(fun _g => %s)" % _eliminate_or("_g", proofs)))
+        elif kind == "implies":
+            (antecedent, consequent), (truth_a, truth_b), (proof_a, proof_b) = children, truths, proofs
+            if antecedent == consequent:
+                out.append((structure, True, "(fun _g => _g)"))
+            if value is not None and value[0]:
+                if truth_a is True:
+                    out.append((consequent, True, "(%s %s)" % (value[1], proof_a)))
+                if truth_b is False:
+                    out.append((antecedent, False, "(fun _g => %s (%s _g))" % (proof_b, value[1])))
+            if value is not None and not value[0]:
+                out.append((consequent, False, "(fun _g => %s (fun _ => _g))" % value[1]))
+                if antecedent[0] == "atom":
+                    self.needed.add(antecedent[1])
+                    out.append((antecedent, True, "(Decidable.byContradiction (fun _g => %s (fun _h => absurd _h _g)))"
+                                % value[1]))
+            if truth_a is False:
+                out.append((structure, True, "(fun _g => absurd _g %s)" % proof_a))
+            elif truth_b is True:
+                out.append((structure, True, "(fun _ => %s)" % proof_b))
+            elif truth_a is True and truth_b is False:
+                out.append((structure, False, "(fun _g => %s (_g %s))" % (proof_b, proof_a)))
+        elif kind == "iff":
+            (left, right), (truth_a, truth_b), (proof_a, proof_b) = children, truths, proofs
+            if left == right:
+                out.append((structure, True, "Iff.rfl"))
+            if value is not None and value[0]:
+                if truth_a is True:
+                    out.append((right, True, "(Iff.mp %s %s)" % (value[1], proof_a)))
+                elif truth_a is False:
+                    out.append((right, False, "(fun _g => %s (Iff.mpr %s _g))" % (proof_a, value[1])))
+                if truth_b is True:
+                    out.append((left, True, "(Iff.mpr %s %s)" % (value[1], proof_b)))
+                elif truth_b is False:
+                    out.append((left, False, "(fun _g => %s (Iff.mp %s _g))" % (proof_b, value[1])))
+            if value is not None and not value[0]:
+                if truth_a is True:
+                    out.append((right, False, "(fun _g => %s (Iff.intro (fun _ => _g) (fun _ => %s)))"
+                                % (value[1], proof_a)))
+                elif truth_a is False and right[0] == "atom":
+                    self.needed.add(right[1])
+                    out.append((right, True, "(Decidable.byContradiction (fun _g => %s (Iff.intro "
+                                "(fun _h => absurd _h %s) (fun _h => absurd _h _g))))" % (value[1], proof_a)))
+                if truth_b is True:
+                    out.append((left, False, "(fun _g => %s (Iff.intro (fun _ => %s) (fun _ => _g)))"
+                                % (value[1], proof_b)))
+                elif truth_b is False and left[0] == "atom":
+                    self.needed.add(left[1])
+                    out.append((left, True, "(Decidable.byContradiction (fun _g => %s (Iff.intro "
+                                "(fun _h => absurd _h _g) (fun _h => absurd _h %s))))" % (value[1], proof_b)))
+            if truth_a is not None and truth_b is not None:
+                if truth_a and truth_b:
+                    out.append((structure, True, "(Iff.intro (fun _ => %s) (fun _ => %s))" % (proof_b, proof_a)))
+                elif not truth_a and not truth_b:
+                    out.append((structure, True, "(Iff.intro (fun _g => absurd _g %s) (fun _g => absurd _g %s))"
+                                % (proof_a, proof_b)))
+                elif truth_a:
+                    out.append((structure, False, "(fun _g => %s (Iff.mp _g %s))" % (proof_b, proof_a)))
+                else:
+                    out.append((structure, False, "(fun _g => %s (Iff.mpr _g %s))" % (proof_a, proof_b)))
+        return out
+
+
+def _structural_equivalence(graph, left, right, atom_indices):
+    """A direct Lean term proving the Boolean equivalence of two formulas, with the atoms it needs decidable."""
+    left, right = (_boolean_structure(graph, side, atom_indices) for side in (left, right))
+    prover = _PropositionalProver(left, right)
+    return prover.equivalence(left, right), sorted(prover.needed)
+
+
+def _rewrite_lemma(graph, node, atom_indices, variable_indices=None, terms=None):
+    """Generate a Lean lemma for a rewrite step, checked independently of the assertions.
+
+    A propositional rewrite is proved by a direct term from gate propagation
+    and case splits on atoms (_PropositionalProver); the exhaustive truth
+    table over the atoms' decidability witnesses, exponential in their number,
+    is the fallback when the prover gives up. Theory rewrites go to grind,
+    except that a rewrite between two identical formulas (the legacy core
+    records one per assertion) is Iff.refl.
     """
     conclusion = graph.conclusion(node)
     left, right = _equivalence(graph, conclusion, "rewrite")
@@ -1341,8 +1667,10 @@ def _rewrite_lemma(graph, node, atom_indices, variable_indices=None, terms=None)
         else:
             lines, term = _grind_lemma(graph, node, "rewrite", atom_indices, variable_indices)
         return lines, set(), term
-    atoms = sorted(atom_indices[graph.nodes[formula].declaration]
-                   for formula in reachable if graph.kind(formula) == z3.Z3_OP_UNINTERPRETED)
+    proof, atoms = _structural_equivalence(graph, left, right, atom_indices)
+    if proof is None:
+        atoms = sorted(atom_indices[graph.nodes[formula].declaration]
+                       for formula in reachable if graph.kind(formula) == z3.Z3_OP_UNINTERPRETED)
     lines = ["", "private theorem rewrite_%d (_atoms : Nat -> Prop)%s" % (node, _valuation_binder(graph))]
     for atom in atoms:
         lines.append("    [_d%d : Decidable (_atoms %d)]" % (atom, atom))
@@ -1350,6 +1678,10 @@ def _rewrite_lemma(graph, node, atom_indices, variable_indices=None, terms=None)
         "    : %s := by" % _formula(graph, conclusion),
         "  unfold " + " ".join("formula_%d" % formula for formula in sorted(reachable, reverse=True)),
     ])
+    if proof is not None:
+        lines.append("  exact " + proof)
+        term = "(@rewrite_%d _atoms%s%s)" % (node, graph.valuation, "".join(" _d%d" % atom for atom in atoms))
+        return lines, atoms, term
     for atom in atoms:
         lines.extend([
             "  all_goals",
