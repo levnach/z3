@@ -231,10 +231,14 @@ def _require_linear_arithmetic(expr):
     """Reject Real or Int terms outside the linear fragment with constant coefficients.
 
     Real division is accepted by a nonzero constant, integer div and mod by a
-    nonzero constant, and abs; rem and the conversions between Int and Real
-    are distinct operators that fall through to the rejection.
+    nonzero constant, and abs over Int; rem and the conversions between Int
+    and Real are distinct operators that fall through to the rejection.
     """
     kind = expr.decl().kind()
+    if kind == z3.Z3_OP_ABS and not z3.is_int(expr):
+        # SMT-LIB defines abs on Int only. Z3 accepts a Real abs, which the
+        # reconstructor rejects, so the exporter rejects it as unsupported.
+        raise ProofExportError("unsupported arithmetic operator: abs over Real")
     if kind in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ANUM, z3.Z3_OP_ABS):
         pass  # Variables, applications of uninterpreted functions, and abs are the atoms of linear forms.
     elif kind == z3.Z3_OP_MUL:

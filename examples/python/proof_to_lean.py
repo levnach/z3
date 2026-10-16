@@ -56,7 +56,8 @@ _REAL_ARITY = {z3.Z3_OP_UNINTERPRETED: 0, z3.Z3_OP_ANUM: 0, z3.Z3_OP_UMINUS: 1, 
 # numeral are Lean's Euclidean Int division and remainder (/ and %, which
 # agree with SMT-LIB's away from zero; a zero divisor is rejected, see
 # _integer_divisor), abs is the ite SMT-LIB defines it as. All three are
-# opaque atoms of the linear forms, which omega reads.
+# opaque atoms of the linear forms; omega reads / and % by a positive
+# numeral and grind proves the axioms of a negative divisor.
 _INT_NAMES = {z3.Z3_OP_IDIV: "div", z3.Z3_OP_MOD: "mod", z3.Z3_OP_ABS: "abs"}
 _INT_ARITY = {z3.Z3_OP_IDIV: 2, z3.Z3_OP_MOD: 2, z3.Z3_OP_ABS: 1}
 # An ite is the one arithmetic or uninterpreted-sort term with a Boolean
@@ -1902,6 +1903,9 @@ def _check_th_lemma(graph, node):
         # The sat.smt arithmetic solver's axioms (div and mod definitions):
         # a clause of linear arithmetic atoms, each stripped of its negations
         # here, without premises or coefficients; the theory tactic proves it.
+        # Unlike the cut path, polarity is ignored: the equality axiom is a
+        # positive equality in the clause, which _linear_constraint would
+        # refuse as a denied equality, and no combination is formed here.
         if premises or not literals:
             raise ReconstructionError("arith th-lemma must be a clause without premises at node %d" % node)
         for literal in literals:

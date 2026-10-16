@@ -526,7 +526,11 @@ def check_arith_hint(pairs):
     + (mod t k) = t, 0 <= mod t k, and mod t k <= |k| - 1). The literals are
     not a Farkas combination, so only their shape is checked (an arithmetic
     equality or inequality whose sides are linear, with div and mod by a
-    nonzero numeral as atoms); Lean proves the clause.
+    nonzero numeral as atoms); Lean proves the clause. Each literal is
+    checked as its atom, whatever its polarity: the equality axiom reaches
+    the hint as a negated equality, which the combination paths (cut among
+    them) refuse because a disequality cannot be summed, while here nothing
+    is summed and Lean must prove the clause under either polarity.
     """
     for _, literal in pairs:
         atom, _ = _strip(literal)

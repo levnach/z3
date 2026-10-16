@@ -85,7 +85,9 @@ clause log only; its theorem quantifies over `_vars : Nat -> Int`, its
 theory lemmas and arithmetic rewrites are proved by `first | omega | grind`,
 and the integer solver's `cut` steps, its `arith` axioms defining `div` and
 `mod` by a numeral, and Farkas steps whose coefficients rest on cuts, reach
-Lean with their shapes checked only, so `omega` is the check for them.
+Lean with their shapes checked only, so that tactic is the check for them
+(`omega` reads `/` and `%` by a positive numeral; an `arith` axiom with a
+negative divisor falls to `grind`).
 Integer `div` and `mod` are Lean's Euclidean `/` and `%` (nonzero constant
 divisors only; any other is rejected) and `abs` is the classical `ite`
 SMT-LIB defines it as. A QF_UFLIA input (the same mixed with uninterpreted sorts

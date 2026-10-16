@@ -996,7 +996,9 @@ reaches the log: the rewriter replaces it by `(ite (>= t 0) t (- t))`, and
 an assertion the rewriter folds outright (`(>= (mod x 5) 5)` becomes
 `false`) is assumed as the empty clause. A Lean probe confirmed that Lean's
 Int `/` and `%` follow SMT-LIB's Euclidean convention, negative divisors
-included, and that `omega` decides the axioms and the folded facts. Now:
+included, and that `first | omega | grind` proves the axioms and the folded
+facts (`omega` alone reads `/` and `%` by a positive numeral and leaves a
+negative divisor's `t % -3` as an atom, where `grind` closes the goal). Now:
 the exporter accepts `div` and `mod` by a nonzero numeral constant and
 `abs` as atoms of the linear forms (`integer_divisor`; a zero or term
 divisor and `rem` stay rejected), the replay builds the log's `div`, `mod`,

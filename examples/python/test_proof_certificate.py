@@ -999,6 +999,8 @@ class TestFragmentClassification(unittest.TestCase):
             ("(declare-fun f (Int) Int)(declare-const x Int)(assert (> (mod x (f 2)) 1))",
              "integer mod is supported only by a nonzero constant"),
             ("(declare-const x Int)(assert (> (rem x 2) 1))", "unsupported arithmetic operator: rem"),
+            # SMT-LIB defines abs on Int only; Z3 accepts it over Real, the reconstructor does not.
+            ("(declare-const x Real)(assert (< (abs x) 0.0))", "unsupported arithmetic operator: abs over Real"),
             ("(declare-const x Int)(declare-const y Int)(assert (> (* x y) 1))", "nonlinear"),
             ("(declare-fun f (Real) Real)(declare-const x Real)(assert (> (* x (f x)) 1.0))", "nonlinear"),
             ("(declare-fun f (Real) Real)(declare-const x Real)(assert (> (/ 1.0 (f x)) 1.0))", "division"),

@@ -556,8 +556,9 @@ too), and abs is the ite SMT-LIB defines it as, (if t >= 0 then t else -t)
 with the classical instance. The agreement holds for nonzero divisors only
 (Lean's x / 0 is 0 where SMT-LIB's is any value), so the reconstructor
 rejects every div or mod node whose divisor is not a nonzero constant,
-wherever it occurs; omega reads / and % by a literal directly. Each
-th-lemma and arithmetic rewrite is proved by
+wherever it occurs; omega reads / and % by a positive numeral directly,
+and leaves them as atoms for a negative divisor, whose arith axioms grind
+proves instead. Each th-lemma and arithmetic rewrite is proved by
 first | omega | grind (splits := 64): omega decides linear integer
 arithmetic (ite over Int included) and produces a kernel-checked proof,
 where grind's integer module ran out of steps on Farkas lemmas with several
