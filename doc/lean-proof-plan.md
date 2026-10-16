@@ -1190,7 +1190,8 @@ negations are covered too. Tests: `test_proof_certificate.py`
 (`_LRA_DIV_LOG`, the `true` literal of a coefficient hint),
 `test_proof_to_lean_arith.py` (`REAL_DIVISION_AXIOM`, both cores),
 `test_proof_to_lean_uflra.py` (`uflra_division_axiom`),
-`test_proof_to_lean_uf.py` (`uf_negated_ite_condition`, both cores).
+`test_proof_to_lean_uf.py` (`UF_NEGATED_ITE_CONDITION`, both cores,
+nested negations, and rejection of a gate with its guard reversed).
 
 ## Arithmetic proof infrastructure
 
