@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #14: Certify integer div, mod, and abs in Lean through the clause log</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --link: #0a5bd6;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
+    --accent: #e7f0fb;
+    --pass: #1a7f37;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1419;
+      --fg: #e6edf3;
+      --muted: #9da7b3;
+      --link: #6cb1ff;
+      --border: #30363d;
+      --code-bg: #161b22;
+      --accent: #142033;
+      --pass: #3fb950;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+  a { color: var(--link); }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta dt { display: inline; font-weight: 600; }
+  .meta dd { display: inline; margin: 0 1rem 0 0.25rem; }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+  }
+  code { background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+    overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; margin: 0.8rem 0 1.2rem; width: 100%; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--accent); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--pass); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.95rem; margin-top: -0.4rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+  dl.glossary dd { margin-left: 0; margin-bottom: 0.3rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--border); padding-top: 0.8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify integer div, mod, and abs in Lean through the clause log</h1>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/14">levnach/z3 #14</a></dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/49348d122e261aa1e2d1534d9c6a5182d46a5645"><code>49348d1</code></a></dd>
+    <dt>Merged</dt><dd>2026-10-16T00:58:17Z</dd>
+    <dt>Loop iteration</dt><dd>14</dd>
+  </dl>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+Inputs in <a href="#g-qf-lia">QF_LIA</a> and <a href="#g-qf-uflia">QF_UFLIA</a> may now use integer
+<a href="#g-div">div</a> and <a href="#g-mod">mod</a> by a nonzero <a href="#g-numeral">numeral</a>, and
+<a href="#g-abs">abs</a>. Before this PR the exporter rejected every such input. Now the division
+operators are <a href="#g-atom">atoms</a> of the <a href="#g-linear-arithmetic">linear arithmetic</a>, like variables.
+Z3's defining <a href="#g-clause">clauses</a> for them arrive in the
+<a href="#g-clause-log">clause log</a> under a <a href="#g-hint">hint</a> named <code>arith</code>, and each becomes a
+<a href="#g-theory-lemma">theory lemma</a> that Lean proves by itself.
+In Lean, <code>div</code> and <code>mod</code> become the integer <code>/</code> and <code>%</code>,
+which follow the same <a href="#g-euclidean">Euclidean convention</a> as SMT-LIB, and <code>abs</code> becomes the
+<a href="#g-ite">if-then-else term</a> SMT-LIB defines it as. A zero or non-constant
+<a href="#g-divisor">divisor</a> is still rejected, which keeps the <a href="#g-soundness">soundness</a> boundary explicit.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Iterations 12 and 13 brought linear integer arithmetic, then integer arithmetic with
+<a href="#g-uninterpreted-function">uninterpreted functions</a>, into the Lean pipeline. The
+<a href="#g-farkas">Farkas</a>, <a href="#g-bound">bound</a>, <a href="#g-cut">cut</a>, and
+<a href="#g-implied-equality">implied equality</a> hints were already checked. But any
+<a href="#g-refutation">refutation</a> mentioning <code>div</code>, <code>mod</code>, or <code>abs</code> stopped at the
+exporter with "unsupported arithmetic operator", although QF_LIA benchmarks use these operators routinely.
+The PR serves milestone 3 of the plan, which asks for each
+<a href="#g-fragment">fragment</a> to be completed end to end before another is added.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+  <li><strong>Exporter.</strong> You can now export a certificate for an integer input that divides by a nonzero numeral or takes an absolute value. A zero, variable, or function divisor is still refused, as are <code>rem</code> and <code>abs</code> over the Real <a href="#g-sort">sort</a>.</li>
+  <li><strong>Clause-log replay.</strong> The replay rebuilds the log's division terms, keeps them opaque, and shape-checks every <a href="#g-literal">literal</a> of an <code>arith</code> hint. It acts like a doorman who checks that each guest looks like an arithmetic fact, without asking whether it is true.</li>
+  <li><strong>Lean reconstructor.</strong> It renders <code>div</code> and <code>mod</code> as <code>/</code> and <code>%</code>, renders <code>abs</code> as its defining <code>ite</code>, and proves each <code>arith</code> lemma with the <a href="#g-tactic">tactic</a> <code>first | omega | grind</code>. Any division node with a zero or non-constant divisor is rejected.</li>
+  <li><strong>Tests.</strong> Seven documented inputs, a random generator with pinned seeds, and <a href="#g-tampering">tampering</a> tests, including a false <code>arith</code> lemma that Lean must refuse.</li>
+  <li><strong>Documentation.</strong> Both READMEs and the plan document describe the new operators and the soundness boundary.</li>
+</ul>
+<p class="note">No C++ or Lean library source changed.</p>
+
+<table>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">295</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">98</td><td class="num">6</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">68</td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">43</td><td class="num">13</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">38</td><td class="num">11</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">36</td><td class="num">11</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td class="num">35</td><td class="num">1</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">44</td><td class="num">0</td></tr>
+    <tr><td><code>lean/README.md</code></td><td class="num">8</td><td class="num">3</td></tr>
+    <tr><th>Total (9 files)</th><th class="num">665</th><th class="num">56</th></tr>
+  </tbody>
+</table>
+
+<h2 id="worked-example">Worked example</h2>
+<p>
+The input is the PR's documented test <code>lia_div</code>. It says that <code>y</code> is <code>x</code> divided by 3,
+that <code>x</code> is 7 or 8, and that <code>y</code> is not 2. Both 7 div 3 and 8 div 3 equal 2, so the assertions contradict each other.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIA)
+(declare-const x Int)
+(declare-const y Int)
+(assert (= y (div x 3)))
+(assert (&gt;= x 7))
+(assert (&lt;= x 8))
+(assert (not (= y 2)))
+(check-sat)</code></pre>
+
+<h3>(b) Before the PR</h3>
+<p>The exporter from the parent commit refused the input. Its complete output:</p>
+<pre><code>proof_certificate.py: error: unsupported arithmetic operator: div</code></pre>
+
+<h3>(c) After the PR</h3>
+<p>The new pipeline wrote a certificate and a Lean file, and the Lean check accepted it with "Lean checks passed". Below are the parts that embody the new feature.</p>
+
+<pre><code>-- Int div and mod by a numeral are Lean's Euclidean / and %; abs is the ite SMT-LIB defines.
+
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((3 : Int))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_1 _atoms _vars) / (term_2 _atoms _vars))
+...
+def term_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_1 _atoms _vars) % (term_2 _atoms _vars))
+def term_14 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_12 _atoms _vars) + (term_13 _atoms _vars))
+def formula_15 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_14 _atoms _vars) = (term_1 _atoms _vars))
+...</code></pre>
+<p>The SMT-LIB <code>(div x 3)</code> has become <code>x / 3</code>, and the solver's own remainder term, which the input never wrote, has become <code>x % 3</code>.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_16 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_15 _atoms _vars) := by
+  unfold formula_15 term_14 term_13 term_12 term_3 term_2 term_1
+  first | omega | grind (splits := 64)
+
+set_option maxHeartbeats 1000000 in
+private theorem th_lemma_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_18 _atoms _vars) := by
+  unfold formula_18 term_17 term_13 term_2 term_1
+  first | omega | grind (splits := 64)
+...</code></pre>
+<p>These are Z3's <code>arith</code> axioms. The first says 3 times <code>x / 3</code> plus <code>x % 3</code> equals <code>x</code>, the second says the remainder is at least 0. They have no premises, so Lean proves them from scratch. A third lemma, cut here, bounds the remainder by 2.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_4 _atoms _vars))
+    (_h1 : (formula_6 _atoms _vars))
+    (_h2 : (formula_8 _atoms _vars))
+    (_h3 : (formula_11 _atoms _vars))
+    : False :=
+  ...
+  let _step_16 : (formula_15 _atoms _vars) :=
+    (th_lemma_16 _atoms _vars)
+  ...</code></pre>
+<p>The main theorem takes the four assertions as hypotheses and derives <code>False</code>. Its first step is the division axiom above.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+The PR touched only Python examples, tests, and documentation, so the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate reran the relevant steps of the CI job <code>Ubuntu build - cmake - releaseClang</code> on the loop machine, and every step passed.
+GitHub CI still runs on <code>master</code> after the merge, on the
+<a href="https://github.com/levnach/z3/actions">Actions page</a>. There were no CI fix rounds.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">564 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+<p>
+Beyond the gate, about 150 random division puzzles were each exported, reconstructed, and checked by Lean. All passed.
+</p>
+<table>
+  <thead><tr><th>Run</th><th class="num">Instances</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Exporter unit tests</td><td class="num">70</td><td class="pass">OK</td></tr>
+    <tr><td>Lean reconstruction unit tests</td><td class="num">231</td><td class="pass">OK</td></tr>
+    <tr><td>z3test proof script tests</td><td class="num">46</td><td class="pass">OK</td></tr>
+    <tr><td>Random QF_LIA division instances</td><td class="num">89</td><td class="pass">89 Lean-verified</td></tr>
+    <tr><td>Random QF_UFLIA division instances</td><td class="num">62</td><td class="pass">62 Lean-verified</td></tr>
+    <tr><td>Boolean inputs, legacy proof object</td><td class="num">6</td><td class="pass">6 Lean-verified</td></tr>
+    <tr><td>QF_LRA inputs, clause log</td><td class="num">8</td><td class="pass">8 Lean-verified</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blocker or major finding. Three smaller findings were raised.</p>
+<ul>
+  <li><strong>Minor: Real <code>abs</code> slipped through the exporter.</strong> The reviewer probed thirteen unusual inputs. One took <code>abs</code> of a Real variable, which SMT-LIB does not define but Z3 accepts. The exporter let it through and only the reconstructor refused it, which the regression matrix counts as a failing checker rejection instead of the benign "unsupported" status. Nothing was published, so soundness was never at risk. The exporter now rejects it, with a new test.</li>
+  <li><strong>Nit: the documentation credited the wrong tactic.</strong> Three passages said that <code>omega</code> decides the <code>arith</code> axioms. The reviewer tried a negative divisor and found that <code>omega</code> fails there, while the <code>grind</code> fallback proves it. The code was already right. The prose now says which tactic handles which sign of divisor.</li>
+  <li><strong>Nit: the <code>arith</code> shape check ignores <a href="#g-polarity">polarity</a>.</strong> The sibling <code>cut</code> path refuses a <a href="#g-disequality">disequality</a>, but the <code>arith</code> check accepts either polarity. The integrator judged this correct: <code>cut</code> builds a linear combination, which a denied equality cannot join, while <code>arith</code> leaves the whole clause to Lean. Comments in both files now say so.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li><strong>Division by zero.</strong> Lean's integer division is total, so <code>x / 0</code> is 0, while SMT-LIB leaves it undefined. A zero divisor that slipped through could let Lean prove a refutation valid under only one reading of the input. Both the exporter and the reconstructor refuse it.</li>
+  <li><strong>The <code>arith</code> lemma is checked by Lean alone.</strong> Python checks only its shape, as for <code>cut</code>, and a test confirms that Lean rejects a false one. Real certificates accept the hint too, and one that <code>grind</code> cannot close is rejected rather than misproved.</li>
+  <li><strong>Structural mismatch costs a solver call.</strong> The replay matches division atoms by identity. A log term written in a different order from the input falls back to an <a href="#g-unsat-core">unsat core</a> and an extra solver call.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Division by a term, which is <a href="#g-nonlinear">nonlinear</a>, plus <code>rem</code> and the Int-to-Real conversions stay rejected.</li>
+  <li>The legacy proof core still rejects all integer input, so integer certificates flow through the clause log only.</li>
+  <li>A division input in the z3test matrix would let CI exercise the <code>arith</code> hint directly. That repository is outside this loop.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-abs">abs</dt>
+  <dd>The absolute value of an integer. SMT-LIB defines <code>(abs t)</code> as <code>(ite (&gt;= t 0) t (- t))</code>.</dd>
+  <dt id="g-atom">atom</dt>
+  <dd>A smallest building block that a proof rule does not look inside. Here <code>(div x 3)</code> is treated like a plain variable.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>A value that is either true or false.</dd>
+  <dt id="g-bound">bound hint</dt>
+  <dd>A proof step that derives a new upper or lower bound on a term from existing ones.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, that is, a list of literals of which at least one must hold. The empty clause is a contradiction.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>Z3's record of every clause the solver learned while running, each tagged with the hint that explains it.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal inputs give equal outputs: if <code>a = b</code> then <code>f(a) = f(b)</code>.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An integer-only step that tightens a bound by rounding, since an integer cannot sit strictly between two whole numbers.</dd>
+  <dt id="g-disequality">disequality</dt>
+  <dd>A literal of the form <code>a ≠ b</code>, the negation of an equality.</dd>
+  <dt id="g-div">div</dt>
+  <dd>Integer division in SMT-LIB, written <code>(div t k)</code>. With the Euclidean convention, 7 div 3 is 2 and -7 div 3 is -3.</dd>
+  <dt id="g-divisor">divisor</dt>
+  <dd>The number you divide by. In <code>(div x 3)</code> the divisor is 3.</dd>
+  <dt id="g-euclidean">Euclidean convention</dt>
+  <dd>The rule that the remainder is always between 0 and |k| - 1, even for negative inputs or divisors. SMT-LIB and Lean's <code>Int</code> both follow it.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A proof step that adds up linear inequalities with positive weights to reach an obvious contradiction such as <code>0 &lt; 0</code>.</dd>
+  <dt id="g-fragment">fragment</dt>
+  <dd>A restricted family of inputs, named by its logic, such as QF_LIA, that a tool supports as a unit.</dd>
+  <dt id="g-hint">hint</dt>
+  <dd>A tag on a logged clause naming the rule that justifies it, for example <code>farkas</code>, <code>cut</code>, or <code>arith</code>.</dd>
+  <dt id="g-implied-equality">implied equality</dt>
+  <dd>A step that concludes <code>a = b</code> from two bounds <code>a &lt;= b</code> and <code>a &gt;= b</code>.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term <code>(ite c a b)</code> whose value is <code>a</code> when the condition <code>c</code> holds and <code>b</code> otherwise.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Arithmetic in which variables are only added, subtracted, or multiplied by constants, never by each other.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>x &gt;= 7</code> or <code>not (y = 2)</code>.</dd>
+  <dt id="g-mod">mod</dt>
+  <dd>The remainder of integer division in SMT-LIB, written <code>(mod t k)</code>. With the Euclidean convention, -7 mod 3 is 2.</dd>
+  <dt id="g-nonlinear">nonlinear</dt>
+  <dd>Arithmetic where variables multiply or divide each other, such as <code>(div x y)</code>. Much harder to decide than linear arithmetic.</dd>
+  <dt id="g-numeral">numeral</dt>
+  <dd>A literal number written in the input, such as <code>3</code> or <code>-3</code>, as opposed to a variable.</dd>
+  <dt id="g-polarity">polarity</dt>
+  <dd>Whether a literal appears positively (<code>a = b</code>) or negated (<code>not (a = b)</code>).</dd>
+  <dt id="g-qf-lia">QF_LIA</dt>
+  <dd>The logic of quantifier-free linear integer arithmetic.</dd>
+  <dt id="g-qf-uflia">QF_UFLIA</dt>
+  <dd>QF_LIA extended with uninterpreted functions.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to a contradiction, so no assignment can satisfy them all.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>The property that the checker accepts only genuinely valid proofs. A soundness boundary states where that guarantee stops.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean procedure that searches for a proof automatically. <code>omega</code> decides linear integer facts and <code>grind</code> is a broader fallback.</dd>
+  <dt id="g-tampering">tampering test</dt>
+  <dd>A test that deliberately corrupts a certificate and checks that the pipeline rejects it rather than publishing a proof.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that is true by arithmetic alone, with no reference to other proof steps. Lean must prove it from scratch.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only thing known about <code>f</code> is that equal arguments give equal results.</dd>
+  <dt id="g-unsat-core">unsat core</dt>
+  <dd>A subset of the assertions that is already contradictory on its own.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-15.
+</footer>
+</body>
+</html>
