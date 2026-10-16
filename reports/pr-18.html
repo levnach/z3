@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #18: Prove Boolean rewrite steps in Lean by direct terms, not truth tables</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1d1d1f; --muted: #5f6368; --line: #d9d9de;
+    --code-bg: #f4f4f6; --accent: #0b57d0; --head-bg: #f0f3f8; --ok: #1a7f37; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111316; --fg: #e6e6e9; --muted: #a0a4ab; --line: #34373d;
+      --code-bg: #1b1e23; --accent: #8ab4f8; --head-bg: #1a1d22; --ok: #57c37c; --warn: #e3b341;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { margin: 0 auto; max-width: 56rem; padding: 1.5rem 1.25rem 3rem;
+         font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .5rem; }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-top: .6rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
+  p, li { max-width: 46rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta dt { display: inline; font-weight: 600; }
+  .meta dd { display: inline; margin: 0 1rem 0 .25rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+         background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+        padding: .8rem 1rem; overflow-x: auto; font-size: .82rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; margin: .8rem 0 1.2rem; font-size: .93rem; }
+  th, td { border: 1px solid var(--line); padding: .4rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--head-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .note { color: var(--muted); font-size: .92rem; }
+  dl.glossary dt { font-weight: 600; margin-top: .7rem; }
+  dl.glossary dd { margin: .1rem 0 0 1.2rem; }
+  footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Prove Boolean rewrite steps in Lean by direct terms, not truth tables</h1>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/18">levnach/z3 #18</a></dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/101ef04354f7079230c19bb20caebb1d0e82f467"><code>101ef04</code></a></dd>
+    <dt>Merged</dt><dd>2026-10-16T09:57:45Z</dd>
+    <dt>Loop iteration</dt><dd>18</dd>
+  </dl>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+Before this PR, every <a href="#g-boolean">Boolean</a> <a href="#g-rewrite-step">rewrite step</a> in a
+<a href="#g-legacy-proof-object">legacy proof object</a> was checked in Lean by a <a href="#g-truth-table">truth table</a>.
+That check tried every assignment of the <a href="#g-atom">atoms</a>, so its cost doubled with each atom.
+This PR replaces it with a direct <a href="#g-proof-term">proof term</a>.
+The term follows truth values through the <a href="#g-connective">connectives</a> on both sides of the
+<a href="#g-equivalence">equivalence</a>, and uses a <a href="#g-case-split">case split</a> only where that is not enough.
+The truth table remains as a fallback when the term builder gives up, so a false rewrite is still rejected.
+A <a href="#g-refutation">refutation</a> whose rewrites span a dozen or more atoms is now certified in under a second,
+and every emitted term stays <a href="#g-axiom-free">axiom-free</a>.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+The pipeline already certified <a href="#g-propositional">propositional</a>, <a href="#g-uninterpreted-function">uninterpreted-function</a>,
+and <a href="#g-linear-real-arithmetic">linear-arithmetic</a> refutations from two sources of evidence, the legacy proof object and the
+<a href="#g-clause-log">clause log</a>.
+The scaling survey of 2026-09-25 named truth-table rewrites as one of two remaining resource cliffs:
+eight atoms took seconds, and twelve exceeded Lean's <a href="#g-heartbeat">heartbeat</a> limit.
+Iteration 17 hit that cliff on z3test <code>3632.smt2</code>, whose legacy proof performs
+<a href="#g-flattening">flattening</a> of <a href="#g-conjunction">conjunctions</a> and expands a Boolean
+<a href="#g-distinct">distinct</a> over 13 to 14 atoms, so it could be certified only through the clause log.
+This PR serves milestone 2 of the plan, the kernel-checked Boolean slice, by closing that gap.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li><strong>Reconstructor, the prover.</strong> A Boolean rewrite step is now proved by a direct term that pushes truth values
+    from one side of the equivalence to the other, one typed step at a time.
+    Think of checking a circuit by following its wiring, instead of flipping every combination of switches.</li>
+  <li><strong>Reconstructor, case splits.</strong> Where propagation stalls, the term splits on the most frequent atom
+    using the <a href="#g-excluded-middle">excluded middle</a>, and each branch ends in the goal or a contradiction.</li>
+  <li><strong>Reconstructor, the fallback.</strong> A false equivalence, or one beyond the budget of 20,000 steps or 1 MB of text,
+    still gets the old truth table, so bad rewrites are rejected exactly as before.</li>
+  <li><strong>Reconstructor, witnesses.</strong> A rewrite <a href="#g-lemma">lemma</a> now takes only the
+    <a href="#g-decidability-witness">decidability witnesses</a> its term uses, often none.</li>
+  <li><strong>Tests.</strong> Unit tests pin the witness sets, the fallback, and the expansion of
+    <a href="#g-xor">xor</a>, <a href="#g-if-then-else-term">if-then-else terms</a>, and <code>distinct</code>.
+    Lean-backed tests now certify 3632 through the legacy proof object and wide rewrites over 8 to 24 atoms.</li>
+  <li><strong>Documentation.</strong> Both READMEs and the plan carry a dated note.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>reconstructor: prover, structure reader, fallback</td><td class="num">378</td><td class="num">6</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>unit tests without Lean</td><td class="num">104</td><td class="num">7</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td>Lean-backed tests</td><td class="num">53</td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>comment update</td><td class="num">3</td><td class="num">4</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>dated note and survey pointer</td><td class="num">32</td><td class="num">0</td></tr>
+    <tr><td><code>lean/README.md</code></td><td>documentation</td><td class="num">9</td><td class="num">4</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>documentation</td><td class="num">5</td><td class="num">3</td></tr>
+    <tr><th>Total, 7 files</th><th></th><th class="num">584</th><th class="num">33</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+The input asserts a nested conjunction of twelve atoms and the negation of the last one.
+Z3's simplifier flattens the nesting one level at a time, so the proof contains ten rewrite steps, the widest over all twelve atoms.
+Both runs were made on the loop machine, with the merged code and with the scripts of the parent commit.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const a Bool) (declare-const b Bool) (declare-const c Bool) (declare-const d Bool)
+(declare-const e Bool) (declare-const f Bool) (declare-const g Bool) (declare-const h Bool)
+(declare-const i Bool) (declare-const j Bool) (declare-const k Bool) (declare-const l Bool)
+(assert (and a (and b (and c (and d (and e (and f (and g (and h (and i (and j (and k l))))))))))))
+(assert (not l))
+(check-sat)
+</code></pre>
+
+<h3>(b) Before: rejected</h3>
+<p>
+The exporter produced the same certificate before and after the PR.
+The old reconstructor wrote a truth-table lemma for each rewrite, with one <code>cases</code> block per atom.
+</p>
+<pre><code>private theorem rewrite_97 (_atoms : Nat -&gt; Prop)
+    [_d0 : Decidable (_atoms 0)]
+    ...
+    [_d11 : Decidable (_atoms 11)]
+    : (formula_96 _atoms) := by
+  unfold formula_96 formula_95 formula_92 formula_87 formula_11 ... formula_0
+  all_goals
+    cases _d0 &lt;;&gt; rename_i _h0 &lt;;&gt;
+      (first | letI : Decidable (_atoms 0) := .isFalse _h0
+             | letI : Decidable (_atoms 0) := .isTrue _h0)
+  ...
+  all_goals exact of_decide_eq_true rfl
+</code></pre>
+<p>Lean gave up on the three widest lemmas, over 10, 11, and 12 atoms, after about 26 seconds.</p>
+<pre><code>z3_proof_13hmahkg.lean:336:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+z3_proof_13hmahkg.lean:391:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+z3_proof_13hmahkg.lean:451:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+z3_proof_13hmahkg.lean:521:8: error: (kernel) unknown constant '...rewrite_81'
+Lean checking failed; no proof was published.
+</code></pre>
+
+<h3>(c) After: accepted</h3>
+<p>The new reconstructor generated these declarations for the widest rewrite. Cut lines are marked "..." and the one-line term is re-wrapped.</p>
+<pre><code>def formula_22 (_atoms : Nat -&gt; Prop) : Prop := (And (formula_0 _atoms) (formula_21 _atoms))
+def formula_92 (_atoms : Nat -&gt; Prop) : Prop := (And (formula_0 _atoms) (formula_87 _atoms))
+def formula_95 (_atoms : Nat -&gt; Prop) : Prop := (And (formula_0 _atoms) (And (formula_1 _atoms) ... (formula_11 _atoms)...))
+def formula_96 (_atoms : Nat -&gt; Prop) : Prop := (Iff (formula_92 _atoms) (formula_95 _atoms))
+</code></pre>
+<p class="note">The left side still nests one level, and the right side is the fully flattened conjunction.</p>
+<pre><code>private theorem rewrite_97 (_atoms : Nat -&gt; Prop)
+    : (formula_96 _atoms) := by
+  unfold formula_96 formula_95 formula_92 formula_87 formula_11 ... formula_0
+  exact (Iff.intro
+    (fun (_f1 : (And (_atoms 0) (And (_atoms 1) ... (_atoms 11)))) =&gt;
+      ((have _f2 : (_atoms 0) := (And.left _f1);
+        have _f3 : (And (_atoms 1) ... (_atoms 11)) := (And.right _f1);
+        have _f4 : (_atoms 1) := (And.left _f3);
+        have _f5 : (_atoms 2) := (And.left (And.right _f3));
+        ...
+        have _f14 : (_atoms 11) := (And.right (And.right ... _f3));
+        have _f15 : (And (_atoms 0) (And (_atoms 1) ... (_atoms 11))) :=
+          (And.intro _f2 (And.intro _f4 (And.intro _f5 ... _f14)));
+        _f15) : ...))
+    (fun (_f16 : ...) =&gt; ...))
+</code></pre>
+<p class="note">Each <code>have</code> pulls one atom out of the assumed side, and the last one reassembles the other side. No case split and no witness is needed.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
+    (_h0 : (formula_22 _atoms))
+    (_h1 : (formula_23 _atoms))
+    : False :=
+  let _step_24 : (formula_22 _atoms) := _h0
+  let _step_27 : (formula_26 _atoms) := (@rewrite_27 _atoms)
+  let _step_30 : (formula_29 _atoms) := (and_congr (Iff.refl (formula_8 _atoms)) _step_27)
+  ...
+  let _step_97 : (formula_96 _atoms) := (@rewrite_97 _atoms)
+  let _step_99 : (formula_98 _atoms) := (Iff.trans _step_94 _step_97)
+  let _step_100 : (formula_95 _atoms) := (Iff.mp _step_99 _step_24)
+  let _step_101 : (formula_11 _atoms) := (And.right (And.right ... _step_100))
+  let _step_102 : (formula_23 _atoms) := _h1
+  let _step_104 : (formula_103 _atoms) := (False.elim (_step_102 _step_101))
+  _step_104
+</code></pre>
+<p class="note">The main theorem chains the lemmas with <a href="#g-congruence">congruence</a> and transitivity steps, extracts the last atom, and meets its negation. Before the PR it began with twelve witness wrappers.</p>
+<p>The Lean check accepted the file.</p>
+<table>
+  <thead><tr><th>Run</th><th>Rewrite lemmas</th><th>Truth tables</th><th>Lean file</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Before (parent commit)</td><td class="num">10</td><td class="num">10</td><td class="num">29 KB</td><td>rejected after about 26 s, 3 heartbeat errors</td></tr>
+    <tr><td>After (merged code)</td><td class="num">10</td><td class="num">0</td><td class="num">39 KB</td><td class="pass">accepted</td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+This PR touched only the Python examples, the Lean project's documentation, and the plan, so the loop merged it on its local gate.
+The gate runs the relevant steps of the GitHub job <code>CI / Ubuntu build - cmake - releaseClang</code> on the loop machine, and all five passed.
+GitHub CI still runs on master after the merge, on the <a href="https://github.com/levnach/z3/actions">Actions page</a>.
+There were no CI fix rounds.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter (77 tests)</td><td class="pass">pass</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction (247 tests)</td><td class="pass">pass</td><td class="num">602 s</td></tr>
+    <tr><td>z3test proof script tests (46 tests)</td><td class="pass">pass</td><td class="num">15 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object (6 of 6)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log (8 of 8)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+<p>
+Beyond the gate, extra probes showed that several hundred random valid equivalences all became direct terms Lean accepted,
+and about seven hundred random propositional puzzles never needed the fallback.
+</p>
+<table>
+  <thead><tr><th>Probe</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Reviewer's <a href="#g-fuzzing">fuzzer</a>: random valid equivalences over 3 and 4 atoms, all connectives</td><td>400 of 400 direct terms, 402 of 402 theorems axiom-free</td></tr>
+    <tr><td><a href="#g-parity">Parity</a> rewrite over 6 / 7 / 8 atoms</td><td>6: direct, accepted in 5.6 s. 7 and 8: size budget trips, truth table rejected in 3.7 s and 7.1 s</td></tr>
+    <tr><td>z3test 3632 through the legacy proof object</td><td>10 rewrite lemmas, 0 truth tables, Lean 0.8 s, 11 of 11 theorems axiom-free</td></tr>
+    <tr><td>Random propositional inputs through the legacy proof object</td><td>684 unsat instances, 5,919 rewrites, 0 fallbacks, 18 Lean-verified</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blockers and no majors. One minor finding and three nits were raised.</p>
+<ul>
+  <li><strong>Minor: the step budget did not bound term size.</strong>
+    A parity rewrite over eight atoms stayed under the step limit but emitted an 11 MB lemma, which Lean rejected only after 140 seconds.
+    The old truth table had failed in 8 seconds, so the slow path could eat a matrix cell's whole time limit.
+    Fixed with a second budget of 1 MB on the generated text, so seven and eight atoms now fall back within seconds.</li>
+  <li><strong>Nit: generated names detected by a regular expression.</strong>
+    This would break if another helper produced a similar name. Fixed by keeping the set of generated names.</li>
+  <li><strong>Nit: an unused witness was recorded.</strong>
+    Rewriting <code>(and p (not (not p)))</code> to <code>p</code> discarded a double-negation step but still demanded its witness.
+    Fixed so a witness is recorded only when its step is kept, with a unit test.</li>
+  <li><strong>Nit: shared subformulas were read repeatedly.</strong>
+    Partly fixed with a memo that reads each node once. Keying the prover's state by node id remains a follow-up.</li>
+</ul>
+<p>After the fixes the reviewer's fuzzer still produced 400 of 400 direct, axiom-free terms.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li><strong>Nothing new is trusted.</strong> Lean checks the direct term as strictly as it checked the truth table.
+    A wrong term is rejected, and a false equivalence falls back to a truth table that Lean rejects as before.</li>
+  <li><strong>Lemma signatures changed.</strong> Nothing downstream depends on the witness set.</li>
+  <li><strong>Text size is quadratic.</strong> Each step restates its full proposition, so the 24-atom test lemma is about 630 KB, and the 1 MB budget may make some valid wide rewrites fall back.</li>
+  <li><strong>Parity is still hard.</strong> Xor chains fall back at seven atoms, where the old truth table already failed.</li>
+  <li><strong>Unknown.</strong> The result of the GitHub CI run on master after the merge is not recorded in this iteration's inputs.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Name shared subformulas in the generated steps and key the prover's state by node id, so wide lemmas become linear in size.</li>
+  <li>Let the new prover also handle wide arithmetic rewrites, which still use an older helper with a <a href="#g-tactic">tactic</a> fallback.</li>
+  <li>Adopt a trimmed version of the reviewer's fuzzer as a regular Lean-backed test.</li>
+  <li>Return to the remaining iteration-17 candidates, starting with <code>define-sort</code>.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-atom">atom</dt><dd>A Boolean variable or a predicate with no Boolean connectives inside it. In the example, <code>a</code> to <code>l</code> are atoms.</dd>
+  <dt id="g-axiom-free">axiom-free</dt><dd>A Lean proof that relies on no axioms at all, which Lean reports through <code>#print axioms</code>.</dd>
+  <dt id="g-boolean">Boolean</dt><dd>Having one of the two truth values, true or false. SMT-LIB writes the Boolean sort as <code>Bool</code>.</dd>
+  <dt id="g-case-split">case split</dt><dd>Proving a goal twice, once assuming a statement is true and once assuming it is false.</dd>
+  <dt id="g-clause">clause</dt><dd>A disjunction of literals, where a literal is an atom or its negation. For example, (not a) or b.</dd>
+  <dt id="g-clause-log">clause log</dt><dd>Z3's record of the clauses it learned while solving, an alternative source of proof evidence to the legacy proof object.</dd>
+  <dt id="g-congruence">congruence</dt><dd>Replacing equal parts inside a larger expression keeps the whole equal. If p is equivalent to q, then (a and p) is equivalent to (a and q).</dd>
+  <dt id="g-conjunction">conjunction</dt><dd>An "and" of several formulas, true only when all of them are true.</dd>
+  <dt id="g-connective">connective</dt><dd>An operator that combines formulas, such as and, or, not, implies, xor, or if-then-else.</dd>
+  <dt id="g-decidability-witness">decidability witness</dt><dd>A Lean value stating that a proposition is either known true or known false, so a proof may split on it. Written <code>Decidable p</code>.</dd>
+  <dt id="g-distinct">distinct</dt><dd>The SMT-LIB predicate saying that all its arguments differ pairwise. Over Booleans, three or more arguments make it false.</dd>
+  <dt id="g-equivalence">equivalence</dt><dd>Two formulas that have the same truth value in every assignment. Written <code>Iff</code> in Lean.</dd>
+  <dt id="g-excluded-middle">excluded middle</dt><dd>The principle that a proposition is true or its negation is true. Here it is used only on atoms that have a decidability witness.</dd>
+  <dt id="g-flattening">flattening</dt><dd>Rewriting a nested and (or a nested or) into one and (or or) with all the parts listed side by side.</dd>
+  <dt id="g-fuzzing">fuzzing</dt><dd>Testing with many randomly generated inputs to find cases a hand-written test would miss.</dd>
+  <dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit of work. A proof that exceeds the heartbeat limit is rejected as a deterministic timeout.</dd>
+  <dt id="g-if-then-else-term">if-then-else term</dt><dd>A term that picks one of two values based on a condition, written <code>ite</code> in SMT-LIB.</dd>
+  <dt id="g-legacy-proof-object">legacy proof object</dt><dd>Z3's older proof format, a tree of inference steps such as rewrite, monotonicity, and unit resolution, which the exporter saves as JSON.</dd>
+  <dt id="g-lemma">lemma</dt><dd>A small theorem proved separately and then used inside a larger proof.</dd>
+  <dt id="g-linear-real-arithmetic">linear real arithmetic</dt><dd>Formulas over real numbers using addition, comparison, and multiplication by constants only. SMT-LIB calls the quantifier-free version QF_LRA.</dd>
+  <dt id="g-parity">parity</dt><dd>Whether an odd or even number of atoms are true. An xor chain computes parity, and no propagation shortcut settles it.</dd>
+  <dt id="g-proof-term">proof term</dt><dd>A proof written as an explicit expression that Lean's kernel checks directly, as opposed to a tactic script that searches for a proof.</dd>
+  <dt id="g-propositional">propositional</dt><dd>Built only from Boolean atoms and connectives, with no arithmetic or functions.</dd>
+  <dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to a contradiction, that is, that they cannot all be true.</dd>
+  <dt id="g-rewrite-step">rewrite step</dt><dd>A proof step in which Z3's simplifier replaces a formula by an equivalent one, such as flattening a nested and.</dd>
+  <dt id="g-sort">sort</dt><dd>The type of a value in SMT-LIB, such as <code>Bool</code>, <code>Int</code>, or <code>Real</code>.</dd>
+  <dt id="g-tactic">tactic</dt><dd>A Lean command that builds a proof automatically, such as <code>cases</code>, <code>decide</code>, or <code>grind</code>.</dd>
+  <dt id="g-truth-table">truth table</dt><dd>A proof that checks a Boolean formula under every assignment of its atoms. With n atoms it has 2 to the power n rows.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning, about which only equality reasoning is allowed: equal inputs give equal outputs.</dd>
+  <dt id="g-xor">xor</dt><dd>Exclusive or, true when exactly one of its two arguments is true.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-16.
+</footer>
+</body>
+</html>
