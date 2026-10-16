@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #15: Ignore harmless front matter in the proof exporters</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1d1d1f;
+    --muted: #5b5f66;
+    --link: #0b5bd3;
+    --border: #d9dde3;
+    --code-bg: #f4f6f8;
+    --accent: #e8f0fe;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141618;
+      --fg: #e6e6e6;
+      --muted: #a2a7ad;
+      --link: #7ab4ff;
+      --border: #3a3f46;
+      --code-bg: #1f2327;
+      --accent: #1e2a3a;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem;
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  a { color: var(--link); }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .5rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .6rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.05rem; margin: 1.25rem 0 .4rem; }
+  p, li { margin: .45rem 0; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta span { margin-right: 1rem; white-space: nowrap; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; background: var(--code-bg); padding: .05em .3em; border-radius: 3px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .75rem .9rem; overflow-x: auto; font-size: .85rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; margin: .75rem 0; width: 100%; font-size: .93rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--accent); }
+  td.num { text-align: right; white-space: nowrap; }
+  .pass { color: #1a7f37; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .pass { color: #57d38c; } }
+  .note { color: var(--muted); font-size: .92rem; }
+  dl { margin: .5rem 0; }
+  dt { font-weight: 600; margin-top: .6rem; }
+  dd { margin: .1rem 0 0 1.25rem; }
+  footer { margin-top: 2.5rem; padding-top: .75rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ignore harmless front matter in the proof exporters</h1>
+  <p class="meta">
+    <span>Pull request <a href="https://github.com/levnach/z3/pull/15">#15</a></span>
+    <span>Merge commit <a href="https://github.com/levnach/z3/commit/cc5104059bfda50ae5e87a718aa33eb9d818c824"><code>cc51040</code></a></span>
+    <span>Merged 2026-10-16T05:19:16Z</span>
+    <span>Loop iteration 15</span>
+  </p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+The exporter used to reject any <a href="#g-smt-lib">SMT-LIB</a> file whose <a href="#g-front-matter">front matter</a> did not match one exact shape.
+It accepted a single <a href="#g-option">option</a> and only three <a href="#g-query">queries</a>.
+This PR teaches it to skip options that only configure output, <a href="#g-model">models</a>, resource limits, or search.
+It also accepts <a href="#g-tactic">tactics</a> in <code>check-sat-using</code>, <a href="#g-named-assertion">named assertions</a>, and the output queries for models and <a href="#g-unsat-core">unsat cores</a>.
+Nothing new is trusted.
+The skipped commands never reach the solver run, the <a href="#g-proof-certificate">certificate</a> records the input verbatim, and the <a href="#g-refutation">refutation</a> is still a theorem about the parsed <a href="#g-assertion">assertions</a> alone.
+Five z3test regression files now export and verify in Lean.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR the pipeline certified <a href="#g-propositional">propositional</a> inputs, <a href="#g-uninterpreted-function">uninterpreted functions</a> with equality, and <a href="#g-linear-arithmetic">linear arithmetic</a> over Int and Real.
+Those are the <a href="#g-fragment">fragments</a> that milestones 2 and 3 cover.
+Yet most z3test regression files were turned away at the frontend for a <code>set-option</code> line or a <code>get-model</code> query.
+Widening the frontend serves the regression methodology that the plan treats as its top priority and that gates milestones 3 to 5.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<h3>Exporter frontend</h3>
+<ul>
+  <li><strong>Harmless options are skipped.</strong> You can now export a file that sets <code>produce-models</code>, a timeout, a random seed, or a search setting.</li>
+  <li><strong>Any tactic is accepted as the one query.</strong> A <code>check-sat-using</code> with a tactic counts as the check, since the exporter runs its own solver anyway.</li>
+  <li><strong>Output queries no longer block export.</strong> You can leave <code>get-model</code> or <code>get-unsat-core</code> after the check, and <code>echo</code> or <code>get-info</code> anywhere.</li>
+  <li><strong>Dangerous options are still rejected, now with a reason.</strong> Options that change how the input is read, such as <code>numeral-as-real</code>, fail with a message saying so. Everything not on the allowlist is rejected too, so an omission can only reject more.</li>
+</ul>
+<p>
+Think of a letter with a stamp and a note saying "please reply by fax".
+None of that changes what the letter says, and the exporter now reads past the envelope.
+</p>
+<h3>Tests and documentation</h3>
+<ul>
+  <li><strong>Five z3test regressions are kept verbatim as test inputs</strong> and run through both the legacy proof object and the <a href="#g-clause-log">clause log</a>. The README and the plan document list which options are ignored and which are refused.</li>
+</ul>
+<table>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">67</td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">141</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">68</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">19</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td class="num">15</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">22</td><td class="num">6</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">34</td><td class="num">0</td></tr>
+    <tr><th>Total, 7 files</th><th class="num">366</th><th class="num">20</th></tr>
+  </tbody>
+</table>
+
+<h2 id="worked-example">Worked example</h2>
+<p>
+This input was built from the shapes in the PR's new test fixture.
+It has two skipped options, two named assertions, a tactic in the check, and an unsat-core query.
+The assertions say that <code>x</code> is below 1 and above 2 at once.
+</p>
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(set-option :auto-config true)
+(set-option :produce-unsat-cores true)
+(declare-const x Real)
+(assert (! (&lt; x 1.0) :named low))
+(assert (! (&gt; x 2.0) :named high))
+(check-sat-using (par-or smt smt))
+(get-unsat-core)
+(exit)
+</code></pre>
+
+<h3>(b) Before</h3>
+<p>The exporter from the parent commit stopped at the first option line and exited with status 2.</p>
+<pre><code>proof_certificate.py: error: only (set-option :produce-proofs true) is supported
+</code></pre>
+
+<h3>(c) After</h3>
+<p>
+The current exporter produced a certificate for the <code>qf_lra</code> fragment, and the reconstructor wrote the Lean file below.
+The Lean check accepted it with "Lean checks passed."
+</p>
+<p>The declarations encode the variable, the two constants, and the two assertions. Nothing from the options, the names, the tactic, or the query appears.</p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
+def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &lt; (term_1 _atoms _vars))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((2 : Rat))
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &gt; (term_3 _atoms _vars))
+...
+def formula_17 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Or (formula_6 _atoms _vars) (formula_12 _atoms _vars))
+</code></pre>
+<p>This <a href="#g-theory-lemma">theory lemma</a> is the arithmetic heart of the proof: for any rational <code>x</code>, either 1 ≤ x or 2 ≥ x.</p>
+<pre><code>private theorem th_lemma_18 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_17 _atoms _vars) := by
+  unfold formula_17 formula_12 formula_6 term_3 term_1 term_0
+  grind (splits := 64)
+</code></pre>
+<p>The theorem takes the two parsed assertions as <a href="#g-hypothesis">hypotheses</a> and derives False. The named labels and the ignored front matter are not part of the statement.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_2 _atoms _vars))
+    (_h1 : (formula_4 _atoms _vars))
+    : False :=
+  ...
+  let _step_18 : (formula_17 _atoms _vars) :=
+    (th_lemma_18 _atoms _vars)
+  let _step_20 : (formula_19 _atoms _vars) :=
+    (Or.elim _step_18 (fun _literal =&gt; (False.elim (_step_10 _literal))) (fun _tail =&gt; (False.elim (_step_16 _tail))))
+  ...
+</code></pre>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+This PR touched only documentation and the Python examples, so the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate mirrors the steps of the Ubuntu releaseClang CI job that exercise this work and ran on the loop machine.
+Every step passed: all unit tests, every Lean reconstruction test, the z3test harness tests, and every input in the two Lean-certified matrices.
+GitHub CI still runs on <code>master</code> after the merge, at <a href="https://github.com/levnach/z3/actions">github.com/levnach/z3/actions</a>.
+Its outcome for this merge is not among the report's inputs.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter (73 tests)</td><td class="pass">pass</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction (233 tests)</td><td class="pass">pass</td><td class="num">3460 s</td></tr>
+    <tr><td>z3test proof script tests (46 tests)</td><td class="pass">pass</td><td class="num">17 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object (6 of 6 verified)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log (8 of 8 verified)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
+  </tbody>
+</table>
+<p class="note">
+The implementer, reviewer, and integrator each ran the same suites on the branch with the same results.
+There were no CI fix rounds and no failures judged unrelated.
+The PR also reports the corpus scan that motivated the change.
+</p>
+<table>
+  <thead><tr><th>Corpus scan</th><th class="num">Files</th></tr></thead>
+  <tbody>
+    <tr><td>Files in <code>regressions/smt2</code></td><td class="num">951</td></tr>
+    <tr><td>Rejected at the frontend before the PR</td><td class="num">828</td></tr>
+    <tr><td>Newly pass the frontend once front matter is ignored</td><td class="num">36</td></tr>
+    <tr><td>Of those, satisfiable (nothing to certify)</td><td class="num">28</td></tr>
+    <tr><td>Of those, unsat and exported through the clause log</td><td class="num">7</td></tr>
+    <tr><td>Of those, rejected later by the reconstructor (unary <code>xor</code>)</td><td class="num">1</td></tr>
+    <tr><td>Now exported and verified in Lean</td><td class="num">5</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer requested changes with one finding, rated major, and nothing else.</p>
+<h3>Major: one allowlisted option changed how the input is read</h3>
+<p>
+The reviewer checked Z3's source for every option on the allowlist and found that <code>smtlib2_compliant</code> did not belong there.
+With it set, Z3's <a href="#g-scanner">scanner</a> reads <code>-1.0</code> as a symbol instead of a negative <a href="#g-numeral">numeral</a>, and Int to Real <a href="#g-coercion">coercions</a> are off.
+The reviewer wrote a six-line file that declares a constant literally named <code>|-1.0|</code> and sets that option.
+Z3, honouring the option, answered sat.
+Both exporters ignored the option, read <code>-1.0</code> as a number, and emitted an unsat certificate that Lean checked.
+That certificate was about a different reading of the file than Z3's, which is exactly what the allowlist was meant to prevent.
+</p>
+<p>
+The integrator reproduced the divergence and moved the option to the rejected group.
+They also added Z3's <code>int-real-coercions</code> option, which uses the same handler.
+The reviewer's file joined the rejection test, and the corpus counts dropped by one.
+It mattered because <a href="#g-soundness">soundness</a> here means the theorem is about the input as Z3 reads it.
+</p>
+<p>
+Two reviewer suggestions were not taken.
+The output-channel options stay rejected, because a file redirect should not be dropped silently, and moving the corpus scan script into the repository is a follow-up.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li><strong>The allowlist is a judgment.</strong> The review caught one wrong entry, and the integrator re-checked the rest against Z3's source. A future wrong entry would repeat the same failure.</li>
+  <li><strong>Tactics are not validated.</strong> A malformed tactic that Z3 would refuse is accepted. The result is still Lean-checked.</li>
+  <li><strong>Error messages changed.</strong> Setting <code>produce-proofs</code> to false now fails with the generic message. The z3test harness checks status only and still passes.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Pass <code>define-sort</code> through to Z3's parser.</li>
+  <li>Accept a one-argument <code>xor</code> in the reconstructor.</li>
+  <li>Decide whether <code>check-sat</code> followed by <code>check-sat-using</code> over the same assertions is one query. One <a href="#g-uninterpreted-function">uninterpreted-function</a> regression waits on this.</li>
+  <li>Add the five verbatim inputs to z3test's Lean matrix, outside this loop.</li>
+  <li>Make the front-matter scan a permanent script with per-file rejection reasons.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula the input declares to be true, written <code>(assert ...)</code>. The refutation shows that all assertions together cannot hold.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>Having the sort Bool, that is, being either true or false.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A record of the clauses the solver learned while searching, used as proof evidence for arithmetic inputs.</dd>
+  <dt id="g-coercion">coercion</dt>
+  <dd>An automatic conversion of a value from one sort to another, such as reading the Int <code>1</code> as the Real <code>1.0</code>.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A result from linear arithmetic: if a set of linear inequalities has no solution, some weighted sum of them gives an obvious contradiction such as 0 &lt; 0. Arithmetic theory lemmas are usually justified this way.</dd>
+  <dt id="g-fragment">fragment</dt>
+  <dd>A restricted class of formulas, such as propositional logic or linear real arithmetic (QF_LRA). The checker supports one fragment at a time.</dd>
+  <dt id="g-front-matter">front matter</dt>
+  <dd>The commands in an SMT-LIB file that configure the solver or ask for output, as opposed to the declarations and assertions that define the problem.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>An assumption a theorem is allowed to use. Here each parsed assertion becomes one hypothesis of the Lean theorem.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Arithmetic with addition and multiplication by constants only, such as <code>2x + 3y ≤ 7</code>, over integers or reals.</dd>
+  <dt id="g-model">model</dt>
+  <dd>An assignment of values to the variables that makes every assertion true. A model exists only when the problem is satisfiable.</dd>
+  <dt id="g-named-assertion">named assertion</dt>
+  <dd>An assertion with a label, written <code>(assert (! t :named a))</code>. The label is used when reporting an unsat core and does not change the formula.</dd>
+  <dt id="g-numeral">numeral</dt>
+  <dd>A literal number in the input, such as <code>1</code> or <code>2.0</code>.</dd>
+  <dt id="g-option">option</dt>
+  <dd>A solver setting given with <code>(set-option :name value)</code>, such as a timeout or a request to produce models.</dd>
+  <dt id="g-proof-certificate">proof certificate</dt>
+  <dd>The JSON file the exporter writes. It holds the input verbatim, the parsed assertions, and the proof evidence that the reconstructor turns into Lean.</dd>
+  <dt id="g-propositional">propositional</dt>
+  <dd>Built only from Boolean variables and the connectives and, or, not, and so on, with no arithmetic or functions.</dd>
+  <dt id="g-query">query</dt>
+  <dd>A command that asks the solver for a result, such as <code>check-sat</code>, <code>get-model</code>, or <code>get-unsat-core</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to False, that is, that they cannot all be true at once.</dd>
+  <dt id="g-scanner">scanner</dt>
+  <dd>The part of a parser that cuts the input text into tokens such as numbers, symbols, and parentheses.</dd>
+  <dt id="g-smt-lib">SMT-LIB</dt>
+  <dd>The standard text format for solver inputs. Its commands are written in parentheses, like <code>(declare-const x Real)</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>The property that a certified result is actually true of the input. Here it means the Lean theorem is about the input exactly as Z3 reads it.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A recipe that tells a solver or proof assistant how to attack a problem, such as "try these five strategies in parallel". In SMT-LIB a tactic is passed with <code>check-sat-using</code>.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A fact that is true by the rules of a theory such as arithmetic, independent of the input. Example: for every rational x, either 1 ≤ x or 2 ≥ x. See also <a href="#g-farkas">Farkas lemma</a>.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with a known signature but no fixed meaning, such as <code>f : Int → Int</code>. The only rule is that equal inputs give equal outputs.</dd>
+  <dt id="g-unsat-core">unsat core</dt>
+  <dd>A subset of the named assertions that is already unsatisfiable on its own, reported by <code>get-unsat-core</code>.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-16.
+</footer>
+</body>
+</html>
