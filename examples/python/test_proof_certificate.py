@@ -270,12 +270,16 @@ class TestProofCertificate(unittest.TestCase):
                 proof_certificate.export_certificate("(assert false)" + query)
 
     def test_options_changing_the_input_or_the_proof_evidence_are_rejected(self):
-        # numeral-as-real and rewriter.* change how the input is read; the
-        # proof-production and preprocessing options are the exporter's own
-        # (z3test's matrix harness pins the sat.smt rejection); anything not
-        # on the allowlist is rejected rather than ignored.
+        # numeral-as-real, int-real-coercions, smtlib2_compliant, and
+        # rewriter.* change how the input is read; the proof-production and
+        # preprocessing options are the exporter's own (z3test's matrix
+        # harness pins the sat.smt rejection); anything not on the allowlist
+        # is rejected rather than ignored.
         cases = [
             ("numeral-as-real true", "changes how the input is read"),
+            ("int-real-coercions false", "changes how the input is read"),
+            ("smtlib2_compliant true", "changes how the input is read"),
+            ("smtlib2-compliant false", "changes how the input is read"),
             ("rewriter.flat false", "changes how the input is read"),
             ("rewriter.hi-div0 true", "changes how the input is read"),
             ("sat.smt true", "option :sat.smt is not supported"),
@@ -297,6 +301,19 @@ class TestProofCertificate(unittest.TestCase):
                     proof_certificate.export_certificate("%s(set-option :%s)(assert false)" % (prefix, option))
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "one keyword and one value"):
             proof_certificate.export_certificate("(set-option produce-models true)(assert false)")
+        # Under smtlib2_compliant Z3's scanner reads -1.0 as the symbol
+        # declared below and answers sat; the exporter reads the numeral and
+        # would certify a refutation of a different reading of the input.
+        with self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                    "option :smtlib2_compliant changes how the input is read"):
+            proof_certificate.export_certificate("""\
+(set-option :smtlib2_compliant true)
+(declare-const x Real)
+(declare-const |-1.0| Real)
+(assert (< x -1.0))
+(assert (> x 0.0))
+(check-sat)
+""")
 
     def test_query_shapes_are_checked(self):
         cases = [

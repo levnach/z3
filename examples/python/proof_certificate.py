@@ -48,8 +48,10 @@ _RESULT_QUERIES = {"get-proof", "get-model", "get-unsat-core", "get-assignment"}
 # model production, resource limits, or search cannot change what is
 # certified; these are the ones seen in SMT-LIB benchmarks and z3test's
 # regressions. Anything else is rejected rather than ignored: options that
-# change how the input is read (numeral-as-real, rewriter.*) would certify a
-# different reading of the input, and the proof-production options the
+# change how the input is read (numeral-as-real, int-real-coercions,
+# smtlib2_compliant, which makes Z3's scanner read "-1.0" as a symbol and
+# disables Int/Real coercions, and rewriter.*) would certify a different
+# reading of the input than Z3's, and the proof-production options the
 # exporter sets itself (sat.smt, solver.proof.*, smt.clause_proof, the
 # preprocessing switches of _NO_PREPROCESSING, combined_solver.*) select the
 # evidence the exporter controls.
@@ -57,7 +59,7 @@ _IGNORED_OPTIONS = frozenset({
     # Output, models, and cores.
     "print_success", "print_warning", "produce_models", "produce_assignments", "produce_unsat_cores",
     "unsat_core", "produce_proofs", "proof", "model", "model_validate", "interactive_mode",
-    "smtlib2_compliant", "verbose", "stats", "type_check",
+    "verbose", "stats", "type_check",
     # Resource limits and search configuration.
     "auto_config", "random_seed", "timeout", "rlimit", "reproducible_resource_limit",
     "smt.auto_config", "smt.arith.solver", "smt.random_seed", "smt.phase_selection",
@@ -70,7 +72,7 @@ _IGNORED_OPTIONS = frozenset({
 })
 # Printing and model-presentation families, every member output-only.
 _IGNORED_OPTION_PREFIXES = ("pp.", "model.")
-_INPUT_READING_OPTIONS = ("numeral_as_real", "rewriter.")
+_INPUT_READING_OPTIONS = ("numeral_as_real", "int_real_coercions", "smtlib2_compliant", "rewriter.")
 # Certificate sort names with a fixed meaning; an uninterpreted sort keeps its
 # own name, which Z3's parser already keeps distinct from the built-in sorts.
 _RESERVED_SORTS = ("Bool", "Real", "Int", "Proof")

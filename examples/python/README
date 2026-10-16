@@ -68,7 +68,9 @@ model_validate, print-success, auto-config, timeout, rlimit, random-seed,
 smt.arith.solver, smt.random_seed, smt.phase_selection, smt.mbqi,
 sat.local_search, and the like, plus the pp.* and model.* families, by Z3's
 parameter names with - and _ identified). Options that change how the input
-is read (numeral-as-real, rewriter.*) and the proof-production and
+is read (numeral-as-real, int-real-coercions, smtlib2_compliant, which
+changes the scanner and the Int/Real coercions, and rewriter.*) and the
+proof-production and
 preprocessing options the exporter sets itself (sat.smt, solver.proof.*,
 smt.clause_proof, smt.solve_eqs, combined_solver.*) are rejected, as is any
 option not on the allowlist. Queries with assumptions, push/pop, multiple

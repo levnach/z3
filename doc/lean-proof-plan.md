@@ -1033,8 +1033,8 @@ assertion, `get-unsat-core`), `3220.smt2` (`:sat.local_search`,
 `strategy-par-or-2.smt2` (`check-sat-using (par-or smt ...)`) were rejected
 at the frontend although Z3 solves them and their assertions are in the
 certified fragments; a scan of the 951 `regressions/smt2` inputs (828 of
-them rejected at the frontend) found 37 that pass it once such front matter
-is ignored, 29 of them satisfiable, and 7 unsat ones that export. The
+them rejected at the frontend) found 36 that pass it once such front matter
+is ignored, 28 of them satisfiable, and 7 unsat ones that export. The
 certificate is a statement about the parsed assertions that
 Lean checks, so an option that only configures Z3's output, model
 production, resource limits, or search cannot change what is certified.
@@ -1045,7 +1045,10 @@ query, the output queries `get-model`, `get-unsat-core`, `get-assignment`
 after it, and `get-info`, `get-option`, `echo` anywhere; none of them reach
 the solver run or the certificate, whose `source_smt2` stays verbatim. It
 still rejects, with messages naming the reason, options that change how
-the input is read (`numeral-as-real`, `rewriter.*`), the proof-production
+the input is read (`numeral-as-real`, `int-real-coercions`,
+`smtlib2_compliant`, under which Z3's scanner reads `-1.0` as a symbol and
+Int/Real coercions are off, so a file declaring `|-1.0|` is `sat` for Z3
+and `unsat` for the exporter's reading; and `rewriter.*`), the proof-production
 and preprocessing options the exporter sets itself (`sat.smt`,
 `solver.proof.*`, `smt.clause_proof`, `smt.solve_eqs`,
 `combined_solver.*`; z3test's harness pins the `sat.smt` rejection), and
