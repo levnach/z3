@@ -889,8 +889,14 @@ class TestLegacyIntegerLeanIntegration(unittest.TestCase):
             with self.subTest(seed=seed):
                 certificate = self.check(source, core="legacy")
                 self.assertIn("th-lemma", certificate["rule_counts"])
+                declarations, nodes = certificate["declarations"], certificate["nodes"]
+                # Both seeds pin the congruence through div (a monotonicity
+                # step equating two div terms, a grind lemma in Lean).
+                congruences = [declarations[nodes[nodes[raw["arguments"][-1]]["arguments"][0]]["declaration"]]["kind"]
+                               for raw in nodes if declarations[raw["declaration"]]["kind"] == z3.Z3_OP_PR_MONOTONICITY
+                               and declarations[nodes[raw["arguments"][-1]]["declaration"]]["kind"] == z3.Z3_OP_EQ]
+                self.assertIn(z3.Z3_OP_IDIV, congruences, "no monotonicity step over div is left in the proof")
                 if seed == 77:
-                    declarations, nodes = certificate["declarations"], certificate["nodes"]
                     zero = next(index for index, d in enumerate(declarations)
                                 if d["kind"] == z3.Z3_OP_ANUM and d["name"] == "0")
                     self.assertTrue(any(declarations[raw["declaration"]]["kind"] == z3.Z3_OP_IDIV

@@ -1950,9 +1950,11 @@ def _check_th_lemma(graph, node):
         # kept no coefficients because none certify the rounding, so only the
         # shape is checked (integer linear atoms, held premises included) and
         # Lean proves the clause or the implication.
-        if graph.numeric != "Int" or coefficients or (premises and parameters[0] == "cut"):
+        # (A coefficient-free farkas or bound over Real falls through to the
+        # coefficient count check below.)
+        if parameters[0] == "cut" and (graph.numeric != "Int" or coefficients or premises):
             raise ReconstructionError("cut th-lemma requires an Int certificate, no premises, and no coefficients "
-                                      "(a coefficient-free farkas or bound an Int certificate) at node %d" % node)
+                                      "at node %d" % node)
         for premise in premises:
             _atom_constraint(graph, premise)
         for literal in literals:
