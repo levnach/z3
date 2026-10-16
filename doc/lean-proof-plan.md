@@ -1104,7 +1104,11 @@ accepted exactly one `check-sat` and rejected `push`, `pop`, `reset`,
 `reset-assertions`, `check-sat-assuming`, a second query, and any assertion
 after the query; 175 of z3test's 951 `regressions/smt2` files are
 incremental. Now `proof_certificate.query_snapshot(source, query)` replays
-the script with SMT-LIB's scoped declarations (Z3's default) and returns the
+the script with Z3's default scoped declarations (a declaration inside a
+popped scope is gone with its assertions; `reset-assertions` is modelled as
+Z3's `cmd_context::reset_assertions` does it, removing every assertion but
+keeping the declarations and the open scopes, not as SMT-LIB's "pop every
+scope") and returns the
 declarations, definitions, and assertions in scope at the selected query,
 with the query's assumptions (`check-sat-assuming`'s list, or Z3's
 `check-sat` with literal arguments) appended as assertions. A script with

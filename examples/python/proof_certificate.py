@@ -221,6 +221,9 @@ def _assumption_commands(tokens):
             depth += 1
         elif token == ")":
             depth -= 1
+            if depth < 0:
+                # "(check-sat-assuming (p) (q))": the list closed early.
+                raise ProofExportError("check-sat-assuming takes a parenthesized list of assumptions")
         if depth == 0:
             commands.append("(assert %s)" % " ".join(terms[start:index + 1]))
             start = index + 1
@@ -235,8 +238,11 @@ def query_snapshot(source, query=None):
     the queries, the zero-based index of that query among the script's
     check-sat, check-sat-using, and check-sat-assuming commands, and the
     number of such commands. push, pop, reset, and reset-assertions are
-    replayed with SMT-LIB's scoped declarations (Z3's default): a declaration
-    made inside a popped scope is gone with its assertions. The assumptions
+    replayed as Z3 does with its default of scoped declarations: a
+    declaration made inside a popped scope is gone with its assertions,
+    reset-assertions removes every assertion but keeps the declarations and
+    the open scopes (cmd_context::reset_assertions), and reset clears
+    everything. The assumptions
     of a query are part of its snapshot, so the certified theorem is that
     the assertions in scope together with the assumptions are contradictory.
     With query None the script must have at most one query; a script
@@ -290,12 +296,15 @@ def query_snapshot(source, query=None):
         elif name == "reset":
             if tokens != ["(", name, ")"]:
                 raise ProofExportError("reset must have no arguments")
-            scopes = [[]]
+            # Z3 forgets the last result too: get-model after reset fails.
+            scopes, checked, requested_proof = [[]], False, False
         elif name == "reset-assertions":
-            # Every scope is popped; the global declarations remain.
+            # As in Z3 (not SMT-LIB's "pop every scope"): the assertions go,
+            # the declarations and the scope stack stay, and a later pop
+            # still drops the declarations of its scope.
             if tokens != ["(", name, ")"]:
                 raise ProofExportError("reset-assertions must have no arguments")
-            scopes = [[entry for entry in scopes[0] if entry[0] != "assert"]]
+            scopes = [[entry for entry in scope if entry[0] != "assert"] for scope in scopes]
         elif name == "set-option":
             _check_option(tokens)
         elif name in _ASSERTION_COMMANDS:

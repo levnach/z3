@@ -64,11 +64,13 @@ with push, pop, reset, reset-assertions) names the query by its zero-based
 index (--query N, the query= argument of the Python functions), and the
 certificate records it as "query" so that the reconstructor rebuilds the
 same snapshot from the original script (proof_certificate.query_snapshot).
-push and pop take an optional count, declarations are scoped as in SMT-LIB
-and Z3's default (a constant declared inside a popped scope is gone with
-its assertions), reset-assertions keeps the global declarations, and reset
-clears everything; a script without any query is one query over its final
-state. Queries may be followed by get-proof, get-model, get-unsat-core,
+push and pop take an optional count, declarations are scoped as in Z3's
+default (a constant declared inside a popped scope is gone with its
+assertions), reset-assertions behaves as in Z3 rather than as SMT-LIB's
+"pop every scope" (it removes every assertion, keeps the declarations and
+the open scopes, and a later pop still drops its scope's declarations),
+and reset clears everything; a script without any query is one query over
+its final state. Queries may be followed by get-proof, get-model, get-unsat-core,
 get-assignment, and the script by exit. Declarations, declare-sort with
 arity 0, define-fun, set-logic, set-info, named assertions, and the
 information queries get-info, get-option, and echo are accepted. The
@@ -848,8 +850,9 @@ propositional fragment.
 Regression coverage includes chained and reversed substitutions, incremental
 assertions, push/pop, query assumptions, context translation, and tracked
 assertions with single or multiple labels. These are checked against explicit
-snapshots of their original active constraints; the exporter still rejects
-incremental SMT-LIB scripts and check-sat-assuming.
+snapshots of their original active constraints; the exporter certifies one
+query of an incremental SMT-LIB script at a time, with the query's
+assumptions as hypotheses (see "Input scope").
 
 Preprocessing-only refutations still need checked evidence connecting them to
 the original assertions. Conversely, a clausal proof after search only proves
