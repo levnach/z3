@@ -783,6 +783,28 @@ class TestUninterpretedValidation(unittest.TestCase):
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "invalid def-axiom clause"):
             proof_to_lean.reconstruct(source, tampered)
 
+    def test_ite_gates_with_negated_conditions_split_on_the_negand(self):
+        # The then-gate of (ite (not q) a b) arrives as q or (ite (not q) a b) = a:
+        # the lemma splits on q, proves the condition (not q) in the Not q case
+        # and its negation from q by lifting, never eliminating a double negation.
+        source = UF_INPUTS["uf_negated_ite_condition"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        text = proof_to_lean.reconstruct(source, certificate)
+        gates = [node for node in range(len(graph.nodes)) if graph.kind(node) == z3.Z3_OP_PR_DEF_AXIOM
+                 and any(graph.kind(lit) == z3.Z3_OP_EQ for lit in graph.clause(graph.conclusion(node)))]
+        self.assertGreaterEqual(len(gates), 4)
+        self.assertIn("(ite_eq_left _hnc)", text)
+        self.assertIn("(ite_eq_right (fun _n0 => _n0 _hc))", text)
+        self.assertNotIn("(ite_eq_left _hc)", text)  # every condition of the input is a negation
+        for gate in gates:
+            header = text.split("private theorem def_axiom_%d " % gate, 1)[1].split(":=", 1)[0]
+            witnesses = [int(part.split(" ", 1)[0]) for part in header.split("[_df")[1:]]
+            self.assertEqual(len(witnesses), 1, header)
+            self.assertNotEqual(graph.kind(witnesses[0]), z3.Z3_OP_NOT)
+        self.assertNotIn("sorry", text)
+        self.assertNotIn("axiom ", text)
+
     def test_alldiff_clauses_simplified_under_a_unit_get_a_cnf_lemma(self):
         source = UF_INPUTS["uf_ite_alldiff"]
         certificate = proof_certificate.export_clause_log_certificate(source)
