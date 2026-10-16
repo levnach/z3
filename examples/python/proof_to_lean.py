@@ -91,8 +91,12 @@ _OUTLINE_PROOF_STEPS = 500
 _OUTLINE_CHUNK_STEPS = 500
 _NORMALIZED_REWRITE_ATOMS = 16
 # Propagation steps and atom splits a propositional rewrite's direct proof may
-# take before the truth table is used instead (see _PropositionalProver).
+# take, and characters its typed `have` steps may render, before the truth
+# table is used instead (see _PropositionalProver). A term of one million
+# characters checks in a few seconds; a parity rewrite over seven atoms
+# renders 2.8 MB and exceeds Lean's heartbeat limit.
 _STRUCTURAL_REWRITE_STEPS = 20000
+_STRUCTURAL_REWRITE_CHARS = 1000000
 _RESERVED_SORTS = ("Bool", "Real", "Int", "Proof")
 # The uninterpreted sorts are one type variable; constants, functions, and
 # predicates are indexed families over argument lists, so one signature serves
@@ -1318,7 +1322,7 @@ def _real_atom_key(graph, atom):
     return ("ite", condition_key, _real_argument_key(graph, then_branch), _real_argument_key(graph, else_branch))
 
 
-def _boolean_structure(graph, node, atom_indices):
+def _boolean_structure(graph, node, atom_indices, memo=None):
     """Return the propositional structure of a Boolean node over the atoms, as Lean reads it.
 
     The structure is a nested tuple: ("atom", index), ("true",), ("false",),
@@ -1326,12 +1330,25 @@ def _boolean_structure(graph, node, atom_indices):
     ("iff", a, b). xor, Boolean ite, distinct, and conjunctions or
     disjunctions of fewer than two arguments are expanded exactly as
     _formula_body renders them, so a proof term built over the structure
-    type-checks against the unfolded definitions.
+    type-checks against the unfolded definitions. A node shared by several
+    parents is read once (memo); its structure object is shared, but the
+    structure is still a tree, so hashing and rendering it expand the
+    sharing.
     """
+    memo = {} if memo is None else memo
+    if node in memo:
+        return memo[node]
     kind, arguments = graph.kind(node), graph.arguments(node)
     if kind == z3.Z3_OP_UNINTERPRETED and not arguments:
-        return ("atom", atom_indices[graph.nodes[node].declaration])
-    children = [_boolean_structure(graph, argument, atom_indices) for argument in arguments]
+        structure = ("atom", atom_indices[graph.nodes[node].declaration])
+    else:
+        children = [_boolean_structure(graph, argument, atom_indices, memo) for argument in arguments]
+        structure = _boolean_connective(kind, children)
+    memo[node] = structure
+    return structure
+
+
+def _boolean_connective(kind, children):
     if kind == z3.Z3_OP_TRUE:
         return ("true",)
     if kind == z3.Z3_OP_FALSE:
@@ -1413,7 +1430,9 @@ class _PropositionalProver:
     the term needs no decidability instance for a compound formula, and only
     the atoms whose decidability it uses become instance parameters of the
     lemma. The term is free of axioms. A direction not settled within
-    _STRUCTURAL_REWRITE_STEPS, or whose splits reach a satisfying assignment
+    _STRUCTURAL_REWRITE_STEPS steps or _STRUCTURAL_REWRITE_CHARS rendered
+    characters (each `have` states its full proposition, so a term can be
+    large after few steps), or whose splits reach a satisfying assignment
     (the equivalence does not hold), returns None and the caller falls back
     to the truth table; Lean checks the term as it checks any other, so a
     wrong term is rejected, never trusted.
@@ -1422,8 +1441,10 @@ class _PropositionalProver:
     def __init__(self, left, right):
         self.parents = {}
         self.needed = set()
+        self.names = set()
         self.fresh = 0
         self.steps = 0
+        self.chars = 0
         for root in (left, right):
             self._index(root)
         self.constants = [(structure, structure[0] == "true", "True.intro" if structure[0] == "true"
@@ -1440,7 +1461,11 @@ class _PropositionalProver:
 
     def _name(self):
         self.fresh += 1
+        self.names.add("_f%d" % self.fresh)
         return "_f%d" % self.fresh
+
+    def _exhausted(self):
+        return self.steps > _STRUCTURAL_REWRITE_STEPS or self.chars > _STRUCTURAL_REWRITE_CHARS
 
     def equivalence(self, left, right):
         forward = self.implication(left, right)
@@ -1472,7 +1497,7 @@ class _PropositionalProver:
         atoms = sorted((-len(self.parents[atom]), atom[1]) for atom in self.parents
                        if atom[0] == "atom" and atom not in state)
         self.steps += 1
-        if not atoms or self.steps > _STRUCTURAL_REWRITE_STEPS:
+        if not atoms or self._exhausted():
             return None  # every atom assigned without the target holding: the equivalence does not hold
         atom = ("atom", atoms[0][1])
         self.needed.add(atom[1])
@@ -1489,18 +1514,27 @@ class _PropositionalProver:
     def _block(lines, body):
         return "(%s %s)" % (" ".join(lines), body) if lines else body
 
-    def _assign(self, state, lines, pending, structure, truth, proof):
-        """Record a truth value with its proof; return a proof of False if it contradicts the state."""
+    def _assign(self, state, lines, pending, structure, truth, proof, decides=None):
+        """Record a truth value with its proof; return a proof of False if it contradicts the state.
+
+        A value already recorded with the same truth is left alone and its
+        proof is dropped; `decides` names the atom whose decidability the
+        proof uses, recorded as needed only when the proof is kept.
+        """
+        if structure in state and state[structure][0] == truth:
+            return None
+        if decides is not None:
+            self.needed.add(decides)
         if structure in state:
-            if state[structure][0] == truth:
-                return None
             positive, negative = (proof, state[structure][1]) if truth else (state[structure][1], proof)
             return "(%s %s)" % (negative, positive)
         self.steps += 1
-        if not re.fullmatch(r"_f\d+", proof):
+        if proof not in self.names:  # a bare hypothesis or `have` name is reused, not restated
             name = self._name()
             rendered = _render_structure(structure)
-            lines.append("have %s : %s := %s;" % (name, rendered if truth else "(Not %s)" % rendered, proof))
+            line = "have %s : %s := %s;" % (name, rendered if truth else "(Not %s)" % rendered, proof)
+            self.chars += len(line)
+            lines.append(line)
             proof = name
         state[structure] = (truth, proof)
         pending.append(structure)
@@ -1509,17 +1543,21 @@ class _PropositionalProver:
 
     def _propagate(self, state, lines, pending):
         while pending:
-            if self.steps > _STRUCTURAL_REWRITE_STEPS:
+            if self._exhausted():
                 return None
             structure = pending.pop()
-            for target, truth, proof in self._consequences(state, structure):
-                conflict = self._assign(state, lines, pending, target, truth, proof)
+            for target, truth, proof, decides in self._consequences(state, structure):
+                conflict = self._assign(state, lines, pending, target, truth, proof, decides)
                 if conflict is not None:
                     return conflict
         return None
 
     def _consequences(self, state, structure):
-        """The truth values one gate determines from its own value and its operands' values."""
+        """The truth values one gate determines from its own value and its operands' values.
+
+        Each consequence is (structure, truth, proof, decides) where decides
+        is the atom whose Decidable instance the proof uses, or None.
+        """
         kind = structure[0]
         children = _structure_children(structure)
         value = state.get(structure)
@@ -1528,111 +1566,113 @@ class _PropositionalProver:
         proofs = [None if v is None else v[1] for v in values]
         count = len(children)
         out = []
+
+        def add(target, truth, proof, decides=None):
+            out.append((target, truth, proof, decides))
+
         if kind == "not":
             (child,), (truth,), (proof,) = children, truths, proofs
             if value is not None:
                 if value[0]:
-                    out.append((child, False, value[1]))
+                    add(child, False, value[1])
                 elif child[0] == "atom":
-                    self.needed.add(child[1])
-                    out.append((child, True, "(Decidable.byContradiction (fun _g => %s _g))" % value[1]))
+                    add(child, True, "(Decidable.byContradiction (fun _g => %s _g))" % value[1], child[1])
             if truth is True:
-                out.append((structure, False, "(fun _g => _g %s)" % proof))
+                add(structure, False, "(fun _g => _g %s)" % proof)
             elif truth is False:
-                out.append((structure, True, proof))
+                add(structure, True, proof)
         elif kind == "and":
             if value is not None and value[0]:
-                out.extend((child, True, _project(i, count, value[1])) for i, child in enumerate(children))
+                for i, child in enumerate(children):
+                    add(child, True, _project(i, count, value[1]))
             if value is not None and not value[0] and truths.count(None) == 1 and False not in truths:
                 position = truths.index(None)
                 parts = ["_g" if i == position else proof for i, proof in enumerate(proofs)]
-                out.append((children[position], False,
-                            "(fun _g => %s %s)" % (value[1], _fold("And.intro", parts, "True.intro"))))
+                add(children[position], False,
+                    "(fun _g => %s %s)" % (value[1], _fold("And.intro", parts, "True.intro")))
             if False in truths:
                 position = truths.index(False)
-                out.append((structure, False,
-                            "(fun _g => %s %s)" % (proofs[position], _project(position, count, "_g"))))
+                add(structure, False,
+                    "(fun _g => %s %s)" % (proofs[position], _project(position, count, "_g")))
             elif None not in truths:
-                out.append((structure, True, _fold("And.intro", proofs, "True.intro")))
+                add(structure, True, _fold("And.intro", proofs, "True.intro"))
         elif kind == "or":
             if value is not None and not value[0]:
-                out.extend((child, False, "(fun _g => %s %s)" % (value[1], _inject(i, count, "_g")))
-                           for i, child in enumerate(children))
+                for i, child in enumerate(children):
+                    add(child, False, "(fun _g => %s %s)" % (value[1], _inject(i, count, "_g")))
             if value is not None and value[0] and truths.count(None) == 1 and True not in truths:
                 position = truths.index(None)
                 handlers = ["(fun _g => _g)" if i == position else "(fun _g => absurd _g %s)" % proof
                             for i, proof in enumerate(proofs)]
-                out.append((children[position], True, _eliminate_or(value[1], handlers)))
+                add(children[position], True, _eliminate_or(value[1], handlers))
             if True in truths:
                 position = truths.index(True)
-                out.append((structure, True, _inject(position, count, proofs[position])))
+                add(structure, True, _inject(position, count, proofs[position]))
             elif None not in truths:
-                out.append((structure, False, "(fun _g => %s)" % _eliminate_or("_g", proofs)))
+                add(structure, False, "(fun _g => %s)" % _eliminate_or("_g", proofs))
         elif kind == "implies":
             (antecedent, consequent), (truth_a, truth_b), (proof_a, proof_b) = children, truths, proofs
             if antecedent == consequent:
-                out.append((structure, True, "(fun _g => _g)"))
+                add(structure, True, "(fun _g => _g)")
             if value is not None and value[0]:
                 if truth_a is True:
-                    out.append((consequent, True, "(%s %s)" % (value[1], proof_a)))
+                    add(consequent, True, "(%s %s)" % (value[1], proof_a))
                 if truth_b is False:
-                    out.append((antecedent, False, "(fun _g => %s (%s _g))" % (proof_b, value[1])))
+                    add(antecedent, False, "(fun _g => %s (%s _g))" % (proof_b, value[1]))
             if value is not None and not value[0]:
-                out.append((consequent, False, "(fun _g => %s (fun _ => _g))" % value[1]))
+                add(consequent, False, "(fun _g => %s (fun _ => _g))" % value[1])
                 if antecedent[0] == "atom":
-                    self.needed.add(antecedent[1])
-                    out.append((antecedent, True, "(Decidable.byContradiction (fun _g => %s (fun _h => absurd _h _g)))"
-                                % value[1]))
+                    add(antecedent, True, "(Decidable.byContradiction (fun _g => %s (fun _h => absurd _h _g)))"
+                        % value[1], antecedent[1])
             if truth_a is False:
-                out.append((structure, True, "(fun _g => absurd _g %s)" % proof_a))
+                add(structure, True, "(fun _g => absurd _g %s)" % proof_a)
             elif truth_b is True:
-                out.append((structure, True, "(fun _ => %s)" % proof_b))
+                add(structure, True, "(fun _ => %s)" % proof_b)
             elif truth_a is True and truth_b is False:
-                out.append((structure, False, "(fun _g => %s (_g %s))" % (proof_b, proof_a)))
+                add(structure, False, "(fun _g => %s (_g %s))" % (proof_b, proof_a))
         elif kind == "iff":
             (left, right), (truth_a, truth_b), (proof_a, proof_b) = children, truths, proofs
             if left == right:
-                out.append((structure, True, "Iff.rfl"))
+                add(structure, True, "Iff.rfl")
             if value is not None and value[0]:
                 if truth_a is True:
-                    out.append((right, True, "(Iff.mp %s %s)" % (value[1], proof_a)))
+                    add(right, True, "(Iff.mp %s %s)" % (value[1], proof_a))
                 elif truth_a is False:
-                    out.append((right, False, "(fun _g => %s (Iff.mpr %s _g))" % (proof_a, value[1])))
+                    add(right, False, "(fun _g => %s (Iff.mpr %s _g))" % (proof_a, value[1]))
                 if truth_b is True:
-                    out.append((left, True, "(Iff.mpr %s %s)" % (value[1], proof_b)))
+                    add(left, True, "(Iff.mpr %s %s)" % (value[1], proof_b))
                 elif truth_b is False:
-                    out.append((left, False, "(fun _g => %s (Iff.mp %s _g))" % (proof_b, value[1])))
+                    add(left, False, "(fun _g => %s (Iff.mp %s _g))" % (proof_b, value[1]))
             if value is not None and not value[0]:
                 if truth_a is True:
-                    out.append((right, False, "(fun _g => %s (Iff.intro (fun _ => _g) (fun _ => %s)))"
-                                % (value[1], proof_a)))
+                    add(right, False, "(fun _g => %s (Iff.intro (fun _ => _g) (fun _ => %s)))"
+                        % (value[1], proof_a))
                 elif truth_a is False and right[0] == "atom":
-                    self.needed.add(right[1])
-                    out.append((right, True, "(Decidable.byContradiction (fun _g => %s (Iff.intro "
-                                "(fun _h => absurd _h %s) (fun _h => absurd _h _g))))" % (value[1], proof_a)))
+                    add(right, True, "(Decidable.byContradiction (fun _g => %s (Iff.intro "
+                        "(fun _h => absurd _h %s) (fun _h => absurd _h _g))))" % (value[1], proof_a), right[1])
                 if truth_b is True:
-                    out.append((left, False, "(fun _g => %s (Iff.intro (fun _ => %s) (fun _ => _g)))"
-                                % (value[1], proof_b)))
+                    add(left, False, "(fun _g => %s (Iff.intro (fun _ => %s) (fun _ => _g)))"
+                        % (value[1], proof_b))
                 elif truth_b is False and left[0] == "atom":
-                    self.needed.add(left[1])
-                    out.append((left, True, "(Decidable.byContradiction (fun _g => %s (Iff.intro "
-                                "(fun _h => absurd _h _g) (fun _h => absurd _h %s))))" % (value[1], proof_b)))
+                    add(left, True, "(Decidable.byContradiction (fun _g => %s (Iff.intro "
+                        "(fun _h => absurd _h _g) (fun _h => absurd _h %s))))" % (value[1], proof_b), left[1])
             if truth_a is not None and truth_b is not None:
                 if truth_a and truth_b:
-                    out.append((structure, True, "(Iff.intro (fun _ => %s) (fun _ => %s))" % (proof_b, proof_a)))
+                    add(structure, True, "(Iff.intro (fun _ => %s) (fun _ => %s))" % (proof_b, proof_a))
                 elif not truth_a and not truth_b:
-                    out.append((structure, True, "(Iff.intro (fun _g => absurd _g %s) (fun _g => absurd _g %s))"
-                                % (proof_a, proof_b)))
+                    add(structure, True, "(Iff.intro (fun _g => absurd _g %s) (fun _g => absurd _g %s))"
+                        % (proof_a, proof_b))
                 elif truth_a:
-                    out.append((structure, False, "(fun _g => %s (Iff.mp _g %s))" % (proof_b, proof_a)))
+                    add(structure, False, "(fun _g => %s (Iff.mp _g %s))" % (proof_b, proof_a))
                 else:
-                    out.append((structure, False, "(fun _g => %s (Iff.mpr _g %s))" % (proof_a, proof_b)))
+                    add(structure, False, "(fun _g => %s (Iff.mpr _g %s))" % (proof_a, proof_b))
         return out
 
 
 def _structural_equivalence(graph, left, right, atom_indices):
     """A direct Lean term proving the Boolean equivalence of two formulas, with the atoms it needs decidable."""
-    left, right = (_boolean_structure(graph, side, atom_indices) for side in (left, right))
+    memo = {}
+    left, right = (_boolean_structure(graph, side, atom_indices, memo) for side in (left, right))
     prover = _PropositionalProver(left, right)
     return prover.equivalence(left, right), sorted(prover.needed)
 

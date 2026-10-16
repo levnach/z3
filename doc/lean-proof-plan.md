@@ -1151,8 +1151,12 @@ side or reaches a contradiction. Double negations are cancelled by
 proposition of 24 atoms fails), so the lemma takes as parameters exactly the
 atoms whose decidability the term uses, the proof stays axiom-free, and the
 refutation keeps eliminating the witnesses constructively. The truth table is
-the fallback for an equivalence the prover cannot settle (a false one, or
-more than `_STRUCTURAL_REWRITE_STEPS` steps), and Lean rejects it as before.
+the fallback for an equivalence the prover cannot settle (a false one, more
+than `_STRUCTURAL_REWRITE_STEPS` steps, or more than
+`_STRUCTURAL_REWRITE_CHARS` rendered characters: each `have` states its full
+proposition, and a parity rewrite over seven atoms renders 2.8 MB that Lean
+rejects on heartbeats only after 25 s, whereas its truth table fails in 4 s),
+and Lean rejects it as before.
 3632 through the legacy core now checks in under a second, axiom-free, as do
 flattening, duplicate removal, de Morgan, implication chains, and
 distributivity over 24 atoms, a Boolean `distinct` over 8, and xor and ite

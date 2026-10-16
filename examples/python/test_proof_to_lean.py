@@ -725,28 +725,33 @@ class TestProofToLean(unittest.TestCase):
         # the gates plus Decidable.byContradiction and Decidable.em on atoms.
         # Cancelling a double negation needs p decidable; an implication
         # rewritten to a clause splits on p (q follows by propagation in
-        # both branches); reordering a conjunction needs nothing; the
-        # witnesses of q, r, and s, which no rewrite needs, are never
-        # introduced.
+        # both branches); reordering a conjunction needs nothing; dropping a
+        # double negation whose atom is already known from the conjunction
+        # proposes a Decidable.byContradiction step that is discarded, so
+        # that lemma needs nothing either; the witnesses of q, r, and s,
+        # which no rewrite needs, are never introduced.
         source = "".join("(declare-const %s Bool)" % atom for atom in "pqrs")
         source += "(assert (or p q r s))(assert false)"
         certificate = make_certificate(source, [
             ("rewrite", [], "(= (not (not p)) p)"),
             ("rewrite", [], "(= (=> p q) (or q (not p)))"),
             ("rewrite", [], "(= (and p q r) (and r q p))"),
+            ("rewrite", [], "(= (and p (not (not p))) p)"),
             ("asserted", [], "false"),
         ])
         text = proof_to_lean.reconstruct(source, certificate)
-        self.assertEqual(text.count("private theorem rewrite_"), 3)
-        self.assertEqual(text.count("  exact (Iff.intro (fun (_f1 : "), 3)
+        self.assertEqual(text.count("private theorem rewrite_"), 4)
+        self.assertEqual(text.count("  exact (Iff.intro (fun (_f1 : "), 4)
         self.assertNotIn("cases _d", text)
         self.assertNotIn("of_decide_eq_true", text)
         self.assertEqual(text.count("  refute_with_decidable"), 1)
         self.assertEqual(text.count("    [_d0 : Decidable (_atoms 0)]"), 2)
         self.assertEqual(text.count("Decidable.em (_atoms 0)"), 2)
+        self.assertEqual(text.count("Decidable.byContradiction"), 1)
         for atom in ("_d1", "_d2", "_d3"):
             self.assertNotIn(atom, text)
-        self.assertIn("(@rewrite_%d _atoms)" % (len(certificate["nodes"]) - 2), text)
+        for offset in (2, 3):
+            self.assertIn("(@rewrite_%d _atoms)" % (len(certificate["nodes"]) - offset), text)
         statement = text.split("theorem unsat", 1)[1].split(": False :=", 1)[0]
         self.assertNotIn("Decidable", statement)
 
@@ -755,7 +760,8 @@ class TestProofToLean(unittest.TestCase):
         # the prover reaches instead of a contradiction; the exhaustive truth
         # table over every atom is emitted (and Lean rejects it, see
         # test_lean_rejects_false_rewrites_without_publication). The same
-        # fallback applies when the prover runs out of budget on a valid one.
+        # fallback applies when the prover runs out of its step or size
+        # budget on a valid one.
         source = "(declare-const p Bool)(declare-const q Bool)(assert (or p q))(assert false)"
         certificate = make_certificate(source, [
             ("rewrite", [], "(= (or p q) (and p q))"), ("asserted", [], "false"),
@@ -772,6 +778,29 @@ class TestProofToLean(unittest.TestCase):
         with patch.object(proof_to_lean, "_STRUCTURAL_REWRITE_STEPS", 1):
             text = proof_to_lean.reconstruct(source, certificate)
         self.assertEqual((text.count("cases _d0"), text.count("cases _d1")), (1, 1))
+        # Parity (xor-chain reassociation) is settled only by splitting on
+        # every atom, and each split restates the chain's expansion, which
+        # doubles per xor: six atoms stay within the size budget (Lean checks
+        # the 700 KB term in seconds), eight would render over ten megabytes
+        # that Lean rejects on heartbeats only after minutes, so the truth
+        # table is emitted instead and fails fast.
+        for count, direct in ((6, True), (8, False)):
+            with self.subTest(atoms=count):
+                atoms = ["a%d" % index for index in range(count)]
+                left, right = atoms[0], atoms[-1]
+                for atom in atoms[1:]:
+                    left = "(xor %s %s)" % (left, atom)
+                for atom in reversed(atoms[:-1]):
+                    right = "(xor %s %s)" % (atom, right)
+                source = "".join("(declare-const %s Bool)" % atom for atom in atoms)
+                source += "(assert (or %s))(assert false)" % " ".join(atoms)
+                certificate = make_certificate(source, [
+                    ("rewrite", [], "(= %s %s)" % (left, right)), ("asserted", [], "false"),
+                ])
+                text = proof_to_lean.reconstruct(source, certificate)
+                self.assertEqual("exact (Iff.intro" in text, direct)
+                self.assertEqual(text.count("cases _d"), 0 if direct else count)
+                self.assertLess(len(text), 2 * proof_to_lean._STRUCTURAL_REWRITE_CHARS)
 
     def test_boolean_structures_expand_as_the_lean_rendering_does(self):
         # xor, Boolean ite, distinct, and and/or of fewer than two arguments
