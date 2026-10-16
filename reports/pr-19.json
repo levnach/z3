@@ -1,0 +1,10 @@
+{
+  "number": 19,
+  "title": "Certify constant arithmetic hints and negated ite gates in Lean",
+  "pr_url": "https://github.com/levnach/z3/pull/19",
+  "page": "https://levnach.github.io/z3/reports/pr-19.html",
+  "merge_sha": "46094ad4d1143723152f45cf87f26372dfddf040",
+  "date": "2026-10-16T13:22:09Z",
+  "iteration": 19,
+  "summary": "Certify Real division hints containing redundant true literals and normalized gates of negated if-then-else conditions without weakening Lean verification."
+}

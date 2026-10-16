@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Certify constant arithmetic hints and negated ite gates in Lean</title>
+<style>
+:root { color-scheme: light dark; --border: #c5cbd3; --panel: #f4f6f8; }
+body { font: 17px/1.6 system-ui,sans-serif; max-width: 58rem; margin: 2rem auto; padding: 0 1rem; }
+h1,h2 { line-height: 1.2; } a { color: #1262ad; }
+pre { background: var(--panel); padding: 1rem; overflow: auto; font-size: .85rem; }
+code { font-size: .9em; } table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th,td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; }
+dt { font-weight: 650; } dd { margin: 0 0 .7rem 1rem; }
+@media (prefers-color-scheme: dark) {
+  :root { --border: #4d5662; --panel: #222830; } a { color: #81baff; }
+}
+</style>
+</head>
+<body>
+<header>
+<h1>Certify constant arithmetic hints and negated ite gates in Lean</h1>
+<p><a href="https://github.com/levnach/z3/pull/19">Pull request #19</a> &middot; iteration 19 &middot; merged 2026-10-16 at 13:22 UTC</p>
+<p>Commit <a href="https://github.com/levnach/z3/commit/46094ad4d1143723152f45cf87f26372dfddf040"><code>46094ad4d1143</code></a></p>
+</header>
+<section>
+<h2>In one paragraph</h2>
+<p>Real division <a href="#g-axiom">axioms</a> now survive export when their
+<a href="#g-hint">hints</a> contain a redundant true <a href="#g-literal">literal</a>.
+<a href="#g-gate">Gate clauses</a> also work when an if-then-else condition
+contains <a href="#g-negation">negation</a> and Z3 simplifies its guard.
+The resulting <a href="#g-refutation">refutations</a> still require checked
+proofs for every recorded inference. No new trusted assumptions are introduced.</p>
+</section>
+<section>
+<h2>Background</h2>
+<p>The pipeline already supported linear real arithmetic and
+<a href="#g-function">uninterpreted functions</a> through both proof cores.
+Larger random examples exposed valid native shapes that the adapter rejected.
+Even an inference unnecessary for the final contradiction can appear in a
+certificate and must pass validation. This change closes those completeness
+gaps without adding another theory fragment.</p>
+</section>
+<section>
+<h2>What changed</h2>
+<ul>
+<li>Real division hints retain their meaningful arithmetic evidence after redundant true literals are removed.</li>
+<li>Removing a weighted literal also removes its matching <a href="#g-coefficient">coefficient</a>, keeping the remaining pairs aligned.</li>
+<li>Negated conditions are proved by splitting on their innermost proposition and introducing the required negations.</li>
+<li>Nested conditions and reversed guards now have dedicated positive and negative regressions.</li>
+</ul>
+<table><thead><tr><th>File</th><th>Added</th><th>Removed</th></tr></thead><tbody>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>29</td><td>0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>10</td><td>3</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>10</td><td>0</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>65</td><td>30</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>68</td><td>2</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>26</td><td>0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>1</td><td>1</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>67</td><td>0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td>17</td><td>0</td></tr>
+</tbody></table>
+</section>
+<section>
+<h2>Worked example</h2>
+<p>This input is deliberately small. Its ground division term causes the
+native arithmetic solver to log a division axiom, despite the immediate
+contradiction in the first assertion.</p>
+<pre><code>(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const z Real)
+(assert (&lt; x x))
+(assert (or (&lt; y z) (&lt; (/ 1.0 2.0) 3.0)))
+(check-sat)</code></pre>
+<h3>Before</h3>
+<p>The pre-change scripts were extracted from the merge parent and run on
+this exact input. The exporter exited with status 2:</p>
+<pre><code>proof_certificate.py: error: hint literal is not an arithmetic atom</code></pre>
+<h3>After</h3>
+<p>The current exporter succeeds. These excerpts come from its generated
+Lean file, which passed the pinned checker. Ellipses mark omitted definitions
+and proof steps.</p>
+<pre><code>def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
+def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((2 : Rat))
+def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat :=
+  ((term_5 _atoms _vars) / (term_6 _atoms _vars))
+...
+private theorem th_lemma_20 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_19 _atoms _vars) := by
+  unfold formula_19 term_18 term_7 term_6 term_5
+  grind (splits := 64)</code></pre>
+<p>The lemma checks the division identity itself, rather than trusting its native hint.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_1 _atoms _vars))
+    (_h1 : (formula_10 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p>The final theorem still takes the original assertions as its hypotheses.</p>
+</section>
+<section>
+<h2>How it was verified</h2>
+<p>Every saved stress failure passed after the repair. The full local gate
+also passed, along with the native build and unit suite. This Python and
+documentation change used the established local gate instead of waiting
+for GitHub CI. <a href="https://github.com/levnach/z3/actions">GitHub CI</a>
+still runs on master after the merge. There were no CI-fixer rounds.</p>
+<table><thead><tr><th>Check</th><th>Result</th><th>Time</th></tr></thead><tbody>
+<tr><td>Exporter tests</td><td>78 passed</td><td>2 s</td></tr>
+<tr><td>Lean reconstruction tests</td><td>252 passed</td><td>609 s</td></tr>
+<tr><td>Proof-script tests</td><td>46 passed</td><td>16 s</td></tr>
+<tr><td>Boolean matrix, legacy core</td><td>6/6 verified</td><td>5 s</td></tr>
+<tr><td>Real arithmetic matrix, clause-log core</td><td>8/8 verified</td><td>6 s</td></tr>
+<tr><td>Saved stress regressions</td><td>15/15 verified</td><td>Recorded individually</td></tr>
+<tr><td>Native unit suite</td><td>115 passed</td><td>1.2 s</td></tr>
+</tbody></table>
+<p>The Lean project, basic solver invocation, built Python bindings, and help
+command passed as well. No C++ implementation changed.</p>
+</section>
+<section>
+<h2>Review</h2>
+<p>The interrupted tests referenced a missing fixture. Completing it exposed
+another test issue: the gate selector included ordinary equality tautologies.
+Those clauses legitimately need different proof witnesses. Restricting the
+selector fixed the assertion without weakening the existing congruence tests.
+Reversed-guard rejection and nested-condition checks were added before approval.
+No review findings remain open.</p>
+</section>
+<section>
+<h2>Risks and open questions</h2>
+<p>Only logical true is removed from contradictory hint sets. Otherwise-empty
+arithmetic hints remain errors. Gate proofs introduce negations constructively.
+Unsupported shapes still fail explicitly, and failed checking never publishes
+a certified proof.</p>
+<h2>What comes next</h2>
+<p>A separately reproduced native arithmetic-checker strictness issue belongs
+in the next iteration. It is independent of this adapter repair and of Lean's
+proof obligations.</p>
+</section>
+<section>
+<h2>Glossary</h2>
+<dl>
+<dt id="g-axiom">Axiom</dt><dd>A rule of the input theory whose instance must still be justified in the reconstructed proof.</dd>
+<dt id="g-coefficient">Coefficient</dt><dd>A multiplier attached to an arithmetic premise, such as the 2 in twice an inequality.</dd>
+<dt id="g-gate">Gate clause</dt><dd>A clause connecting a compound expression to its parts, such as an if-then-else term and its selected branch.</dd>
+<dt id="g-hint">Hint</dt><dd>Native evidence suggesting how an inference can be checked, not permission to trust the inference.</dd>
+<dt id="g-literal">Literal</dt><dd>An atomic proposition or its negation, including the Boolean constants.</dd>
+<dt id="g-negation">Negation</dt><dd>The logical operation saying that a proposition does not hold.</dd>
+<dt id="g-refutation">Refutation</dt><dd>A proof deriving contradiction from the input assertions.</dd>
+<dt id="g-function">Uninterpreted function</dt><dd>A function constrained by the input and by equal arguments having equal results.</dd>
+</dl>
+</section>
+<footer><p>Generated by the Lean certificate improvement loop with GitHub Copilot, 2026-10-16.</p></footer>
+</body>
+</html>
