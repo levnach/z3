@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #17: Certify one query of an incremental SMT-LIB script</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1d1d1f;
+    --muted: #5b5b60;
+    --accent: #0b5cad;
+    --border: #d9d9de;
+    --code-bg: #f4f4f6;
+    --pass: #1c7c3c;
+    --warn: #a15c00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141417;
+      --fg: #e8e8ec;
+      --muted: #a4a4ad;
+      --accent: #7fb4ee;
+      --border: #3a3a42;
+      --code-bg: #1f1f25;
+      --pass: #6fcf8a;
+      --warn: #f0b35a;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
+  }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta span { display: inline-block; margin-right: 1.25rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; background: var(--code-bg); padding: 0.08em 0.3em; border-radius: 3px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 0.9rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.86rem; }
+  table { border-collapse: collapse; margin: 0.75rem 0 1.25rem; width: 100%; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .pass { color: var(--pass); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.92rem; margin-top: -0.4rem; }
+  dl dt { font-weight: 600; margin-top: 0.7rem; }
+  dl dd { margin-left: 0; margin-top: 0.1rem; }
+  footer { margin-top: 3rem; padding-top: 0.75rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  li { margin-bottom: 0.35rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify one query of an incremental SMT-LIB script</h1>
+  <p class="meta">
+    <span>Pull request: <a href="https://github.com/levnach/z3/pull/17">levnach/z3 #17</a></span>
+    <span>Merge commit: <a href="https://github.com/levnach/z3/commit/5126563b0342f38fafeb6881c066369f18dc2e93"><code>5126563b</code></a></span>
+    <span>Merged: 2026-10-16T08:31:35Z</span>
+    <span>Loop iteration: 17</span>
+  </p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+Before this change, the <a href="#g-exporter">exporter</a> accepted an SMT-LIB script with exactly one
+<a href="#g-check-sat-query">check-sat query</a> and nothing after it. It rejected <code>push</code>, <code>pop</code>,
+<code>reset</code>, <code>reset-assertions</code>, <code>check-sat-assuming</code>, and any second query.
+Now it certifies one query of an <a href="#g-incremental-script">incremental script</a> at a time.
+It replays the script's <a href="#g-scope">scopes</a>, collects the <a href="#g-assertion">assertions</a> in scope
+at the chosen query, and appends the query's <a href="#g-assumption">assumptions</a> as further assertions.
+That <a href="#g-snapshot">snapshot</a> is solved on its own, and the <a href="#g-certificate">certificate</a> records
+which query it is about. The <a href="#g-reconstructor">reconstructor</a> rebuilds the same snapshot from the
+original script, so nothing about it is taken from the certificate.
+The <a href="#g-theorem">theorem</a> Lean checks says that the assertions in scope at that query, together with its
+assumptions, are contradictory. Each of them becomes one <a href="#g-hypothesis">hypothesis</a>.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+The pipeline already certified <a href="#g-propositional">propositional</a> input,
+<a href="#g-uninterpreted-function">uninterpreted functions</a> with equality, and linear real and integer
+arithmetic, through either the <a href="#g-legacy-proof-object">legacy proof object</a> or the
+<a href="#g-clause-log">clause log</a>. But its frontend only understood one non-incremental query.
+The backlog has listed incremental input since iteration 15, under the open question of which snapshot a
+certificate should describe. This PR answers that question and serves milestone 3 of the plan, which completes
+each fragment end to end. It is also a first step toward the milestone 4 goal of preserving exact incremental and
+assumption contexts.
+</p>
+<table>
+  <tr><th>Scan of the z3test regression corpus</th><th class="num">Files</th></tr>
+  <tr><td>SMT-LIB regression scripts scanned</td><td class="num">951</td></tr>
+  <tr><td>Incremental scripts (push/pop 60, reset 110, check-sat-assuming 2)</td><td class="num">175</td></tr>
+  <tr><td>Files with several queries or scope commands, scanned query by query</td><td class="num">264</td></tr>
+  <tr><td>Files with at least one exportable unsat query, all now certified</td><td class="num">6</td></tr>
+</table>
+
+<h2 id="what-changed">What changed</h2>
+<p>
+A short analogy for scopes: think of a stack of transparent sheets laid over a drawing. <code>push</code> adds a
+sheet, and <code>pop</code> removes the top sheet with everything drawn on it. A certificate is now a photo of the
+stack at one moment, namely at the chosen query.
+</p>
+<ul>
+  <li><strong>Pick a query.</strong> You can certify a script with <code>push</code>, <code>pop</code>, and several
+    check-sat queries by naming one query with its zero-based index through the <code>--query</code> flag.</li>
+  <li><strong>Assumptions count.</strong> The assumptions of <code>check-sat-assuming</code>, and of Z3's
+    <code>check-sat</code> with literal arguments, become hypotheses of the theorem.</li>
+  <li><strong>Z3's reset semantics.</strong> <code>reset-assertions</code> removes every assertion but keeps the
+    declarations and the open scopes, exactly as Z3 does, and <code>reset</code> clears everything.</li>
+  <li><strong>Safer certificates.</strong> The certificate carries format version 2 and the query index. The
+    reconstructor rejects version 1 certificates and any certificate pointed at a query whose assertions differ.</li>
+  <li><strong>Real corpus files.</strong> Five z3test regression scripts (<code>incsat</code>, <code>t143</code>,
+    <code>3632</code>, <code>3732</code>, <code>unsatcore</code>) are now certified verbatim in Lean, two of them at
+    both of their queries.</li>
+</ul>
+<table>
+  <tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr>
+  <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter: scope replay, query index, assumptions</td><td class="num">163</td><td class="num">34</td></tr>
+  <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: version 2 header, snapshot rebinding</td><td class="num">21</td><td class="num">4</td></tr>
+  <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests</td><td class="num">155</td><td class="num">22</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>Reconstructor tests, five corpus inputs</td><td class="num">147</td><td class="num">6</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td>Lean tests, legacy proof object</td><td class="num">21</td><td class="num">2</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Lean tests, integer arithmetic with functions</td><td class="num">19</td><td class="num">2</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Lean tests, uninterpreted functions</td><td class="num">14</td><td class="num">2</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Lean tests, clause log</td><td class="num">13</td><td class="num">0</td></tr>
+  <tr><td><code>examples/python/README</code></td><td>Documentation</td><td class="num">37</td><td class="num">10</td></tr>
+  <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note dated 2026-10-16</td><td class="num">25</td><td class="num">13</td></tr>
+  <tr><th>Total, 10 files</th><th></th><th class="num">615</th><th class="num">95</th></tr>
+</table>
+<p class="note">Per-file added and removed counts are read from the merge commit's diff statistics. No C++, Lean, or script files changed.</p>
+
+<h2 id="worked-example">Worked example</h2>
+<p>
+This input was built from the <code>incsat</code> test added by the PR. It has three queries. The first is
+satisfiable, the second is unsatisfiable, and the third is satisfiable again because the <code>pop</code> removed
+the two negative assertions. We certify the second query, which has index 1.
+</p>
+<h3>(a) The input</h3>
+<pre><code>(declare-const p Bool)
+(declare-const q Bool)
+(assert (or p q))
+(check-sat)
+(push)
+(assert (not p))
+(assert (not q))
+(check-sat)
+(pop)
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The exporter from the parent of the merge commit stopped at the first scope command.</p>
+<pre><code>proof_certificate.py: error: unsupported SMT-LIB command: push</code></pre>
+<p>Removing <code>push</code> and <code>pop</code> did not help, because a second query was rejected as well.</p>
+<pre><code>proof_certificate.py: error: commands changing the problem after check-sat are not supported</code></pre>
+<p>Since no certificate was produced, the old reconstructor had nothing to run on.</p>
+
+<h3>(c) After</h3>
+<p>
+The exporter was run with <code>--query 1</code>. The certificate records <code>"format_version": 2</code> and
+<code>"query": 1</code>. The reconstructor wrote the Lean file below, and the Lean check accepted it with
+"Lean checks passed."
+</p>
+<pre><code>-- Certified query: check-sat 2 of 3 (zero-based index 1); the assertions below are the ones in scope there, assumptions included.
+-- Atom 0: "p"
+-- Atom 1: "q"
+...</code></pre>
+<p>The header names the certified query so a reader knows which snapshot the theorem is about.</p>
+<pre><code>def formula_0 (_atoms : Nat -> Prop) : Prop := _atoms 0
+def formula_1 (_atoms : Nat -> Prop) : Prop := _atoms 1
+def formula_2 (_atoms : Nat -> Prop) : Prop := (Or (formula_0 _atoms) (formula_1 _atoms))
+def formula_3 (_atoms : Nat -> Prop) : Prop := (Not (formula_0 _atoms))
+def formula_4 (_atoms : Nat -> Prop) : Prop := (Not (formula_1 _atoms))
+...</code></pre>
+<p>These definitions name the two atoms and the three assertions in scope at the second query.</p>
+<pre><code>theorem unsat (_atoms : Nat -> Prop)
+    (_h0 : (formula_2 _atoms))
+    (_h1 : (formula_3 _atoms))
+    (_h2 : (formula_4 _atoms))
+    : False :=
+  ...
+  let _step_9 : (formula_8 _atoms) :=
+    (Or.elim _step_5 (fun _literal => (False.elim (_step_7 _literal))) (fun _tail => (False.elim (_step_6 _tail))))
+  _step_9</code></pre>
+<p>
+The theorem takes exactly the three assertions in scope as hypotheses, not the two popped ones, and derives
+<code>False</code> by case analysis on the disjunction.
+</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+This PR touched only documentation and the Python examples, so the loop merged it on its local gate instead of
+waiting for GitHub CI. The gate mirrors the steps of the Ubuntu release build job that exercise this work, run on
+the loop machine against the current release build. Every step passed. All the Boolean and linear real arithmetic
+regression inputs were certified in Lean. GitHub CI still runs on <code>master</code> after the merge; see
+<a href="https://github.com/levnach/z3/actions">the Actions page</a>. There were no CI fix rounds and no failures
+to judge unrelated.
+</p>
+<table>
+  <tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr>
+  <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">2 s</td></tr>
+  <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">592 s</td></tr>
+  <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+  <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+  <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
+</table>
+<table>
+  <tr><th>Test suite</th><th class="num">Tests now</th><th class="num">Tests before</th></tr>
+  <tr><td>Certificate exporter unit tests</td><td class="num">77</td><td class="num">75</td></tr>
+  <tr><td>Lean reconstruction tests, including real Lean runs</td><td class="num">244</td><td class="num">239</td></tr>
+  <tr><td>z3test proof script tests</td><td class="num">46</td><td class="num">46</td></tr>
+  <tr><td>Boolean matrix inputs certified in Lean</td><td class="num">6 of 6</td><td class="num">6 of 6</td></tr>
+  <tr><td>QF_LRA matrix inputs certified in Lean</td><td class="num">8 of 8</td><td class="num">8 of 8</td></tr>
+</table>
+<p>
+The implementer's first run of the new Lean tests failed on <code>3632</code> through the legacy proof object.
+One <a href="#g-rewrite">rewrite</a> step there spans 17 atoms, and its <a href="#g-truth-table">truth table</a>
+proof ran out of Lean's heartbeat budget. The test now sends that file through the clause log, where it verifies.
+The integrator also ran four <code>reset-assertions</code> probe scripts against the Z3 binary, and the exporter
+agrees with Z3 on all of them.
+</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change. There were no blockers and no major findings, two minor ones, and four nits.</p>
+<ul>
+  <li><strong>Minor, fixed: <code>reset-assertions</code> did not follow Z3.</strong> The reviewer read Z3's own
+    implementation, which keeps the scope stack and every declaration. The exporter instead followed the SMT-LIB
+    standard, which pops every scope. The reviewer wrote two scripts that Z3 answers unsat, and the exporter
+    rejected both, once with "unknown constant q" and once with "pop 1 exceeds the 0 open scopes". A rejection is
+    never a wrong theorem, so this was safe. But the documentation described Z3 wrongly and overstated coverage.
+    The fix clears the assertions of every scope and keeps the declarations and the stack, with a new test.</li>
+  <li><strong>Minor, fixed: stale README.</strong> A later paragraph still claimed that incremental scripts and
+    <code>check-sat-assuming</code> are rejected. A reader would have concluded the feature does not exist.</li>
+  <li><strong>Nit, fixed: unguarded clause-log test.</strong> The new test called the clause log core without the
+    usual guard that skips when no Z3 executable is present. It moved to its own guarded test.</li>
+  <li><strong>Nit, fixed: a confusing error message.</strong> A malformed assumption list such as
+    <code>(check-sat-assuming (p) (q))</code> slipped past the frontend and failed later with a Z3 parse error.
+    The frontend now reports the real problem as soon as a closing parenthesis comes too early.</li>
+  <li><strong>Nit, fixed for <code>reset</code> only.</strong> The exporter accepted <code>get-model</code> after a
+    <code>reset</code>, although Z3 answers "model is not available". It now forgets the last result on
+    <code>reset</code>. After <code>reset-assertions</code> Z3 still prints a model, so the exporter still accepts that.</li>
+  <li><strong>Nit, not fixed: the script is tokenized twice.</strong> Returning the query index from the parser would
+    change a function signature that the z3test harness uses. The second pass is cheap next to the solver run.</li>
+</ul>
+<p>
+The reviewer also tampered with certificates by hand. Pointing one at a query with different assertions, at a
+missing query, or at an older format version was rejected every time. Pointing it at a query with an identical
+snapshot was accepted, which is the same theorem.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li><strong>Nothing new is trusted.</strong> The query index is only a pointer into the script. The reconstructor
+    rebuilds the snapshot itself and binds the certificate's assertions to it as before.</li>
+  <li><strong>Assumptions are not restricted to literals.</strong> SMT-LIB allows only literals in
+    <code>check-sat-assuming</code>, but Z3's parser accepts any Boolean term. The exporter follows Z3.</li>
+  <li><strong>Z3 semantics, not the standard.</strong> Scoping and <code>reset-assertions</code> follow Z3 rather
+    than SMT-LIB 2.6, because Z3 is what solves the snapshot. The <code>global-declarations</code> option stays rejected.</li>
+  <li><strong>Incompatible format.</strong> Version 1 certificates are now rejected. No stored certificates exist in
+    either repository.</li>
+  <li><strong>Quiet behaviour change.</strong> An assertion after the only query is now ignored instead of rejected,
+    since it belongs to no query.</li>
+  <li><strong>Cost.</strong> Each query is solved from scratch, one export per query, by design.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li><code>define-sort</code> is now the first rejection of 61 incremental corpus files. Passing it through to
+    Z3's parser is the next frontend widening.</li>
+  <li>The legacy proof object's truth-table proof of wide rewrite steps does not scale. Splitting only the touched
+    atoms, or proving by a <a href="#g-tactic">tactic</a> first, would let <code>3632</code> pass there.</li>
+  <li><code>global-declarations true</code> could be honoured by keeping declarations global. No corpus file needs it yet.</li>
+  <li>The z3test Lean matrix script needs a query index before the five new inputs can join the matrix.</li>
+  <li>A probe of mixed integer and real arithmetic found integer casts opaque to Lean's arithmetic tactic. That
+    fragment needs explicit cast lemmas and was not attempted.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula the script states as true, written <code>(assert ...)</code>. Example: <code>(assert (or p q))</code>.</dd>
+  <dt id="g-assumption">assumption</dt>
+  <dd>A formula that holds only for one query, given in <code>(check-sat-assuming (...))</code>. It is not kept afterwards.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>A value or variable that is either true or false. The sort of such values is written <code>Bool</code>.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The file the exporter writes. It holds the proof steps and the assertions they refer to, in a versioned format.</dd>
+  <dt id="g-check-sat-query">check-sat query</dt>
+  <dd>The command that asks the solver whether the current assertions can all be true. Also <code>check-sat-using</code> and <code>check-sat-assuming</code>.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as "p or not q".</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>Z3's record of every clause it learned during search, with a hint for each. One of the two proof sources the exporter can use.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal function results. If a = b then f(a) = f(b).</dd>
+  <dt id="g-exporter">exporter</dt>
+  <dd>The Python script that runs Z3 on an input and writes the certificate.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A statement a theorem takes as given. Here, each assertion and assumption of the certified query.</dd>
+  <dt id="g-incremental-script">incremental script</dt>
+  <dd>An SMT-LIB script with several queries, or with <code>push</code>, <code>pop</code>, or <code>reset</code> commands between them.</dd>
+  <dt id="g-legacy-proof-object">legacy proof object</dt>
+  <dd>Z3's older proof format, a tree of inference steps produced when proof generation is switched on. The other proof source the exporter can use.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+  <dt id="g-propositional">propositional</dt>
+  <dd>Built only from Boolean variables and connectives such as and, or, not. No arithmetic or functions.</dd>
+  <dt id="g-reconstructor">reconstructor</dt>
+  <dd>The Python script that turns a certificate and the original input into a Lean file for checking.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of formulas cannot all be true, ending in <code>False</code>.</dd>
+  <dt id="g-rewrite">rewrite</dt>
+  <dd>A proof step that replaces a formula by an equivalent one, for example by simplifying it.</dd>
+  <dt id="g-scope">scope</dt>
+  <dd>A group of assertions and declarations opened by <code>push</code> and discarded by <code>pop</code>.</dd>
+  <dt id="g-snapshot">snapshot</dt>
+  <dd>This project's word for the declarations, definitions, assertions, and assumptions in scope at one query.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that searches for a proof automatically, such as the one for linear arithmetic.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement with hypotheses and a conclusion that Lean has checked. Here the conclusion is always <code>False</code>.</dd>
+  <dt id="g-truth-table">truth table</dt>
+  <dd>A proof that tries every assignment of true and false to the atoms. It doubles in size with each atom.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with a name and sorts but no fixed meaning, such as <code>(declare-fun f (Int) Int)</code>.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-16.
+</footer>
+
+</body>
+</html>
