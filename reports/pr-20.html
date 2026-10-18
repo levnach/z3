@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Track strictness per arithmetic proof-checker row</title>
+<style>
+:root { color-scheme: light dark; --border: #c5cbd3; --panel: #f4f6f8; }
+body { font: 17px/1.6 system-ui,sans-serif; max-width: 58rem; margin: 2rem auto; padding: 0 1rem; }
+h1,h2 { line-height: 1.2; } a { color: #1262ad; }
+pre { background: var(--panel); padding: 1rem; overflow: auto; font-size: .85rem; }
+code { font-size: .9em; } table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th,td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; }
+dt { font-weight: 650; } dd { margin: 0 0 .7rem 1rem; }
+@media (prefers-color-scheme: dark) {
+  :root { --border: #4d5662; --panel: #222830; } a { color: #81baff; }
+}
+</style>
+</head>
+<body>
+<header>
+<h1>Track strictness per arithmetic proof-checker row</h1>
+<p><a href="https://github.com/levnach/z3/pull/20">Pull request #20</a> &middot; iteration 20</p>
+<p id="merge-status">Merged 2026-10-18 at 22:14 UTC with the documented preexisting macOS CI installation failure.</p>
+<p id="merge-commit">Merge commit <a href="https://github.com/levnach/z3/commit/3e9bcbc7c25e5fa4734d021c50f21033ed65b772"><code>3e9bcbc7c25e</code></a></p>
+</header>
+<section>
+<h2>In one paragraph</h2>
+<p>Native arithmetic verification now keeps <a href="#g-strict">strictness</a>
+on each <a href="#g-row">linear row</a>. A zero
+<a href="#g-coefficient">coefficient</a> no longer supplies strictness, and a
+strict <a href="#g-premise">premise</a> cannot make a separate consequent
+strict. This prevents false acceptance of arithmetic
+<a href="#g-hint">hints</a> while preserving valid
+<a href="#g-refutation">refutations</a>. The Lean verification boundary is unchanged.</p>
+</section>
+<section>
+<h2>Background</h2>
+<p>The native checker used a shared flag while accumulating arithmetic
+evidence. That flag survived multiplication by zero and also applied to
+rows that had not received a strict inequality. A satisfiable set of
+premises could therefore appear contradictory. This is a correction to
+native checker correctness, not an expansion of the supported theory
+fragments or a change to ordinary solver search.</p>
+</section>
+<section>
+<h2>What changed</h2>
+<ul>
+<li>Each inequality carries its own strictness through native verification.</li>
+<li>Zero-weight contributions cannot create a strict contradiction.</li>
+<li>Row combinations and equality elimination retain genuine strictness.</li>
+<li>A bound proof still succeeds when either row independently gives a contradiction.</li>
+</ul>
+<table><thead><tr><th>File</th><th>Added</th><th>Removed</th></tr></thead><tbody>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>20</td><td>0</td></tr>
+<tr><td><code>src/sat/smt/arith_theory_checker.h</code></td><td>10</td><td>8</td></tr>
+<tr><td><code>src/test/proof_replay.cpp</code></td><td>66</td><td>6</td></tr>
+</tbody></table>
+</section>
+<section>
+<h2>Worked example: reject a false arithmetic hint</h2>
+<p>This native proof log claims a contradiction from a satisfiable
+assumption. It is intentionally an invalid proof, not a newly supported
+input fragment.</p>
+<pre><code>(declare-fun x () Real)
+(declare-fun farkas (Int Bool) Proof)
+(assume (&lt; x 0.0))
+(infer (farkas 0 (&lt; x 0.0)))</code></pre>
+<p>The <a href="#g-farkas">Farkas hint</a> gives the premise zero weight.
+Its weighted row is non-strict zero, not a strict contradiction.</p>
+<h3>Before</h3>
+<p>The unfixed executable accepted the hint as native evidence:</p>
+<pre><code>(proofs +farkas 1)</code></pre>
+<h3>After</h3>
+<p>The rebuilt executable reports rejection and a
+<a href="#g-countermodel">countermodel</a>. These excerpts come from the
+actual replay output:</p>
+<pre><code>(proofs -farkas 1)
+did not verify: l_true
+...
+(define-fun x () Real
+  (- 1.0))</code></pre>
+<p>The second regression is a bound hint whose separate consequent is
+non-strict zero. Both of its literals hold at the same countermodel:</p>
+<pre><code>(bound 1 (&lt; x 0.0) 1 (&lt;= (- x x) 0.0))</code></pre>
+<p>Native rejection is a diagnostic, not a changed process-exit convention.
+The checks inspect the negative verification counter and rejection text.
+The proof exporter independently refuses the satisfiable source:</p>
+<pre><code>proof_certificate.py: error: sat: no unsat proof exists</code></pre>
+</section>
+<section>
+<h2>Positive control: a genuine strict refutation still checks</h2>
+<p>The following input passed native Farkas and
+<a href="#g-rup">RUP</a> replay without
+<a href="#g-fallback">SMT fallback</a>, and its generated Lean file also passed.</p>
+<pre><code>(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(assert (&lt; (+ x y) 0.0))
+(assert (&gt;= x 0.0))
+(assert (&gt;= y 0.0))
+(check-sat)</code></pre>
+<p>This excerpt is from that generated file. The omitted definitions encode
+the arithmetic clause and original assertions:</p>
+<pre><code>private theorem th_lemma_26 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_25 _atoms _vars) := by
+  unfold formula_25 formula_24 formula_23 formula_19 formula_14 formula_8 term_3 term_2 term_1 term_0
+  grind (splits := 64)
+...
+theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_4 _atoms _vars))
+    (_h1 : (formula_5 _atoms _vars))
+    (_h2 : (formula_6 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p>The arithmetic lemma is proved, rather than accepted on the native checker's authority.</p>
+</section>
+<section>
+<h2>How it was verified</h2>
+<p>The new regression failed on the original implementation. After the
+repair, both negative replay examples were rejected and the positive controls
+remained native-verified. The existing local suites all passed.</p>
+<table><thead><tr><th>Local check</th><th>Result</th></tr></thead><tbody>
+<tr><td>Unfixed native regression</td><td>Expected failure, exit 114</td></tr>
+<tr><td>Release and native test builds</td><td>Pass</td></tr>
+<tr><td>Native unit suite</td><td>115 passed</td></tr>
+<tr><td>SMT2 regression corpus</td><td>951 passed</td></tr>
+<tr><td>Exporter tests</td><td>78 passed</td></tr>
+<tr><td>Lean reconstruction tests</td><td>252 passed</td></tr>
+<tr><td>Proof-script tests</td><td>46 passed</td></tr>
+<tr><td>Boolean and real arithmetic Lean matrices</td><td>6/6 and 8/8 verified</td></tr>
+<tr><td>Changed-line formatter, rebuild, focused native test</td><td>Pass</td></tr>
+</tbody></table>
+<p>The Lean project, solver invocation, built Python bindings, and help
+command passed too. This C++ change requires the full configured GitHub
+CI gate. Local validation does not replace that gate.</p>
+<p id="ci-status">The configured GitHub gate finished with 27 passes and one
+preexisting dependency-installation failure. The macOS job could not install
+the Julia cask, so configuration, compilation, and tests never ran there.
+The loop's documented unrelated-failure policy applies.</p>
+<div id="ci-results">
+<table><thead><tr><th>Required workflow</th><th>Result</th><th>Run</th></tr></thead><tbody>
+<tr><td>CI</td><td>12 passed; macOS dependency installation failed</td><td><a href="https://github.com/levnach/z3/actions/runs/39156491566">Run</a></td></tr>
+<tr><td>Windows</td><td>4 passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39156491551">Run</a></td></tr>
+<tr><td>OCaml Binding CI</td><td>2 passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39156491315">Run</a></td></tr>
+<tr><td>WebAssembly Build</td><td>1 passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39156491280">Run</a></td></tr>
+<tr><td>Solver determinism</td><td>8 passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39156491425">Run</a></td></tr>
+</tbody></table>
+</div>
+<p>The <a href="https://github.com/levnach/z3/actions/runs/39156491566/job/117760678192">failed PR job</a>
+reports that the Julia cask requires a newer macOS version. The
+<a href="https://github.com/levnach/z3/actions/runs/38907312045/job/116994030836">same job on the unchanged parent</a>
+fails identically. This PR changes no installation code. The CI review
+recorded the failure as unrelated, without disabling jobs or adding retries.</p>
+</section>
+<section>
+<h2>Review</h2>
+<p>A positive control exposed a completeness regression in the first draft:
+a genuinely contradictory premise was sent to SMT fallback. Checking
+both rows independently restored native verification. A regression and
+live replay cover that case. No findings remain open in the row-strictness change.</p>
+</section>
+<section>
+<h2>Risks and open questions</h2>
+<p>Strictness must survive valid combinations and equality elimination,
+but disappear with a zero contribution. Positive and negative regressions
+cover both requirements. Zero coefficients remain legal when other premises
+provide genuine evidence. No proof formats, theory fragments, or Lean
+assumptions change.</p>
+<h2>What comes next</h2>
+<p>Separate malformed implied-equality hints remain a backlog item.
+This repair makes no claim that every native arithmetic rule is complete.
+Lean continues to check its own proof obligations independently.</p>
+</section>
+<section>
+<h2>Glossary</h2>
+<dl>
+<dt id="g-coefficient">Coefficient</dt><dd>A numeric weight multiplying a premise in an arithmetic combination.</dd>
+<dt id="g-countermodel">Countermodel</dt><dd>A valuation demonstrating that the alleged contradiction is not justified.</dd>
+<dt id="g-farkas">Farkas hint</dt><dd>Coefficients proposing a linear combination of arithmetic premises that yields a contradiction.</dd>
+<dt id="g-hint">Hint</dt><dd>Native evidence suggesting how an inference can be checked, not permission to trust it.</dd>
+<dt id="g-row">Linear row</dt><dd>A weighted sum of terms and a constant compared with zero.</dd>
+<dt id="g-premise">Premise</dt><dd>A proposition used to justify an inference.</dd>
+<dt id="g-refutation">Refutation</dt><dd>A proof deriving contradiction from the input assertions.</dd>
+<dt id="g-rup">RUP</dt><dd>Reverse unit propagation, checking a clause by propagating the negation of its literals.</dd>
+<dt id="g-fallback">SMT fallback</dt><dd>A solver-based diagnostic used when the native proof-rule checker cannot verify a claim.</dd>
+<dt id="g-strict">Strictness</dt><dd>The distinction between a strict inequality such as &lt; and a non-strict inequality such as &lt;=.</dd>
+</dl>
+</section>
+<footer><p>Generated by the Lean certificate improvement loop with GitHub Copilot, 2026-10-18.</p></footer>
+</body>
+</html>

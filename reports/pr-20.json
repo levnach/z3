@@ -1,0 +1,10 @@
+{
+  "number": 20,
+  "title": "Track strictness per arithmetic proof-checker row",
+  "pr_url": "https://github.com/levnach/z3/pull/20",
+  "page": "https://levnach.github.io/z3/reports/pr-20.html",
+  "merge_sha": "3e9bcbc7c25e5fa4734d021c50f21033ed65b772",
+  "date": "2026-10-18T22:14:24Z",
+  "iteration": 20,
+  "summary": "Fix native arithmetic proof checks that borrowed strictness from zero-weight or unrelated rows while retaining valid refutations."
+}
