@@ -1,0 +1,10 @@
+{
+  "number": 21,
+  "title": "Reject malformed implied-equality proof hints",
+  "pr_url": "https://github.com/levnach/z3/pull/21",
+  "page": "https://levnach.github.io/z3/reports/pr-21.html",
+  "merge_sha": "99476ee5b48b4857e1b9caedd623b4dd21899aa8",
+  "date": "2026-10-19T15:06:20Z",
+  "iteration": 21,
+  "summary": "Reject zero-weight or missing conclusions in native implied-equality hints without changing Lean's independent verification."
+}

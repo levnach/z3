@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="PR #21 explained: why zero-weight and missing conclusions could fool Z3's native arithmetic proof checker, and how the C++ fix closes both gaps.">
+  <title>PR #21 explained: Reject malformed implied-equality proof hints</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f8fa;
+      --paper: #ffffff;
+      --ink: #172536;
+      --muted: #536375;
+      --line: #d8e0e8;
+      --code: #eef2f6;
+      --accent: #096b67;
+      --accent-bg: #e9f6f3;
+      --bad: #a52b39;
+      --bad-bg: #fff0f1;
+      --link: #1458a0;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: 1.5rem; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: var(--link); text-underline-offset: .18em; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 4px;
+    }
+    .skip { position: absolute; top: -5rem; left: 1rem; padding: .5rem; background: var(--paper); }
+    .skip:focus { top: 1rem; }
+    .container { width: min(100% - 2.5rem, 68rem); margin: 0 auto; }
+    .topbar { display: flex; justify-content: space-between; gap: 1rem; padding: 1.4rem 0; font-size: .9rem; }
+    .topbar a { text-decoration: none; }
+    .hero { padding: 2.5rem 0 2rem; border-top: 1px solid var(--line); }
+    .eyebrow, .section-label {
+      color: var(--accent);
+      font-size: .78rem;
+      font-weight: 750;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: -.025em; }
+    h1 { max-width: 22ch; margin: .8rem 0 1rem; font-size: clamp(2.15rem, 4.8vw, 3.8rem); }
+    h2 { font-size: clamp(1.5rem, 3vw, 2rem); margin: .35rem 0 1rem; }
+    h3 { font-size: 1.15rem; margin: .4rem 0 .75rem; }
+    p { margin: .8rem 0; }
+    .lead { max-width: 52rem; font-size: 1.2rem; }
+    .muted, .meta, figcaption { color: var(--muted); }
+    .meta { font-size: .88rem; }
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.25rem 0; }
+    .badge { padding: .22rem .7rem; border-radius: 99px; font-size: .78rem; font-weight: 700; }
+    .good { color: var(--accent); background: var(--accent-bg); }
+    .neutral { color: var(--muted); background: var(--code); }
+    .toc { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; padding: 1rem 0; border-block: 1px solid var(--line); font-size: .9rem; }
+    main > section { margin: 3.5rem 0; }
+    .columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+    .columns > * { min-width: 0; }
+    .card { padding: 1.5rem; border: 1px solid var(--line); border-radius: .85rem; background: var(--paper); }
+    .callout { margin: 1.25rem 0; padding: 1rem 1.25rem; border-left: 4px solid var(--accent); background: var(--accent-bg); }
+    .callout p { margin: 0; }
+    .case-number { color: var(--muted); font-size: .8rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .math { padding: .85rem 1rem; background: var(--code); border-radius: .4rem; font: 1.1rem/1.7 Georgia, serif; }
+    .math strong { font-family: inherit; }
+    .result { padding: .8rem 1rem; border-radius: .4rem; }
+    .result.before { color: var(--bad); background: var(--bad-bg); }
+    .result.after { color: var(--accent); background: var(--accent-bg); }
+    .result-label { display: block; font-size: .75rem; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+    code { font: .87em/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    :not(pre) > code { overflow-wrap: anywhere; }
+    pre {
+      max-width: 100%;
+      overflow-x: auto;
+      padding: 1rem 1.1rem;
+      background: var(--code);
+      border-radius: .45rem;
+      font-size: .93rem;
+      line-height: 1.6;
+    }
+    pre code { font-size: .87rem; }
+    .card pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .target { color: var(--accent); font-weight: 750; }
+    .added { color: var(--accent); }
+    .removed { color: var(--bad); }
+    figure { margin: 1.25rem 0; }
+    figcaption { margin-top: .6rem; font-size: .88rem; }
+    .table-wrap { overflow-x: auto; margin: 1.2rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { padding: .75rem .85rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: .76rem; text-transform: uppercase; letter-spacing: .04em; }
+    .file-table { min-width: 37rem; }
+    .check-table td:last-child { white-space: nowrap; }
+    details { margin: 1.25rem 0; padding: 1rem 1.2rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--paper); }
+    summary { cursor: pointer; font-weight: 650; }
+    details p { font-size: .94rem; }
+    .paths { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    .path { padding: 1rem 1.2rem; border: 1px solid var(--line); border-radius: .55rem; background: var(--paper); }
+    .path strong { display: block; margin-bottom: .3rem; }
+    .path p { margin: .3rem 0; }
+    .path.changed { border-color: var(--accent); }
+    ul { padding-left: 1.25rem; }
+    li { margin: .45rem 0; }
+    dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 2rem; }
+    dt { font-size: .95rem; font-weight: 700; scroll-margin-top: 1rem; }
+    dd { margin: .25rem 0 0; color: var(--muted); font-size: .9rem; }
+    footer { padding: 1.75rem 0 3rem; border-top: 1px solid var(--line); font-size: .85rem; color: var(--muted); }
+    @media (max-width: 700px) {
+      .container { width: min(100% - 2rem, 68rem); }
+      .hero { padding-top: 1.5rem; }
+      .columns, .paths, dl { grid-template-columns: 1fr; }
+      .card { padding: 1.15rem; }
+      main > section { margin: 2.5rem 0; }
+      th, td { padding: .6rem; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1721;
+        --paper: #162331;
+        --ink: #e5edf5;
+        --muted: #a8bacb;
+        --line: #334657;
+        --code: #1c2d3d;
+        --accent: #80dfce;
+        --accent-bg: #183832;
+        --bad: #ffadb5;
+        --bad-bg: #40272e;
+        --link: #95c4ff;
+      }
+    }
+    @media print {
+      :root {
+        color-scheme: light;
+        --bg: #fff; --paper: #fff; --ink: #172536; --muted: #536375;
+        --line: #d8e0e8; --code: #eef2f6; --accent: #096b67; --accent-bg: #e9f6f3;
+        --bad: #a52b39; --bad-bg: #fff0f1; --link: #1458a0;
+      }
+      .topbar, .toc, .skip { display: none; }
+      .container { width: 100%; }
+      body { font-size: 11pt; }
+      h1 { font-size: 28pt; }
+      .card, .path, pre { break-inside: avoid; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#overview">Skip to the explanation</a>
+  <div class="container">
+    <nav class="topbar" aria-label="Report navigation">
+      <a href="../index.html">&larr; All loop reports</a>
+      <a href="https://github.com/levnach/z3/pull/21">View PR #21 &nearr;</a>
+    </nav>
+    <header class="hero">
+      <div class="eyebrow">Z3 &rarr; Lean &nbsp; / &nbsp; Iteration 21</div>
+      <h1>Reject malformed implied-equality proof hints</h1>
+      <p class="lead">The checker must prove an equality, not merely notice that a row contains zero.</p>
+      <div class="badges">
+        <span class="badge good" id="merge-status">Merged into the fork</span>
+        <span class="badge good">Production C++ fix</span>
+        <span class="badge neutral">Lean trust boundary unchanged</span>
+      </div>
+      <p class="meta">
+        Merged <time datetime="2026-10-19T15:06:20Z">19 October 2026, 15:06 UTC</time> &middot;
+        Merge commit <a href="https://github.com/levnach/z3/commit/99476ee5b48b4857e1b9caedd623b4dd21899aa8"><code>99476ee5b</code></a><br>
+        Rebased onto <a href="https://github.com/Z3Prover/z3/commit/310a6668c6f98ca35bbd2c920331a024a1545b7c">upstream master at <code>310a6668c</code></a>.
+      </p>
+    </header>
+    <nav class="toc" aria-label="On this page">
+      <a href="#overview">The idea</a>
+      <a href="#failures">The failure cases</a>
+      <a href="#fix">The C++ fix</a>
+      <a href="#lean">Where Lean fits</a>
+      <a href="#verification">Evidence</a>
+      <a href="#glossary">Glossary</a>
+    </nav>
+    <main>
+      <section id="overview" aria-labelledby="overview-title">
+        <div class="section-label">In one paragraph</div>
+        <h2 id="overview-title">Do not lose the conclusion.</h2>
+        <p>This PR rejects malformed <a href="#g-hint">hints</a> that the native arithmetic checker previously accepted.
+          A zero <a href="#g-coefficient">coefficient</a> could erase the
+          <a href="#g-conclusion">conclusion</a>. Omitting the conclusion could leave its
+          <a href="#g-row">row</a> empty. Both looked like successful equality proofs.
+          The fix closes those paths without changing solver search or Lean's independent verification.</p>
+        <div class="callout">
+          <p><strong>This is false proof acceptance, not a demonstrated wrong solver result.</strong>
+            The counterexamples are invalid proof logs with satisfiable
+            <a href="#g-literal">literals</a>. They are not examples of Lean accepting a false theorem.</p>
+        </div>
+        <h3>How to read the hint</h3>
+        <figure>
+          <pre><code>(implied-eq
+  1 (&lt;= x y)           ; premise
+  1 (&gt;= x y)           ; premise
+  <span class="target">1 (not (= x y))</span>)     ; negation of the conclusion</code></pre>
+          <figcaption>Each pair contains a coefficient and a literal. The last literal must be a
+            <a href="#g-disequality">disequality</a>.</figcaption>
+        </figure>
+        <p>The <a href="#g-premise">premises</a> force <code>x = y</code>.
+          The last literal asserts its negation, giving a contradiction.
+          A valid <a href="#g-refutation">refutation</a> must justify that equality, not discard it.</p>
+      </section>
+
+      <section id="failures" aria-labelledby="failures-title">
+        <div class="section-label">Worked counterexamples</div>
+        <h2 id="failures-title">Two ways to get a misleading zero</h2>
+        <div class="columns">
+          <article class="card">
+            <div class="case-number">Case 01 &middot; zero target coefficient</div>
+            <h3>The equality is multiplied away.</h3>
+            <pre><code>(implied-eq 0 (not (= x y)))</code></pre>
+            <p>The target equality is represented by a weighted difference.
+              Multiplication by zero destroys the connection to <code>x = y</code>.</p>
+            <div class="math">
+              Intended target: <strong>x &minus; y = 0</strong><br>
+              Erased target: <strong>0 &times; (x &minus; y) = 0</strong>
+            </div>
+            <p>The old checker accepted the zero row. Yet the actual
+              <a href="#g-countermodel">countermodel</a> has <code>x = 2</code> and <code>y = 3</code>.
+              The disequality is true. No contradiction exists.</p>
+            <div class="result before">
+              <span class="result-label">Before &middot; false acceptance</span>
+              <code>(proofs +implied-eq 1)</code>
+            </div>
+            <p class="result after">
+              <span class="result-label">After &middot; correctly rejected</span>
+              <code>(proofs -implied-eq 1)<br>did not verify: l_true</code>
+            </p>
+          </article>
+          <article class="card">
+            <div class="case-number">Case 02 &middot; missing conclusion</div>
+            <h3>There is no equality to prove.</h3>
+            <pre><code>(implied-eq 1 (&lt;= x 0.0))</code></pre>
+            <p>This hint ends in an inequality, not a disequality.
+              The checker collected a premise but never populated the conclusion row.</p>
+            <div class="math">
+              Initial conclusion row: <strong>0</strong><br>
+              Conclusion actually supplied: <strong>none</strong>
+            </div>
+            <p>The old fall-through path still checked the untouched zero row.
+              The actual countermodel has <code>x = 0</code>, satisfying the only literal.
+              Again, nothing establishes a contradiction.</p>
+            <div class="result before">
+              <span class="result-label">Before &middot; false acceptance</span>
+              <code>(proofs +implied-eq 1)</code>
+            </div>
+            <p class="result after">
+              <span class="result-label">After &middot; correctly rejected</span>
+              <code>(proofs -implied-eq 1)<br>did not verify: l_true</code>
+            </p>
+          </article>
+        </div>
+        <details>
+          <summary>Show the complete proof-log reproducer for case 01</summary>
+          <pre><code>(declare-const x Real)
+(declare-const y Real)
+(declare-fun implied-eq (Int Bool) Proof)
+(assume (not (= x y)))
+(infer (implied-eq 0 (not (= x y))))</code></pre>
+          <p>This is the log replayed in the before/after experiment, not an ordinary SMT-LIB solving request.
+            The output excerpts above are from actual runs.
+            <code>l_true</code> is the fallback solver's satisfiable result for the counterexample.</p>
+        </details>
+      </section>
+
+      <section id="fix" aria-labelledby="fix-title">
+        <div class="section-label">The patch</div>
+        <h2 id="fix-title">Two guards, no new proof rule</h2>
+        <div class="columns">
+          <div class="card">
+            <h3>Keep the target meaningful.</h3>
+            <pre><code><span class="removed">- if (!is_numeral(arg1, coeff))</span>
+<span class="added">+ if (!is_numeral(arg1, coeff) || coeff.is_zero())</span>
+      return false;</code></pre>
+            <p>The conclusion parser now rejects a zero coefficient.
+              Nonzero coefficients preserve which equality the row represents.</p>
+          </div>
+          <div class="card">
+            <h3>Require the conclusion path.</h3>
+            <pre><code><span class="removed">- return check(rt);</span>
+<span class="added">+ return rt != implied_eq_t &amp;&amp; check(rt);</span></code></pre>
+            <p>An implied-equality hint can succeed only through the earlier branch that parses its final disequality.
+              Missing, empty, and incomplete conclusions cannot fall through.</p>
+          </div>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Changed files">
+          <table class="file-table">
+            <thead><tr><th scope="col">File</th><th scope="col">Role</th><th scope="col">Diff</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><a href="https://github.com/levnach/z3/blob/a77e45ba7e09cc45b43f08e7fdffd4cf598af796/src/sat/smt/arith_theory_checker.h#L490-L567"><code>src/sat/smt/arith_theory_checker.h</code></a></td>
+                <td>Production C++ logic, implemented inline in the header.</td><td>+3 / &minus;2</td>
+              </tr>
+              <tr>
+                <td><a href="https://github.com/levnach/z3/blob/a77e45ba7e09cc45b43f08e7fdffd4cf598af796/src/test/proof_replay.cpp#L237-L264"><code>src/test/proof_replay.cpp</code></a></td>
+                <td>Negative regressions and valid controls over Real and Int.</td><td>+29 / &minus;0</td>
+              </tr>
+              <tr>
+                <td><a href="https://github.com/levnach/z3/blob/a77e45ba7e09cc45b43f08e7fdffd4cf598af796/doc/lean-proof-plan.md#L1198-L1213"><code>doc/lean-proof-plan.md</code></a></td>
+                <td>Records the failure mechanism and verification boundary.</td><td>+17 / &minus;0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="lean" aria-labelledby="lean-title">
+        <div class="section-label">The trust boundary</div>
+        <h2 id="lean-title">Lean does not trust the native verdict.</h2>
+        <p>Native checking and Lean reconstruction are separate checking paths for the proof evidence.</p>
+        <div class="paths">
+          <div class="path changed">
+            <strong>Native proof &rarr; C++ checker</strong>
+            <p>This PR repairs its acceptance decision.</p>
+            <span class="badge good">Changed here</span>
+          </div>
+          <div class="path">
+            <strong>Native proof &rarr; reconstruction &rarr; Lean kernel</strong>
+            <p>The <a href="#g-kernel">kernel</a> still checks the generated proof independently.</p>
+            <span class="badge neutral">Unchanged</span>
+          </div>
+        </div>
+        <h3 style="margin-top: 1.75rem">Positive control: genuine equality propagation still works.</h3>
+        <pre><code>(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(assert (&lt;= x y))
+(assert (&gt;= x y))
+(assert (not (= x y)))
+(check-sat)</code></pre>
+        <p>This existing matrix input produced a Lean-accepted file during iteration 21.
+          It is a preservation check, not newly added theory coverage.</p>
+        <details>
+          <summary>See the actual generated Lean lemma</summary>
+          <pre><code>private theorem th_lemma_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_18 _atoms _vars) := by
+  unfold formula_18 formula_17 formula_16 formula_15 formula_14 term_13 term_12 term_11 term_10 term_9 formula_4 term_1 term_0
+  grind (splits := 64)
+...
+theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_2 _atoms _vars))
+    (_h1 : (formula_3 _atoms _vars))
+    (_h2 : (formula_5 _atoms _vars))
+    : False :=
+  ...</code></pre>
+          <p>The lemma proves that a bound fails or the equality holds.
+            The final theorem combines it with the original assertions.
+            This excerpt omits definitions and proof steps, so it is not a standalone Lean file.
+            The existing real-arithmetic encoding uses <code>Rat</code>.</p>
+          <p class="meta">Source: the checked artifact for
+            <a href="https://github.com/Z3Prover/z3test/blob/master/regressions/proofs/lean/lra_implied_equality.smt2"><code>lra_implied_equality.smt2</code></a>.
+            Its recorded matrix status was <code>lean-verified</code>.</p>
+        </details>
+      </section>
+
+      <section id="verification" aria-labelledby="verification-title">
+        <div class="section-label">Evidence, not just an exit code</div>
+        <h2 id="verification-title">The bad hints fail. Valid proofs survive.</h2>
+        <p>The new regression failed on the pre-fix checker and passed after the repair.
+          Native controls still accepted positive and negative nonzero target coefficients over both
+          <a href="#g-sort">sorts</a>, without <a href="#g-fallback">SMT fallback</a>.</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Local verification results">
+          <table class="check-table">
+            <thead><tr><th scope="col">Local check</th><th scope="col">Result</th></tr></thead>
+            <tbody>
+              <tr><td>New regression before / after the fix</td><td>Expected failure / pass</td></tr>
+              <tr><td>C++ builds and changed-line formatting</td><td>Pass</td></tr>
+              <tr><td>Native unit tests</td><td>116 passed</td></tr>
+              <tr><td>SMT2 regression corpus</td><td>951 passed</td></tr>
+              <tr><td>Certificate exporter and Lean reconstruction tests</td><td>334 passed</td></tr>
+              <tr><td>z3test proof-script tests</td><td>46 passed</td></tr>
+              <tr><td>Boolean Lean matrix</td><td>6 / 6 verified</td></tr>
+              <tr><td>QF_LRA Lean matrix</td><td>8 / 8 verified</td></tr>
+              <tr><td>Pinned Lean project, SMT solving, Python bindings, help</td><td>Pass</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout">
+          <p><strong>Native replay can exit successfully after rejecting a hint.</strong>
+            The experiments inspected the rejection text and negative counter.
+            The C++ regression also required the checker itself to return false.</p>
+        </div>
+        <h3>GitHub CI is separate from the completed local checks.</h3>
+        <p class="meta">Snapshot: <time datetime="2026-10-19T15:09:09Z">19 October 2026, 15:09 UTC</time>.
+          These are observed checks, not a completed merge gate.
+          <a href="https://github.com/levnach/z3/pull/21/checks">See live status</a>.</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="GitHub CI snapshot">
+          <table>
+            <thead><tr><th scope="col">Workflow</th><th scope="col">Observed result</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39271246333">CI</a></td><td>1 passed, 12 pending</td></tr>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39271245674">Windows</a></td><td>4 pending</td></tr>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39271246023">OCaml Binding CI</a></td><td>1 passed, 1 cancelled</td></tr>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39271245438">WebAssembly Build</a></td><td>1 passed</td></tr>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39271245385">Solver determinism</a></td><td>1 passed, 6 pending</td></tr>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39271245561">Determinism Linter</a></td><td>3 passed</td></tr>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39271245242">Finite-field regressions</a></td><td>1 pending</td></tr>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39275002738">Dispatch NFV formal audit</a></td><td>1 pending</td></tr>
+              <tr><td><a href="https://github.com/levnach/z3/actions/runs/39271245466">Mark Pull Requests Ready for Review</a></td><td>1 passed</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="meta">The PR was merged by the user. CI was still incomplete at this snapshot.
+          The cancelled OCaml check is not counted as a pass.
+          Its cancellation reason was not investigated for this report.
+          Local results do not replace the configured C++ CI gate.</p>
+      </section>
+
+      <section id="limits" aria-labelledby="limits-title">
+        <div class="section-label">Scope and next step</div>
+        <h2 id="limits-title">A narrow correction, not a blanket guarantee</h2>
+        <p>The patch addresses these conclusion-validation gaps, not every arithmetic proof rule.
+          It does not prohibit zero coefficients elsewhere or introduce new Lean assumptions.
+          Regression evidence supports the change, but is not a formal proof of the entire native checker.
+          The PR is merged. The live check links above show subsequent CI results.</p>
+      </section>
+
+      <section id="glossary" aria-labelledby="glossary-title">
+        <div class="section-label">Quick reference</div>
+        <h2 id="glossary-title">Glossary</h2>
+        <dl>
+          <div><dt id="g-coefficient">Coefficient</dt><dd>A numeric weight attached to a literal or arithmetic expression.</dd></div>
+          <div><dt id="g-conclusion">Conclusion</dt><dd>The proposition that the premises are supposed to establish.</dd></div>
+          <div><dt id="g-countermodel">Countermodel</dt><dd>A choice of values showing that the claimed inference is not justified.</dd></div>
+          <div><dt id="g-disequality">Disequality</dt><dd>A statement that two values differ, such as <code>(not (= x y))</code>.</dd></div>
+          <div><dt id="g-hint">Hint</dt><dd>Native evidence proposing how to justify an inference. It still needs checking.</dd></div>
+          <div><dt id="g-kernel">Kernel</dt><dd>The small trusted component that checks the final Lean proof term.</dd></div>
+          <div><dt id="g-literal">Literal</dt><dd>An atomic proposition or its negation, such as <code>x &lt;= y</code> or <code>x != y</code>.</dd></div>
+          <div><dt id="g-premise">Premise</dt><dd>A proposition used as an assumption when proving a conclusion.</dd></div>
+          <div><dt id="g-refutation">Refutation</dt><dd>A proof deriving a contradiction from the input assertions.</dd></div>
+          <div><dt id="g-row">Row</dt><dd>A stored linear combination of terms and a constant. Here it represents an equality target.</dd></div>
+          <div><dt id="g-fallback">SMT fallback</dt><dd>A solver-based diagnostic attempted when native proof-rule checking does not verify a claim.</dd></div>
+          <div><dt id="g-sort">Sort</dt><dd>The type of an SMT value, such as <code>Int</code> or <code>Real</code>.</dd></div>
+        </dl>
+      </section>
+    </main>
+    <footer>
+      <p>Generated by the Lean certificate improvement loop with GitHub Copilot, 19 October 2026.<br>
+        Based on PR #21, its committed patch, and retained native and Lean run artifacts.
+        <a href="https://github.com/levnach/z3/pull/21/files">Read the full diff</a>
+        &middot; <a href="pr-20.html">Previous report: row strictness</a>.</p>
+    </footer>
+  </div>
+</body>
+</html>
