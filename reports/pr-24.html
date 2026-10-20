@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #24: Check alldiff gate clauses natively and log root distinct as input</title>
+<style>
+:root { color-scheme: light dark; --fg: #1d1d1f; --bg: #ffffff; --muted: #5a5a60; --line: #d8d8dc; --code-bg: #f3f3f5; --link: #0b57d0; --accent: #b3261e; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e6e6ea; --bg: #141416; --muted: #a0a0a8; --line: #333338; --code-bg: #1f1f23; --link: #8ab4f8; --accent: #f28b82; } }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }
+h1 { font-size: 1.6rem; line-height: 1.25; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--line); padding-bottom: 0.25rem; }
+h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 3px; }
+pre { background: var(--code-bg); padding: 0.8rem 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: 0.86em; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95em; }
+th, td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+caption { text-align: left; color: var(--muted); font-size: 0.9em; padding-bottom: 0.3rem; }
+.meta { color: var(--muted); font-size: 0.95em; }
+.state { display: inline-block; font-weight: 600; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 0.4em; }
+.note { font-size: 0.92em; color: var(--muted); }
+dl dt { font-weight: 600; margin-top: 0.7rem; }
+dl dd { margin-left: 0; }
+footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 0.8rem; color: var(--muted); font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Check alldiff gate clauses natively and log root distinct as input</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/24">levnach/z3 #24</a> &middot;
+state <span class="state">OPEN</span> &middot; opened 2026-10-20T20:26:20Z &middot; loop iteration 24
+</p>
+<p>This pull request is <strong>not merged</strong>. The report describes the change as of commit
+<a href="https://github.com/levnach/z3/commit/8b7344c27b0d525299f1fe20b4b35eb23097e369"><code>8b7344c27</code></a>,
+which holds both commits of the PR on top of base commit <code>9c2b87b9d</code>.</p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+Z3's <a href="#g-clause-log">clause log</a> labels each derived <a href="#g-clause">clause</a> with a <a href="#g-hint">hint</a> naming the rule that justifies it.
+The <code>alldiff</code> hint covers clauses that come from a <a href="#g-distinct">distinct constraint</a>.
+Before this PR the native checker accepted every <code>alldiff</code> hint without reading it, so a forged log could pass the native replay.
+Now Z3 logs the clauses of a distinct constraint asserted at the <a href="#g-root">root</a> as <a href="#g-input-clause">input clauses</a>.
+The native checker verifies the one remaining <code>alldiff</code> shape: the two <a href="#g-gate-clause">gate clauses</a> that tie a distinct <a href="#g-literal">literal</a> below the root to the <a href="#g-disjunction">disjunction</a> of its pairwise equalities.
+Both are <a href="#g-tautology">tautologies</a>.
+Any other <code>alldiff</code> hint is rejected and sent to the <a href="#g-smt-fallback">SMT fallback check</a>, which refutes a forged log with a <a href="#g-countermodel">countermodel</a>.
+The Lean <a href="#g-refutation">refutation</a> is unchanged, because the exporter already tied these clauses to the original assertions.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR the Lean pipeline already certified distinct constraints over an <a href="#g-uninterpreted-sort">uninterpreted sort</a> and in <a href="#g-lra">linear real arithmetic</a>.
+It treated every <code>alldiff</code> clause as a consequence of the original assertions, the way it handles an <a href="#g-unsat-core">unsat core</a>.
+The native C++ checker, kept as a diagnostic tool, could not tell a genuine gate clause from a forged one.
+The PR serves milestone 3, <a href="#g-euf">equality with uninterpreted functions</a> and linear arithmetic, where <a href="#g-congruence">congruence</a> over an <a href="#g-uninterpreted-function">uninterpreted function</a> meets the <a href="#g-boolean">Boolean</a> core.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li><strong>Proof production.</strong> A root distinct constraint is now logged as input clauses, so the log no longer claims a <a href="#g-theory-lemma">theory lemma</a> no hint could justify.</li>
+<li><strong>Native checker.</strong> The <code>alldiff</code> plugin accepts only two literals of one <a href="#g-polarity">polarity</a> that form a gate clause, matching equalities up to symmetry.</li>
+<li><strong>Rejection path.</strong> Every other <code>alldiff</code> hint now fails with a countermodel instead of being accepted.</li>
+<li><strong>Tests.</strong> A C++ unit test pins accepted and rejected shapes, and a live-solver Python test checks the new log shapes.</li>
+<li><strong>Documentation.</strong> Exporter comments, the README, and a dated plan note describe which clauses carry <code>alldiff</code>.</li>
+</ul>
+<p class="note">Analogy: the old plugin waved through anyone wearing an <code>alldiff</code> badge. The new one checks the badge against exactly two faces.</p>
+
+<table>
+<caption>Files touched (base <code>9c2b87b9d</code> to head <code>8b7344c27</code>)</caption>
+<thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>src/sat/smt/distinct_theory_checker.cpp</code> (new)</td><td>Native checker</td><td>111</td><td>0</td></tr>
+<tr><td><code>src/sat/smt/distinct_theory_checker.h</code></td><td>Native checker</td><td>10</td><td>15</td></tr>
+<tr><td><code>src/sat/smt/euf_internalize.cpp</code></td><td>Proof production</td><td>16</td><td>7</td></tr>
+<tr><td><code>src/sat/smt/euf_solver.h</code></td><td>Proof production</td><td>0</td><td>2</td></tr>
+<tr><td><code>src/sat/smt/CMakeLists.txt</code></td><td>Build</td><td>1</td><td>0</td></tr>
+<tr><td><code>src/test/proof_replay.cpp</code></td><td>Tests (C++)</td><td>90</td><td>0</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests (Python)</td><td>39</td><td>0</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Documentation</td><td>6</td><td>2</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Documentation</td><td>5</td><td>3</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Documentation</td><td>29</td><td>1</td></tr>
+<tr><td colspan="2"><strong>Total, 10 files</strong></td><td><strong>307</strong></td><td><strong>30</strong></td></tr>
+</tbody>
+</table>
+
+<h2 id="worked-example">Worked example</h2>
+<p>
+The example is the below-root case from the PR's new Python test: two clauses force the distinct constraint whatever <code>p</code> is, and a third assertion contradicts it.
+All outputs are from real runs on 2026-10-20, "After" on the PR head and "Before" on a z3 built from the base commit.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-sort U 0)
+(declare-const a U)
+(declare-const b U)
+(declare-const c U)
+(declare-const p Bool)
+(assert (or p (distinct a b c)))
+(assert (or (not p) (distinct a b c)))
+(assert (= a c))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>
+The forged log below invents the three pairwise equalities as one clause with nothing behind it, then refutes them with three assumed disequalities. The old checker accepted it.
+</p>
+<pre><code>; forged log: infer the pairwise equalities out of nothing, under an alldiff label
+(infer $15 $13 $16 (alldiff $15 $13 $16))
+(assume (not $15))(assume (not $13))(assume (not $16))
+(infer rup)
+
+; pre-PR checker verdict
+(proofs +alldiff 1)
+(proofs +alldiff 1 +rup 1)</code></pre>
+<p>A gate clause missing one pair was accepted the same way. The pre-PR solver also logged a root distinct constraint as an inference, though the clause is just the assertion in clause form.</p>
+<pre><code>; pre-PR log of a root (not (distinct a b c))
+(infer $10 $12 $14 $16)          ; $16 = (alldiff $10 $12 $14)</code></pre>
+<p>The pre-PR Python exporter accepted the input too, and its certificate is byte for byte the current one.</p>
+
+<h3>(c) After</h3>
+<p>Z3's log for the input now carries exactly two <code>alldiff</code> hints, one per gate clause, and the native checker verifies both.</p>
+<pre><code>(define-const $9 Bool (distinct a b c))
+(define-const $14 Bool (or $15 $13 $16))      ; $15 = (= a b), $13 = (= a c), $16 = (= b c)
+...
+(infer (not $9) (not $14) $26)                ; $26 = (alldiff (not $9) (not $14))
+(infer $9 $14 $27)                            ; $27 = (alldiff $9 $14)
+(assume p $9)
+(assume (not p) $9)
+(assume $13)
+...
+(infer rup)
+
+; checker verdict on the genuine gate pair
+(proofs +tseitin 4 +alldiff 2 +rup 4)</code></pre>
+<p>The forged log is now rejected, and the fallback prints a countermodel in which all three equalities are false.</p>
+<pre><code>(proofs -alldiff 1)
+did not verify: l_true
+(= a b)
+(= a c)
+(= b c)
+...
+(define-fun $15 () Bool
+  false)</code></pre>
+<p>The root case is logged as an input clause instead.</p>
+<pre><code>; current log of a root (not (distinct a b c))
+(assume $10 $12 $14)</code></pre>
+<p>The generated Lean file is unchanged by this PR, and Lean accepted it with the message <code>Lean checks passed</code>.</p>
+<pre><code>def term_1 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _elems 0
+...
+def formula_4 (...) : Prop := (And (Not ((term_1 ...) = (term_2 ...))) (And (Not ((term_1 ...) = (term_3 ...))) (Not ((term_2 ...) = (term_3 ...)))))
+...
+def formula_11 (...) : Prop := (Or (formula_9 ...) (Or (formula_8 ...) (formula_10 ...)))</code></pre>
+<p>The distinct constraint becomes a conjunction of three disequalities, and the pairwise equalities become a three-way <code>Or</code>.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_36 (...)
+    : (formula_35 _atoms _U _elems _funs _preds _bool) := by
+  unfold formula_35 formula_34 formula_33 formula_12 formula_11 formula_10 formula_9 formula_8 formula_5 formula_4 term_3 term_2 term_1 formula_0
+  grind (splits := 64)</code></pre>
+<p>This lemma is the Lean form of the negative gate clause, proved by the <a href="#g-tactic">tactic</a> <code>grind</code>. A twin lemma proves the positive one.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    (_h0 : (formula_5 _atoms _U _elems _funs _preds _bool))
+    (_h1 : (formula_7 _atoms _U _elems _funs _preds _bool))
+    (_h2 : (formula_8 _atoms _U _elems _funs _preds _bool))
+    : False :=
+  ...</code></pre>
+<p>The theorem takes the three assertions as hypotheses and derives <code>False</code>.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+Locally every suite passed, from the native replay test through the Lean end-to-end suites to the full regression corpus.
+The broad suites ran on the first commit, which holds all C++ changes. Rows marked "final tree" were rerun on the second commit, which only adds a test guard and moves a heading.
+No local gate record exists for this iteration.
+</p>
+<table>
+<caption>Local verification reported in the PR</caption>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Build z3 and <code>test-z3</code></td><td>pass (final tree)</td></tr>
+<tr><td><code>test-z3 proof_replay</code></td><td>PASS, 26 <code>(proofs ...)</code> lines, including <code>+alldiff 2</code> (final tree)</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td>82 tests OK, new test runs (final tree)</td></tr>
+<tr><td><code>check_lean.sh</code></td><td>Build completed, Lean checks passed (final tree)</td></tr>
+<tr><td>z3test proof tests</td><td>OK, 1 of 1 lean-verified (final tree)</td></tr>
+<tr><td><code>test_proof_to_lean_uf.py</code></td><td>33 tests OK (final tree)</td></tr>
+<tr><td>All <code>test_proof_to_lean*.py</code></td><td>253 tests OK in 661 s</td></tr>
+<tr><td><code>test-z3 -a</code></td><td>116 passed, 0 failed</td></tr>
+<tr><td>SMT2 regression corpus</td><td>all 951 regressions, exit 0</td></tr>
+<tr><td>Proof matrix, Boolean and LRA cells</td><td>6 of 6 and 8 of 8 lean-verified</td></tr>
+<tr><td>Native checker on the forged root shape</td><td>before: accepted; after: <code>-alldiff 1</code>, did not verify</td></tr>
+<tr><td>Native checker on tampered gates (missing pair, foreign disjunct, repeated argument)</td><td>each rejected, did not verify</td></tr>
+<tr><td><code>git diff --check</code></td><td>clean</td></tr>
+</tbody>
+</table>
+<p>No CI status files were recorded, so the GitHub workflows may still be pending. Their success must not be inferred from the local results. No CI fix rounds were recorded.</p>
+<table>
+<caption>CI workflows and checks</caption>
+<thead><tr><th>Workflow</th><th>Check</th><th>Status</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td colspan="4">No CI status was recorded. See the <a href="https://github.com/levnach/z3/pull/24/checks">checks tab of the PR</a> for the live state.</td></tr>
+</tbody>
+</table>
+<p class="note">Per the PR description, the new C++ tests run in every unit-test job, and the new Python test runs in the manylinux wheel job and the releaseClang Lean step.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blockers and no major findings.</p>
+<ul>
+<li><strong>Minor, pre-existing, filed as follow-up.</strong> The reviewer fed the checker a valid gate hint whose logged clause dropped a literal that <a href="#g-rup">RUP</a> could not recover. The plugin rejected it, but the SMT fallback accepted it, because the fallback proves the hint clause together with the logged clause, and a tautological hint leaves nothing to prove. The flaw is in the shared checker framework, untouched here, and the same log passed outright before the PR.</li>
+<li><strong>Minor, fixed.</strong> The new live-solver test lacked the guard its siblings carry, so without a <code>z3</code> executable it would error instead of skipping. The second commit adds the guard.</li>
+<li><strong>Nit, fixed.</strong> The plan note sat under the arithmetic heading. The second commit moves it, with the xor note, under "Boolean and EUF proof infrastructure".</li>
+<li><strong>Suggestion, filed as follow-up.</strong> A single-argument distinct constraint fails in Lean on both export paths, a pre-existing reconstructor gap.</li>
+</ul>
+<p>The reviewer also ran eight distinct-constraint sources through Lean, all passing.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Consumers of the clause log now see root distinct clauses as input clauses rather than <code>alldiff</code> inferences. The exporter handled both identically, and the pinned old-style logs still replay.</li>
+<li>Distinct constraints with more than 32 arguments use an <a href="#g-equisatisfiable">equisatisfiable</a> encoding over fresh symbols, now labelled input. The exporter rejected them before as well.</li>
+<li>The checker is stricter than necessary on shapes Z3 never emits. Rejection costs only a fallback check.</li>
+<li>The fallback flaw remains open, so a valid gate hint with a tampered logged clause can still pass. CI results are unknown at the time of this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Fix the fallback to check the logged clause alone, with a replay regression for a dropped non-RUP literal.</li>
+<li>Give the gate clauses a <a href="#g-def-axiom">def-axiom</a> shape in the exporter so they stop going through the unsat-core fallback.</li>
+<li>Handle a single-argument distinct constraint in the Lean reconstructor.</li>
+<li>A root distinct constraint over a finite <a href="#g-sort">sort</a> with too few elements still emits an empty clause with an empty <a href="#g-tseitin">Tseitin</a> status that nothing can verify.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-boolean">Boolean</dt><dd>A value or variable that is either true or false. In SMT-LIB the sort is written <code>Bool</code>.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as "p or not q or r". It is satisfied when at least one literal is true.</dd>
+<dt id="g-clause-log">clause log</dt><dd>The text Z3 writes while solving, one line per clause it assumed or derived, with a hint saying why each derived clause holds.</dd>
+<dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal results: if a = b then f(a) = f(b). It is the heart of equality reasoning.</dd>
+<dt id="g-countermodel">countermodel</dt><dd>An assignment of values that makes a supposedly unsatisfiable set of formulas true, proving the claim wrong.</dd>
+<dt id="g-def-axiom">def-axiom</dt><dd>A proof step whose clause is a tautology about a connective, such as "not (a or b), or a, or b". It needs no hypotheses.</dd>
+<dt id="g-disjunction">disjunction</dt><dd>An "or" of several formulas, written <code>(or x y z)</code> in SMT-LIB. It is true when any part is true.</dd>
+<dt id="g-distinct">distinct constraint</dt><dd>The SMT-LIB formula <code>(distinct a b c)</code>, true when no two arguments are equal. It is shorthand for a conjunction of disequalities.</dd>
+<dt id="g-euf">equality with uninterpreted functions (EUF)</dt><dd>The logic of equality, uninterpreted functions, and uninterpreted sorts, with no arithmetic. Its rules are reflexivity, symmetry, transitivity, and congruence.</dd>
+<dt id="g-equisatisfiable">equisatisfiable</dt><dd>Two formulas that are both satisfiable or both unsatisfiable without being equivalent. Encodings with fresh symbols are usually only equisatisfiable.</dd>
+<dt id="g-gate-clause">gate clause</dt><dd>A clause that defines a fresh Boolean literal in terms of a compound formula. For a distinct constraint d and its pairwise equalities e, the two gates are "not d or not e" and "d or e".</dd>
+<dt id="g-hint">hint</dt><dd>The label on a derived clause in the clause log, such as <code>alldiff</code>, <code>tseitin</code>, or <code>rup</code>, naming the rule a checker should use.</dd>
+<dt id="g-input-clause">input clause</dt><dd>A clause taken directly from the user's assertions, written <code>(assume ...)</code> in the log. Also called an assumption.</dd>
+<dt id="g-lra">linear real arithmetic</dt><dd>Formulas over real-valued variables with addition, multiplication by constants, and comparisons such as x + 2y &lt;= 3.</dd>
+<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>p</code> or <code>(not (= a b))</code>.</dd>
+<dt id="g-polarity">polarity</dt><dd>Whether a literal is positive (the atom itself) or negative (its negation). The two gate clauses have opposite polarity.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of formulas cannot all be true, ending in the empty clause or in <code>False</code>.</dd>
+<dt id="g-root">root</dt><dd>The top level of the input: a formula asserted directly rather than nested inside another formula. A root distinct constraint has no literal of its own.</dd>
+<dt id="g-rup">RUP (reverse unit propagation)</dt><dd>A clause check: assume all its literals false and run <a href="#g-unit-propagation">unit propagation</a>. A contradiction means the clause follows from the current clauses.</dd>
+<dt id="g-smt-fallback">SMT fallback check</dt><dd>What Z3's checker does when no native plugin accepts a hint: it asks a fresh solver whether the negated clause is satisfiable and rejects the step if so.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as <code>Int</code>, <code>Real</code>, <code>Bool</code>, or a user-declared sort.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically, such as <code>grind</code> or <code>unfold</code>.</dd>
+<dt id="g-tautology">tautology</dt><dd>A formula true under every assignment, such as "p or not p". It can be checked without hypotheses.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause valid in a background theory, such as arithmetic or equality, rather than by Boolean reasoning alone.</dd>
+<dt id="g-tseitin">Tseitin encoding</dt><dd>The standard way to turn a nested Boolean formula into clauses by naming each subformula with a fresh literal and adding its gate clauses.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning, only a name and sorts. Any interpretation respecting congruence is allowed.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A sort with no fixed set of elements, declared with <code>(declare-sort U 0)</code>. Its values are only known to be equal or different.</dd>
+<dt id="g-unit-propagation">unit propagation</dt><dd>Repeatedly finding a clause with all literals but one false and setting the remaining literal true.</dd>
+<dt id="g-unsat-core">unsat core</dt><dd>A subset of the assertions that is already unsatisfiable on its own.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-20 for iteration 24. Published at <a href="https://levnach.github.io/z3/reports/pr-24.html">levnach.github.io/z3/reports/pr-24.html</a>.
+</footer>
+</body>
+</html>
