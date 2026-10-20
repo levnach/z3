@@ -36,8 +36,10 @@ Pull request <a href="https://github.com/levnach/z3/pull/24">levnach/z3 #24</a> 
 state <span class="state">OPEN</span> &middot; opened 2026-10-20T20:26:20Z &middot; loop iteration 24
 </p>
 <p>This pull request is <strong>not merged</strong>. The report describes the change as of commit
-<a href="https://github.com/levnach/z3/commit/8b7344c27b0d525299f1fe20b4b35eb23097e369"><code>8b7344c27</code></a>,
-which holds both commits of the PR on top of base commit <code>9c2b87b9d</code>.</p>
+<a href="https://github.com/levnach/z3/commit/fcabb0e3ecbe0f612089dc945b6ebc10cdbc83b0"><code>fcabb0e3e</code></a>,
+which merges upstream master <code>e4653731f</code> into the original two-commit
+change. The merge preserves the incoming define-sort note alongside the
+Boolean/EUF alldiff and xor notes; the native alldiff implementation is unchanged.</p>
 </header>
 
 <h2 id="one-paragraph">In one paragraph</h2>
@@ -71,7 +73,7 @@ The PR serves milestone 3, <a href="#g-euf">equality with uninterpreted function
 <p class="note">Analogy: the old plugin waved through anyone wearing an <code>alldiff</code> badge. The new one checks the badge against exactly two faces.</p>
 
 <table>
-<caption>Files touched (base <code>9c2b87b9d</code> to head <code>8b7344c27</code>)</caption>
+<caption>Original alldiff change (base <code>9c2b87b9d</code> to original head <code>8b7344c27</code>), excluding the later upstream merge</caption>
 <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
 <tbody>
 <tr><td><code>src/sat/smt/distinct_theory_checker.cpp</code> (new)</td><td>Native checker</td><td>111</td><td>0</td></tr>
@@ -91,7 +93,7 @@ The PR serves milestone 3, <a href="#g-euf">equality with uninterpreted function
 <h2 id="worked-example">Worked example</h2>
 <p>
 The example is the below-root case from the PR's new Python test: two clauses force the distinct constraint whatever <code>p</code> is, and a third assertion contradicts it.
-All outputs are from real runs on 2026-10-20, "After" on the PR head and "Before" on a z3 built from the base commit.
+All outputs are from real runs on 2026-10-20, "After" on the original PR head <code>8b7344c27</code> and "Before" on a z3 built from the original base commit.
 </p>
 
 <h3>(a) The input</h3>
@@ -171,13 +173,25 @@ private theorem th_lemma_36 (...)
 <p>The theorem takes the three assertions as hypotheses and derives <code>False</code>.</p>
 
 <h2 id="verification">How it was verified</h2>
+<h3>Conflict resolution (2026-10-20)</h3>
 <p>
-Locally every suite passed, from the native replay test through the Lean end-to-end suites to the full regression corpus.
-The broad suites ran on the first commit, which holds all C++ changes. Rows marked "final tree" were rerun on the second commit, which only adds a test guard and moves a heading.
+After merging upstream master at <code>e4653731f</code>, the Release solver and
+test builds, native proof replay, all 116 native unit tests, all 124 selected
+exporter/UF/wide-connective tests, the Lean project, and SMT/Python/CLI smoke
+checks passed on the combined tree. The only manual conflict was in the proof
+plan documentation. Both upstream contributions
+<a href="https://github.com/Z3Prover/z3/pull/11246">Z3Prover/z3#11246</a> and
+<a href="https://github.com/Z3Prover/z3/pull/11247">Z3Prover/z3#11247</a> are
+preserved. The broader original suites below were not repeated for this
+documentation conflict; GitHub CI has not been awaited.
+</p>
+<p>
+In the original implementation verification, every suite passed, from the native replay test through the Lean end-to-end suites to the full regression corpus.
+The broad suites ran on the first commit, which holds all C++ changes. Rows marked "final tree" refer to the original head <code>8b7344c27</code>, which only adds a test guard and moves a heading.
 No local gate record exists for this iteration.
 </p>
 <table>
-<caption>Local verification reported in the PR</caption>
+<caption>Original implementation verification reported in the PR</caption>
 <thead><tr><th>Check</th><th>Result</th></tr></thead>
 <tbody>
 <tr><td>Build z3 and <code>test-z3</code></td><td>pass (final tree)</td></tr>
