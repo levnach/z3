@@ -1,0 +1,102 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Check alldiff gate clauses natively and log root distinct as input</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>:root{color-scheme:light dark}body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:50rem;margin:2rem auto;padding:0 1rem;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>
+</head><body><h1>Check alldiff gate clauses natively and log root distinct as input</h1>
+<p>Pull request <a href="https://github.com/Z3Prover/z3/pull/11245">#11245</a>. Not merged. CI results are not inferred from local verification.</p>
+<p><em>This is an HTML copy of the pull request description. See the PR for the latest check status.</em></p>
+<pre>&lt;!-- loop-html-report --&gt;
+## HTML description
+
+[Read the HTML report](https://levnach.github.io/z3/reports/upstream/pr-11245.html) | [View the HTML file](https://github.com/levnach/z3/blob/gh-pages/reports/upstream/pr-11245.html)
+&lt;!-- /loop-html-report --&gt;
+
+Corresponding fork PR: [levnach/z3#24](https://github.com/levnach/z3/pull/24).
+The [detailed technical report](https://levnach.github.io/z3/reports/pr-24.html)
+includes the native checker examples, verification results, and review.
+
+## Summary
+
+- Check the two `distinct` gate clauses in the native `alldiff` proof checker instead of trusting every hint.
+- Log root `distinct` clausification as input clauses, like other root clausification.
+- Add direct checker, native-replay, and live clause-log regressions.
+
+## Motivation
+
+The native `alldiff` plugin returned true for every hint. A log inferring
+`(or (= a b) (= a c) (= b c))` with an `alldiff` hint and no assumption replayed
+as `+alldiff 1` despite the clause having a countermodel.
+
+Z3 used the label for two different operations. Root `distinct` clausification
+follows from an asserted formula that is not recorded in the hint; those clauses
+are input, not independently checkable theory inferences. The two clauses for a
+`distinct` below the root, `(or (not d) (not some_eq))` and `(or d some_eq)`,
+are tautologies, where `some_eq` is the disjunction of pairwise equalities.
+
+## Changes
+
+- **Proof production:** `add_not_distinct_axiom` and `add_distinct_axiom` use
+  `sat::status::input()` for root clauses. Remove the unused
+  `mk_distinct_status` overloads.
+- **Native checker:** move the implementation into
+  `distinct_theory_checker.cpp` and register it in CMake. Require two literals
+  of the same polarity, one a `distinct` and the other its equality disjunction.
+  The positive clause must cover every argument pair not already known distinct,
+  up to equality symmetry; the negative clause must contain only equalities
+  between arguments. Handle constants, repeated arguments, and the two-argument
+  case. Non-gate shapes fall back to the existing SMT check.
+- **Regressions:** direct checker tests cover valid gates, wrong polarities,
+  missing pairs, foreign disjuncts, repeated arguments, constants, and root
+  shapes. Native replay requires `+alldiff 2` for a genuine gate pair. A Python
+  test checks that root clauses are assumptions and below-root clauses retain
+  their gate hints; it skips when no `z3` executable is available.
+- **Documentation:** update the clause-log comments and add a dated native
+  `alldiff` note under Boolean and EUF proof infrastructure.
+
+No Lean, axiom, trust-flag, or CI workflow changes. The Python exporter&#x27;s logic
+is unchanged; its existing assumption path handles the root clauses.
+
+## Verification
+
+Release build on macOS with Python bindings and the pinned Lean toolchain.
+The final commit only adds the live-test availability guard and reorganizes
+the documentation heading.
+
+| Command or scenario | Result |
+| --- | --- |
+| `cmake --build build --parallel 12`; `cmake --build build --target test-z3 --parallel 12` | Passed on the final tree |
+| `build/test-z3 proof_replay` | Passed on the final tree; genuine gates replay as `(proofs +tseitin 4 +alldiff 2 +rup 4)` |
+| `python3 -m unittest discover -s examples/python -p &#x27;test_proof_certificate.py&#x27;` | 82 tests passed on the final tree; the new live test ran |
+| `python3 -m unittest discover -s examples/python -p &#x27;test_proof_to_lean_uf.py&#x27;` | 33 tests passed on the final tree |
+| `scripts/check_lean.sh` | Passed on the final tree |
+| `python3 -m unittest discover -s ../z3test/scripts/proofs -p &#x27;test_proof*.py&#x27;` | Passed on the final tree |
+| `build/test-z3 -a` | 116 passed, zero failures on the implementation commit |
+| `python3 ../z3test/scripts/test_benchmarks.py build/z3 ../z3test/regressions/smt2` | All 951 regressions passed on the implementation commit |
+| `python3 -m unittest discover -s examples/python -p &#x27;test_proof_to_lean*.py&#x27;` | 253 tests passed on the implementation commit |
+| Boolean Lean matrix, `--cells legacy-proof-object`; QF_LRA matrix, `--cells smt-clause-log-nopp` | All six and all eight cells `lean-verified` on the implementation commit |
+| Old root-shaped hint with no assumption | Before: `+alldiff 1`; after: `-alldiff 1`, `did not verify: l_true`, with a countermodel |
+| `git diff --check` | Clean |
+
+The native regressions run through the existing `test-z3 -a` CI steps; the
+Python regression runs with the existing certificate tests. GitHub CI has not
+been awaited.
+
+## Risks and follow-ups
+
+- Root `distinct` clauses now appear as assumptions to clause-log and
+  `OnClause` consumers. Encodings above 32 arguments use fresh symbols and are
+  equisatisfiable rather than equivalent; the Lean exporter rejected those
+  encodings before this change and still does.
+- Level-zero simplification can shorten an input clause, including to an empty
+  assumption. The exporter&#x27;s existing unsat-core fallback handles that shape.
+- The default `theory_checker_plugin::vc` still combines the logged clause
+  with the hint for SMT fallback. A tautological hint can therefore mask an
+  invalid logged strict sub-clause. This pre-existing framework behavior is
+  unchanged here and remains a separate follow-up with a regression needed
+  across plugins.
+- Other follow-ups are direct Lean def-axiom support for the gate clauses,
+  single-argument `distinct` reconstruction, and the pre-existing finite-sort
+  empty `tseitin` clause case.
+
+The implementation was reviewed and integrated in the fork. This PR is left
+open for upstream review and is not merged automatically.
+</pre></body></html>
