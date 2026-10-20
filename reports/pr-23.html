@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #23: Check xor gate clauses in the native Tseitin proof checker</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
+    --link: #0a5bd6;
+    --accent: #9a6700;
+    --ok: #1a7f37;
+    --bad: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #9198a1;
+      --border: #3d444d;
+      --code-bg: #161b22;
+      --link: #58a6ff;
+      --accent: #d29922;
+      --ok: #3fb950;
+      --bad: #f85149;
+    }
+  }
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    max-width: 52rem;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    line-height: 1.55;
+  }
+  a { color: var(--link); }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.3rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .badge {
+    display: inline-block; padding: 0.1rem 0.55rem; border-radius: 1rem;
+    border: 1px solid var(--accent); color: var(--accent); font-weight: 600; font-size: 0.85rem;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em; background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.4;
+  }
+  pre code { background: none; padding: 0; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0 1.2rem; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.92rem; margin-top: -0.4rem; }
+  dl dt { font-weight: 600; margin-top: 0.7rem; }
+  dl dd { margin-left: 0; color: var(--fg); }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Check xor gate clauses in the native Tseitin proof checker</h1>
+  <p class="meta">
+    <a href="https://github.com/levnach/z3/pull/23">Pull request #23</a> in levnach/z3 &middot;
+    <span class="badge">OPEN</span> &middot;
+    opened 2026-10-20T03:23:11Z &middot; loop iteration 23
+  </p>
+  <p>This pull request is <strong>not merged</strong>. It is an open draft.
+    The change under review is commit
+    <a href="https://github.com/levnach/z3/commit/246396e5a41aab2e063055345141b0d5b590d260"><code>246396e5a</code></a>,
+    which sits on top of base commit <code>7d383c3fd</code>.</p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+Z3's native <a href="#g-proof-checker">proof checker</a> has a plugin that checks
+<a href="#g-tseitin">Tseitin</a> <a href="#g-gate-clause">gate clauses</a>.
+That plugin accepted invalid gate clauses for <a href="#g-xor"><code>xor</code></a>.
+It counted how many <a href="#g-literal">literals</a> of the
+<a href="#g-clause">clause</a> mentioned a gate argument, instead of reading the
+<a href="#g-polarity">polarity</a> of each one. For a negated gate it looked at the
+wrong node and accepted nearly anything. This PR replaces the count with a real
+evaluation of the <code>xor</code> under the <a href="#g-assignment">assignment</a> that
+falsifies the other literals. The checker now rejects a clause that is not a
+<a href="#g-tautology">tautology</a> and still accepts the four clauses Z3 emits per
+gate. A native <a href="#g-hint">hint</a> that passes the checker counts as trusted
+evidence during <a href="#g-proof-replay">proof replay</a>, so this hole could let an
+unsound <a href="#g-refutation">refutation</a> through unnoticed.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR the native checker handled <code>and</code>, <code>or</code>,
+<code>ite</code>, implication and Boolean equality gates correctly, and the Lean side
+verified Boolean refutations through its own <a href="#g-def-axiom">def-axiom</a> rule.
+The <code>xor</code> branch accepted <a href="#g-gate-clause">gate clauses</a> that have
+a <a href="#g-countermodel">countermodel</a>. Iterations 20 to 22 repaired similar gaps
+in the <a href="#g-farkas">Farkas</a> and <a href="#g-implied-eq">implied-equality</a>
+checkers. The plan treats checker correctness as its own obligation and keeps the C++
+checker as a trusted diagnostic beside the Lean path in milestones 3 and 4.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+  <li><strong>Native checker:</strong> an <code>xor</code> gate clause is now accepted
+    only when every gate argument is fixed by another clause literal or is a constant,
+    and the gate then takes the value that makes the clause true.</li>
+  <li><strong>Negated gates:</strong> the checker now reads the arguments of the
+    <code>xor</code> itself, not of the outer <code>not</code> node, so a clause ending
+    in a negated <code>xor</code> no longer passes automatically.</li>
+  <li><strong>Regression tests:</strong> a unit test covers the four defining clauses,
+    every wrong polarity, free, repeated, constant and nested arguments, and unaffected
+    <code>and</code> gates. A replay test requires all four hints of a hand-written
+    <code>xor</code> log to verify natively.</li>
+  <li><strong>Test reliability:</strong> the unit test now installs an exit guard, so a
+    replay that quits early fails the test binary instead of skipping later checks.
+    The second commit makes the guard's cleanup safe when the parser throws.</li>
+  <li><strong>Documentation:</strong> a dated plan note records the bug and its
+    counterexamples.</li>
+</ul>
+<p>An analogy: a gate clause is a wiring rule saying the output wire must agree with its
+inputs. The old check counted how many input wires the rule mentioned. The new check
+sets each wire and reads the output.</p>
+
+<table>
+  <thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/sat/smt/tseitin_theory_checker.cpp</code></td><td>Native checker: new <code>xor_holds</code> helper used by both gate polarities</td><td class="num">21</td><td class="num">17</td></tr>
+    <tr><td><code>src/sat/smt/tseitin_theory_checker.h</code></td><td>Declaration of the helper</td><td class="num">1</td><td class="num">0</td></tr>
+    <tr><td><code>src/test/proof_replay.cpp</code></td><td>Checker and replay regressions, exit guard, scoped cleanup</td><td class="num">105</td><td class="num">3</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated note on native xor gate clauses</td><td class="num">24</td><td class="num">0</td></tr>
+    <tr><th>Total (2 commits)</th><th></th><th class="num">151</th><th class="num">20</th></tr>
+  </tbody>
+</table>
+
+<h2 id="worked-example">Worked example</h2>
+<p>This PR changes the native C++ checker, not the Lean reconstruction, so the example
+is a native <a href="#g-clause-log">clause log</a> with real checker verdicts before and
+after the fix.</p>
+
+<h3>(a) The input: a clause log with one invalid xor gate clause</h3>
+<p>The log defines a gate for <code>(xor a b)</code> and claims that
+<code>(or (not a) (not $1))</code> follows from the gate alone. It does not. With
+<code>a</code> true and <code>b</code> false both literals are false. The file comes
+from the PR's regression scratch work.</p>
+<pre><code>(declare-fun a () Bool)
+(declare-fun b () Bool)
+(define-const $1 Bool (xor a b))
+(declare-fun tseitin (Bool Bool) Proof)
+(infer (not a) (not $1) (tseitin (not $1) (not a)))
+(declare-fun rup () Proof)
+(infer rup)
+</code></pre>
+
+<h3>(b) Before: the old checker accepted invalid gate clauses</h3>
+<p>No pre-change binary was rebuilt for this report. Below is the real run the
+implementer recorded with the fix stashed: the old checker accepted
+<code>(or (xor a b) a b)</code>, which is false when both variables are false.</p>
+<pre><code>File: src/test/proof_replay.cpp
+Line: 343
+Failed to verify: !check("(assert (xor a b))(assert a)(assert b)")
+
+5.3.1.0 7d383c3fdcba9edbf9116693f248245e662c47a4 ...
+Please file an issue with this message ...
+</code></pre>
+<p>The PR description records that the old negated-gate branch also accepted the clause
+in the input above.</p>
+
+<h3>(c) After: the new checker rejects it and reports a countermodel</h3>
+<p>The current build with <code>solver.proof.check=true</code> marks the hint as failed
+and prints the falsifying assignment.</p>
+<pre><code>(proofs -tseitin 1)
+did not verify: l_true
+(not a)
+(not (xor a b))
+...
+hint: (tseitin (not (xor a b)) (not a))
+...
+(define-fun b () Bool
+  false)
+(define-fun a () Bool
+  true)
+</code></pre>
+<p>On the PR's valid log, which lists all four defining clauses and then reaches the
+empty clause by <a href="#g-rup">unit propagation</a>, every hint verifies natively.</p>
+<pre><code>(proofs +tseitin 1)
+...
+(proofs +tseitin 4)
+(proofs +tseitin 4 +rup 1)
+(proofs +tseitin 4 +rup 2)
+</code></pre>
+<p>The whole fix is one small helper. It flips a running Boolean for each argument that
+is true under the falsifying assignment and fails if an argument is left free.</p>
+<pre><code>bool theory_checker::xor_holds(app* x, bool expected) {
+    bool value = false;
+    for (expr* arg : *x) {
+        if (m.is_true(arg) || is_complement(arg))
+            value = !value;
+        else if (!m.is_false(arg) &amp;&amp; !is_marked(arg))
+            return false;
+    }
+    return value == expected;
+}
+</code></pre>
+<p><strong>Lean check.</strong> The Lean pipeline was also run on the SMT-LIB problem
+behind the log, and the Lean check passed. In the generated file the
+<a href="#g-rewriter">rewriter</a> has already turned the <code>xor</code> into a negated
+Boolean equality, so Lean never sees an <code>xor</code> gate.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>Locally, every native unit test, the SMT-LIB regression corpus, all Python and Lean
+tests, and both Lean matrices passed. The implementer confirmed that the new regression
+fails without the fix. The reviewer reran the native, certificate, and proof-script
+suites after the second commit. No local gate record exists for this iteration.</p>
+<table>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>New regression with the checker fix stashed</td><td class="ok">Fails at the invalid positive xor clause, as intended</td></tr>
+    <tr><td><code>test-z3 -a</code> (native unit tests)</td><td class="ok">116 passed, 0 failed, before and after integration</td></tr>
+    <tr><td><code>test-z3 proof_replay</code></td><td class="ok">Pass, <code>+tseitin 4 +rup 2</code>, no fallback</td></tr>
+    <tr><td>Exit guard with a deliberately satisfiable xor log</td><td class="ok">Binary exits 1 with "proof replay exited before completing"</td></tr>
+    <tr><td>SMT-LIB regression corpus (<code>test_benchmarks.py</code>)</td><td class="ok">All passed</td></tr>
+    <tr><td>Python certificate tests</td><td class="ok">81 passed</td></tr>
+    <tr><td>Python Lean translation tests</td><td class="ok">253 passed</td></tr>
+    <tr><td>Proof-script tests in z3test</td><td class="ok">46 passed</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+    <tr><td>Boolean Lean matrix, legacy proof object cell</td><td class="ok">6 of 6 lean-verified</td></tr>
+    <tr><td>QF_LRA Lean matrix, clause-log cell</td><td class="ok">8 of 8 lean-verified</td></tr>
+    <tr><td>CLI and Python binding smoke scenarios</td><td class="ok">Passed</td></tr>
+  </tbody>
+</table>
+<p>No CI status files were recorded and there were no CI fix rounds. The PR says the new
+tests run inside the existing CI unit-test step and that GitHub CI was not awaited. CI
+results are unknown at the time of this report and cannot be inferred from the local
+runs.</p>
+<table>
+  <thead><tr><th>CI workflow or check</th><th>Status</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td>CI / Ubuntu build - cmake (runs <code>test-z3 -a</code>)</td><td>Not recorded</td><td><a href="https://github.com/levnach/z3/pull/23/checks">PR checks page</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change after reading the diff, the checker's marking
+helpers, and the replay frontend's failure path. Two minor findings were fixed in the
+second commit. No blocker or major finding was raised.</p>
+<ul>
+  <li><strong>Minor: cleanup was not exception-safe.</strong> The reviewer traced what
+    happens when the parser throws inside the replay helper. The captured stream was only
+    restored on a normal return, so the exit guard could point at a destroyed buffer. The
+    fix moves the state into a scoped object that restores it on any exit path. A crash
+    in the guard would have hidden the real failure.</li>
+  <li><strong>Minor: wrong counterexamples in the prose.</strong> The reviewer checked
+    the note and comments against the truth table. The note did not name the falsifying
+    assignments, and a four-argument example had the wrong <a href="#g-parity">parity</a>.
+    Both were corrected so a reader can verify each example by hand.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>Only checker acceptance changes. The one possible regression is rejecting a clause
+    Z3 emits, and the tests cover its four clauses per gate.</li>
+  <li>Live clause logs rarely contain <code>xor</code> hints because of the rewriter.
+    The fix closes a soundness gap rather than certifying new inputs.</li>
+  <li>A clause with both polarities of an argument is still accepted, which is sound
+    because it is a tautology on its own.</li>
+  <li>The exit guard calls a hard exit inside an exit handler, but only while a replay
+    is in progress.</li>
+  <li>CI results are not yet known.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>The production replay frontend still exits with status zero on a refuted proof.
+    The guard here is test-only, and fixing the frontend is a separate follow-up.</li>
+  <li>The <code>alldiff</code> checker plugin still trusts every hint it is given. The
+    backlog lists the shapes Z3 emits and the evidence a real check would need.</li>
+  <li>The loop stops with this C++ PR open. It is not merged automatically.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-assignment">assignment</dt>
+  <dd>A choice of true or false for every Boolean variable. Example: <code>a = true, b = false</code>.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction ("or") of literals. It is true when at least one literal is true.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A text record of the clauses a solver learned, each with a hint saying how it was justified, so a checker can replay the run.</dd>
+  <dt id="g-countermodel">countermodel</dt>
+  <dd>An assignment that makes a claimed-valid formula false. It is proof that the claim is wrong.</dd>
+  <dt id="g-def-axiom">def-axiom</dt>
+  <dd>The proof rule that introduces the defining clauses of a Boolean gate. Lean checks it independently of the native checker.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A rule for linear arithmetic: if a nonnegative weighted sum of inequalities gives a contradiction, the inequalities cannot all hold.</dd>
+  <dt id="g-gate-clause">gate clause</dt>
+  <dd>One of the clauses that tie a fresh variable to the connective it names. For <code>$1 = (xor a b)</code> there are four of them.</dd>
+  <dt id="g-hint">hint</dt>
+  <dd>A tag on a clause in a clause log naming the checker that should verify it, such as <code>tseitin</code>, <code>farkas</code> or <code>rup</code>.</dd>
+  <dt id="g-implied-eq">implied equality</dt>
+  <dd>An equality that follows from a set of linear inequalities because they force two terms to be equal.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>A Boolean variable or its negation, such as <code>a</code> or <code>(not a)</code>.</dd>
+  <dt id="g-parity">parity</dt>
+  <dd>Whether a count is even or odd. An <code>xor</code> is true exactly when an odd number of its arguments are true.</dd>
+  <dt id="g-polarity">polarity</dt>
+  <dd>Whether a literal is positive (<code>a</code>) or negative (<code>(not a)</code>).</dd>
+  <dt id="g-proof-checker">proof checker</dt>
+  <dd>A program that checks each step of a proof against its rule and rejects steps that do not follow. Z3's native one is written in C++.</dd>
+  <dt id="g-proof-replay">proof replay</dt>
+  <dd>Reading a clause log back and verifying every clause with the checker named by its hint.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions is contradictory, ending in the empty clause or in False.</dd>
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>The simplification stage that replaces a term by an equivalent one before solving. Here it turns <code>(xor a b)</code> into <code>(not (= a b))</code>.</dd>
+  <dt id="g-rup">RUP (unit propagation)</dt>
+  <dd>Reverse unit propagation: a clause is justified if assuming all its literals false and propagating the known clauses reaches a conflict.</dd>
+  <dt id="g-tautology">tautology</dt>
+  <dd>A formula that is true under every assignment. A correct gate clause is a tautology once the gate variable is read as its definition.</dd>
+  <dt id="g-tseitin">Tseitin transformation</dt>
+  <dd>The standard way to turn a formula into clauses by naming each subformula with a fresh variable and adding gate clauses for it.</dd>
+  <dt id="g-xor">xor</dt>
+  <dd>Exclusive or. <code>(xor a b)</code> is true when exactly one of <code>a</code> and <code>b</code> is true.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-19 for loop iteration 23.
+  Pull request <a href="https://github.com/levnach/z3/pull/23">levnach/z3#23</a>, state OPEN.
+</footer>
+</body>
+</html>
