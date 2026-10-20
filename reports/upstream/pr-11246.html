@@ -1,0 +1,77 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Accept define-sort aliases in the proof certificate exporter</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>:root{color-scheme:light dark}body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:50rem;margin:2rem auto;padding:0 1rem;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>
+</head><body><h1>Accept define-sort aliases in the proof certificate exporter</h1>
+<p>Pull request <a href="https://github.com/Z3Prover/z3/pull/11246">#11246</a>. Not merged. CI results are not inferred from local verification.</p>
+<p><em>This is an HTML copy of the pull request description. See the PR for the latest check status.</em></p>
+<pre>&lt;!-- loop-html-report --&gt;
+## HTML description
+
+[Read the HTML report](https://levnach.github.io/z3/reports/upstream/pr-11246.html) | [View the HTML file](https://github.com/levnach/z3/blob/gh-pages/reports/upstream/pr-11246.html)
+&lt;!-- /loop-html-report --&gt;
+
+## Source and attribution
+
+This contribution comes from **@elefthei**, originally submitted as
+[elefthei/z3#1](https://github.com/elefthei/z3/pull/1).
+The original author&#x27;s changes are forwarded onto current upstream `master`,
+with authorship retained and the two source commits consolidated into one.
+
+Original commits: `d4819f4d17ff1475fc8f8c352bcd7f3905ffecca` and
+`91152eb697985ee70f3673f50d0ca334624553e1`.
+
+## Summary
+
+Accept plain and parametric SMT-LIB `define-sort` aliases in the proof
+certificate exporter, scoped like declarations.
+
+Z3&#x27;s parser expands the aliases when the exporter parses the selected query
+and when the solver writes the clause log. The certificate and reconstructed
+Lean statement therefore refer only to expanded sorts, which still pass the
+existing fragment and sort checks. No C++, Lean library, axiom, or trust-flag
+changes are involved.
+
+## Changes
+
+- Keep `define-sort` commands in query snapshots so push/pop, reset, and
+  reset-assertions handle them consistently with declarations.
+- Validate definition shape and reject repeated parameters explicitly;
+  Z3&#x27;s parser handles sort resolution and type checking.
+- Add exporter regressions for aliases, malformed definitions, unsupported
+  expanded sorts, and scope/reset behavior.
+- Add end-to-end Lean checks for an alias of an uninterpreted sort and a
+  parametric alias, plus a popped-scope regression.
+- Update the exporter documentation and proof plan.
+
+## Review and verification
+
+Independent review found no blocking issues in the snapshot handling, alias
+expansion, or reconstruction trust boundary. The new integration tests failed
+before the implementation with `unsupported SMT-LIB command: define-sort`.
+The source PR is not already represented by an upstream PR.
+
+Validation used a fresh Release build with Python bindings from upstream
+`9c2b87b9d22ca2d2f28c27e278affe3b4723b135`, rather than the loop&#x27;s unmerged
+C++ changes.
+
+| Check | Result |
+| --- | --- |
+| `python3 -m unittest -v test_proof_certificate test_proof_to_lean_uf.TestDefineSort` from `examples/python` | 84 tests passed |
+| Both new alias inputs through legacy export and Lean checking | Passed |
+| `scripts/check_lean.sh` | Passed |
+| Fresh CMake solver and `test-z3` builds | Passed |
+| `test-z3 -a` | 116 passed, zero failures |
+| Basic SMT solving/model, Python bindings/model, CLI version/help | Passed |
+| `git diff --check` | Clean |
+
+The existing end-to-end alias tests exercise clause-log export; the additional
+legacy checks exercise the same inputs through the other proof source.
+Upstream GitHub CI has not been awaited.
+
+## Scope and limitations
+
+Aliases do not enable new underlying theories: an alias of an unsupported sort
+is still rejected when used. `global-declarations` and unsupported SMT-LIB
+commands remain rejected. Invalid alias bodies can raise `z3.Z3Exception`,
+consistent with other parser errors.
+</pre></body></html>

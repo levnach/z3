@@ -1,0 +1,14 @@
+{
+  "number": 11246,
+  "title": "Accept define-sort aliases in the proof certificate exporter",
+  "pr_url": "https://github.com/Z3Prover/z3/pull/11246",
+  "page": "https://levnach.github.io/z3/reports/upstream/pr-11246.html",
+  "merge_sha": "",
+  "date": "2026-10-20T23:32:33Z",
+  "iteration": 0,
+  "summary": "HTML description of the pull request.",
+  "state": "OPEN",
+  "head_sha": "fb7340bbe9d239882b1d78618804b90760107de6",
+  "base_sha": "9c2b87b9d22ca2d2f28c27e278affe3b4723b135",
+  "repository": "Z3Prover/z3"
+}
