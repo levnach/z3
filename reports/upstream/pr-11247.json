@@ -1,0 +1,14 @@
+{
+  "number": 11247,
+  "title": "Certify wide n-ary and/or connectives in generated Lean proofs",
+  "pr_url": "https://github.com/Z3Prover/z3/pull/11247",
+  "page": "https://levnach.github.io/z3/reports/upstream/pr-11247.html",
+  "merge_sha": "",
+  "date": "2026-10-20T23:42:41Z",
+  "iteration": 0,
+  "summary": "HTML description of the pull request.",
+  "state": "OPEN",
+  "head_sha": "1618dacc1d55a9e8383cfd1dc630fb4834cf6a5f",
+  "base_sha": "9c2b87b9d22ca2d2f28c27e278affe3b4723b135",
+  "repository": "Z3Prover/z3"
+}

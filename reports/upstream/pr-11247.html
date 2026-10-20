@@ -1,0 +1,86 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Certify wide n-ary and/or connectives in generated Lean proofs</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>:root{color-scheme:light dark}body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:50rem;margin:2rem auto;padding:0 1rem;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>
+</head><body><h1>Certify wide n-ary and/or connectives in generated Lean proofs</h1>
+<p>Pull request <a href="https://github.com/Z3Prover/z3/pull/11247">#11247</a>. Not merged. CI results are not inferred from local verification.</p>
+<p><em>This is an HTML copy of the pull request description. See the PR for the latest check status.</em></p>
+<pre>&lt;!-- loop-html-report --&gt;
+## HTML description
+
+[Read the HTML report](https://levnach.github.io/z3/reports/upstream/pr-11247.html) | [View the HTML file](https://github.com/levnach/z3/blob/gh-pages/reports/upstream/pr-11247.html)
+&lt;!-- /loop-html-report --&gt;
+
+## Source and attribution
+
+This contribution comes from **@elefthei**, originally submitted as
+[elefthei/z3#2](https://github.com/elefthei/z3/pull/2).
+The original author&#x27;s changes are forwarded onto current upstream `master`,
+with authorship retained and the two source commits consolidated into one.
+
+Original commits: `6d2c77e8d6ba489ca78c92520f1db71a77ab9867` and
+`d298709bec5383f681d8a22a007a886852cd0346`.
+
+## Summary
+
+Generated Lean proofs for conjunctions and disjunctions with a few hundred
+operands exceeded Lean&#x27;s default recursion limit while elaborating formula
+definitions, before the existing per-theorem limit took effect.
+
+Raise the elaboration limit for the generated namespace and use proof-term
+shapes that avoid unnecessary elaboration work on wide conjunctions and unit
+resolution chains. This changes elaboration limits and generated terms, not
+the trust boundary, accepted proof rules, Lean library, or solver.
+
+## Changes
+
+- Set `maxRecDepth 100000` once inside the generated namespace, covering
+  definitions, lemmas, outlined steps, and the final theorem instead of only
+  selected declarations.
+- Project conjuncts and outlined input hypotheses using field notation such
+  as `_step_N.2.2.1`, so elaboration starts from a known type.
+- Remove eliminated and false literals with `Or.resolve_left`; retain
+  `Or.elim` case splits for literals that remain in the conclusion. The
+  existing resolution validation checks are unchanged.
+- Add six end-to-end regressions over 200-260 operands, covering conjunctions
+  and disjunctions through the legacy and clause-log proof sources, including
+  QF_UF cases and axiom checks.
+- Document the scaling improvement and remaining limits.
+
+## Review and verification
+
+Independent review found no blocking issues in the projection changes,
+resolution term construction, or option scope. All six new regressions failed
+before the implementation with Lean recursion-depth errors. The source PR is
+not already represented by an upstream PR.
+
+Validation used a fresh Release build with Python bindings from upstream
+`9c2b87b9d22ca2d2f28c27e278affe3b4723b135`, rather than the loop&#x27;s unmerged
+C++ changes.
+
+| Check | Result |
+| --- | --- |
+| `python3 -m unittest -v test_proof_certificate test_proof_to_lean*.py` from `examples/python` | All 340 tests passed in 620.503 seconds |
+| Six new wide-connective regressions | All passed within that run; all six failed before the implementation |
+| `scripts/check_lean.sh` | Passed |
+| Fresh CMake solver and `test-z3` builds | Passed |
+| `test-z3 -a` | 116 passed, zero failures |
+| Basic SMT solving/model, Python bindings/model, CLI version/help | Passed |
+| `git diff --check` | Clean |
+
+The complete existing reconstruction suite was included, exercising
+propositional, UF, arithmetic, mixed, outlined, and invalid-certificate cases.
+The new legacy propositional cases remain axiom-free; other new cases use at
+most the existing standard axioms. Upstream GitHub CI has not been awaited.
+
+## Scope and remaining limits
+
+No C++ or Lean library files change, and generated files still go through the
+pinned checker with `--trust=0`. The recursion limit is an elaboration resource
+setting, not a trust setting.
+
+This does not remove all scaling limits. At roughly 600 operands, outlined
+proofs can still exceed the heartbeat limit because of quadratic input
+projections. The motivating `NEQ004_size4` benchmark also has independent
+clause-log trimming and rewrite-lemma limitations. Sharing conjunction tails
+and improving outlined projections remain follow-ups.
+</pre></body></html>
