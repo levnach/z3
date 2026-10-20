@@ -1,0 +1,70 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Check xor gate clauses in the native Tseitin proof checker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>:root{color-scheme:light dark}body{font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:50rem;margin:2rem auto;padding:0 1rem;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>
+</head><body><h1>Check xor gate clauses in the native Tseitin proof checker</h1>
+<p>Pull request <a href="https://github.com/Z3Prover/z3/pull/11239">#11239</a>. Not merged. CI results are not inferred from local verification.</p>
+<p><em>This is an HTML copy of the pull request description. See the PR for the latest check status.</em></p>
+<pre>Corresponding fork PR: [levnach/z3#23](https://github.com/levnach/z3/pull/23).
+The [detailed technical report](https://levnach.github.io/z3/reports/pr-23.html)
+includes the real native checker worked example and review.
+
+## Summary
+
+- Check xor gate clauses using the assignment that falsifies the other clause literals.
+- Require the correct parity and evidence for every xor argument, for both positive and negated gates.
+- Add direct checker and native-replay regressions, and prevent early replay exits from silently passing the unit test.
+
+## Motivation
+
+The native Tseitin checker accepted invalid xor clauses. For positive gates, its signed count only tracked whether an even number of arguments appeared, not their actual parity. Arguments left free by the clause were ignored. For negated gates, it iterated the outer `not` node rather than the xor arguments.
+
+Examples previously accepted despite falsifying assignments:
+
+| Clause | Counterexample |
+| --- | --- |
+| `(or (xor a b) a b)` | `a = false`, `b = false` |
+| `(or (xor a b) (not a) (not b))` | `a = true`, `b = true` |
+| `(or (not (xor a b)) (not a))` | `a = true`, `b = false` |
+
+## Changes
+
+- **Native checker:** share a parity helper between both xor branches. Determine argument values from the other clause literals or constants, reject unfixed arguments, and require the gate value that makes the clause true.
+- **Regressions:** cover the four defining xor clauses, wrong polarities, free arguments, repeated/constants/nested arguments, unaffected `and` gates, and replay requiring `+tseitin 4` without SMT fallback.
+- **Test reliability:** replay currently calls `exit(0)` on an invalid step. An exit guard makes this fail the unit binary instead of skipping remaining tests with a successful exit. Scoped cleanup restores the captured stream and guard state on normal return or exceptions.
+- **Documentation:** add the dated native xor checker note and concrete counterexamples.
+
+## Verification
+
+Release build on macOS with the existing Python bindings and pinned Lean toolchain. Commands below use the Z3 checkout, with a sibling `../z3test` checkout.
+
+| Command or scenario | Result |
+| --- | --- |
+| New checker regression with the checker fix removed | Fails on the invalid positive xor clause |
+| `cmake --build build --parallel 12` | Passed |
+| `cmake --build build --target test-z3 --parallel 12` | Passed |
+| `build/test-z3 -a` | 116 passed, zero failures |
+| `build/test-z3 proof_replay` | Native xor replay, no SMT fallback |
+| `python3 ../z3test/scripts/test_benchmarks.py build/z3 ../z3test/regressions/smt2` | Passed |
+| `python3 -m unittest discover -s examples/python -p &#x27;test_proof_certificate.py&#x27;` | 81 passed |
+| `python3 -m unittest discover -s examples/python -p &#x27;test_proof_to_lean*.py&#x27;` | 253 passed |
+| `scripts/check_lean.sh` | Passed |
+| `python3 -m unittest discover -s ../z3test/scripts/proofs -p &#x27;test_proof*.py&#x27;` | 46 passed |
+| Boolean Lean matrix, `--cells legacy-proof-object` | All six `lean-verified` |
+| QF_LRA Lean matrix, `--cells smt-clause-log-nopp` | All eight `lean-verified` |
+| CLI solving/model/help/version and Python binding/model | Passed |
+| Deliberately invalid replay in the unit harness | Exit guard fails the binary |
+
+The full Lean suite and matrices passed on the implementation commit. After the test-cleanup integration changes, the solver/library/test binary were rebuilt and all native, certificate, and proof-script tests passed again. No Python, Lean, or production solver logic changed during integration.
+
+The new tests run in the existing `CI / Ubuntu build - cmake` job&#x27;s `Run unit tests` step (`test-z3 -a`), including `releaseClang`. No CI workflow changes are required. GitHub CI has not been awaited.
+
+## Review
+
+Direct integration review resolved two minor findings: exception-safe cleanup and exit-handler registration in the test harness, and incorrect wording/parity in the examples. No blocking findings remain.
+
+## Risks and follow-ups
+
+This changes native proof-checker acceptance, not solver search or proof production. Live logs generally rewrite xor to negated Boolean equality before clausification. Lean&#x27;s independent def-axiom checking is unchanged.
+
+The production replay frontend&#x27;s zero exit status on a rejected proof remains a separate follow-up. The test-only guard prevents it from silently passing this regression suite. The loop stops with the C++ PR open; it is not merged automatically.
+</pre></body></html>

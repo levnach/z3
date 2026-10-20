@@ -78,7 +78,7 @@
     <span class="badge">OPEN</span> &middot;
     opened 2026-10-20T03:23:11Z &middot; loop iteration 23
   </p>
-  <p>This pull request is <strong>not merged</strong>. It is an open draft.
+  <p>This pull request is <strong>not merged</strong>.
     The change under review is commit
     <a href="https://github.com/levnach/z3/commit/246396e5a41aab2e063055345141b0d5b590d260"><code>246396e5a</code></a>,
     which sits on top of base commit <code>7d383c3fd</code>.</p>
@@ -103,8 +103,8 @@ unsound <a href="#g-refutation">refutation</a> through unnoticed.
 
 <h2 id="background">Background</h2>
 <p>
-Before this PR the native checker handled <code>and</code>, <code>or</code>,
-<code>ite</code>, implication and Boolean equality gates correctly, and the Lean side
+Before this PR the native checker already had branches for <code>and</code>, <code>or</code>,
+<code>ite</code>, implication and Boolean equality gates, and the Lean side
 verified Boolean refutations through its own <a href="#g-def-axiom">def-axiom</a> rule.
 The <code>xor</code> branch accepted <a href="#g-gate-clause">gate clauses</a> that have
 a <a href="#g-countermodel">countermodel</a>. Iterations 20 to 22 repaired similar gaps
@@ -271,11 +271,11 @@ second commit. No blocker or major finding was raised.</p>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>Only checker acceptance changes. The one possible regression is rejecting a clause
+  <li>Only checker acceptance changes. One possible regression is rejecting a clause
     Z3 emits, and the tests cover its four clauses per gate.</li>
   <li>Live clause logs rarely contain <code>xor</code> hints because of the rewriter.
     The fix closes a soundness gap rather than certifying new inputs.</li>
-  <li>A clause with both polarities of an argument is still accepted, which is sound
+  <li>A clause with both polarities of an argument may still be accepted, which is sound
     because it is a tautology on its own.</li>
   <li>The exit guard calls a hard exit inside an exit handler, but only while a replay
     is in progress.</li>

@@ -1,0 +1,14 @@
+{
+  "number": 11239,
+  "title": "Check xor gate clauses in the native Tseitin proof checker",
+  "pr_url": "https://github.com/Z3Prover/z3/pull/11239",
+  "page": "https://levnach.github.io/z3/reports/upstream/pr-11239.html",
+  "merge_sha": "",
+  "date": "2026-10-20T04:28:45Z",
+  "iteration": 23,
+  "summary": "HTML description of the pull request.",
+  "state": "OPEN",
+  "head_sha": "246396e5a41aab2e063055345141b0d5b590d260",
+  "base_sha": "7d383c3fdcba9edbf9116693f248245e662c47a4",
+  "repository": "Z3Prover/z3"
+}
