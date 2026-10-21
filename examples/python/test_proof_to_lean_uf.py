@@ -895,13 +895,21 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertEqual(len(gates), 2)
         negated = next(node for node, clause in gates.items() if graph.kind(clause[0]) == z3.Z3_OP_NOT)
         positive = next(node for node in gates if node != negated)
-        # (not d) or (not some_eq): each disjunct of some_eq is refuted by its pair's conjunct of d.
-        self.assertIn("(fun _tail => Or.elim _tail (fun _eq => (And.left (@Decidable.byContradiction",
-                      text.split("private theorem def_axiom_%d " % negated, 1)[1].split("\nprivate", 1)[0])
-        # d or some_eq: the conjuncts of d inject each pair's equality into some_eq.
-        self.assertIn("(_lit0 (And.intro (fun _eq => _lit1 (Or.inl _eq)) (And.intro (fun _eq => _lit1 (Or.inr (Or.inl _eq)))"
-                      " (fun _eq => _lit1 (Or.inr (Or.inr _eq))))))",
-                      text.split("private theorem def_axiom_%d " % positive, 1)[1].split("\nprivate", 1)[0])
+        # The shape of each lemma term, independent of the order of the
+        # literals and of the disjuncts in Z3's log. (not d) or (not some_eq):
+        # Or.elim over the three disjuncts, each refuted by one of the three
+        # conjuncts of d, projected from the decidability witness for d.
+        negated_text = text.split("private theorem def_axiom_%d " % negated, 1)[1].split("\nprivate", 1)[0]
+        self.assertEqual(negated_text.count("Or.elim _tail"), 2)
+        self.assertEqual(sorted(re.findall(r"\(fun _eq => \(((?:And\.(?:left|right) \()+)@Decidable\.byContradiction",
+                                           negated_text)),
+                         ["And.left (", "And.left (And.right (", "And.right (And.right ("])
+        # d or some_eq: the three conjuncts of d, each injecting the pair's equality
+        # into one disjunct of some_eq.
+        positive_text = text.split("private theorem def_axiom_%d " % positive, 1)[1].split("\nprivate", 1)[0]
+        self.assertEqual(positive_text.count("And.intro"), 2)
+        self.assertEqual(sorted(re.findall(r"\(fun _eq => _lit\d \((Or\.in[lr](?: \(Or\.in[lr])*) _eq\)+\)", positive_text)),
+                         ["Or.inl", "Or.inr (Or.inl", "Or.inr (Or.inr"])
         self.assertNotIn("cnf", text)
         # Both clauses are checked against the pairs. The positive clause with a
         # single pair equality instead of some_eq is short of two pairs; the

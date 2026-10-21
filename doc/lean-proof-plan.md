@@ -528,8 +528,11 @@ Findings from building and running it:
   `smt` carries no literals. A clause-log consumer must know which is which.
   An `implied-eq` ends in a disequality: Python checks the shape and Lean
   proves the implied equality, rather than summing the disequality as a
-  Farkas constraint. `alldiff` clauses must be tied to the original `distinct`
-  assertion, never trusted as unconditional theory lemmas.
+  Farkas constraint. An `alldiff` clause of gate shape (a `distinct` below
+  the root against the disjunction of its pairwise equalities) is a
+  `def-axiom` that Lean proves from the pairs; any other `alldiff` clause
+  must be tied to the original `distinct` assertion, never trusted as an
+  unconditional theory lemma.
 - **Z3's RUP check is Tseitin-aware.** `rup` steps may rely on the definitions
   of compound Boolean atoms that are never logged as clauses; the replayer
   adds those gate clauses as `def-axiom` nodes.
