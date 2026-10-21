@@ -29,6 +29,7 @@ Author:
 #include "sat/smt/distinct_theory_checker.h"
 #include "sat/smt/tseitin_theory_checker.h"
 #include "params/solver_params.hpp"
+#include <sstream>
 
 namespace euf {
 
@@ -450,11 +451,14 @@ namespace euf {
         return m_drat.is_drup(m_clause.size(), m_clause.data(), m_units);
     }
 
-    bool smt_proof_checker::units_are_rup(expr_ref_vector const& units) {
+    // Units that are not RUP are reported to diag rather than printed: the step
+    // may still verify through the SMT fallback, and the replay output must
+    // mention "is not rup" only when the step is rejected.
+    bool smt_proof_checker::units_are_rup(expr_ref_vector const& units, std::ostream& diag) {
         bool result = true;
         for (expr* u : units) {
             if (!m.is_true(u) && !check_rup(u)) {
-                std::cout << "unit " << mk_bounded_pp(u, m) << " is not rup\n";
+                diag << "unit " << mk_bounded_pp(u, m) << " is not rup\n";
                 result = false;
             }
         }
@@ -464,9 +468,9 @@ namespace euf {
     // The logged clause follows from the hint's clause when every logged literal
     // occurs in the hint's clause and the negations of the remaining hint
     // literals are RUP, exactly as the native check demands.
-    bool smt_proof_checker::follows_from_hint(expr_ref_vector const& clause, app* proof_hint) {
+    bool smt_proof_checker::follows_from_hint(expr_ref_vector const& clause, app* proof_hint, std::ostream& diag) {
         expr_ref_vector units(m);
-        return m_checker.clause_follows(clause, m_checker.clause(proof_hint), units) && units_are_rup(units);
+        return m_checker.clause_follows(clause, m_checker.clause(proof_hint), units) && units_are_rup(units, diag);
     }
 
     bool smt_proof_checker::infer(expr_ref_vector& clause, app* proof_hint) {
@@ -480,8 +484,9 @@ namespace euf {
         }
 
         // The plugin verifies the hint's clause; the logged clause must follow from it.
+        std::ostringstream rup_diag;
         bool hint_checked = m_checker.check(proof_hint);
-        bool follows = hint_checked && follows_from_hint(clause, proof_hint);
+        bool follows = hint_checked && follows_from_hint(clause, proof_hint, rup_diag);
         if (hint_checked && follows) {
             log_verified(proof_hint, true);
             add_clause(clause);
@@ -504,7 +509,7 @@ namespace euf {
         bool hint_is_tautology = proof_hint && m_checker.vc(proof_hint, clause, vc);
         if (hint_is_tautology || !vc.empty()) {
             if (!hint_checked)
-                follows = follows_from_hint(clause, proof_hint);
+                follows = follows_from_hint(clause, proof_hint, rup_diag);
             if (!follows) {
                 hint_is_tautology = false;
                 vc.reset();
@@ -526,6 +531,7 @@ namespace euf {
             m_solver->assert_expr(m.mk_not(lit));
         lbool is_sat = m_solver->check_sat();
         if (is_sat != l_false) {
+            std::cout << rup_diag.str();
             std::cout << "did not verify: " << is_sat << " " << clause << "\n";
             std::cout << "vc:\n" << vc << "\n";
             if (proof_hint)

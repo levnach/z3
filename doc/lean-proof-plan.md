@@ -1249,13 +1249,18 @@ used only when the logged clause follows from the hint's clause the way the
 native path demands: every logged literal occurs there and the dropped
 literals are false by RUP. `infer` returns whether the step verified and no
 longer exits the process itself; the replay command and the in-solver check
-still exit on a failed step, so the executable's behaviour and z3test's
-text-based detection are unchanged. The `proof_replay` unit test drives the
-checker directly: the probe above is rejected with a countermodel, the same
-step with `some_eq` assumed false verifies natively, a valid hint the
-plugin cannot check still verifies through the fallback with a dropped RUP
-literal, and a logged clause outside the hint's clause is proved on its
-own.
+still exit on a failed step, so the executable's behaviour is unchanged.
+The `unit ... is not rup` diagnostic is buffered and printed only when the
+step is rejected, since z3test's `proof_matrix.py` classifies any replay
+whose output contains it as `checker-rejected`; before, a natively checked
+hint whose dropped literal was not RUP printed it and then verified through
+the fallback. The `proof_replay` unit test drives the checker directly: the
+probe above is rejected with a countermodel, the same step with `some_eq`
+assumed false verifies natively, a valid hint the plugin cannot check still
+verifies through the fallback with a dropped RUP literal (and without any
+`is not rup` line when the dropped literal is not RUP but the logged clause
+holds on its own), and a logged clause outside the hint's clause is proved
+on its own.
 
 ### Native `alldiff` clauses (2026-10-20)
 

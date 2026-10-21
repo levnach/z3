@@ -115,9 +115,9 @@ namespace euf {
 
         void ensure_solver();
 
-        bool units_are_rup(expr_ref_vector const& units);
+        bool units_are_rup(expr_ref_vector const& units, std::ostream& diag);
 
-        bool follows_from_hint(expr_ref_vector const& clause, app* proof_hint);
+        bool follows_from_hint(expr_ref_vector const& clause, app* proof_hint, std::ostream& diag);
         
     public:
         smt_proof_checker(ast_manager& m, params_ref const& p);

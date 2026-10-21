@@ -634,7 +634,6 @@ static bool infer_verifies(std::string const& text, unsigned n_assume, unsigned 
     bool ok = checker.infer(clause, jst);
     std::cout.rdbuf(saved);
     out = captured.str();
-    std::cout << out;
     return ok;
 }
 
@@ -650,6 +649,7 @@ static void tst_fallback_proves_logged_clause() {
     // (or (distinct a b c) some_eq): the dropped some_eq is not false by RUP,
     // so the fallback refutes the logged unit alone and finds it satisfiable.
     ENSURE(!infer_verifies(decls + "(assert (not (distinct a b c)))(assert (distinct a b c))" + gate, 1, 1, "alldiff", out));
+    ENSURE(out.find("is not rup") != std::string::npos);
     ENSURE(out.find("did not verify") != std::string::npos);
     ENSURE(out.find("(verified-smt") == std::string::npos);
     // Without a hint plugin the logged clause is refuted on its own as well.
@@ -668,7 +668,14 @@ static void tst_fallback_proves_logged_clause() {
     // Without the assumption the dropped literal is not RUP; the logged unit
     // (= a b) alone is satisfiable and the step is rejected.
     ENSURE(!infer_verifies(decls + "(assert (= a b))(assert (not (= a b)))(assert (= b a))", 0, 1, "array", out));
+    ENSURE(out.find("is not rup") != std::string::npos);
     ENSURE(out.find("did not verify") != std::string::npos);
+    // When the dropped literal is not RUP but the logged clause is valid on its
+    // own, the fallback proves it; the output must not say "is not rup", which
+    // z3test's proof_matrix.py reads as a rejection.
+    ENSURE(infer_verifies(decls + "(assert (= a a))(assert (not (= a a)))(assert (= b a))", 0, 1, "array", out));
+    ENSURE(out.find("(verified-smt") != std::string::npos);
+    ENSURE(out.find("is not rup") == std::string::npos);
     // A logged clause outside the hint's clause is proved on its own.
     ENSURE(infer_verifies(decls + "(assert (= a b))(assert (= b a))(assert (= a a))", 1, 1, "array", out));
     ENSURE(out.find("(verified-smt") != std::string::npos);
