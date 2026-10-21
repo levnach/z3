@@ -1262,6 +1262,36 @@ verifies through the fallback with a dropped RUP literal (and without any
 holds on its own), and a logged clause outside the hint's clause is proved
 on its own.
 
+### `distinct` gate clauses as def-axioms, one-argument `distinct` (2026-10-21)
+
+The clause-log exporter routed every `alldiff` clause through its `assume`
+path. For the two gate clauses of a `distinct` below the root that path
+found no matching assertion and fell back to an unsat core of the
+assertions plus a `cnf` theory lemma, a bounded solver call at export time
+and a `grind` lemma in Lean, for a clause that holds on its own. The
+exporter now checks the gate shape (`proof_clause_log._distinct_gate`: two
+literals of one polarity, a `distinct` over terms of at least two
+arguments against a disjunction, or a single equality, whose disjuncts
+each equate two of its arguments in either orientation, all pairs covered
+for the positive clause) and makes such clauses def-axiom nodes; any other
+`alldiff` clause still goes through the assertions. The reconstructor
+proves the def-axiom from the pairs (`_distinct_gate_contradiction`): with
+`d` and `some_eq` held, `Or.elim` over the disjuncts refutes each by the
+pair's conjunct of `d` (through `Eq.symm` for a flipped disjunct); with
+both denied, the conjuncts of `d` are built by injecting each pair's
+equality into `some_eq`. A missing pair, a disjunct that is no pair, or
+two polarities leave the clause unproved and rejected. Documented input
+`uf_distinct_gates` (both cores), constructed-log and tampered-certificate
+tests in `test_proof_certificate.py` and `test_proof_to_lean_uf.py`.
+
+Found alongside: `(assert (not (distinct a)))` over an uninterpreted or
+Real constant failed in Lean on both paths with `unfold failed to unfold
+term_0`: a one-argument `distinct` renders as `True`, so its argument
+occurs nowhere, but the lemma's unfold list and the theory flag were
+computed from the graph. `_reachable` no longer descends into such a node
+and `_boolean_structure` reads it as `("true",)`; the inputs
+`UF_ONE_ARGUMENT_DISTINCT` verify through both cores.
+
 ### Native `alldiff` clauses (2026-10-20)
 
 The native `alldiff` checker plugin accepted every hint ("first version
