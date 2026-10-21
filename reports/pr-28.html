@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #28: Certify the legacy core's (_ th-lemma arith unsupported) over Int</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1d1d1f; --muted: #5c5f66; --line: #d8dbe0;
+  --code-bg: #f3f4f6; --accent: #0b5fa5; --ok: #1a7f37; --warn: #9a6700; --card: #f8f9fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121417; --fg: #e6e8eb; --muted: #a0a4ab; --line: #30343a;
+    --code-bg: #1c1f24; --accent: #6cb4ee; --ok: #57c26b; --warn: #e3b341; --card: #181b20;
+  }
+}
+html { background: var(--bg); color: var(--fg); }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .25rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; background: var(--code-bg); padding: .1em .3em; border-radius: 3px; }
+pre { background: var(--code-bg); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: .85rem; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .95rem; }
+th, td { border: 1px solid var(--line); padding: .4rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--card); }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .8rem; font-weight: 600; border: 1px solid var(--line); }
+.badge.open { color: var(--ok); border-color: var(--ok); }
+.note { background: var(--card); border-left: 4px solid var(--accent); padding: .6rem .9rem; border-radius: 4px; margin: 1rem 0; }
+.explain { color: var(--muted); font-size: .95rem; margin: -.4rem 0 1.2rem; }
+dl dt { font-weight: 600; margin-top: .7rem; }
+dl dd { margin: .15rem 0 0 1.2rem; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify the legacy core's <code>(_ th-lemma arith unsupported)</code> over Int</h1>
+<p class="meta">
+<span class="badge open">OPEN</span>
+Pull request <a href="https://github.com/levnach/z3/pull/28">levnach/z3#28</a>, targeting <code>master</code>.
+Report date 2026-10-21T21:41:37Z. Loop iteration 28.
+</p>
+<p class="note">This pull request is <strong>not merged</strong>. The report describes the change as it stands at commit
+<a href="https://github.com/levnach/z3/commit/dd351d16988df74e9525d27c931010e8548d917b"><code>dd351d1</code></a>,
+which is the second of the PR's two commits. The base is commit <code>ccc6dfa</code> on <code>master</code>.</p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+Z3's <a href="#g-legacy-core">legacy core</a> sometimes ends an integer proof with a
+<a href="#g-theory-lemma">theory lemma</a> labelled <code>unsupported</code>. The label means the solver found a
+<a href="#g-conflict">conflict</a> but could not produce <a href="#g-farkas">Farkas coefficients</a> for it.
+That is what a <a href="#g-lattice-conflict">lattice conflict</a> looks like from inside the solver.
+Before this PR the <a href="#g-exporter">exporter</a> rejected every proof carrying that label, so some integer problems Z3 solved could not be certified.
+Now, over the <a href="#g-sort">sort</a> Int, the exporter keeps the step as a coefficient-free Farkas step.
+Its <a href="#g-premise">premises</a> are the held <a href="#g-literal">literals</a> and its conclusion is <code>false</code>.
+The <a href="#g-reconstructor">reconstructor</a> already handles that shape and lets a Lean <a href="#g-tactic">tactic</a> prove the <a href="#g-refutation">refutation</a> from the premises alone.
+Nothing new is trusted. The change is Python and documentation only.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+The pipeline has two certified proof sources, the <a href="#g-legacy-core">legacy core</a> and the <a href="#g-clause-log">clause log</a>.
+For <a href="#g-qf-lia">linear integer arithmetic</a>, the exporter already accepted a Farkas step whose coefficients it could not re-derive.
+It stripped the coefficients and left the step to Lean, which uses <a href="#g-omega">omega</a> and then <a href="#g-grind">grind</a>, as it does for <a href="#g-cut">cut</a> steps.
+But a step labelled <code>unsupported</code> was a hard rejection, even though it has the same shape.
+The iteration 27 stress run hit this on five inputs.
+This PR serves milestone 3 of the plan, equality and linear arithmetic, by closing that gap in the integer <a href="#g-fragment">fragment</a>.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li><strong>Integer conflicts the solver could not explain are now certified.</strong> A step labelled <code>unsupported</code> over Int is exported as a coefficient-free Farkas step, so Lean can prove it from its premises.</li>
+<li><strong>The step must still look right.</strong> It is accepted only if it has at least one premise and concludes <code>false</code>.</li>
+<li><strong>Real arithmetic is unchanged.</strong> Over Real the label is still rejected, because a Farkas step Z3 could not check over the rationals is suspect. The nonlinear variant stays rejected too.</li>
+<li><strong>Nothing changed in what Lean trusts.</strong> The reconstructor gained only a comment. Its shape check and tactic are the same as before.</li>
+<li><strong>New tests pin the behaviour.</strong> Two documented inputs run through both proof sources, and a tampered variant with made-up coefficients is rejected before Lean runs.</li>
+</ul>
+<p>Farkas coefficients are a recipe for mixing the constraints until they add up to a contradiction. A lattice conflict has no such recipe, because every rational mix is fine. Before, the exporter threw the whole proof away at that point. Now it hands that one step to Lean, which proves it directly.</p>
+
+<table>
+<thead><tr><th>File</th><th>Component</th><th>Lines</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter: the new mapping and a renamed parameter</td><td>+25 / &minus;6</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: comment only</td><td>+5 / &minus;4</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter unit tests and a live test on the lattice input</td><td>+74</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Two documented inputs and a Lean-free validation test</td><td>+88</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs: the legacy integer paragraph</td><td>+9</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs: dated note</td><td>+26</td></tr>
+<tr><td colspan="2"><strong>Total, 6 files, 2 commits</strong></td><td>+225 / &minus;12</td></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>The input is the PR's documented test input <code>lia_lattice_conflict</code>. Eliminating x from the last two equations leaves an even number equal to -17, so there is no integer solution, although there are rational ones.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIA)
+(declare-const x Int)
+(declare-const y Int)
+(declare-const z Int)
+(declare-const w Int)
+(assert (= (+ y z) 3))
+(assert (= (+ (* 3 x) (* 2 z)) (- (* 2 w) 5)))
+(assert (= (* 2 y) (- x 4)))
+(check-sat)
+</code></pre>
+
+<h3>(b) Before</h3>
+<p>The exporter from the base commit, run on this input with the legacy core selected, exited with status 2 and this message:</p>
+<pre><code>proof_certificate.py: error: th-lemma without a replayable theory hint: arith unsupported
+</code></pre>
+<p class="explain">No certificate was produced, so there was nothing for Lean to check.</p>
+
+<h3>(c) After</h3>
+<p>The current exporter produced a certificate whose five theory lemmas include the coefficient-free Farkas step with four premises. The reconstructor wrote the Lean file below, trimmed with "..." where lines were cut.</p>
+<pre><code>-- Variable 0: "y"
+-- Variable 1: "z"
+-- Variable 2: "x"
+-- Variable 3: "w"
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) + (term_1 _atoms _vars))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((3 : Int))
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_2 _atoms _vars) = (term_3 _atoms _vars))
+...
+def formula_25 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_22 _atoms _vars) &lt;= (term_19 _atoms _vars))
+...
+def formula_112 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := False
+</code></pre>
+<p class="explain">Each term and formula from the input becomes a small Lean definition. <code>formula_4</code> is the first assertion, y + z = 3.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_113 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_25 _atoms _vars) -&gt; (formula_69 _atoms _vars) -&gt; (formula_104 _atoms _vars) -&gt; (formula_108 _atoms _vars) -&gt; (formula_112 _atoms _vars) := by
+  unfold formula_112 formula_108 formula_104 formula_69 term_66 term_65 term_64 term_32 formula_25 term_22 ... term_0
+  first | omega | grind (splits := 64)
+</code></pre>
+<p class="explain">This is the step that was labelled <code>unsupported</code>. It takes the four held bounds as hypotheses and concludes <code>False</code>, and Lean proves it with <code>omega</code>, with no coefficients supplied by Z3.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_4 _atoms _vars))
+    (_h1 : (formula_14 _atoms _vars))
+    (_h2 : (formula_18 _atoms _vars))
+    : False :=
+  ...
+  let _step_113 : (formula_112 _atoms _vars) :=
+    (th_lemma_113 _atoms _vars _step_63 _step_103 _step_107 _step_111)
+  _step_113
+</code></pre>
+<p class="explain">The main theorem assumes the three input assertions and derives <code>False</code>. Its last step applies the Farkas lemma above to four facts derived earlier in the proof.</p>
+<p>The Lean check accepted the file. The output of <code>scripts/check_lean.sh</code> ended with "Build completed successfully" and "Lean checks passed".</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>Locally, every test suite passed on the final commit, including the full Lean-backed suite with the two new documented inputs through both proof sources. The pre-change exporter rejects all three new inputs, so the new tests fail without the change. A tampered certificate with a duplicated premise passes the Python shape check but is rejected by Lean with "grind failed". No local gate file was recorded for this iteration.</p>
+
+<table>
+<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Exporter unit tests, <code>test_proof_certificate.py</code></td><td>86 tests, OK</td></tr>
+<tr><td>Lean-backed suites, <code>test_proof_to_lean*.py</code></td><td>268 tests, OK, about 13 minutes</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td>Build completed, Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td>46 tests, OK</td></tr>
+<tr><td>Regression matrix, legacy core, Boolean files</td><td>6 of 6 lean-verified</td></tr>
+<tr><td>Regression matrix, clause log, QF_LRA files</td><td>8 of 8 lean-verified</td></tr>
+<tr><td>Five iteration 27 stress inputs plus four minimized variants, legacy core</td><td>All verify under the standard axioms in 2 to 10 s each</td></tr>
+<tr><td><code>git diff --check</code></td><td>clean</td></tr>
+<tr><td>C++ tests and <code>scripts/tests</code></td><td>Not run, no C++ or script changes</td></tr>
+</tbody>
+</table>
+
+<p>No CI check results were recorded when this report was generated. The table lists the workflow steps the PR body says exercise this change. There were no CI fix rounds.</p>
+<table>
+<thead><tr><th>Workflow / step</th><th>What it runs</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>manylinux job, "Test Python wheel"</td><td><code>test_proof_certificate.py</code>, no Lean needed</td><td>Not recorded. See <a href="https://github.com/levnach/z3/pull/28/checks">PR checks</a>.</td></tr>
+<tr><td><code>releaseClang</code> job, "Check native Boolean proofs in Lean"</td><td>The Lean-backed <code>test_proof_to_lean*.py</code> suites</td><td>Not recorded. See <a href="https://github.com/levnach/z3/pull/28/checks">PR checks</a>.</td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blocking or major findings. They verified that the mapping only fires over Int with at least one premise and a <code>false</code> conclusion, and that Real and nonlinear labels stay rejected. They also duplicated a premise in a certificate. Python let it through, and Lean rejected it. Three smaller points were raised.</p>
+<ul>
+<li><strong>Minor: the tests pin solver behaviour.</strong> Two tests assert that Z3 still emits the <code>unsupported</code> label on the new inputs. A future C++ change that emits real evidence instead would fail both tests even though every certificate still verifies. The reviewer accepted this as deliberate pinning. The fix was to rewrite the assertion messages so they tell a future maintainer to drop the label assertions and keep the certificate checks.</li>
+<li><strong>Nit: a duplicated test input.</strong> The lattice input appears verbatim in two test files because the import direction forces the copy. A comment now names the twin so the two do not drift apart.</li>
+<li><strong>Nit: a misleading parameter name.</strong> A check read like a test on a list, but the value is a count. The parameter was renamed <code>premise_count</code> throughout.</li>
+</ul>
+<p>The integrator checked the trust argument in the C++ source. The label is produced only on the conflict path, so it always concludes <code>false</code>. Mixed Int and Real inputs are rejected earlier, so a coefficient-free Farkas step over Real cannot reach the Lean-only branch.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li><strong>The label carries no evidence.</strong> The whole refutation rests on Lean's tactics within the heartbeat budget. A conflict Lean cannot prove is rejected, not trusted. The known inputs are small, but a large one could time out.</li>
+<li><strong>Real arithmetic is deliberately untouched.</strong> If Z3 ever emits this label over Real, that calls for a solver-side investigation, not a wider mapping.</li>
+<li><strong>The change is additive.</strong> No previously accepted certificate changes shape.</li>
+<li><strong>CI status is unknown at report time.</strong> The CI jobs had not reported when this page was written.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li><strong>Emit real evidence from the solver.</strong> The backlog item is to make Z3's integer solver produce lattice or tightening steps instead of <code>unsupported</code>, so consumers without Lean can replay these conflicts. The two pinned tests then need their label assertions dropped.</li>
+<li><strong>One stress input still times out.</strong> The <code>div</code> and <code>mod</code> input from iteration 27 verifies through the legacy core, but its clause-log certificate still exceeds the heartbeat budget.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-clause-log">clause log</dt><dd>The second proof source in this project. Z3's newer solver core records each learned clause with a hint saying how it was derived.</dd>
+<dt id="g-conflict">conflict</dt><dd>A set of constraints the solver has found to be jointly impossible. Example: x &gt; 2 together with x &lt; 1.</dd>
+<dt id="g-cut">cut</dt><dd>An inequality that is true for every integer solution but cuts off some rational ones. Example: from 2x &lt; 3 an integer solver derives x &lt;= 1.</dd>
+<dt id="g-exporter">exporter</dt><dd>The Python script that turns a Z3 proof into a JSON certificate. It rejects proof shapes it does not understand.</dd>
+<dt id="g-farkas">Farkas lemma, Farkas coefficients</dt><dd>A theorem saying that if linear inequalities have no solution, some positive combination of them adds up to an obvious contradiction such as 0 &lt; 0. The multipliers in that combination are the Farkas coefficients.</dd>
+<dt id="g-fragment">fragment</dt><dd>A named subset of SMT-LIB, such as QF_LIA or QF_LRA, that fixes which sorts and operations an input may use.</dd>
+<dt id="g-grind">grind</dt><dd>A general-purpose Lean tactic that combines case splitting, rewriting, and arithmetic. It is the fallback when omega fails.</dd>
+<dt id="g-lattice-conflict">lattice conflict</dt><dd>A set of linear constraints that has rational solutions but no integer solution. Example: 2y = 3 is fine over the rationals and impossible over the integers.</dd>
+<dt id="g-legacy-core">legacy core</dt><dd>Z3's older solver core, which builds an explicit proof object. One of the two certified proof sources in this project.</dd>
+<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as x &lt;= 5 or not (x = y).</dd>
+<dt id="g-omega">omega</dt><dd>A Lean tactic that decides linear arithmetic over integers and natural numbers. It handles the integer rounding that Farkas coefficients cannot express.</dd>
+<dt id="g-premise">premise</dt><dd>A fact a proof step assumes. The step's conclusion must follow from its premises.</dd>
+<dt id="g-qf-lia">linear integer arithmetic (QF_LIA)</dt><dd>Formulas over integer variables with addition, multiplication by constants, comparisons, and Boolean connectives, but no quantifiers.</dd>
+<dt id="g-reconstructor">reconstructor</dt><dd>The Python script that turns a JSON certificate into Lean source and runs the Lean check on it.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions implies false. In Lean it is a theorem whose hypotheses are the assertions and whose conclusion is <code>False</code>.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value in SMT-LIB, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that searches for a proof automatically instead of the user writing it by hand. Examples: omega, grind.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A proof step justified by a theory solver rather than by Boolean reasoning. In Z3's legacy proofs it is labelled <code>th-lemma</code> with a hint such as <code>farkas</code> or <code>unsupported</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-21.
+</footer>
+
+</body>
+</html>
