@@ -1214,6 +1214,9 @@ _LIA = """\
 # 2 (z - w + 3 y) = -17, no integer point on a rationally feasible region.
 # theory_lra's own Farkas check fails on it, so the legacy core labels the
 # conflict (_ th-lemma arith unsupported) instead of farkas with coefficients.
+# The same text is LIA_INPUTS["lia_lattice_conflict"] in
+# test_proof_to_lean_lia.py (which imports from this module, so the input is
+# repeated here rather than imported); keep the two in step.
 _LIA_LATTICE = """\
 (set-logic QF_LIA)
 (declare-const x Int)
@@ -1855,7 +1858,10 @@ class TestFragmentClassification(unittest.TestCase):
         self.assertEqual(solver.check(), z3.unsat)
         steps = [node for node in _proof_nodes(solver.proof())
                  if node.decl().name() == "th-lemma" and [str(p) for p in node.decl().params()] == ["arith", "unsupported"]]
-        self.assertTrue(steps, "theory_lra no longer labels the lattice conflict unsupported")
+        self.assertTrue(steps, "theory_lra no longer labels the lattice conflict unsupported: if it now "
+                        "emits farkas or lp-integer-lattice, drop the label assertions here and in "
+                        "test_proof_to_lean_lia.py and keep the certificate checks; the mapping itself "
+                        "stays covered by the _FakeDecl cases above")
         for step in steps:
             self.assertTrue(z3.is_false(step.arg(step.num_args() - 1)))
             self.assertGreater(step.num_args(), 1)

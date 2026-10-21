@@ -462,7 +462,10 @@ class TestIntegerValidation(unittest.TestCase):
                 labels = [node for node in _proof_nodes(solver.proof())
                           if node.decl().name() == "th-lemma"
                           and [str(p) for p in node.decl().params()] == ["arith", "unsupported"]]
-                self.assertTrue(labels, "theory_lra no longer labels the conflict unsupported")
+                self.assertTrue(labels, "theory_lra no longer labels the conflict unsupported: if it now "
+                                "emits farkas or lp-integer-lattice, drop the label assertions here and in "
+                                "test_proof_certificate.py and keep the certificate checks (the exporter "
+                                "mapping stays covered by its _FakeDecl cases)")
                 self.assertTrue(all(z3.is_false(node.arg(node.num_args() - 1)) and node.num_args() > 1
                                     for node in labels))
                 certificate = proof_certificate.export_certificate(source)

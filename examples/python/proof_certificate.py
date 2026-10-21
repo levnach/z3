@@ -624,8 +624,10 @@ def parse_assertions(source, context, integer=False, query=None):
     return assertions, fragment
 
 
-def _th_lemma_parameters(decl, premises, conclusion=None, integer=False):
-    """Return the certificate parameters of a native th-lemma declaration applied to premises.
+def _th_lemma_parameters(decl, premise_count, conclusion=None, integer=False):
+    """Return the certificate parameters of a native th-lemma declaration applied to premise_count premises.
+
+    premise_count is the number of proof arguments before the conclusion.
 
     The legacy core labels the step (_ th-lemma arith <hint> c1 ... cn). In
     the certificate, farkas and bound coefficients weight the premises in
@@ -653,7 +655,7 @@ def _th_lemma_parameters(decl, premises, conclusion=None, integer=False):
     if integer and len(parameters) == 1 and parameters[0] == "arith":
         return ["arith"]
     if integer and len(parameters) == 2 and parameters[0] == "arith" and parameters[1] == "unsupported":
-        if conclusion is None or not z3.is_false(conclusion) or not premises:
+        if conclusion is None or not z3.is_false(conclusion) or not premise_count:
             raise ProofExportError("th-lemma arith unsupported must refute at least one premise")
         return ["farkas"]
     if (len(parameters) >= 2 and parameters[0] == "arith"
@@ -673,12 +675,12 @@ def _th_lemma_parameters(decl, premises, conclusion=None, integer=False):
                 raise ProofExportError("invalid %s inference" % rule)
             return ["farkas" if z3.is_false(conclusion) else "arith"]
         if rule != "lp-linear":
-            if len(parameters) != 3 or (premises not in (0, 1) if rule == "lp-input" else premises != 1):
+            if len(parameters) != 3 or (premise_count not in (0, 1) if rule == "lp-input" else premise_count != 1):
                 raise ProofExportError("invalid %s inference" % rule)
             return ["smt"]
         if conclusion is None:
             raise ProofExportError("missing LP linear conclusion")
-        if len(parameters) != 3 + premises + (not z3.is_false(conclusion)):
+        if len(parameters) != 3 + premise_count + (not z3.is_false(conclusion)):
             raise ProofExportError("invalid LP linear coefficient count")
         hint = ("farkas" if z3.is_false(conclusion) else
                 "implied-eq" if z3.is_eq(conclusion) else "bound")
@@ -697,10 +699,10 @@ def _th_lemma_parameters(decl, premises, conclusion=None, integer=False):
         # theory_arith weights the antecedents only. The propagated literal
         # has weight 1; it is the first clause literal when the step has no
         # premises and the conclusion when it has.
-        coefficients = coefficients + [Fraction(1)] if premises else [Fraction(1)] + coefficients
+        coefficients = coefficients + [Fraction(1)] if premise_count else [Fraction(1)] + coefficients
     if hint == "implied-eq":
         coefficients = []  # never summed; the reconstructor checks shapes and Lean proves the equality
-        if not premises and conclusion is not None and z3.is_eq(conclusion):
+        if not premise_count and conclusion is not None and z3.is_eq(conclusion):
             hint = "smt"
     return [hint] + [str(coefficient) for coefficient in coefficients]
 
