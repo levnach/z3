@@ -1227,6 +1227,36 @@ alias checked in Lean, an alias in a popped scope).
 
 ## Boolean and EUF proof infrastructure
 
+### SMT fallback proves the logged clause (2026-10-20)
+
+When a native checker rejected a hint, `smt_proof_checker::infer` built the
+fallback verification condition from the logged clause together with the
+hint's clause (the default `theory_checker_plugin::vc` appended the hint's
+clause to a vector already holding the logged one) and asked the solver to
+refute the negation of both. Whenever the hint's clause is a theory
+tautology its negation alone is unsatisfiable, so any logged clause passed
+as `verified-smt`: a log with `(assume (not d))`, `(infer d (alldiff d
+some_eq))` for `d = (distinct a b c)` accepted a refutation of the
+satisfiable `(not (distinct a b c))`. Every plugin without its own `vc`
+(all but quantifier instantiation) was affected, and the hole predates
+the `alldiff` checker.
+
+The fallback now refutes the negation of the logged clause alone under the
+assumptions. A plugin's simplified condition (quantifier instantiation:
+`phi(t) => psi` instead of the quantified premise, or no solver call when
+`psi` is the instantiation itself) speaks for the hint's clause, so it is
+used only when the logged clause follows from the hint's clause the way the
+native path demands: every logged literal occurs there and the dropped
+literals are false by RUP. `infer` returns whether the step verified and no
+longer exits the process itself; the replay command and the in-solver check
+still exit on a failed step, so the executable's behaviour and z3test's
+text-based detection are unchanged. The `proof_replay` unit test drives the
+checker directly: the probe above is rejected with a countermodel, the same
+step with `some_eq` assumed false verifies natively, a valid hint the
+plugin cannot check still verifies through the fallback with a dropped RUP
+literal, and a logged clause outside the hint's clause is proved on its
+own.
+
 ### Native `alldiff` clauses (2026-10-20)
 
 The native `alldiff` checker plugin accepted every hint ("first version
