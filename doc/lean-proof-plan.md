@@ -1261,7 +1261,11 @@ Tests: `test_proof_to_lean_lia.py`
 text per hint and per atom kind on four documented inputs and seed 67, Real
 untouched; `test_wide_division_instance_verifies_over_generalized_atoms`;
 the `cut` case of
-`test_false_integer_lemmas_without_coefficients_never_publish_a_proof`).
+`test_false_integer_lemmas_without_coefficients_never_publish_a_proof`;
+`test_generalized_attempt_falls_through_to_the_unfolded_proof`: the unit
+`x >= 3 * (div x 3)` under the `cut` hint, false over the generalized atom
+and proved by the fallback, Lean accepting; the `mod` axioms would not do,
+the stated bounds prove them generalized).
 Not done: a rewrite whose assertion sums a dozen `abs` terms still splits
 every ite (`(assert (<= (+ (abs x0) ... (abs x11)) 11))` times out in the
 rewrite lemma, not in the theory lemma; BACKLOG), and the fallback itself

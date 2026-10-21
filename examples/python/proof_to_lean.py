@@ -1298,7 +1298,10 @@ def _mod_bound_facts(graph, atoms):
     a cut over mod atoms may rest on them without listing them; generalized
     without them, the atoms are unbounded integers and the lemma unprovable.
     omega reads % by a positive numeral only, so the facts are the library's
-    (Int.emod_neg folds a negative divisor into its opposite).
+    (Int.emod_neg folds a negative divisor into its opposite). The facts are
+    best effort: Int.emod_neg expects the divisor rendered as the negation
+    of a numeral, which is how Z3 writes a negative constant; should a fact
+    fail to prove, the generalized attempt fails and the fallback runs.
     """
     lines, names = [], []
     for position, atom in enumerate(atoms):

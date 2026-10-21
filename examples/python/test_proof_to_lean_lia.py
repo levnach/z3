@@ -1018,6 +1018,42 @@ class TestIntegerLeanIntegration(unittest.TestCase):
                     proof_to_lean.check_and_write(source, certificate, output)
                 self.assertFalse(output.exists())
 
+    def test_generalized_attempt_falls_through_to_the_unfolded_proof(self):
+        # The unit x >= 3 * (div x 3) holds by the Euclidean definition and
+        # passes the cut's shape check, but not over the div atom generalized
+        # to an integer (the mod axioms relabelled as cuts would not do: the
+        # stated mod bounds prove them generalized). The first attempt fails,
+        # the unfolded fallback under first proves it, and Lean accepts the
+        # certificate; without the fallback it is rejected (checked when the
+        # test was written).
+        source = LIA_INPUTS["lia_div"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        declarations, nodes = certificate["declarations"], certificate["nodes"]
+
+        def name(index):
+            return declarations[nodes[index]["declaration"]]["name"]
+
+        x = next(index for index, raw in enumerate(nodes) if name(index) == "x" and not raw["arguments"])
+        product = next(index for index, raw in enumerate(nodes)
+                       if name(index) == "*" and {name(arg) for arg in raw["arguments"]} == {"3", "div"})
+        division = next(arg for arg in nodes[product]["arguments"] if name(arg) == "div")
+        at_least = next(index for index, d in enumerate(declarations)
+                        if d["kind"] == z3.Z3_OP_GE and d["domain"] == ["Int", "Int"])
+        declarations.append({"kind": z3.Z3_OP_PR_TH_LEMMA, "name": "th-lemma", "domain": ["Bool"],
+                             "range": "Proof", "parameters": ["cut"]})
+        nodes.append({"declaration": at_least, "arguments": [x, product]})
+        nodes.append({"declaration": len(declarations) - 1, "arguments": [len(nodes) - 1]})
+        certificate["rule_counts"]["th-lemma"] += 1
+        text = proof_to_lean.reconstruct(source, certificate)
+        lemma = text.split("private theorem th_lemma_%d " % (len(nodes) - 1), 1)[1].split("\n\n", 1)[0]
+        self.assertIn("generalize (term_%d _atoms _vars) = _o0\n" % division, lemma)
+        self.assertNotIn("revert", lemma)
+        self.assertIn("\n       grind (splits := 64))\n    | (unfold ", lemma)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "checked.lean"
+            proof_to_lean.check_and_write(source, certificate, output)
+            self.assertTrue(output.exists())
+
 
 # Seeds of random_division_instance whose legacy proofs exercise what the
 # clause log never shows: seed 77 rewrites (div (+ x3 x3) -2) through an ite
