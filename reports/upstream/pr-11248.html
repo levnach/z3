@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #11248: Prove the logged clause in the proof checker's SMT fallback</title>
+<style>
+:root { color-scheme: light dark; --fg: #1d1d1f; --bg: #ffffff; --muted: #555; --line: #d9d9de; --code-bg: #f3f4f6; --accent: #0a5fb4; --ok: #1a7f37; --warn: #9a6700; --pill: #e8eef7; }
+@media (prefers-color-scheme: dark) {
+  :root { --fg: #e6e6e6; --bg: #121214; --muted: #a8a8a8; --line: #333338; --code-bg: #1e1e22; --accent: #7ab8ff; --ok: #5bd37a; --warn: #e3b341; --pill: #24303f; }
+}
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: .25rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; background: var(--code-bg); padding: .05em .3em; border-radius: 3px; }
+pre { background: var(--code-bg); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .95rem; }
+th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num, th.num { text-align: right; white-space: nowrap; }
+.meta { color: var(--muted); font-size: .95rem; }
+.pill { display: inline-block; padding: .05em .55em; border-radius: 999px; background: var(--pill); font-weight: 600; font-size: .85rem; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.note { color: var(--muted); font-size: .92rem; margin-top: -.5rem; }
+dl.gloss dt { font-weight: 600; margin-top: .7rem; }
+dl.gloss dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove the logged clause in the proof checker's SMT fallback</h1>
+<p class="meta">
+Pull request <a href="https://github.com/Z3Prover/z3/pull/11248">Z3Prover/z3#11248</a>
+&middot; state <span class="pill">OPEN</span> (not merged)
+&middot; opened 2026-10-21T02:27:55Z
+&middot; loop iteration 25
+</p>
+<p class="meta">
+The change is commit <a href="https://github.com/Z3Prover/z3/commit/795f37b94228f4616dcde39d97398598cffd2484"><code>795f37b</code></a>
+on top of upstream <code>68a8a75</code>. The PR has not been merged, so there is no merge commit to report.
+</p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+Z3's <a href="#g-proof-replay">proof replay</a> checks each inferred <a href="#g-clause">clause</a> against its <a href="#g-hint">hint</a>.
+When no <a href="#g-theory-checker-plugin">theory checker plugin</a> accepts the hint, the step goes to the <a href="#g-smt-fallback">SMT fallback</a>.
+Before this PR the fallback's <a href="#g-verification-condition">verification condition</a> contained the logged clause and the hint's clause together.
+Whenever the hint's clause was a <a href="#g-tautology">tautology</a>, any logged clause was accepted, even a <a href="#g-satisfiable">satisfiable</a> <a href="#g-unit-clause">unit clause</a>.
+The PR makes the fallback refute the <a href="#g-negation">negation</a> of the logged clause alone.
+A plugin's shortcut is used only when the logged clause follows from the hint's clause by <a href="#g-subsumption">subsumption</a> plus <a href="#g-rup">RUP</a>.
+The replay is the first filter on exported clause logs, so a <a href="#g-soundness">soundness</a> hole there lets a wrong <a href="#g-refutation">refutation</a> look clean until Lean rejects it.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR the replay checked hints natively for Boolean gates, arithmetic, equality, and, since the previous iteration, <a href="#g-distinct">distinct</a> constraints.
+Hints from the array, datatype, quantifier, and floating-point <a href="#g-theory">theories</a> always used the SMT fallback.
+The fallback silently accepted everything when the hint's clause was a tautology, which is the shape of the <code>alldiff</code> gate clauses and most theory lemmas.
+A second gap sat next to it: the <a href="#g-quantifier-instantiation">quantifier instantiation</a> shortcut never related the logged clause to the hint's clause.
+This work serves milestone 3, equality and linear arithmetic, and prepares milestone 4, broader theories, where the C++ checker stays in use for diagnostics.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li><strong>The fallback proves the right thing.</strong> A step whose hint is a tautology but whose logged clause does not hold is now rejected with a <a href="#g-countermodel">countermodel</a> instead of being marked <code>verified-smt</code>.</li>
+<li><strong>Plugin shortcuts are gated.</strong> A plugin's simplified condition is honoured only when every logged <a href="#g-literal">literal</a> occurs in the hint's clause and the dropped literals are false by RUP. The old stamp certified the recipe, not the dish.</li>
+<li><strong>The checker reports instead of exiting.</strong> The inference routine returns whether the step verified and leaves a failed clause unrecorded. Both replay frontends still stop on failure, so command-line behaviour is unchanged.</li>
+<li><strong>Diagnostics mean what they say.</strong> The line <code>unit ... is not rup</code> is printed only on steps that end in <code>did not verify</code>, because z3test's matrix script reads it as a rejection.</li>
+<li><strong>Unit tests drive the checker directly.</strong> A new test feeds <a href="#g-assumption">assumptions</a>, one inferred clause, and a hint to the checker in-process and inspects the verdict and the printed text.</li>
+</ul>
+
+<table>
+<thead><tr><th>File</th><th>Component</th><th class="num">Lines changed</th></tr></thead>
+<tbody>
+<tr><td><code>src/sat/smt/euf_proof_checker.cpp</code></td><td>Checker, fallback logic</td><td class="num">109</td></tr>
+<tr><td><code>src/test/proof_replay.cpp</code></td><td>Unit tests</td><td class="num">80</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note dated 2026-10-20</td><td class="num">35</td></tr>
+<tr><td><code>src/sat/smt/euf_proof_checker.h</code></td><td>Checker interface and plugin contract</td><td class="num">24</td></tr>
+<tr><td><code>src/sat/smt/euf_proof.cpp</code></td><td>In-solver replay frontend</td><td class="num">6</td></tr>
+<tr><td><code>src/cmd_context/extra_cmds/proof_cmds.cpp</code></td><td>Command-line replay frontend</td><td class="num">4</td></tr>
+<tr><td colspan="2">Total: 1 commit, 6 files, 213 insertions, 45 deletions</td><td class="num">258</td></tr>
+</tbody>
+</table>
+<p class="note">No Lean, Python, axiom, trust-flag, or CI workflow files were touched.</p>
+
+<h2 id="worked-example">Worked example</h2>
+<p>
+This PR fixes the native C++ checker, not Lean reconstruction, so the example shows the checker's verdict before and after.
+The input is the probe from the previous PR's review, now also in the new unit test.
+It assumes that three constants of an <a href="#g-uninterpreted-sort">uninterpreted sort</a> are not all distinct, then claims they are distinct under an <code>alldiff</code> hint.
+The hint's clause is a tautology. The logged unit clause is not, so a correct checker must reject the step.
+</p>
+
+<h3>(a) The input</h3>
+<p class="note">Same file as the unit test probe, with the declarations on separate lines.</p>
+<pre><code>(declare-sort U 0)
+(declare-fun a () U) (declare-fun b () U) (declare-fun c () U)
+(define-const $15 Bool (= a b)) (define-const $16 Bool (= b c)) (define-const $13 Bool (= a c))
+(define-const $9 Bool (distinct a b c))
+(define-const $14 Bool (or $15 $13 $16))
+(declare-fun alldiff (Bool Bool) Proof) (declare-fun rup () Proof)
+(assume (not $9))
+(infer $9 (alldiff $9 $14))
+(infer rup)</code></pre>
+
+<h3>(b) Before</h3>
+<p>
+No pre-change binary was available when this page was produced.
+The output below is the implementer's recorded run of the same file on the build before the patch.
+The checker noted that the dropped literal was not RUP, then accepted the step anyway.
+</p>
+<pre><code>unit (not (or (= a b) (= a c) (= b c))) is not rup
+(proofs -alldiff 1)
+(verified-smt
+(alldiff (distinct a b c) (or (= a b) (= a c) (= b c)))
+ (distinct a b c))
+(proofs +rup 1 -alldiff 1)</code></pre>
+
+<h3>(c) After</h3>
+<p>
+Run with the binary built from the PR head, <code>z3 solver.proof.check=true example.smt2</code>.
+The fallback refutes only the logged clause, finds its negation satisfiable, and prints the countermodel.
+</p>
+<pre><code>(proofs -alldiff 1)
+unit (not (or (= a b) (= a c) (= b c))) is not rup
+did not verify: l_true
+(distinct a b c)
+vc:
+
+(distinct a b c)
+hint: (alldiff (distinct a b c) (or (= a b) (= a c) (= b c)))
+...
+(define-fun b () U
+  U!val!0)
+(define-fun c () U
+  U!val!1)
+(define-fun a () U
+  U!val!0)
+...</code></pre>
+<p>The verification condition is now just the logged clause. The model sets <code>a</code> and <code>b</code> equal, the witness that the step was wrong.</p>
+<p>
+A second probe from the review shows the diagnostic fix. Its logged unit clause is valid on its own, but the hint's dropped literal is not RUP.
+The step verifies through the fallback with no <code>is not rup</code> line.
+</p>
+<pre><code>(proofs -array 1)
+(verified-smt
+(array (not (= a a)) (= b a))
+ (= a a))
+...</code></pre>
+<p>There is no Lean file for this example: a rejected step produces no certificate, and the PR changes no Lean code.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+Locally, on the rebased head, every native unit test, the Python certificate tests, the Lean checks, and the whole SMT2 regression corpus passed.
+A formal local gate file for this upstream PR has not been recorded. The numbers below come from the loop's verification logs.
+</p>
+<table>
+<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Release build of <code>z3</code> and <code>test-z3</code></td><td class="ok">Succeeded</td></tr>
+<tr><td>Alldiff probe with <code>solver.proof.check=true</code></td><td class="ok">0 <code>verified-smt</code>, 1 <code>did not verify</code></td></tr>
+<tr><td>Array probe with <code>solver.proof.check=true</code></td><td class="ok">1 <code>verified-smt</code>, 0 <code>is not rup</code></td></tr>
+<tr><td><code>test-z3 proof_replay</code></td><td class="ok">PASS</td></tr>
+<tr><td><code>test-z3 -a</code> (all native unit tests)</td><td class="ok">116 passed, 0 failed, no <code>did not verify</code> lines</td></tr>
+<tr><td>Python certificate tests</td><td class="ok">83 tests OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof scripts</td><td class="ok">46 tests OK, 1 of 1 matrix cell lean-verified</td></tr>
+<tr><td>SMT2 regression corpus</td><td class="ok">952 of 952 passed</td></tr>
+<tr><td><code>git diff --check</code></td><td class="ok">Clean</td></tr>
+</tbody>
+</table>
+
+<p>
+Upstream CI had just started when this page was written. No check had failed, but most were still pending.
+The table is a snapshot. The live status is on the <a href="https://github.com/Z3Prover/z3/pull/11248/checks">PR checks page</a>.
+</p>
+<table>
+<thead><tr><th>Upstream workflow or check</th><th>Status at time of writing</th></tr></thead>
+<tbody>
+<tr><td>Solver determinism: <a href="https://github.com/Z3Prover/z3/actions/runs/39533161700/job/119003584935">Trace (apple-clang)</a>, <a href="https://github.com/Z3Prover/z3/actions/runs/39533161700/job/119003585074">Trace (clang)</a>, <a href="https://github.com/Z3Prover/z3/actions/runs/39533161700/job/119003585021">Trace (gcc)</a>, <a href="https://github.com/Z3Prover/z3/actions/runs/39533161700/job/119003585052">Trace (libcxx)</a></td><td class="ok">pass</td></tr>
+<tr><td>Solver determinism: Trace (msvc), Trace (gcc-unsigned-char), Trace (libcxx-random), Compare exact traces</td><td class="warn">pending</td></tr>
+<tr><td>CI: <a href="https://github.com/Z3Prover/z3/actions/runs/39533161771/job/119003585292">Python build-script unit tests</a></td><td class="ok">pass</td></tr>
+<tr><td>CI: Ubuntu builds (debugClang, debugGcc, releaseClang, releaseSTGcc), Ubuntu with OCaml, OCaml on z3-static, MacOS build, MacOS JNI cross-compile, Python bindings (AMD64, ARM64), CMake package (2)</td><td class="warn">pending</td></tr>
+<tr><td>Windows: build (x64), build (x86), build (amd64_arm64), mingw-build</td><td class="warn">pending</td></tr>
+<tr><td>OCaml Binding CI: build-test (ubuntu, macos)</td><td class="warn">pending</td></tr>
+<tr><td>WebAssembly Build: Check; Determinism Linter (base, head); Finite-field regressions: acceptance</td><td class="warn">pending</td></tr>
+<tr><td><a href="https://github.com/Z3Prover/z3/actions/runs/39533161626/job/119003585220">Dispatch NFV formal audit</a>, <a href="https://github.com/Z3Prover/z3/actions/runs/39533161717/job/119003584411">mark-ready</a>, license/cla</td><td class="ok">pass</td></tr>
+</tbody>
+</table>
+<p>
+On the fork, the same patch had 24 of 28 gating checks passed, four Windows builds still running, and no failures at the last recording. There were no CI fix rounds.
+</p>
+
+<h2 id="review">Review</h2>
+<p>The fork reviewer's verdict was APPROVE, with no blocker or major findings. The reviewer reproduced the probe, wrote four more for the quantifier paths, and found no way to make the new code accept an unproved clause.</p>
+<ul>
+<li><strong>Minor: a diagnostic that lied.</strong> The reviewer's probe had a valid logged clause whose hint dropped a non-RUP literal. The step correctly verified, but the output also said <code>is not rup</code>, which z3test's matrix script treats as a rejection. Fix: the message is buffered and printed only before <code>did not verify</code>, and a unit test asserts its absence.</li>
+<li><strong>Nit: noisy test logs.</strong> The test helper echoed the captured checker output, so passing tests filled the log with <code>did not verify</code> blocks. Fix: the echo was removed.</li>
+<li><strong>Suggestion, deferred.</strong> The quantifier tautology shortcut is counted as a native hit under <code>+inst</code>. This predates the PR.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li><strong>Stricter acceptance.</strong> A replay that was <code>verified-smt</code> only because its hint's clause was a tautology now ends in <code>did not verify</code>. No corpus or Lean matrix case does this. External logs might.</li>
+<li><strong>Slower quantifier steps in rare shapes.</strong> A quantifier instantiation whose logged clause differs from the hint's clause beyond RUP-false dropped literals is now proved against the full quantified premise. Sound but slower.</li>
+<li><strong>Exit status unchanged.</strong> A refuted replay still exits with status 0, so CI can only detect it by reading the text.</li>
+<li><strong>Upstream CI pending.</strong> Most checks had not finished at the time of writing. None had failed.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Return a nonzero exit status from the replay frontends on a refuted step, once z3test's text-based classifier can cope.</li>
+<li>Add a distinct counter for the quantifier tautology shortcut.</li>
+<li>Remove the stale <code>t8.smt2</code> annotation in z3test, which predates this change.</li>
+<li>Carry <code>alldiff</code> gate clauses into the Python exporter and Lean rules, still on the backlog.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="gloss">
+<dt id="g-assumption">assumption</dt><dd>A clause the replay takes as given without proof, usually an input assertion. Written <code>(assume ...)</code> in the clause log.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction ("or") of literals, such as <code>(or (= a b) (= a c))</code>. A clause is true when at least one literal is true.</dd>
+<dt id="g-countermodel">countermodel</dt><dd>An assignment of values that satisfies the negation of a claimed clause, proving that the claim does not hold. Example: <code>a = b</code> for the claim "a, b, c are distinct".</dd>
+<dt id="g-distinct">distinct</dt><dd>The SMT-LIB constraint <code>(distinct a b c)</code> saying that no two of the listed terms are equal. Z3's native checker for it is called <code>alldiff</code>.</dd>
+<dt id="g-hint">hint</dt><dd>A short justification attached to an inferred clause in the log, naming the rule and its arguments, such as <code>(alldiff d some_eq)</code>. The checker verifies the step from the hint.</dd>
+<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>(= a b)</code> or <code>(not (= a b))</code>.</dd>
+<dt id="g-negation">negation</dt><dd>The "not" of a formula. To prove a clause, a solver can show that its negation has no model.</dd>
+<dt id="g-proof-replay">proof replay</dt><dd>Re-running a logged sequence of clauses through an independent checker that verifies each step. In Z3 it is enabled with <code>solver.proof.check=true</code>.</dd>
+<dt id="g-quantifier-instantiation">quantifier instantiation</dt><dd>Deriving a concrete fact from a universally quantified one by substituting a term for the bound variable. The checker's shortcut for it uses the instance itself as the condition.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of clauses is contradictory, ending in the empty clause.</dd>
+<dt id="g-rup">RUP (reverse unit propagation)</dt><dd>A cheap check: assume every literal of a clause is false, propagate unit clauses, and see whether a conflict appears. If so, the clause follows from the clauses already recorded.</dd>
+<dt id="g-satisfiable">satisfiable</dt><dd>Having at least one model, that is, one assignment of values that makes every formula true.</dd>
+<dt id="g-smt-fallback">SMT fallback</dt><dd>The last resort of the replay checker: when no native plugin verifies a step, a fresh solver instance is asked to refute the negation of the clause under the current assumptions.</dd>
+<dt id="g-soundness">soundness</dt><dd>The property that a checker never accepts a step that does not follow. A soundness hole is a way to get a wrong step accepted.</dd>
+<dt id="g-subsumption">subsumption</dt><dd>One clause subsumes another when every literal of the first occurs in the second. The shorter clause is then at least as strong.</dd>
+<dt id="g-tautology">tautology</dt><dd>A formula that is true under every assignment, such as "a, b, c are distinct, or some pair among them is equal". Its negation is unsatisfiable on its own.</dd>
+<dt id="g-theory">theory</dt><dd>A family of symbols with fixed meaning, such as linear arithmetic, arrays, or equality with uninterpreted functions. Each theory has its own reasoning rules.</dd>
+<dt id="g-theory-checker-plugin">theory checker plugin</dt><dd>A native module of the replay checker that knows how to verify hints of one theory, for example the <code>alldiff</code> or <code>farkas</code> plugin.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A sort, that is a type, with no built-in meaning or fixed size, declared with <code>(declare-sort U 0)</code>. Its values are only known to be equal or different.</dd>
+<dt id="g-unit-clause">unit clause</dt><dd>A clause with exactly one literal, such as <code>(distinct a b c)</code> on its own.</dd>
+<dt id="g-verification-condition">verification condition</dt><dd>The formula a checker hands to the solver to establish a step. The step is accepted when the condition's negation has no model.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-20 for iteration 25.
+Page: <a href="https://levnach.github.io/z3/reports/upstream/pr-11248.html">levnach.github.io/z3/reports/upstream/pr-11248.html</a>.
+</footer>
+
+</body>
+</html>
