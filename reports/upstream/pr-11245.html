@@ -55,11 +55,30 @@ are tautologies, where `some_eq` is the disjunction of pairwise equalities.
 No Lean, axiom, trust-flag, or CI workflow changes. The Python exporter&#x27;s logic
 is unchanged; its existing assumption path handles the root clauses.
 
-## Verification
+## Conflict resolution (2026-10-20)
+
+Merged upstream `master` at `e4653731faa7a715ce87999ed0a82cd4604882d9`
+with merge commit `fcabb0e3ecbe0f612089dc945b6ebc10cdbc83b0`, without
+rewriting the original commits. The only manual conflict was in
+`doc/lean-proof-plan.md`: the incoming `define-sort` note is retained before
+the Boolean/EUF section, and the native `alldiff` and xor notes are preserved.
+The upstream contributions from Z3Prover/z3#11246 and Z3Prover/z3#11247 are
+both included; the native `alldiff` implementation is unchanged.
+
+On the combined tree, the Release solver and test builds, native
+`proof_replay`, all 116 native unit tests, all 124 selected exporter/UF/wide
+connective tests, the Lean project, and the SMT/Python/CLI smoke checks passed.
+The Python command, from `examples/python`, was
+`python3 -m unittest -v test_proof_certificate test_proof_to_lean_uf test_proof_to_lean_wide`.
+The broader original suites below were not repeated for this documentation
+conflict. GitHub CI has not been awaited.
+
+## Original verification
 
 Release build on macOS with Python bindings and the pinned Lean toolchain.
-The final commit only adds the live-test availability guard and reorganizes
-the documentation heading.
+In the table below, &quot;final tree&quot; means the original head
+`8b7344c27b0d525299f1fe20b4b35eb23097e369`, whose final commit only adds
+the live-test availability guard and reorganizes the documentation heading.
 
 | Command or scenario | Result |
 | --- | --- |
