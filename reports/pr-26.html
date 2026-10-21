@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #26: Prove distinct gate clauses as def-axioms; fix one-argument distinct</title>
+<style>
+:root { color-scheme: light dark; --fg: #1d1d1f; --bg: #ffffff; --muted: #5b5b60; --line: #d9d9de; --code-bg: #f3f3f6; --accent: #0a5bd3; --ok: #1a7f37; --warn: #9a6700; }
+@media (prefers-color-scheme: dark) {
+  :root { --fg: #e8e8ea; --bg: #141416; --muted: #a0a0a8; --line: #333338; --code-bg: #1f1f23; --accent: #7fb2ff; --ok: #57c26b; --warn: #e3b341; }
+}
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }
+h1 { font-size: 1.6rem; line-height: 1.25; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; }
+h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; background: var(--code-bg); padding: .05em .3em; border-radius: 3px; }
+pre { background: var(--code-bg); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .95em; }
+th, td { border: 1px solid var(--line); padding: .4rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.meta { color: var(--muted); font-size: .95em; }
+.badge { display: inline-block; padding: .1em .55em; border-radius: 1em; font-size: .85em; font-weight: 600; border: 1px solid var(--line); }
+.badge.open { color: var(--ok); border-color: var(--ok); }
+.badge.unknown { color: var(--warn); border-color: var(--warn); }
+.note { border-left: 3px solid var(--accent); padding: .3rem .9rem; margin: 1rem 0; background: var(--code-bg); }
+dl dt { font-weight: 600; margin-top: .7rem; }
+dl dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9em; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove distinct gate clauses as def-axioms; fix one-argument distinct</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/26">levnach/z3 #26</a> &middot;
+<span class="badge open">OPEN</span> &middot;
+opened 2026-10-21T16:10:40Z &middot;
+loop iteration 26
+</p>
+<p class="meta">This pull request is open and <strong>not merged</strong>. It targets <code>master</code>. The change under review is commit <a href="https://github.com/levnach/z3/commit/7ef0d3fab72f9400b139ad272b3277fd24f969c3"><code>7ef0d3f</code></a>, which is the second of two commits on the branch.</p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+When a <a href="#g-distinct"><code>distinct</code> constraint</a> sits inside an <code>or</code> rather than at the top of the input, Z3 explains it to the SAT core through two <a href="#g-gate-clause">gate clauses</a>. Before this PR the <a href="#g-clause-log">clause-log</a> exporter did not recognise those two <a href="#g-clause">clauses</a>. It tied them to the <a href="#g-assertion">assertions</a> through an <a href="#g-unsat-core">unsat core</a> and a <a href="#g-theory-lemma">theory lemma</a> of kind <code>cnf</code>, which cost a solver call at export time and a heavy <a href="#g-tactic">tactic</a> in Lean. The exporter now labels well-formed gate clauses as <a href="#g-def-axiom">def-axioms</a>, and the reconstructor proves each one from the <a href="#g-disequality">pairwise disequalities</a> of the <code>distinct</code>. A malformed gate is rejected instead of being accepted through the solver. Separately, a <code>distinct</code> with a single argument, which Z3 <a href="#g-rewrite">rewrites</a> to true, used to make Lean fail. It now reconstructs on both proof paths.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR the pipeline already certified <a href="#g-uninterpreted-function">uninterpreted functions</a>, <a href="#g-uninterpreted-sort">uninterpreted sorts</a>, <a href="#g-congruence">congruence</a>, and linear arithmetic through both the clause log and the <a href="#g-legacy-proof-object">legacy proof object</a>. A root-level <code>distinct</code> was already split into assumed clauses, and the legacy proof object already stated the gate clauses as def-axioms. The gap was the clause-log path for a <code>distinct</code> below the root, where the <code>alldiff</code> <a href="#g-hint">hint</a> had no rule and the exporter fell back to the solver. Closing it serves milestone 3 of the plan, equality and linear arithmetic.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li><strong>Exporter.</strong> A gate clause of the right shape becomes a def-axiom node, so a <code>distinct</code> below the root needs no solver call at export time.</li>
+<li><strong>Reconstructor.</strong> Lean proves each gate clause from the pairwise disequalities: case analysis over the <a href="#g-disjunction">disjunction</a> of equalities one way, building the conjunction the other way.</li>
+<li><strong>Validation.</strong> A gate with a missing pair, a foreign disjunct, or mixed <a href="#g-polarity">polarities</a> is rejected as an <code>unsupported or invalid def-axiom clause</code>.</li>
+<li><strong>One-argument <code>distinct</code>.</strong> An input such as <code>(assert (not (distinct a)))</code> now certifies on both proof paths, because the reconstructor renders it as <code>True</code> with no argument to unfold.</li>
+<li><strong>Tests and documentation.</strong> New tests cover a constructed gate log, malformed gates, tampered certificates, and the one-argument case through both cores. The README and the plan describe the new rule.</li>
+</ul>
+<p>The exporter's check is only a classifier, like a doorman reading a badge: the badge admits the clause to the def-axiom queue, but the Lean kernel still checks the proof. Only Python and documentation changed.</p>
+
+<table>
+<thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Exporter: gate-shape check, def-axiom routing</td><td class="num">46</td><td class="num">8</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: gate proof, one-argument <code>distinct</code></td><td class="num">67</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests</td><td class="num">90</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Lean reconstruction tests</td><td class="num">128</td><td class="num">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated note, hint-conventions bullet</td><td class="num">35</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Clause-log section</td><td class="num">7</td><td class="num">3</td></tr>
+<tr><td><strong>Total, 6 files</strong></td><td></td><td class="num"><strong>373</strong></td><td class="num"><strong>13</strong></td></tr>
+</tbody>
+</table>
+
+<h2 id="worked-example">Worked example</h2>
+<p>The input below comes from the PR's new test <code>UF_ONE_ARGUMENT_DISTINCT</code>. It was run through the scripts as they were before the PR and as they are now.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UF)
+(declare-sort U 0)
+(declare-const a U)
+(assert (not (distinct a)))
+(check-sat)
+</code></pre>
+<h3>(b) Before the PR</h3>
+<p>The pre-PR exporter produced a certificate, but Lean rejected the pre-PR reconstructor's output:</p>
+<pre><code>z3_proof_64ucq7mw.lean:28:49: error: Tactic `unfold` failed to unfold `term_0` in
+  ¬True ↔ False
+Lean checking failed; no proof was published.
+</code></pre>
+<p>The lemma rendered the <code>distinct</code> as <code>True</code>, yet still asked Lean to unfold the term <code>a</code>, which occurred nowhere.</p>
+
+<h3>(c) After the PR</h3>
+<p>The new reconstructor generates the following, trimmed to the declarations, the rewrite lemma, and the theorem. Lean accepted the file.</p>
+<pre><code>def term_0 (...) : _U := _elems 0
+def formula_1 (...) : Prop := True
+def formula_2 (...) : Prop := (Not (formula_1 ...))
+def formula_3 (...) : Prop := False
+def formula_7 (...) : Prop := (Iff (formula_2 ...) (formula_3 ...))
+</code></pre>
+<p>The one-argument <code>distinct</code> is <code>formula_1</code>, defined as <code>True</code> without mentioning its argument.</p>
+<pre><code>private theorem rewrite_8 (...) : (formula_7 ...) := by
+  unfold formula_7 formula_3 formula_2 formula_1
+  exact (Iff.intro (fun (_f1 : (Not True)) => ...) (fun (_f4 : False) => ...))
+</code></pre>
+<p>The rewrite lemma proves the negated <code>distinct</code> equivalent to <code>False</code>, and its unfold list no longer names <code>term_0</code>.</p>
+<pre><code>theorem unsat (...) (_h0 : (formula_2 ...)) : False :=
+  ...
+  let _step_9 : (formula_3 ...) := (Iff.mp _step_8 _step_6)
+  let _step_10 : (formula_3 ...) := (False.elim _step_9)
+  _step_10
+</code></pre>
+<p>The theorem takes the single assertion as a hypothesis and derives <code>False</code>.</p>
+
+<h3>The gate clauses, before and after</h3>
+<p>The headline feature needs a second input, the PR's test <code>uf_distinct_gates</code>, which the old pipeline accepted only by the slower route. Its key line is <code>(assert (or p (distinct (f a) b c)))</code>.</p>
+<p><strong>Before:</strong> the old certificate carried a <code>cnf</code> hint, and the old Lean file proved both gate clauses with <code>grind</code>:</p>
+<pre><code>private theorem th_lemma_41 (...) : (formula_40 ...) := by
+  unfold formula_40 formula_39 formula_38 formula_17 formula_16 ... formula_0
+  grind (splits := 64)
+</code></pre>
+<p><strong>After:</strong> no <code>cnf</code> hint, and both clauses are def-axioms proved from the three disequalities of <code>formula_5</code>, the <code>distinct</code>:</p>
+<pre><code>private theorem def_axiom_41 (...) : (formula_40 ...) :=
+  @Decidable.byContradiction (formula_40 ...) _df40 fun _not_clause =>
+  let _lit0 : Not (formula_5 ...) := fun _value => _not_clause (Or.inl _value)
+  let _lit1 : Not (formula_16 ...) := fun _value => _not_clause (Or.inr _value)
+  (_lit0 (And.intro (fun _eq => _lit1 (Or.inl _eq))
+                    (And.intro (fun _eq => _lit1 (Or.inr (Or.inl _eq)))
+                               (fun _eq => _lit1 (Or.inr (Or.inr _eq))))))
+</code></pre>
+<p>This is the clause "<code>distinct</code> or some pair is equal". Denying both halves, each disequality is built by injecting the pair's equality into the denied disjunction.</p>
+<pre><code>private theorem def_axiom_39 (...) : (formula_38 ...) :=
+  ...
+  ((fun _tail => Or.elim _tail
+      (fun _eq => (And.left (...)) _eq)
+      (fun _tail => Or.elim _tail (fun _eq => (And.left (And.right (...))) _eq)
+                                  (fun _eq => (And.right (And.right (...))) _eq)))
+   (...))
+</code></pre>
+<p>This is the clause "not <code>distinct</code> or no pair is equal". Holding both, a case split over the three equalities <a href="#g-refutation">refutes</a> each by the matching conjunct. One <code>euf</code> theory lemma remains for the congruence step the input needs. Lean accepted the new file.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>Locally, every existing and new test passed, and Lean accepted every file the tests produce. The loop's separate local gate has not been recorded yet.</p>
+<table>
+<thead><tr><th>Local run</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td>84 tests, OK</td></tr>
+<tr><td>Lean reconstruction tests, all <code>test_proof_to_lean*.py</code></td><td>265 tests, OK, in four runs</td></tr>
+<tr><td>Lean project build and check script</td><td>Build completed, Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td>46 tests, OK</td></tr>
+<tr><td>QF_LRA matrix through the clause log, with Lean</td><td>8 of 8 lean-verified, includes <code>lra_distinct.smt2</code></td></tr>
+<tr><td>Boolean matrix through the legacy proof object, with Lean</td><td>6 of 6 lean-verified</td></tr>
+<tr><td>Scratch probes by the implementer</td><td>12 inputs, both cores, all Lean-checked</td></tr>
+</tbody>
+</table>
+<p>No C++ changed, so the native test binary and the SMT2 regression run were not needed. In CI, the Python wheel job runs the exporter tests, and the Ubuntu clang release job runs the Lean tests and both matrix steps.</p>
+<table>
+<thead><tr><th>CI workflow or check</th><th>Status</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>GitHub Actions on the PR head</td><td><span class="badge unknown">not recorded</span></td><td><a href="https://github.com/levnach/z3/pull/26/checks">PR checks page</a></td></tr>
+</tbody>
+</table>
+<p>No CI status was recorded when this report was written, so the checks may still be pending. Local tests do not imply CI success. There were no CI fix rounds.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blocker and no major finding. They re-ran the tests, then probed a <code>distinct</code> over Int, over compound Real terms, over an <code>ite</code> term, and under a function, plus the one-argument form in several positions. Lean accepted every probe.</p>
+<ul>
+<li><strong>Minor, fixed.</strong> The README still said every <code>alldiff</code> clause must be derived from the assertions. An auditor of a new certificate would have found two def-axioms and no <code>cnf</code> lemma, contradicting the text. The bullet was corrected.</li>
+<li><strong>Nit, fixed.</strong> The plan's hint-conventions bullet carried the same stale sentence and was updated.</li>
+<li><strong>Nit, follow-up.</strong> The exporter is stricter than Z3 for a <code>distinct</code> over two different numerals, such as <code>(distinct x 1 2)</code>. Z3 drops the equality between the numerals, so that gate still takes the old <code>cnf</code> route. This is the previous behaviour, not a regression.</li>
+<li><strong>Nit, fixed.</strong> The new validation test pinned exact substrings of Lean text that depend on Z3's <a href="#g-literal">literal</a> order. It now checks the shape of both lemma terms instead.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>A Z3 build that simplifies or adds gate disjuncts falls back to the old path, never to silent acceptance.</li>
+<li>Soundness rests on the reconstructor's check and on the Lean kernel re-checking each def-axiom theorem. The exporter's label authorises nothing.</li>
+<li>Helpers that scan reachable nodes never see the argument of a one-argument <code>distinct</code>. That is correct because it is not rendered, but it is a new asymmetry.</li>
+<li>CI results for the PR head are not yet known.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Accept gates where Z3 dropped an equality between two numerals, with a Lean proof that the numerals differ.</li>
+<li>Support unary <code>xor</code>, as in <code>(assert (xor false))</code>, which the reconstructor's arity check still rejects.</li>
+<li>Remove the remaining <code>cnf</code> lemma for a one-argument <code>distinct</code> under a function on the clause-log path, where Z3 simplifies the assertion before logging.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-assertion">assertion</dt><dd>A formula the input declares to be true, written with <code>assert</code> in SMT-LIB. The refutation shows the assertions together imply False.</dd>
+<dt id="g-boolean">Boolean</dt><dd>A value that is either true or false. The <a href="#g-sort">sort</a> <code>Bool</code>.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>(or p (not q))</code>. SAT solvers reason over clauses.</dd>
+<dt id="g-clause-log">clause log</dt><dd>Z3's record of every clause it learned or assumed while solving, each with a hint that says where it came from. One of the two proof paths the pipeline reads.</dd>
+<dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal function results. From <code>a = d</code> it follows that <code>f(a) = f(d)</code>.</dd>
+<dt id="g-def-axiom">def-axiom</dt><dd>A proof node for a clause that holds on its own by the definition of a connective, with no help from the assertions. Lean proves it as a closed theorem.</dd>
+<dt id="g-disequality">disequality</dt><dd>A statement that two terms differ, written <code>(not (= a b))</code>. A <code>distinct</code> unfolds to the conjunction of all pairwise disequalities of its arguments.</dd>
+<dt id="g-disjunction">disjunction</dt><dd>An <code>or</code> of several formulas. It holds when at least one disjunct holds.</dd>
+<dt id="g-distinct">distinct</dt><dd>The SMT-LIB constraint that all listed terms differ from one another. <code>(distinct a b c)</code> means no two of <code>a</code>, <code>b</code>, <code>c</code> are equal.</dd>
+<dt id="g-gate-clause">gate clause</dt><dd>A clause that defines a compound formula in terms of its parts, so the SAT core can treat the compound as one literal. For a <code>distinct</code> there are two: "distinct or some pair is equal" and "not distinct or no pair is equal".</dd>
+<dt id="g-hint">hint</dt><dd>The label Z3 attaches to a logged clause, such as <code>tseitin</code>, <code>alldiff</code>, <code>euf</code>, or <code>cnf</code>. It tells the exporter which rule to apply but never authorises a theorem by itself.</dd>
+<dt id="g-legacy-proof-object">legacy proof object</dt><dd>Z3's older proof format, a tree of inference steps produced with proof generation enabled. The other of the two proof paths.</dd>
+<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+<dt id="g-polarity">polarity</dt><dd>Whether a literal is positive or negated. The two gate clauses have opposite polarity on each of their literals.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of formulas is contradictory, ending in False.</dd>
+<dt id="g-rewrite">rewrite</dt><dd>A simplification step that replaces a formula by an equivalent one. Z3 rewrites <code>(distinct a)</code> to true.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that searches for a proof automatically. <code>grind</code> is a heavy tactic; a hand-built proof term needs none.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that is valid in a theory such as equality or arithmetic, and that Lean must prove by theory reasoning. The hint kind, such as <code>euf</code> or <code>cnf</code>, says which.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs. <code>f</code> in <code>(declare-fun f (U) U)</code>.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A sort with no fixed set of values, declared with <code>declare-sort</code>. Only equality between its values is known.</dd>
+<dt id="g-unsat-core">unsat core</dt><dd>A subset of the assertions that is already contradictory on its own. The old fallback asked the solver for one at export time.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-21. Report for iteration 26, pull request <a href="https://github.com/levnach/z3/pull/26">levnach/z3 #26</a>, state OPEN.
+</footer>
+</body>
+</html>
