@@ -5,100 +5,142 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PR #27: Certify Z3's one-argument xor through both proof cores</title>
 <style>
-:root { color-scheme: light dark; --fg: #1d1d1f; --bg: #ffffff; --muted: #5b5f66; --rule: #d9dbe0; --code-bg: #f3f4f6; --link: #0b5fcc; --ok: #1d7a3a; --pend: #8a6d00; --badge-bg: #fff3cd; --badge-fg: #6b5300; }
-@media (prefers-color-scheme: dark) {
-  :root { --fg: #e6e6e8; --bg: #141518; --muted: #a2a6ad; --rule: #34373d; --code-bg: #1f2126; --link: #6fa8ff; --ok: #5fcf7d; --pend: #e0b43a; --badge-bg: #3d3300; --badge-fg: #ffe28a; }
-}
-body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }
-h1 { font-size: 1.6rem; line-height: 1.25; }
-h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--rule); padding-bottom: .25rem; }
-h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-a { color: var(--link); }
-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; background: var(--code-bg); padding: .05em .3em; border-radius: 3px; }
-pre { background: var(--code-bg); padding: .8rem 1rem; border-radius: 6px; overflow-x: auto; line-height: 1.4; }
-pre code { background: none; padding: 0; font-size: .85rem; }
-table { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .95rem; }
-th, td { border: 1px solid var(--rule); padding: .4rem .6rem; text-align: left; vertical-align: top; }
-th { background: var(--code-bg); }
-.meta { color: var(--muted); font-size: .95rem; }
-.badge { display: inline-block; background: var(--badge-bg); color: var(--badge-fg); font-weight: 600; padding: .1em .55em; border-radius: 1em; font-size: .85rem; }
-.ok { color: var(--ok); font-weight: 600; }
-.pend { color: var(--pend); font-weight: 600; }
-dl dt { font-weight: 600; margin-top: .7rem; }
-dl dd { margin-left: 0; color: var(--fg); }
-footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--rule); padding-top: .8rem; }
-.note { font-size: .92rem; color: var(--muted); }
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1c1e21;
+    --muted: #5a6270;
+    --accent: #0b5cad;
+    --border: #d7dce2;
+    --code-bg: #f3f5f8;
+    --ok: #1e7b34;
+    --warn: #9a6700;
+    --bad: #b42318;
+    --pill-bg: #e6f0fa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141618;
+      --fg: #e6e8eb;
+      --muted: #9aa3ad;
+      --accent: #7ab7ff;
+      --border: #333a42;
+      --code-bg: #1f2429;
+      --ok: #4cc26a;
+      --warn: #e2b53e;
+      --bad: #ff7b6e;
+      --pill-bg: #223447;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
+  }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 0.5rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 0.6rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.05rem; margin: 1.25rem 0 0.4rem; }
+  p, li { font-size: 1rem; }
+  a { color: var(--accent); }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.92em;
+    background: var(--code-bg);
+    padding: 0.05em 0.3em;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem 0.9rem;
+    overflow-x: auto;
+    line-height: 1.4;
+  }
+  pre code { background: none; padding: 0; font-size: 0.86em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0 1rem; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-bottom: 1rem; }
+  .meta dt { font-weight: 600; display: inline; }
+  .meta dd { display: inline; margin: 0 0.8rem 0 0.25rem; }
+  .pill {
+    display: inline-block; padding: 0.05em 0.6em; border-radius: 1em;
+    background: var(--pill-bg); color: var(--accent); font-weight: 600; font-size: 0.9em;
+  }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.92rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.6rem; }
+  dl.glossary dd { margin: 0.1rem 0 0 1.25rem; }
+  footer { margin-top: 2.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
 
 <header>
-<h1>Certify Z3's one-argument xor through both proof cores</h1>
-<p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/27">levnach/z3 #27</a> &middot;
-state <span class="badge">OPEN</span> &middot;
-2026-10-21T20:01:25Z &middot; loop iteration 27
-</p>
-<p class="meta">
-This PR is <strong>not merged</strong>. The report describes the change commit
-<a href="https://github.com/levnach/z3/commit/b19d7763ba88285914fbe274412fb212d25ca604"><code>b19d7763</code></a>
-on top of base <code>7bbb9739</code>. The PR holds two commits, and this page covers both.
-</p>
+  <h1>Certify Z3's one-argument xor through both proof cores</h1>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/27">levnach/z3#27</a></dd>
+    <dt>State</dt><dd><span class="pill">MERGED</span></dd>
+    <dt>Date</dt><dd>2026-10-21T20:22:47Z</dd>
+    <dt>Loop iteration</dt><dd>27</dd>
+    <br>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/48346a7c85daf11f8298e3a61f26a72ef75c59ca"><code>48346a7c8</code></a></dd>
+    <dt>Merged</dt><dd>2026-10-21T20:22:47Z</dd>
+    <dt>Base</dt><dd><code>7bbb97398</code></dd>
+  </dl>
 </header>
 
 <h2 id="one-paragraph">In one paragraph</h2>
 <p>
-Z3 accepts the <a href="#g-xor">exclusive or</a> connective with a single argument, as in <code>(xor p)</code>, and reads it as plain <code>p</code>.
-The Lean reconstructor refused every <a href="#g-certificate">certificate</a> that mentioned such a node, so one known regression input could never be certified.
-This PR treats a one-argument <code>xor</code> as a <a href="#g-boolean">Boolean</a> formula equal to its argument.
-It proves the node's two <a href="#g-gate-clause">gate clauses</a>, handles it in <a href="#g-congruence">congruence</a> and <a href="#g-rewrite">rewrite</a> steps, and lets the <a href="#g-clause-log">clause-log</a> exporter build it.
-Both the legacy <a href="#g-proof-core">proof core</a> and the clause-log core now yield a Lean <a href="#g-refutation">refutation</a> for these inputs.
-The <a href="#g-arity">arity</a> check still rejects zero and three or more arguments.
+Z3 accepts the <a href="#g-xor">exclusive or</a> connective with a single argument, as in <code>(xor p)</code>, and reads it as that argument.
+The <a href="#g-reconstructor">reconstructor</a> rejected every <a href="#g-certificate">certificate</a> whose <a href="#g-term-graph">term graph</a> contained such a node, on both the <a href="#g-legacy-proof-object">legacy proof object</a> path and the <a href="#g-clause-log">clause log</a> path.
+This PR admits the node, renders it as its argument in every Lean definition, proves its two <a href="#g-gate-clause">gate clauses</a>, and lets the clause-log exporter build it if a log ever mentions it.
+A <a href="#g-propositional">propositional</a> input that Z3 refutes but the pipeline could not certify now yields a Lean <a href="#g-refutation">refutation</a> with no axioms.
+Zero or three or more arguments are still rejected, and no previously accepted certificate renders differently.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-Before this PR the pipeline certified <a href="#g-propositional">propositional</a> inputs with two-argument <code>xor</code>, plus equality, <a href="#g-uninterpreted-function">uninterpreted functions</a>, and <a href="#g-linear-arithmetic">linear arithmetic</a>.
-A one-argument <code>xor</code> failed the arity check on both cores with "wrong number of arguments".
-The z3test regression <code>3434.smt2</code> is exactly <code>(assert (xor false))</code> and had sat on the backlog since iteration 15.
-The previous PR handled the one-argument <code>distinct</code> the same way, so this change completes the pattern.
-The work serves milestone 2, the kernel-checked Boolean slice, which wants every Boolean shape Z3 accepts to reach a Lean theorem without axioms.
+Before this PR the pipeline certified <a href="#g-boolean">Boolean</a> inputs over the usual connectives, binary <code>xor</code>, Boolean equality and <code>distinct</code>, and the Boolean <a href="#g-ite">if-then-else term</a>, plus a slice of linear <a href="#g-arithmetic">arithmetic</a> and <a href="#g-uninterpreted-function">uninterpreted functions</a>.
+The one-argument <code>xor</code> had been a known gap since loop iteration 15, and the z3test corpus file <code>3434.smt2</code> was the input it kept out.
+The work serves Milestone 2 of the plan, the kernel-checked Boolean vertical slice, where every supported input must yield a theorem with no <code>sorry</code> and no solver-oracle axiom.
 </p>
 
 <h2 id="what-changed">What changed</h2>
+<p>Think of <code>xor</code> over a list as asking whether an odd number of its arguments are true. With one argument, the answer is that argument.</p>
 <ul>
-<li><strong>Legacy core.</strong> A certificate containing <code>(xor p)</code> now reconstructs, and its rewrite step <code>(= (xor p) p)</code> is proved as a plain identity.</li>
-<li><strong>Clause-log core.</strong> A log that mentions a one-argument <code>xor</code> now replays, and the node's two gate clauses become <a href="#g-def-axiom">def-axiom</a> steps instead of crashing the exporter.</li>
-<li><strong>Gate proofs in Lean.</strong> The clauses <code>(or (xor p) (not p))</code> and <code>(or (not (xor p)) p)</code> are each proved by one function application, since the node unfolds to its argument.</li>
-<li><strong>Everywhere Lean looks.</strong> Formula definitions, the propositional rewrite prover, and the congruence builder all render the node as its argument.</li>
-<li><strong>Tests and docs.</strong> The suites gain the new shapes, the verbatim <code>3434</code> input, a constructed log that keeps the literal, and arity rejections.</li>
+  <li><strong>Reconstructor accepts the node.</strong> A one-argument <code>xor</code> passes the <a href="#g-arity">arity</a> check in <code>proof_to_lean.py</code>, while the <a href="#g-declaration">declaration</a> keeps its two-argument <a href="#g-sort">sort</a> signature, as in Z3.</li>
+  <li><strong>Lean sees the argument, not the connective.</strong> Formulas, <a href="#g-congruence">congruence</a> steps, and Boolean structures all render <code>(xor p)</code> as <code>p</code>, so Z3's <a href="#g-rewrite">rewrite</a> <code>(= (xor p) p)</code> becomes an identity.</li>
+  <li><strong>The two gate clauses are proved.</strong> The <a href="#g-tseitin">Tseitin</a> gate clauses <code>(or (xor p) (not p))</code> and <code>(or (not (xor p)) p)</code> are accepted as <a href="#g-def-axiom">def-axioms</a> and proved from the definition alone.</li>
+  <li><strong>Clause-log exporter can build the node.</strong> A helper in <code>proof_clause_log.py</code> builds the one-argument application, which the z3py API lacks, and the gate-clause generator no longer crashes on it. Z3's simplifier removes the node before logging, so these branches serve constructed or future logs.</li>
+  <li><strong>Tests cover the new shape.</strong> Unit tests check rendering, arity rejections, gate clauses, and a constructed log. Integration tests push the inputs through both proof cores into Lean.</li>
 </ul>
-<p>
-Think of a one-argument <code>xor</code> as a sum with one term. The sum sign is written, but the value is just the term. The reconstructor now reads it that way, as Z3 does.
-</p>
 
 <table>
-<thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
-<tbody>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td>19</td><td>0</td></tr>
-<tr><td><code>examples/python/proof_clause_log.py</code></td><td>18</td><td>0</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>45</td><td>2</td></tr>
-<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>45</td><td>0</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td>32</td><td>3</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>2</td><td>2</td></tr>
-<tr><td><code>examples/python/README</code></td><td>2</td><td>1</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>24</td><td>0</td></tr>
-<tr><td><strong>Total (8 files)</strong></td><td><strong>187</strong></td><td><strong>8</strong></td></tr>
-</tbody>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">19</td><td class="num">0</td><td>Admit, render, and prove the one-argument <code>xor</code></td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">18</td><td class="num">0</td><td>Build the node from a log and emit its gate clauses</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">45</td><td class="num">2</td><td>Rendering, arity, gate-clause, and structure tests</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">45</td><td class="num">0</td><td>Constructed clause log that keeps the node</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td class="num">32</td><td class="num">3</td><td>Both cores through Lean, without axioms</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">2</td><td class="num">2</td><td>Fragment map entry for the new corpus input</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">24</td><td class="num">0</td><td>Dated note on the change</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">2</td><td class="num">1</td><td>Input scope</td></tr>
+    <tr><th>Total (8 files)</th><th class="num">187</th><th class="num">8</th><th></th></tr>
+  </tbody>
 </table>
-<p class="note">No C++ source, Lean library source, or CI workflow file was touched.</p>
+<p class="note">The PR was squash-merged as one commit. Its branch had two commits: the implementation and a follow-up that added the comments requested in review.</p>
 
 <h2 id="worked-example">Worked example</h2>
-<p>
-The input is the PR's new <code>UNARY_XOR</code> test case, written as an SMT-LIB file.
-It uses the one-argument <code>xor</code> under a binary <code>xor</code>, under a <a href="#g-negation">negation</a>, and as a whole assertion.
-The assertions say "p differs from q", "p holds", and "q holds", which cannot all be true.
-</p>
+<p>This input is the PR's new <code>UNARY_XOR</code> test case. It uses the one-argument <code>xor</code> under a binary <code>xor</code>, under a negation, and as a whole assertion.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(declare-const p Bool)
@@ -107,17 +149,16 @@ The assertions say "p differs from q", "p holds", and "q holds", which cannot al
 (assert (not (xor (not p))))
 (assert (xor q))
 </code></pre>
+<p>Read with Z3's meaning, the three assertions say <code>p xor q</code>, <code>p</code>, and <code>q</code>, which cannot all hold.</p>
 
 <h3>(b) Before the PR</h3>
-<p>
-The pre-PR exporter accepted the input and produced the same certificate as today.
-The pre-PR reconstructor stopped at the first one-argument <code>xor</code> node and exited with code 2:
-</p>
+<p>The base-commit exporter produced a certificate, but the base-commit reconstructor stopped at the first one-argument node:</p>
 <pre><code>proof_to_lean.py: error: wrong number of arguments at node 1
 </code></pre>
+<p>No Lean file was written. The corpus file <code>3434.smt2</code> failed with the same message.</p>
 
 <h3>(c) After the PR</h3>
-<p>The current reconstructor generates a Lean file. Node 1 is <code>(xor p)</code> and is defined as node 0, which is <code>p</code>. Node 3 is <code>(xor q)</code>, defined as <code>q</code>.</p>
+<p>The current reconstructor writes a Lean file of 134 lines. Cut lines are marked "...".</p>
 <pre><code>def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
 def formula_1 (_atoms : Nat -&gt; Prop) : Prop := (formula_0 _atoms)
 def formula_2 (_atoms : Nat -&gt; Prop) : Prop := _atoms 1
@@ -125,138 +166,139 @@ def formula_3 (_atoms : Nat -&gt; Prop) : Prop := (formula_2 _atoms)
 def formula_4 (_atoms : Nat -&gt; Prop) : Prop := (Or (And (formula_1 _atoms) (Not (formula_3 _atoms))) (And (Not (formula_1 _atoms)) (formula_3 _atoms)))
 ...
 </code></pre>
-<p>The theorem takes the three assertions as hypotheses and concludes <code>False</code>. That is the refutation.</p>
+<p>Node 1 is <code>(xor p)</code> and node 3 is <code>(xor q)</code>. Each is defined as its argument, and node 4 builds the binary <code>xor</code> on top of them.</p>
+<pre><code>private theorem rewrite_29 (_atoms : Nat -&gt; Prop)
+    : (formula_28 _atoms) := by
+  unfold formula_28 formula_1 formula_0
+  exact (Iff.intro (fun (_f1 : (_atoms 0)) =&gt; (_f1 : (_atoms 0))) (fun (_f2 : (_atoms 0)) =&gt; (_f2 : (_atoms 0))))
+</code></pre>
+<p>This lemma is Z3's rewrite <code>(= (xor p) p)</code>. After unfolding, both sides are the same proposition, so each direction is the identity function.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
     (_h0 : (formula_4 _atoms))
     (_h1 : (formula_7 _atoms))
     (_h2 : (formula_3 _atoms))
     : False :=
   ...
-</code></pre>
-<p>The legacy core records the rewrite <code>(= (xor p) p)</code>. Since the node unfolds to its argument, the lemma is a two-way identity with no case analysis.</p>
-<pre><code>private theorem rewrite_29 (_atoms : Nat -&gt; Prop)
-    : (formula_28 _atoms) := by
-  unfold formula_28 formula_1 formula_0
-  exact (Iff.intro (fun (_f1 : (_atoms 0)) =&gt; (_f1 : (_atoms 0))) (fun (_f2 : (_atoms 0)) =&gt; (_f2 : (_atoms 0))))
-</code></pre>
-<p>In the main proof, a congruence step rebuilds the outer binary <code>xor</code> from the rewrites of its arguments.</p>
-<pre><code>  let _step_32 : (formula_31 _atoms) :=
+  let _step_32 : (formula_31 _atoms) :=
     (or_congr (and_congr _step_29 (not_congr _step_14)) (and_congr (not_congr _step_29) _step_14))
   ...
 </code></pre>
-<p>
-The Lean check accepted the file and reported "Lean checks passed".
-The PR's integration test confirms the theorem needs no axioms and no solver oracle.
-</p>
+<p>The theorem takes the three assertions as hypotheses and derives <code>False</code>. The congruence step rewrites the outer <code>xor</code> argument by argument, using the identity lemmas as pieces.</p>
+<p><span class="ok">Lean accepted the file.</span> The check script reported "Lean checks passed", and the file imports only <code>Init</code>. The same run on the corpus file <code>3434.smt2</code> also passed.</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>
-Locally, all four test suites passed after the final commit, and the Lean build was clean.
-A random stress run over all input generators certified about 450 puzzles through both cores.
-The six failures were integer arithmetic inputs unrelated to <code>xor</code>, all recorded in the backlog.
-No local gate file was recorded for this iteration.
-</p>
-
+<p>Locally, every test suite passed and every Lean-certified matrix input stayed verified. Because only Python examples and documentation changed, the loop merged on this local gate, which mirrors the Ubuntu <code>releaseClang</code> CI job.</p>
 <table>
-<thead><tr><th>Local check</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td>Certificate exporter unit tests</td><td class="ok">85 tests, OK</td></tr>
-<tr><td>Lean reconstruction suites (unit, integration, arithmetic)</td><td class="ok">267 tests, OK, about 13 minutes</td></tr>
-<tr><td>Lean library build and example checks</td><td class="ok">Lean checks passed</td></tr>
-<tr><td>z3test proof scripts</td><td class="ok">46 tests, OK</td></tr>
-<tr><td>Boolean regression matrix, legacy core</td><td class="ok">6 of 6 lean-verified</td></tr>
-<tr><td>Real arithmetic matrix, clause-log core</td><td class="ok">8 of 8 lean-verified</td></tr>
-<tr><td>Random stress, 15 generators, both cores</td><td>452 verified, 6 failed, none related to this change</td></tr>
-<tr><td>Whitespace check</td><td class="ok">clean</td></tr>
-</tbody>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Tests or inputs</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">85</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">267</td><td class="num">756 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">46</td><td class="num">17 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="ok">pass</td><td class="num">6 of 6</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="ok">pass</td><td class="num">8 of 8</td><td class="num">7 s</td></tr>
+  </tbody>
 </table>
-
-<p>
-The first run of the Lean suites failed once. The arithmetic suite keeps its own map of configured inputs, and the new <code>3434</code> entry was missing from it.
-The map was extended, and the rerun passed.
-</p>
-
-<p>
-No CI status files were recorded for this iteration. The table is a live snapshot taken while this report was generated, minutes after the PR opened.
-The three jobs that run the new tests were still pending. The local results are not a CI pass.
-</p>
-
+<p>A random stress over all input generators with both proof cores verified almost every certificate. The few failures involve integer arithmetic, not <code>xor</code>, and were already known.</p>
 <table>
-<thead><tr><th>Workflow / check</th><th>Runs the new tests?</th><th>State at snapshot</th></tr></thead>
-<tbody>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498435">CI: Python bindings (manylinux Centos AMD64) build</a></td><td>Yes, step "Test Python wheel"</td><td class="pend">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498361">CI: Python bindings (manylinux Centos ARM64 cross) build</a></td><td>Yes, step "Test Python wheel"</td><td class="pend">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498382">CI: Ubuntu build - cmake - releaseClang</a></td><td>Yes, step "Check native Boolean proofs in Lean"</td><td class="pend">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498207">CI: Python build-script unit tests</a></td><td>No</td><td class="ok">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693787">Determinism linter (base and head)</a></td><td>No</td><td class="ok">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693637">Trace builds (clang, gcc, apple-clang, libcxx, gcc-unsigned-char)</a></td><td>No</td><td class="ok">pass</td></tr>
-<tr><td>Other CI jobs (OCaml, macOS, Windows, CMake package, debug builds, msvc trace, compare)</td><td>No</td><td class="pend">pending</td></tr>
-</tbody>
+  <thead><tr><th>Stress run</th><th class="num">Verified</th><th class="num">Failed</th><th>Cause of failures</th></tr></thead>
+  <tbody>
+    <tr><td>Seeds 40 to 70, 15 generators, both cores</td><td class="num">452</td><td class="num">6</td><td>Legacy core emits an unsupported arithmetic lemma when its own <a href="#g-farkas">Farkas</a> check fails on integer conflicts, and one clause-log input hits the Lean heartbeat limit. Pre-existing, recorded in the backlog.</td></tr>
+  </tbody>
 </table>
-<p class="note">There were no CI fix rounds and no CI failures at snapshot time.</p>
+<p>GitHub CI also ran on the PR branch. The snapshot below was taken after the merge. One job failed and several were still pending. The failure is unrelated, since only its final "Upload build logs" step failed after the solver run and trace comparison succeeded. There were no CI fix rounds.</p>
+<table>
+  <thead><tr><th>Workflow / check</th><th>Result</th><th>Relevance</th></tr></thead>
+  <tbody>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498435">Python bindings (manylinux Centos AMD64) build</a></td><td class="ok">pass</td><td>Runs the exporter and reconstructor unit tests, in-process Z3, no Lean</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498361">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="ok">pass</td><td>Same tests on ARM64</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498382">Ubuntu build - cmake - releaseClang</a></td><td class="warn">pending</td><td>Runs the Lean integration tests, including the new one</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498426">Ubuntu build - cmake - debugGcc</a>, <a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498537">releaseSTGcc</a></td><td class="ok">pass</td><td>C++ build and tests, untouched by this PR</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498429">CMake package</a> (latest, minimum), <a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498140">MacOS JNI cross-compile</a>, <a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498207">Python build-script unit tests</a></td><td class="ok">pass</td><td>Packaging, unrelated</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693637/job/119453496934">Solver determinism: Trace (msvc)</a></td><td class="bad">fail</td><td>Only the "Upload build logs" step failed, after the corpus ran and traces compared equal. Judged unrelated.</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693637">Solver determinism: other Trace jobs and Compare exact traces</a></td><td class="ok">pass</td><td>Seven jobs, unrelated</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693787">Determinism Linter</a> (base, head, compare)</td><td class="ok">pass</td><td>Unrelated</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693615/job/119453496444">Check</a>, <a href="https://github.com/levnach/z3/actions/runs/39666693806/job/119453497021">mark-ready</a></td><td class="ok">pass</td><td>Loop housekeeping</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/39666693522">Windows builds</a> (x64, x86, amd64_arm64, mingw), <a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498148">MacOS build with CMake</a>, <a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498339">debugClang</a>, <a href="https://github.com/levnach/z3/actions/runs/39666693959/job/119453498540">OCaml</a> (two jobs), <a href="https://github.com/levnach/z3/actions/runs/39666693829">build-test</a> (two jobs), dispatch</td><td class="warn">pending</td><td>Eleven unrelated jobs plus the post-merge dispatch</td></tr>
+  </tbody>
+</table>
+<p class="note">Totals at the snapshot: 20 passed, 1 failed, 12 pending. GitHub CI also started on <code>master</code> after the merge. Those runs were queued or in progress and are not reported here.</p>
 
 <h2 id="review">Review</h2>
-<p>
-The reviewer approved the PR with no blocker, major, or minor issue. Two nits were fixed in the second commit.
-</p>
-<p>
-<strong>What the reviewer tried.</strong> They confirmed in Z3's Boolean rewriter that one-argument <code>xor</code> means the argument.
-They produced live clause logs for seven such inputs and found that Z3's <a href="#g-simplifier">simplifier</a> removes the node before logging.
-They tampered with certificates by dropping an argument and by feeding five wrong unary gate clauses. Every tampered input was rejected.
-They checked that Lean rejects the false rewrite <code>(= (xor p) q)</code> while the true identity <code>(= (xor p) p)</code> passes.
-</p>
-<p>
-<strong>Nit 1: an unexplained trick.</strong> To build a one-argument <code>xor</code>, the exporter creates a throwaway two-argument one and takes its declaration, because the Python API only offers the binary form. The code looked odd, so a comment now explains it.
-</p>
-<p>
-<strong>Nit 2: dead-looking branches.</strong> The two new clause-log branches are reachable only from a constructed log, since live logs never keep the node. A future reader might hunt for a producer that does not exist. Both branches now say so in a comment.
-</p>
+<p>The reviewer approved with no blocker, major, or minor findings. They confirmed in Z3's rewriter source that one argument gives the argument, and found that live clause logs for seven such inputs never contain the node. They then attacked the change. A tampered certificate and five wrong gate clauses were rejected, and false rewrites such as <code>(= (xor p) q)</code> failed in Lean while the true ones passed.</p>
+<p>Two nits came out of this, both fixed in the follow-up commit:</p>
+<ul>
+  <li><strong>Nit 1, an unexplained trick.</strong> The helper that builds a one-argument <code>xor</code> first builds and discards a two-argument one, only to borrow its declaration. A comment now says so, lest a reader think the discarded term mattered.</li>
+  <li><strong>Nit 2, dead-looking code.</strong> The new clause-log branches are reachable only from a constructed log. Both now say so, so nobody hunts for a live producer.</li>
+</ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li><strong>Semantics beyond the standard.</strong> <a href="#g-smt-lib">SMT-LIB</a> does not define a one-argument <code>xor</code>. The Lean theorem states what Z3 reads the input as, like the one-argument <code>distinct</code> before it.</li>
-<li><strong>Constructed-log coverage only.</strong> The clause-log gate clauses for this node are exercised only by a hand-built log. A canary with <code>(assert (xor p))</code> would catch a future log variant that keeps the node.</li>
-<li><strong>Everything else is additive.</strong> No previously accepted certificate changes its rendering.</li>
-<li><strong>CI not yet complete.</strong> At report time the three jobs that run the new tests were pending.</li>
+  <li><strong>Z3's meaning, not SMT-LIB's.</strong> The SMT-LIB standard does not define <code>xor</code> with one argument. The Lean theorem states what Z3 read, as the pipeline already does for the one-argument <code>distinct</code>.</li>
+  <li><strong>Gate clauses tested only by a constructed log.</strong> Live logs never contain the node. If a future log variant keeps it, a canary input such as <code>(assert (xor p))</code> in the regression matrix would catch regressions.</li>
+  <li><strong>Lean CI was pending at merge time.</strong> The GitHub <code>releaseClang</code> job that runs the Lean tests had not finished when this report was written.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-<li>The legacy core emits an unsupported arithmetic <a href="#g-th-lemma">theory lemma</a> on some integer conflicts when its own <a href="#g-farkas">Farkas</a> check fails. The stress run found five such inputs. Backlog.</li>
-<li>One clause-log stress input hit the Lean heartbeat limit on arithmetic lemmas over division and modulo atoms. Backlog.</li>
-<li>Through the clause-log core, these inputs still tie the simplified clauses to the assertions by <code>cnf</code> lemmas, which cost a solver call at export and a <a href="#g-tactic">tactic</a> call in Lean.</li>
+  <li>Fix the legacy core's unsupported arithmetic lemma on integer lattice conflicts, which the stress run exposed.</li>
+  <li>Find a cheaper tie between simplified clauses and the original assertions on the clause-log path, which still uses a solver call at export and a <a href="#g-tactic">tactic</a> proof in Lean.</li>
+  <li>Continue Milestone 3 work on equality and linear arithmetic, now that the Boolean slice covers every <code>xor</code> arity Z3 can produce.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
-<dt id="g-arity">arity</dt><dd>The number of arguments a function or connective takes. <code>(xor p q)</code> has arity two, <code>(xor p)</code> has arity one.</dd>
-<dt id="g-boolean">Boolean</dt><dd>A value that is either true or false, or a formula that evaluates to one of them.</dd>
-<dt id="g-certificate">certificate</dt><dd>A machine-readable record of the steps a solver took to reach its answer, so that an independent checker can replay them.</dd>
-<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>(or p (not q))</code>. A clause is satisfied when at least one literal is true.</dd>
-<dt id="g-clause-log">clause log</dt><dd>A step-by-step record of clauses a solver assumed, defined, or derived, written out as it ran. One of the two proof formats this pipeline can replay.</dd>
-<dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal results. If <code>a = b</code>, then <code>f(a) = f(b)</code>. In Lean, lemmas such as <code>or_congr</code> apply it to connectives.</dd>
-<dt id="g-def-axiom">def-axiom</dt><dd>A proof step whose clause is true by the definition of a connective alone, such as a gate clause. Despite the name, Lean proves it rather than assuming it.</dd>
-<dt id="g-xor">exclusive or (xor)</dt><dd>A connective that is true when exactly one of its two arguments is true. With one argument, Z3 reads it as that argument.</dd>
-<dt id="g-farkas">Farkas lemma</dt><dd>A result from linear arithmetic: a set of linear inequalities has no solution exactly when a nonnegative combination of them yields a contradiction such as <code>0 &lt; 0</code>.</dd>
-<dt id="g-gate-clause">gate clause</dt><dd>One of the clauses that links a compound formula to its arguments in a Tseitin transformation. For <code>(xor p)</code> they are <code>(or (xor p) (not p))</code> and <code>(or (not (xor p)) p)</code>.</dd>
-<dt id="g-linear-arithmetic">linear arithmetic</dt><dd>Reasoning about sums of variables times constants, compared with <code>&lt;</code>, <code>&lt;=</code>, or <code>=</code>, over the reals or integers.</dd>
-<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
-<dt id="g-negation">negation</dt><dd>The connective <code>not</code>, which flips true and false.</dd>
-<dt id="g-proof-core">proof core</dt><dd>The part of the solver that produces proof evidence. Z3 has two: the legacy core emits a proof object with named rules, and the newer core emits a clause log.</dd>
-<dt id="g-propositional">propositional</dt><dd>Built only from Boolean variables and connectives, with no functions, equalities over other sorts, or arithmetic.</dd>
-<dt id="g-refutation">refutation</dt><dd>A proof that a set of formulas cannot all be true, ending in <code>False</code>.</dd>
-<dt id="g-rewrite">rewrite</dt><dd>A proof step stating that one formula equals a simplified form of itself, such as <code>(= (xor p) p)</code>.</dd>
-<dt id="g-simplifier">simplifier</dt><dd>The stage of the solver that rewrites formulas into simpler equivalent ones before search begins.</dd>
-<dt id="g-smt-lib">SMT-LIB</dt><dd>The standard input language for SMT solvers, with commands such as <code>declare-const</code>, <code>assert</code>, and <code>check-sat</code>.</dd>
-<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
-<dt id="g-tactic">tactic</dt><dd>A Lean command that searches for a proof automatically, such as <code>decide</code>, <code>omega</code>, or <code>grind</code>.</dd>
-<dt id="g-th-lemma">theory lemma</dt><dd>A proof step justified by reasoning in a theory such as arithmetic, often with a hint saying which coefficients or bounds were used.</dd>
-<dt id="g-tseitin">Tseitin transformation</dt><dd>A method that names each compound subformula with a fresh variable and adds gate clauses tying the name to its arguments, producing clauses of bounded size.</dd>
-<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning, about which only congruence is known. <code>f(1)</code> and <code>f(2)</code> may or may not be equal.</dd>
+<dl class="glossary">
+  <dt id="g-arithmetic">arithmetic (linear)</dt>
+  <dd>Constraints over numbers using only addition, subtraction, and multiplication by constants. Example: <code>(&lt;= (+ x (* 2 y)) 5)</code>.</dd>
+  <dt id="g-arity">arity</dt>
+  <dd>The number of arguments a function or connective takes. <code>(xor p q)</code> has arity two, <code>(xor p)</code> has arity one.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>A value that is either true or false, or a formula that evaluates to one.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The JSON file the exporter writes from Z3's proof. It lists the declarations, the term graph, and every inference step with its rule name.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>(or p (not q))</code>. A proof by resolution works on clauses.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>The newer of Z3's two proof formats. The SAT-based core writes each learned clause with a hint, and the exporter replays the log into a certificate.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>If each argument of a term is replaced by an equal one, the whole term stays equal. Example: from <code>p = p'</code> and <code>q = q'</code> conclude <code>(xor p q) = (xor p' q')</code>.</dd>
+  <dt id="g-declaration">declaration</dt>
+  <dd>The name, argument sorts, and result sort of a function or connective, as in <code>xor : Bool Bool -&gt; Bool</code>.</dd>
+  <dt id="g-def-axiom">def-axiom</dt>
+  <dd>Z3's rule name for a clause that holds by the definition of a connective alone, such as a Tseitin gate clause. The reconstructor must prove each one.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A result from linear arithmetic: if a set of linear inequalities has no solution, some nonnegative combination of them yields a plain contradiction such as <code>0 &lt; 0</code>. Solvers use those coefficients as proof hints.</dd>
+  <dt id="g-gate-clause">gate clause</dt>
+  <dd>One of the small clauses that link a connective to its arguments in a Tseitin encoding. For <code>g = (xor p)</code> they are <code>(or g (not p))</code> and <code>(or (not g) p)</code>.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>Written <code>ite</code> in SMT-LIB: <code>(ite c a b)</code> is <code>a</code> when <code>c</code> holds and <code>b</code> otherwise.</dd>
+  <dt id="g-legacy-proof-object">legacy proof object</dt>
+  <dd>The older of Z3's two proof formats. The solver builds a tree of proof terms with rule names such as <code>rewrite</code>, <code>monotonicity</code>, and <code>unit-resolution</code>.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+  <dt id="g-propositional">propositional</dt>
+  <dd>Built from Boolean variables and connectives only, with no arithmetic, functions, or quantifiers.</dd>
+  <dt id="g-reconstructor">reconstructor</dt>
+  <dd>The script that reads a certificate and the original input and writes Lean source for the refutation. Here it is <code>proof_to_lean.py</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>, so the assertions cannot all hold at once.</dd>
+  <dt id="g-rewrite">rewrite</dt>
+  <dd>A proof step stating that one term equals a simplified form of itself. Example: <code>(= (xor p) p)</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that searches for a proof automatically, such as <code>decide</code>, <code>omega</code>, or <code>grind</code>. The result is still checked by Lean's kernel.</dd>
+  <dt id="g-term-graph">term graph</dt>
+  <dd>The shared, numbered representation of all terms in a certificate. Each node names its declaration and points to its argument nodes, so repeated subterms are stored once.</dd>
+  <dt id="g-tseitin">Tseitin encoding</dt>
+  <dd>A way to turn a formula into clauses by giving each connective a fresh name and adding gate clauses that tie the name to its arguments.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with declared sorts but no fixed meaning. The only thing known about it is that equal arguments give equal results.</dd>
+  <dt id="g-xor">exclusive or (xor)</dt>
+  <dd>The connective that is true when an odd number of its arguments are true. With two arguments it means "exactly one of them". With one argument, in Z3's reading, it is that argument.</dd>
 </dl>
 
 <footer>
-Generated by the Lean certificate improvement loop on 2026-10-21. Iteration 27, PR state OPEN at generation time.
+  Generated by the Lean certificate improvement loop on 2026-10-21.
 </footer>
 
 </body>
