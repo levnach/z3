@@ -18,7 +18,7 @@ th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left
 th { background: var(--code-bg); }
 .meta { color: var(--muted); font-size: .95rem; }
 .badge { display: inline-block; padding: .05em .5em; border-radius: 999px; font-weight: 600; font-size: .85em; border: 1px solid currentColor; }
-.open { color: var(--warn); } .ok { color: var(--ok); } .bad { color: var(--bad); } .pending { color: var(--muted); }
+.merged { color: var(--ok); } .ok { color: var(--ok); } .bad { color: var(--bad); } .pending { color: var(--muted); }
 dl dt { font-weight: 600; margin-top: .7rem; } dl dd { margin-left: 0; margin-bottom: .3rem; }
 .note { border-left: 3px solid var(--accent); padding: .4rem .8rem; background: var(--code-bg); border-radius: 0 6px 6px 0; }
 footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); padding-top: .8rem; }
@@ -30,13 +30,14 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1p
 <h1>Prove the logged clause in the proof checker's SMT fallback</h1>
 <p class="meta">
 Pull request <a href="https://github.com/levnach/z3/pull/25">levnach/z3#25</a> &middot;
-state <span class="badge open">OPEN</span> &middot;
-opened 2026-10-21T01:23:35Z &middot;
+state <span class="badge merged">MERGED</span> &middot;
+merged 2026-10-21T01:58:55Z &middot;
 loop iteration 25
 </p>
-<p class="note">This pull request is <strong>not merged</strong>. The report describes the change at commit
-<a href="https://github.com/levnach/z3/commit/9790165b065a3160772f39c4f407b608a259e31e"><code>9790165b</code></a>,
-which sits on top of base commit <code>a7dd4c26</code>. There is no merge commit.</p>
+<p class="note">Merged into <code>master</code> as commit
+<a href="https://github.com/levnach/z3/commit/d8b130f27b1a5d7cefd9736b29c6fbd580b68eb2"><code>d8b130f27</code></a>
+on 2026-10-21T01:58:55Z. The PR was opened at 2026-10-21T01:23:35Z on base commit <code>a7dd4c26f</code>.
+Its two commits were squashed into the single merge commit above.</p>
 </header>
 
 <h2 id="one-paragraph">In one paragraph</h2>
@@ -67,7 +68,7 @@ This PR closes the replay's <a href="#g-soundness">soundness</a> hole and change
 <li><strong>One shared test for "follows from the hint".</strong> The native path and the fallback use the same subsumption-plus-RUP computation, found in <code>follows_from_hint</code>.</li>
 <li><strong>The checker reports instead of exiting.</strong> The step checker returns true or false, so a unit test can drive it directly, while the two command-line callers still stop the process on a failed step.</li>
 <li><strong>Diagnostics mean what they say.</strong> The line <code>unit ... is not rup</code> is printed only when the step is finally rejected, because z3test's matrix classifies any output containing it as a rejection.</li>
-<li><strong>A direct unit test of the fallback.</strong> Seven probes cover the rejected case, the natively verified case, valid and invalid array hints, and logged clauses outside the hint's clause.</li>
+<li><strong>A direct unit test of the fallback.</strong> Eight probes cover the rejected case, the natively verified case, valid and invalid array hints, and logged clauses outside the hint's clause.</li>
 </ul>
 
 <table>
@@ -79,7 +80,7 @@ This PR closes the replay's <a href="#g-soundness">soundness</a> hole and change
 <tr><td><code>src/sat/smt/euf_proof.cpp</code></td><td>In-solver caller exits on a failed step</td><td>4</td><td>2</td></tr>
 <tr><td><code>src/cmd_context/extra_cmds/proof_cmds.cpp</code></td><td>Replay command exits on a failed step</td><td>2</td><td>2</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated note on the fix</td><td>35</td><td>0</td></tr>
-<tr><td colspan="2"><strong>Total, 2 commits, 6 files</strong></td><td>213</td><td>45</td></tr>
+<tr><td colspan="2"><strong>Total, 2 PR commits squashed into 1, 6 files</strong></td><td>213</td><td>45</td></tr>
 </tbody>
 </table>
 
@@ -104,7 +105,7 @@ The hint's clause is a tautology. The logged unit is not.
 <p>The file is one physical line of declarations followed by the three replay steps. The declarations are wrapped here for readability only.</p>
 
 <h3>(b) Before: the baseline build accepted the step</h3>
-<p>Run by the implementer on the build of the base commit at the start of this iteration, with <code>solver.proof.check=true</code>:</p>
+<p>Run by the implementer on the build of the base commit at the start of this iteration, with <code>solver.proof.check=true</code>. The base build was not available to rerun for this report, so the output is quoted from that run:</p>
 <pre><code>unit (not (or (= a b) (= a c) (= b c))) is not rup
 (proofs -alldiff 1)
 (verified-smt
@@ -115,8 +116,8 @@ exit=0
 </code></pre>
 <p>The native <code>alldiff</code> checker correctly refused the step, because the dropped literal was not false by RUP. The fallback then "verified" it anyway, and the final <code>rup</code> step closed a refutation of a satisfiable assumption.</p>
 
-<h3>(c) After: the current build rejects the step with a countermodel</h3>
-<p>Run for this report on the PR's head commit, same command:</p>
+<h3>(c) After: the merged code rejects the step with a countermodel</h3>
+<p>Rerun for this report on the local build of the PR branch, same command:</p>
 <pre><code>(proofs -alldiff 1)
 unit (not (or (= a b) (= a c) (= b c))) is not rup
 did not verify: l_true
@@ -137,16 +138,16 @@ exit=0
 </code></pre>
 <p>The verification condition is now the logged clause alone. The solver finds a <a href="#g-countermodel">countermodel</a> in which <code>a</code> and <code>b</code> are the same element, so the step is rejected and no <code>verified-smt</code> line appears. The exit status is still zero, as before, because the frontends have not changed.</p>
 
-<p>The second commit's effect is visible on the reviewer's array probe, a valid logged unit <code>(= a a)</code> under an <code>array</code> hint whose dropped literal is not RUP. On the current build it prints <code>(proofs -array 1)</code> followed by <code>(verified-smt ...)</code> and no <code>is not rup</code> line, which is exactly what the matrix classifier needs.</p>
+<p>The second commit's effect is visible on the reviewer's array probe, a valid logged unit <code>(= a a)</code> under an <code>array</code> hint whose dropped literal is not RUP. Rerun for this report, it prints <code>(proofs -array 1)</code> followed by <code>(verified-smt ...)</code> and no <code>is not rup</code> line, which is exactly what the matrix classifier needs.</p>
 
 <p>No Lean file is produced for this example. The Lean suites were run unchanged to confirm nothing on that side moved, see the next section.</p>
 
 <h2 id="verified">How it was verified</h2>
 <p>
 Locally, everything passed: the new unit test, the whole native unit-test suite, all SMT2 regressions, the Python certificate and Lean export suites, and the proof canaries with zero checker rejections.
-Both Lean matrices were run by the previous iteration of this branch and not repeated after the diagnostic-only follow-up commit.
-For this report the <code>proof_replay</code> unit test was rerun on the head commit and passed with no stray <code>did not verify</code> lines.
-No local gate record file exists for this iteration, so the local results come from the PR body and the reruns above.
+Both Lean matrices were run on the PR's first commit and not repeated after the diagnostic-only follow-up commit.
+For this report the two probes above were rerun on the local build and behaved as described.
+No local gate record file exists for this iteration, so the local results come from the PR body, the review, and the reruns above.
 </p>
 
 <table>
@@ -154,7 +155,7 @@ No local gate record file exists for this iteration, so the local results come f
 <tbody>
 <tr><td>Build of <code>z3</code> and <code>test-z3</code></td><td class="ok">both succeed</td></tr>
 <tr><td>Probe on the base build (implementer's run)</td><td class="bad">accepted, <code>verified-smt</code></td></tr>
-<tr><td>Probe on the head build (this report)</td><td class="ok">rejected, <code>did not verify: l_true</code>, countermodel</td></tr>
+<tr><td>Probe on the PR build (this report)</td><td class="ok">rejected, <code>did not verify: l_true</code>, countermodel</td></tr>
 <tr><td><code>test-z3 proof_replay</code></td><td class="ok">PASS</td></tr>
 <tr><td><code>test-z3 -a</code></td><td class="ok">116 passed, 0 failed</td></tr>
 <tr><td>SMT2 regression corpus via <code>test_benchmarks.py</code></td><td class="ok">exit 0, 951 files</td></tr>
@@ -163,30 +164,29 @@ No local gate record file exists for this iteration, so the local results come f
 <tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
 <tr><td>z3test proof script tests</td><td class="ok">46 tests OK</td></tr>
 <tr><td>Proof canaries matrix</td><td class="ok">16 verified, 14 unverified-fallback, 0 checker-rejected</td></tr>
-<tr><td>Lean matrices (previous iteration of this branch)</td><td class="ok">6 of 6 Boolean and 8 of 8 QF_LRA cells lean-verified</td></tr>
+<tr><td>Lean matrices (PR's first commit)</td><td class="ok">6 of 6 Boolean and 8 of 8 QF_LRA cells lean-verified</td></tr>
 <tr><td>Four quantifier probes from the review</td><td class="ok">rejected, rejected, native, verified-smt, as the review found</td></tr>
 </tbody>
 </table>
 
 <p>
-GitHub CI had just started when this report was written. No CI status files were recorded for this iteration, and no CI fix rounds happened.
-The table shows the live state a few minutes after the PR was opened. Three checks had finished, all successful. The rest were queued or running.
-The final results are on the PR's checks tab, and a pending status below must not be read as a pass.
+On GitHub, every gating check that had finished by the last recorded snapshot passed. That snapshot was taken about a minute after the merge.
+At that moment the four Windows build jobs were still running, so their final result is not recorded here and can be read on the PR's checks tab.
+No check failed, no CI fix rounds happened, and no failure had to be judged unrelated.
 </p>
 
 <table>
-<thead><tr><th>Workflow</th><th>Checks</th><th>Status at report time</th><th>Link</th></tr></thead>
+<thead><tr><th>Workflow</th><th>Checks</th><th>Status at last snapshot</th><th>Link</th></tr></thead>
 <tbody>
-<tr><td>CI</td><td>Ubuntu cmake builds (releaseClang, debugClang, debugGcc, releaseSTGcc), Python bindings (AMD64, ARM64), macOS, OCaml, CMake package, build-script tests</td><td class="pending">queued or in progress</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048744">run</a></td></tr>
-<tr><td>Solver determinism</td><td>Trace (clang)</td><td class="ok">success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048689/job/118984047959">job</a></td></tr>
-<tr><td>Solver determinism</td><td>Trace (gcc, gcc-unsigned-char, libcxx, libcxx-random, apple-clang, msvc)</td><td class="pending">queued or in progress</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048689">run</a></td></tr>
-<tr><td>Windows</td><td>build (x86, x64, amd64_arm64), mingw-build</td><td class="pending">queued or in progress</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048668">run</a></td></tr>
-<tr><td>Determinism Linter</td><td>base, head</td><td class="pending">queued</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048739">run</a></td></tr>
-<tr><td>OCaml Binding CI</td><td>build-test (ubuntu, macos)</td><td class="pending">in progress</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048749">run</a></td></tr>
-<tr><td>Finite-field regressions</td><td>acceptance</td><td class="pending">in progress</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048780">run</a></td></tr>
-<tr><td>WebAssembly Build</td><td>Check</td><td class="pending">in progress</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048839">run</a></td></tr>
-<tr><td>Dispatch NFV formal audit</td><td>dispatch</td><td class="ok">success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048285">run</a></td></tr>
-<tr><td>Mark Pull Requests Ready for Review</td><td>mark-ready</td><td class="ok">success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048760">run</a></td></tr>
+<tr><td>CI</td><td>Ubuntu cmake builds (releaseClang, debugClang, debugGcc, releaseSTGcc), Python bindings (AMD64, ARM64 cross), macOS CMake, macOS JNI cross-compile, Ubuntu with OCaml (two variants), CMake package (two variants), build-script unit tests</td><td class="ok">14 of 14 success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048744">run</a></td></tr>
+<tr><td>Solver determinism</td><td>Trace (clang, gcc, gcc-unsigned-char, libcxx, libcxx-random, apple-clang, msvc), Compare exact traces</td><td class="ok">8 of 8 success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048689">run</a></td></tr>
+<tr><td>OCaml Binding CI</td><td>build-test (ubuntu-latest, macos-latest)</td><td class="ok">2 of 2 success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048749">run</a></td></tr>
+<tr><td>WebAssembly Build</td><td>Check</td><td class="ok">success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048839/job/118984048418">job</a></td></tr>
+<tr><td>Windows</td><td>build (x86, x64, amd64_arm64), mingw-build</td><td class="pending">4 of 4 still in progress</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048668">run</a></td></tr>
+<tr><td>Determinism Linter</td><td>base, head, compare</td><td class="ok">3 of 3 success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048739">run</a></td></tr>
+<tr><td>Finite-field regressions</td><td>acceptance</td><td class="ok">success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048780/job/118984048478">job</a></td></tr>
+<tr><td>Dispatch NFV formal audit</td><td>dispatch</td><td class="ok">success</td><td><a href="https://github.com/levnach/z3/actions/runs/39530413460/job/118994764396">job</a></td></tr>
+<tr><td>Mark Pull Requests Ready for Review</td><td>mark-ready</td><td class="ok">success</td><td><a href="https://github.com/levnach/z3/actions/runs/39527048760/job/118984048017">job</a></td></tr>
 </tbody>
 </table>
 
@@ -215,7 +215,7 @@ Anyone grepping the logs that the memory-safety workflow saves would have found 
 <li><strong>Acceptance is strictly stronger.</strong> A replay that was verified only because the hint's clause was a tautology now ends in <code>did not verify</code>. The canaries, the SMT2 corpus, and the Lean matrices show no such case, but external logs might.</li>
 <li><strong>Quantifier steps may get slower.</strong> An instantiation clause that differs from the hint's clause beyond RUP-false dropped literals is now proved against the full quantified premise. This is sound but can be expensive, and no such input is in the corpora.</li>
 <li><strong>Exit status still hides failures.</strong> A refuted replay exits with status zero, so CI sees a rejection only through the printed text, which the matrix script relies on.</li>
-<li><strong>CI is pending.</strong> Most workflows had not finished at report time, and the local runs are not a substitute for the CI result.</li>
+<li><strong>Windows CI was unfinished at merge time.</strong> The four Windows build jobs were still running in the last snapshot. The change is plain C++ with no platform-specific code, but their result is not recorded here.</li>
 <li><strong>A stale annotation remains.</strong> The canary list still marks <code>t8.smt2</code> as checker-rejected, although it has replayed as an unverified fallback since before this change.</li>
 </ul>
 
