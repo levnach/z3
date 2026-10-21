@@ -129,7 +129,9 @@ _CNF_HINT = "cnf"
 # labels its propagations assign-bounds and eq-propagate and weights the
 # antecedents only, so the propagated literal's weight of 1 is added here.
 # Over Int, theory_lra's cuts and its div/mod axioms are bare (_ th-lemma
-# arith) steps, kept as the arith hint (see _th_lemma_parameters); any other
+# arith) steps, kept as the arith hint, and a conflict whose coefficients
+# theory_lra could not certify itself is (_ th-lemma arith unsupported),
+# kept as a coefficient-free farkas (see _th_lemma_parameters); any other
 # hint name (nla, gomory-cut, gcd-test) is rejected.
 _LEGACY_HINTS = {
     "farkas": "farkas", "bound": "bound", "assign-bounds": "bound",
@@ -638,11 +640,22 @@ def _th_lemma_parameters(decl, premises, conclusion=None, integer=False):
     derives from the premises it lists), both shape-checked by the
     reconstructor and proved by Lean alone like the clause log's arith and
     cut hints. Indexed LP steps use their local weights; input and discharge
-    bridges and integer rounding steps are re-proved by Lean.
+    bridges and integer rounding steps are re-proved by Lean. The label
+    (_ th-lemma arith unsupported) is theory_lra's own verdict that it could
+    not certify an LP conflict's Farkas coefficients (set_proof_params: its
+    check failed or the explanation did not linearize), which happens on
+    lattice conflicts over Int; the step lists the held literals and
+    concludes false, so over Int it is the coefficient-free farkas step the
+    reconstructor shape-checks and Lean proves alone. Over Real a conflict
+    Z3 could not check stays rejected, as does the nla variant.
     """
     parameters = decl.params()
     if integer and len(parameters) == 1 and parameters[0] == "arith":
         return ["arith"]
+    if integer and len(parameters) == 2 and parameters[0] == "arith" and parameters[1] == "unsupported":
+        if conclusion is None or not z3.is_false(conclusion) or not premises:
+            raise ProofExportError("th-lemma arith unsupported must refute at least one premise")
+        return ["farkas"]
     if (len(parameters) >= 2 and parameters[0] == "arith"
             and isinstance(parameters[1], str) and parameters[1].startswith("lp-")):
         rule = parameters[1]
