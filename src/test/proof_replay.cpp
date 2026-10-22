@@ -722,13 +722,12 @@ static void tst_trim_duplicate_binary_keeps_implied_literal() {
     reslimit limit;
     sat::proof_trim trim(params, limit);
     sat::literal a(trim.mk_var(), false), b(trim.mk_var(), false), u(trim.mk_var(), false),
-        c(trim.mk_var(), false), d(trim.mk_var(), false);
+        c(trim.mk_var(), false), d(trim.mk_var(), false), e(trim.mk_var(), false);
     auto clause = [&](std::initializer_list<sat::literal> literals) {
         trim.init_clause();
         for (auto literal : literals)
             trim.add_literal(literal.var(), literal.sign());
     };
-    sat::literal e(trim.mk_var(), false);
     clause({a}); trim.assume(0);
     clause({~a, b}); trim.assume(1);       // implies b
     clause({~b, ~a, u}); trim.assume(2);   // implies u

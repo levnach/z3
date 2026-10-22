@@ -121,6 +121,11 @@ namespace sat {
                     return false;
                 // The copies of a binary clause share one justification; the
                 // literal stays implied while another copy remains attached.
+                // Limitation: the attached copies are told apart only by
+                // count, so a log that deletes a binary clause (big::reduce_tr
+                // logs such deletions) and later adds it again can still lose
+                // a fact derived from the deleted copy. The result is the
+                // explicit error below at a later probe, not a wrong core.
                 unsigned copies = 0;
                 for (watched const& w : s.get_wlist(~cl[0]))
                     if (w.is_binary_clause() && w.get_literal() == cl[1])
