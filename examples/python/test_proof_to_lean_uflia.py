@@ -679,16 +679,16 @@ class TestIntegerMixedLeanIntegration(unittest.TestCase):
     # functions=True) whose certificate (2,815 steps) has a Farkas lemma of 33
     # literals over 26 div, mod, abs, and application atoms, 14 of them mod
     # atoms. With the 28 mod bounds stated and reverted before the atoms were
-    # generalized, omega took 40 to 134 s on that one lemma (140 s for the
-    # file); the bounds are redundant for a combination the reconstructor
-    # re-derived, and without them the lemma takes about 2 s (25 s for the
-    # file). Found by a random stress run over seeds 70 to 89 at this size.
-    WIDE_DIVISION_SEED = 75
+    # generalized, omega took 27 s on that one lemma on an idle machine (48 s
+    # for the file; over two minutes under load); the bounds are redundant for
+    # a combination the reconstructor re-derived, and without them the lemma
+    # takes about 2 s (22 s for the file). Found by a random stress run over seeds 70 to 89 at this size.
+    WIDE_FARKAS_SEED = 75
 
     def test_wide_farkas_lemmas_over_mod_atoms_omit_the_redundant_bounds(self):
         from test_proof_to_lean_lia import random_division_instance
-        source = random_division_instance(self.WIDE_DIVISION_SEED, variables=12, constraints=36, functions=True)
-        self.assertIsNotNone(source, "seed %d is no longer unsatisfiable" % self.WIDE_DIVISION_SEED)
+        source = random_division_instance(self.WIDE_FARKAS_SEED, variables=12, constraints=36, functions=True)
+        self.assertIsNotNone(source, "seed %d is no longer unsatisfiable" % self.WIDE_FARKAS_SEED)
         certificate, text = self.check(source)
         graph = proof_to_lean._validate_graph(source, certificate)
         widest, shapes = 0, set()

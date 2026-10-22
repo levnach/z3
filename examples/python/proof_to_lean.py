@@ -1238,9 +1238,9 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     combination was re-derived over the atoms alone (_check_th_lemma), so
     the generalized goal holds without them, and omega, which is complete
     for linear integer arithmetic but eliminates bounded variables by case
-    analysis, took over two minutes on a 33-literal Farkas lemma over 26
-    atoms with the 28 redundant bounds in its context and under two seconds
-    without them (see _combination_certified).
+    analysis, took 27 s (idle machine; over two minutes under load) on a
+    33-literal Farkas lemma over 26 atoms with the 28 redundant bounds in
+    its context and about two seconds without them (see _combination_certified).
     """
     conclusion = graph.conclusion(node)
     premises = graph.arguments(node)[:-1]
