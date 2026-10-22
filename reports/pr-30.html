@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #30: Bridge same-key ite/abs atoms before generalizing theory rewrites</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b60; --rule: #d9d9de;
+    --code-bg: #f3f3f6; --accent: #0b5cad; --badge-bg: #fff3cd; --badge-fg: #6b4e00;
+    --ok-bg: #e3f6e8; --ok-fg: #14532d; --warn-bg: #fdecec; --warn-fg: #7a1c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121214; --fg: #e8e8ea; --muted: #a2a2a8; --rule: #35353b;
+      --code-bg: #1e1e23; --accent: #7cb4ff; --badge-bg: #4a3a05; --badge-fg: #ffe08a;
+      --ok-bg: #11301c; --ok-fg: #a9e5bb; --warn-bg: #3b1515; --warn-fg: #f3b3b3;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.55; max-width: 52rem; margin: 2rem auto; padding: 0 1.2rem; }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: .3rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--rule); padding-bottom: .25rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .badge { display: inline-block; padding: .1rem .55rem; border-radius: 1rem; font-weight: 600; font-size: .85rem;
+           background: var(--badge-bg); color: var(--badge-fg); vertical-align: middle; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em;
+         background: var(--code-bg); padding: .05rem .3rem; border-radius: .25rem; }
+  pre { background: var(--code-bg); padding: .8rem 1rem; border-radius: .4rem; overflow-x: auto;
+        white-space: pre; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: .85rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .95rem; }
+  th, td { border: 1px solid var(--rule); padding: .4rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { background: var(--ok-bg); color: var(--ok-fg); padding: .05rem .4rem; border-radius: .25rem; }
+  .warn { background: var(--warn-bg); color: var(--warn-fg); padding: .05rem .4rem; border-radius: .25rem; }
+  dl.glossary dt { font-weight: 600; margin-top: .7rem; }
+  dl.glossary dd { margin-left: 0; color: var(--fg); }
+  .explain { color: var(--muted); font-size: .95rem; margin: -.4rem 0 1.1rem; }
+  footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Bridge same-key ite/abs atoms before generalizing theory rewrites</h1>
+  <p class="meta">
+    Pull request <a href="https://github.com/levnach/z3/pull/30">levnach/z3 #30</a>
+    &nbsp;·&nbsp; state <span class="badge">OPEN</span>
+    &nbsp;·&nbsp; 2026-10-22T12:21:11Z
+    &nbsp;·&nbsp; loop iteration 30
+  </p>
+  <p class="meta">
+    This pull request is <strong>not merged</strong>. The report describes the change commit
+    <a href="https://github.com/levnach/z3/commit/f2a4389e4f3528d5ded66ab7dbaef969d3cefd7f"><code>f2a4389e4</code></a>,
+    the second of two commits on the branch. Merge information will only exist once the PR is merged.
+  </p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+  Z3's <a href="#g-rewriter">rewriter</a> writes the <a href="#g-abs">absolute value</a> <code>(abs x)</code> as the
+  <a href="#g-ite">if-then-else term</a> <code>(ite (&lt;= 0 x) x (* -1 x))</code>.
+  The <a href="#g-rewrite">rewrite</a> step that links an assertion to its <a href="#g-normal-form">normal form</a>
+  therefore mentions every absolute value twice, as two different <a href="#g-atom">atoms</a>.
+  Before this PR, the Lean <a href="#g-lemma">lemma</a> for such a rewrite let the
+  <a href="#g-tactic">tactic</a> split each if-then-else term into two cases.
+  With twelve absolute values that is thousands of cases, and Lean gave up at its heartbeat limit.
+  Now the reconstructor first proves a bridging equality for every two atoms that are equal up to the
+  rewriter's normalization, then <a href="#g-generalize">generalizes</a> the atoms and decides the
+  remaining <a href="#g-linear-arithmetic">linear arithmetic</a> goal.
+  Sums of a dozen absolute values, common in <a href="#g-qf-lia">QF_LIA</a> inputs, are now certified in about a second.
+  <a href="#g-soundness">Soundness</a> is untouched, because each bridge is an equality that Lean must prove.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+  Before this PR the pipeline certified <a href="#g-boolean">Boolean</a> <a href="#g-refutation">refutations</a>,
+  <a href="#g-congruence">congruence</a> over <a href="#g-uninterpreted-function">uninterpreted functions</a>, and
+  linear arithmetic over the <a href="#g-sort">sorts</a> Int and Real, including <a href="#g-farkas">Farkas lemmas</a>
+  and <a href="#g-cut">cuts</a>.
+  The previous PR (#29) made the Int <a href="#g-theory-lemma">theory lemmas</a> treat their div, mod, and abs atoms
+  as opaque, but the rewrite steps of the same inputs were still proved with every definition unfolded.
+  So an assertion over many if-then-else atoms could still exhaust Lean's heartbeats.
+  This PR closes that gap and serves milestone 3 of the plan, equality and linear arithmetic end to end.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<p>
+  The central idea is a <em>key</em>: a short description of an atom that ignores the rewriter's cosmetic choices.
+  Two atoms with one key denote the same value, like two spellings of one word that share a dictionary entry.
+</p>
+<ul>
+  <li><strong>Rewrite steps get a two-attempt proof.</strong>
+      A theory rewrite over if-then-else, abs, div, mod, or function-application atoms is first proved by
+      bridging same-key atoms, generalizing, and running <code>omega</code> over Int or <code>grind</code> over Real.
+      Only if that fails does the old unfolded proof run.</li>
+  <li><strong>Absolute values are keyed as their defining if-then-else term,</strong>
+      so an input's <code>(abs x)</code> and the rewriter's form of it are bridged instead of split.</li>
+  <li><strong>If-then-else conditions are keyed canonically:</strong>
+      positive leading coefficient, <a href="#g-primitive">primitive</a> and rounded over Int, and the
+      <a href="#g-complement">complement</a> with swapped branches when needed.
+      The <a href="#g-strict">strict</a> form <code>(ite (&gt; x 0) x (- x))</code> and the scaled form
+      <code>(abs (* 2 x))</code> now bridge too. This was added after the review.</li>
+  <li><strong>The same key serves arguments of uninterpreted functions,</strong>
+      so in <a href="#g-qf-uflia">QF_UFLIA</a> an Int if-then-else term under a function symbol gets the helper equality
+      the Real case already had.</li>
+  <li><strong>A forged rewrite is still rejected.</strong>
+      A new test plants a false rewrite that passes every shape check and confirms Lean refuses the file.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor: keys, bridges, two-attempt rewrite proofs</td><td class="num">153</td><td class="num">32</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>QF_LIA tests: wide abs instance, bridged lemma text, forged rewrite</td><td class="num">182</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>QF_UFLIA test: Int if-then-else argument helper</td><td class="num">6</td><td class="num">1</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td class="num">54</td><td class="num">3</td></tr>
+    <tr><th>Total (4 files, 2 commits)</th><th></th><th class="num">395</th><th class="num">36</th></tr>
+  </tbody>
+</table>
+<p>No C++ code changed. The Lean library and the <code>scripts/</code> directory are untouched.</p>
+
+<h2 id="worked-example">Worked example</h2>
+<p>
+  The input below is built from the PR's new test <code>wide_abs_instance</code>.
+  The two bounds on a sum of twelve absolute values contradict each other.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIA)
+(declare-const x0 Int) (declare-const x1 Int) (declare-const x2 Int) (declare-const x3 Int)
+(declare-const x4 Int) (declare-const x5 Int) (declare-const x6 Int) (declare-const x7 Int)
+(declare-const x8 Int) (declare-const x9 Int) (declare-const x10 Int) (declare-const x11 Int)
+(assert (&lt;= (+ (abs x0) (abs x1) (abs x2) (abs x3) (abs x4) (abs x5) (abs x6) (abs x7) (abs x8) (abs x9) (abs x10) (abs x11)) 11))
+(assert (&gt;= (+ (abs x0) (abs x1) (abs x2) (abs x3) (abs x4) (abs x5) (abs x6) (abs x7) (abs x8) (abs x9) (abs x10) (abs x11)) 12))
+(check-sat)</code></pre>
+
+<h3>(b) Before the PR</h3>
+<p>
+  The exporter and reconstructor at the PR's base commit produced a Lean file with no bridges.
+  The old script expects the Lean checker next to it, so its text was generated through a small wrapper and then
+  checked with the repository's <code>check_lean.sh</code>.
+  Lean rejected the file, first at the rewrite lemma of the first assertion:
+</p>
+<pre><code>example12.lean:281:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+...
+example12.lean:389:8: error: (kernel) unknown constant '...rewrite_156'
+Lean checking failed; no proof was published.</code></pre>
+<p class="explain">The lemma unfolded all 24 if-then-else atoms and the tactic split them one by one, which did not finish within the heartbeat budget. The last line is the old tool's message in that case.</p>
+
+<h3>(c) After the PR</h3>
+<p>The current reconstructor generates this Lean file, trimmed to the relevant pieces.</p>
+<pre><code>def term_22 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 11
+noncomputable def term_23 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int :=
+  (@ite Int ((term_22 _atoms _vars) &gt;= ((0 : Int))) (Classical.propDecidable _) (term_22 _atoms _vars) (-(term_22 _atoms _vars)))
+...
+def formula_30 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_29 _atoms _vars) &lt;= (term_22 _atoms _vars))
+noncomputable def term_35 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int :=
+  (@ite Int (formula_30 _atoms _vars) (Classical.propDecidable _) (term_22 _atoms _vars) (term_34 _atoms _vars))
+...</code></pre>
+<p class="explain"><code>term_23</code> is the input's <code>(abs x11)</code> as SMT-LIB defines it, and <code>term_35</code> is the rewriter's form of the same value. These two atoms need a bridge.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_26 _atoms _vars))
+    (_h1 : (formula_28 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p class="explain">The main theorem: the two assertions of the input imply <code>False</code>.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_156 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_155 _atoms _vars) := by
+  unfold formula_155 formula_154 term_153 formula_26 term_25 term_24
+  first
+    | (have _e145_21 : (term_145 _atoms _vars) = (term_21 _atoms _vars) := by unfold term_145 term_144 formula_142 term_33 term_32 term_29 term_21 term_20; first | omega | grind (splits := 64)
+       ...
+       have _e35_23 : (term_35 _atoms _vars) = (term_23 _atoms _vars) := by unfold term_35 term_34 term_33 term_32 formula_30 term_29 term_23 term_22; first | omega | grind (splits := 64)
+       revert _e145_21 _e135_19 _e125_17 _e115_15 _e105_13 _e95_11 _e85_9 _e75_7 _e65_5 _e55_3 _e45_1 _e35_23
+       generalize (term_145 _atoms _vars) = _o0
+       ...
+       generalize (term_1 _atoms _vars) = _o23
+       omega)
+    | (unfold term_145 term_144 formula_142 ... term_1 term_0
+       ...)</code></pre>
+<p class="explain">The rewrite lemma of the first assertion. Each <code>have</code> line is one bridge, proved by a two-way split of a single if-then-else term. The bridges are reverted into the goal, the 24 atoms are generalized, and <code>omega</code> closes the linear goal. The second alternative is the old unfolded proof, kept as a fallback.</p>
+<p>
+  The Lean check <span class="ok">accepted</span> this file, both inside the reconstructor's run and with
+  <code>check_lean.sh</code> afterwards.
+</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+  Locally, every Python test module passed, the Lean library checked, and both matrix cells that CI requires
+  were fully Lean-verified.
+  The twelve-wide inputs in all their spellings verified in about a second each, where each had previously timed out.
+  Suite times did not change noticeably.
+  These results come from the PR body and the review. A local gate file has not been recorded for this iteration.
+</p>
+<table>
+  <thead><tr><th>Local check (final commit)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_proof_to_lean.py</code></td><td>63 tests OK</td></tr>
+    <tr><td><code>test_proof_to_lean_lia.py</code></td><td>28 OK (112 s)</td></tr>
+    <tr><td><code>test_proof_to_lean_arith.py</code></td><td>42 OK (117 s)</td></tr>
+    <tr><td><code>test_proof_to_lean_uflra.py</code></td><td>15 OK (45 s)</td></tr>
+    <tr><td><code>test_proof_to_lean_uflia.py</code></td><td>18 OK (58 s)</td></tr>
+    <tr><td><code>test_proof_to_lean_uf.py</code></td><td>39 OK (128 s)</td></tr>
+    <tr><td><code>test_proof_to_lean_integration.py</code></td><td>63 OK (201 s)</td></tr>
+    <tr><td><code>test_proof_to_lean_wide.py</code></td><td>6 OK (14 s)</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td>86 OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+    <tr><td>z3test <code>test_proof*.py</code></td><td>46 OK</td></tr>
+    <tr><td>Matrix cell <code>legacy-proof-object</code>, Boolean inputs</td><td>6 of 6 lean-verified</td></tr>
+    <tr><td>Matrix cell <code>smt-clause-log-nopp</code>, QF_LRA inputs</td><td>8 of 8 lean-verified</td></tr>
+    <tr><td>Twelve-wide abs inputs, 5 variants, both proof cores</td><td>0.9 to 1.3 s each, previously timeout after about 30 s</td></tr>
+  </tbody>
+</table>
+<p>
+  <strong>CI.</strong> No CI status was recorded for this PR at the time of writing, so the outcome of the GitHub
+  workflows is <span class="warn">unknown</span>.
+  There were no CI fix rounds. According to the PR body, the relevant checks run in the <code>releaseClang</code> job.
+</p>
+<table>
+  <thead><tr><th>Workflow / check</th><th>What it runs</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>releaseClang</code>: Check native Boolean proofs in Lean</td><td>All <code>test_proof_to_lean*.py</code> modules</td><td>not recorded</td></tr>
+    <tr><td><code>releaseClang</code>: Require Lean-certified Boolean matrix results</td><td>Legacy proof-object cell</td><td>not recorded</td></tr>
+    <tr><td><code>releaseClang</code>: Require Lean-certified QF_LRA matrix results</td><td>Clause-log cell</td><td>not recorded</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blocking or major findings. Two minor findings and one nit were fixed in a second commit.</p>
+<ul>
+  <li><strong>Minor 1, strict conditions never bridged over Int.</strong>
+      The reviewer wrote the twelve-wide input with <code>(ite (&gt; x 0) x (- x))</code> instead of <code>abs</code> and
+      watched it time out like the original bug.
+      Over Int the reconstructor tightens a strict inequality before the key sees it, so the strict case was never flipped.
+      A canonical condition key that takes the complement with a branch swap fixed it.
+      The strict spelling is as common as the non-strict one, so this mattered.</li>
+  <li><strong>Minor 2, factored absolute values not bridged.</strong>
+      The reviewer tried <code>(abs (* 2 x))</code> and found the two atoms keyed apart, again with a timeout.
+      The rewriter divides the condition <code>0 &lt;= 2x</code> to <code>0 &lt;= x</code> and keeps the branches scaled.
+      Making the Int condition key primitive and rounded, as the rewriter does, fixed it.</li>
+  <li><strong>Nit 3, the plan note understated finding 1.</strong>
+      The note now records the canonical key and the one shape that remains unbridged.</li>
+  <li><strong>Suggestion, chain versus star bridging.</strong>
+      Atoms sharing a key are bridged in a chain rather than all to the first atom.
+      Not changed: long groups only arise in the <a href="#g-legacy-core">legacy proof core</a> over Int, where <code>omega</code> copes.</li>
+</ul>
+<p>
+  The reviewer also confirmed in Lean that a false bridge makes the first attempt fail and the fallback run,
+  while a false conclusion is still rejected.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>Every theory rewrite over these atom kinds now runs a first attempt before the old proof.
+      A rewrite that needs an atom's definition fails that attempt quickly. All existing suites are unchanged in outcome.</li>
+  <li>The keys do not affect soundness. A wrong key can only produce an equality Lean refuses.</li>
+  <li>The abs key assumes one normal form for <code>(abs t)</code>. Any other form would not be bridged and would fall back.</li>
+  <li>Over Int, <code>(ite (&lt;= x 0) (- x) x)</code> and <code>abs x</code> have different keys, although their values agree.
+      A rewrite relating them would fall back.</li>
+  <li>The CI outcome for this PR is not yet known.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Add the <code>mod</code> bound facts to the unfolded fallback, so <code>omega</code> could replace <code>grind</code> there.</li>
+  <li>Extend the two-attempt proof to <code>implied-eq</code> and <code>euf</code> lemmas, which still use the unfolded proof.</li>
+  <li>Key function applications up to the rewriter's normalization, so <code>(f (- x y))</code> and <code>(f (+ x (* -1 y)))</code>
+      bridge as atoms of a rewrite.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-abs">absolute value</dt>
+  <dd>The distance of a number from zero, written <code>(abs x)</code> in SMT-LIB. SMT-LIB defines it as the if-then-else term <code>(ite (&gt;= x 0) x (- x))</code>.</dd>
+  <dt id="g-atom">atom</dt>
+  <dd>A smallest building block that a proof step treats as a unit, such as a variable, an if-then-else term, or a comparison. Linear reasoning sees atoms as opaque names.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>A value that is either true or false, and the sort of such values.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, for example <code>(or (not p) q)</code>.</dd>
+  <dt id="g-complement">complement</dt>
+  <dd>The negation of a condition. Over Int the complement of <code>x &lt;= 0</code> is <code>x &gt;= 1</code>, and swapping the branches of an if-then-else term compensates for using it.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results: if <code>a = b</code> then <code>f(a) = f(b)</code>.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An integer reasoning step that rounds a bound, for example from <code>2x &lt;= 3</code> to <code>x &lt;= 1</code>.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A certificate that some linear inequalities contradict each other: a weighted sum of them yields a false statement such as <code>0 &lt;= -1</code>.</dd>
+  <dt id="g-generalize">generalize</dt>
+  <dd>A proof move that replaces a complex term by a fresh variable, so the rest of the proof cannot look inside it. The <code>generalize</code> tactic does this in Lean.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term that picks one of two values by a condition, written <code>(ite c a b)</code> in SMT-LIB.</dd>
+  <dt id="g-legacy-core">legacy proof core</dt>
+  <dd>Z3's older proof-object output, one of the two proof formats the pipeline certifies. The other is the clause log.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A small theorem proved on its own and then used in a larger proof. The reconstructor emits one Lean lemma per proof step.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Reasoning about sums of variables with constant coefficients, such as <code>2x - y &lt;= 3</code>, without products of variables.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+  <dt id="g-normal-form">normal form</dt>
+  <dd>The standard shape the rewriter gives a term so that equal terms look the same, for example writing <code>x &gt; 0</code> as <code>(not (x &lt;= 0))</code>.</dd>
+  <dt id="g-primitive">primitive</dt>
+  <dd>A linear form whose coefficients have no common factor. Dividing <code>0 &lt;= 2x</code> by two gives the primitive <code>0 &lt;= x</code>.</dd>
+  <dt id="g-qf-lia">QF_LIA</dt>
+  <dd>The SMT-LIB logic of quantifier-free linear integer arithmetic.</dd>
+  <dt id="g-qf-uflia">QF_UFLIA</dt>
+  <dd>QF_LIA extended with uninterpreted functions.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions implies <code>False</code>.</dd>
+  <dt id="g-rewrite">rewrite</dt>
+  <dd>A proof step that replaces a formula or term by an equivalent one, recorded by the rewriter.</dd>
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>Z3's simplifier, which normalizes every term before solving, for example turning <code>(abs x)</code> into an if-then-else term.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>The property that nothing false can be proved. Here it rests on Lean checking every step, never on the exporter's bookkeeping.</dd>
+  <dt id="g-strict">strict inequality</dt>
+  <dd>An inequality that excludes equality, such as <code>x &gt; 0</code>. Over Int it is the same as <code>x &gt;= 1</code>, which is called tightening.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that searches for a proof automatically. <code>omega</code> decides linear integer goals and <code>grind</code> is a general-purpose prover.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that a theory solver, here linear arithmetic, reports as valid, such as a Farkas combination.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. Only congruence is known about it: equal inputs give equal outputs.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-22.
+</footer>
+</body>
+</html>
