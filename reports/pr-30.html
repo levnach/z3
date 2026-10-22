@@ -8,13 +8,13 @@
   :root {
     color-scheme: light dark;
     --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b60; --rule: #d9d9de;
-    --code-bg: #f3f3f6; --accent: #0b5cad; --badge-bg: #fff3cd; --badge-fg: #6b4e00;
+    --code-bg: #f3f3f6; --accent: #0b5cad; --badge-bg: #e9dcfb; --badge-fg: #3d1a78;
     --ok-bg: #e3f6e8; --ok-fg: #14532d; --warn-bg: #fdecec; --warn-fg: #7a1c1c;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #121214; --fg: #e8e8ea; --muted: #a2a2a8; --rule: #35353b;
-      --code-bg: #1e1e23; --accent: #7cb4ff; --badge-bg: #4a3a05; --badge-fg: #ffe08a;
+      --code-bg: #1e1e23; --accent: #7cb4ff; --badge-bg: #2e1d4f; --badge-fg: #d9c4ff;
       --ok-bg: #11301c; --ok-fg: #a9e5bb; --warn-bg: #3b1515; --warn-fg: #f3b3b3;
     }
   }
@@ -50,14 +50,14 @@
   <h1>Bridge same-key ite/abs atoms before generalizing theory rewrites</h1>
   <p class="meta">
     Pull request <a href="https://github.com/levnach/z3/pull/30">levnach/z3 #30</a>
-    &nbsp;·&nbsp; state <span class="badge">OPEN</span>
-    &nbsp;·&nbsp; 2026-10-22T12:21:11Z
+    &nbsp;·&nbsp; state <span class="badge">MERGED</span>
+    &nbsp;·&nbsp; 2026-10-22T12:49:05Z
     &nbsp;·&nbsp; loop iteration 30
   </p>
   <p class="meta">
-    This pull request is <strong>not merged</strong>. The report describes the change commit
-    <a href="https://github.com/levnach/z3/commit/f2a4389e4f3528d5ded66ab7dbaef969d3cefd7f"><code>f2a4389e4</code></a>,
-    the second of two commits on the branch. Merge information will only exist once the PR is merged.
+    Merged into <code>master</code> on 2026-10-22T12:49:05Z as commit
+    <a href="https://github.com/levnach/z3/commit/f19da10101866ea62b3e225e6ba67da5f6e249f0"><code>f19da1010</code></a>.
+    The two commits of the branch were squashed into this one merge commit.
   </p>
 </header>
 
@@ -120,7 +120,7 @@
     <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>QF_LIA tests: wide abs instance, bridged lemma text, forged rewrite</td><td class="num">182</td><td class="num">0</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>QF_UFLIA test: Int if-then-else argument helper</td><td class="num">6</td><td class="num">1</td></tr>
     <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td class="num">54</td><td class="num">3</td></tr>
-    <tr><th>Total (4 files, 2 commits)</th><th></th><th class="num">395</th><th class="num">36</th></tr>
+    <tr><th>Total (4 files, 2 branch commits, 1 merge commit)</th><th></th><th class="num">395</th><th class="num">36</th></tr>
   </tbody>
 </table>
 <p>No C++ code changed. The Lean library and the <code>scripts/</code> directory are untouched.</p>
@@ -129,6 +129,7 @@
 <p>
   The input below is built from the PR's new test <code>wide_abs_instance</code>.
   The two bounds on a sum of twelve absolute values contradict each other.
+  Both runs below were repeated on the merged commit for this report.
 </p>
 
 <h3>(a) The input</h3>
@@ -149,12 +150,11 @@
 </p>
 <pre><code>example12.lean:281:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
 ...
-example12.lean:389:8: error: (kernel) unknown constant '...rewrite_156'
-Lean checking failed; no proof was published.</code></pre>
-<p class="explain">The lemma unfolded all 24 if-then-else atoms and the tactic split them one by one, which did not finish within the heartbeat budget. The last line is the old tool's message in that case.</p>
+example12.lean:389:8: error: (kernel) unknown constant '...rewrite_156'</code></pre>
+<p class="explain">The lemma unfolded all 24 if-then-else atoms and the tactic split them one by one, which did not finish within the heartbeat budget. In an end-to-end run the old tool then prints "Lean checking failed; no proof was published."</p>
 
 <h3>(c) After the PR</h3>
-<p>The current reconstructor generates this Lean file, trimmed to the relevant pieces.</p>
+<p>The merged reconstructor generates this Lean file, trimmed to the relevant pieces.</p>
 <pre><code>def term_22 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 11
 noncomputable def term_23 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int :=
   (@ite Int ((term_22 _atoms _vars) &gt;= ((0 : Int))) (Classical.propDecidable _) (term_22 _atoms _vars) (-(term_22 _atoms _vars)))
@@ -199,10 +199,10 @@ private theorem rewrite_156 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
   were fully Lean-verified.
   The twelve-wide inputs in all their spellings verified in about a second each, where each had previously timed out.
   Suite times did not change noticeably.
-  These results come from the PR body and the review. A local gate file has not been recorded for this iteration.
+  The table below gives the counts from the PR body and the review, taken on the final branch commit.
 </p>
 <table>
-  <thead><tr><th>Local check (final commit)</th><th>Result</th></tr></thead>
+  <thead><tr><th>Local check (final branch commit)</th><th>Result</th></tr></thead>
   <tbody>
     <tr><td><code>test_proof_to_lean.py</code></td><td>63 tests OK</td></tr>
     <tr><td><code>test_proof_to_lean_lia.py</code></td><td>28 OK (112 s)</td></tr>
@@ -221,9 +221,26 @@ private theorem rewrite_156 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
   </tbody>
 </table>
 <p>
-  <strong>CI.</strong> No CI status was recorded for this PR at the time of writing, so the outcome of the GitHub
-  workflows is <span class="warn">unknown</span>.
-  There were no CI fix rounds. According to the PR body, the relevant checks run in the <code>releaseClang</code> job.
+  <strong>Local gate.</strong> The change touches only documentation, the Python examples, and their tests.
+  For such changes the loop runs a local gate that mirrors the relevant steps of the
+  <code>releaseClang</code> CI job and merges on its result instead of waiting for GitHub CI.
+  The gate ran on the loop machine against the current release build and every step passed.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span></td><td>2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span></td><td>674 s</td></tr>
+    <tr><td>z3test proof script tests</td><td><span class="ok">pass</span></td><td>15 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td><span class="ok">pass</span></td><td>4 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td><span class="ok">pass</span></td><td>6 s</td></tr>
+  </tbody>
+</table>
+<p>
+  <strong>CI.</strong> No GitHub CI status was recorded for this PR, and there were no CI fix rounds.
+  GitHub CI runs on <code>master</code> after the merge, so the outcome of its workflows is
+  <span class="warn">not recorded here</span>.
+  According to the PR body, the relevant checks live in the <code>releaseClang</code> job.
 </p>
 <table>
   <thead><tr><th>Workflow / check</th><th>What it runs</th><th>Status</th></tr></thead>
@@ -266,7 +283,7 @@ private theorem rewrite_156 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
   <li>The abs key assumes one normal form for <code>(abs t)</code>. Any other form would not be bridged and would fall back.</li>
   <li>Over Int, <code>(ite (&lt;= x 0) (- x) x)</code> and <code>abs x</code> have different keys, although their values agree.
       A rewrite relating them would fall back.</li>
-  <li>The CI outcome for this PR is not yet known.</li>
+  <li>The merge rested on the local gate, which ran on macOS. The Linux GitHub CI result on <code>master</code> is not recorded in this report.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
