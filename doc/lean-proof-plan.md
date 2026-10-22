@@ -1293,20 +1293,35 @@ folded by its bounds) fails the attempt fast on the small linear goal and
 is proved unfolded as before. The 12-`abs` input verifies in 1.3 s of Lean
 through the clause log and in 0.9 s through the legacy core (which
 rewrites each `abs` to its ite on its own, bridged the same way); the
-variant writing `(ite (>= x 0) x (- x))` out verifies too. Over Int the
-strict `(ite (> x 0) x (- x))` keeps its own key (its condition tightens
-to `x >= 1`), so it is not bridged with `abs`: equal values, different
-structure. Nothing is trusted: a forged rewrite `|x| >= 3 <-> 2 <= ite`
-fails both attempts (tested). An ite with a branch outside the linear
-forms (the dead `div` by zero of seed 77) is opaque to the key, as it was.
-Tests: `test_proof_to_lean_lia.py`
+variant writing `(ite (>= x 0) x (- x))` out verifies too. The condition
+of an ite is keyed canonically (`_condition_key`): the atom with its
+leading coefficient positive, over Int primitive with the constant
+rounded (as the rewriter divides `0 <= 2x` to `0 <= x`), choosing the
+complement (over Int `-t + 1 <= 0` for `t <= 0`, over Real the strict
+`-t < 0`) with the branches swapped when the leading coefficient is
+negative. Before, the strict `(ite (> x 0) x (- x))` was keyed apart from
+the rewriter's `(ite (<= x 0) (* -1 x) x)` over Int, because
+`_polarity_constraint` tightens `x > 0` to `x - 1 >= 0` before the key
+saw a strict relation to flip (review of this change), and `(abs (* 2 x))`
+from its ite with the divided condition; both 12-wide variants hit
+`maxHeartbeats`, both verify in about a second now, and the Int ite under
+an application (`uflia_ite_argument`) gets its argument helper as over
+Real. `(ite (<= x 0) -x x)` and `abs x` still have different keys: equal
+in value (the branches agree at zero), different atoms. Nothing is
+trusted: a forged rewrite `|x| >= 3 <-> 2 <= ite` fails both attempts
+(tested), and a wrong key could only cost a bridge the theory tactic
+cannot prove. An ite with a branch outside the linear forms (the dead
+`div` by zero of seed 77) is opaque to the key, as it was. Tests:
+`test_proof_to_lean_lia.py`
 (`test_rewrites_bridge_atoms_with_one_key_before_generalizing`: keys and
 lemma text on `wide_abs_instance` with and without the ite spelled out,
-the strict variant unbridged;
-`test_wide_abs_sum_verifies_over_bridged_atoms`, both cores;
-`test_false_bridged_rewrites_are_rejected_by_lean`). All QF_LRA, QF_UFLRA,
-QF_UF, QF_UFLIA and Boolean suites and both CI matrix cells are unchanged
-in outcome.
+the strict and the `(* 2 x)` variants bridged, the Int complement keyed
+with a swap; `test_wide_abs_sum_verifies_over_bridged_atoms`, both cores
+and the strict and scaled variants;
+`test_false_bridged_rewrites_are_rejected_by_lean`),
+`test_proof_to_lean_uflia.py` (the ite argument helper over Int). All
+QF_LRA, QF_UFLRA, QF_UF, QF_UFLIA and Boolean suites and both CI matrix
+cells are unchanged in outcome.
 
 **Legacy `(_ th-lemma arith unsupported)` over Int (2026-10-21).**
 `theory_lra::set_proof_params` labels an LP conflict `unsupported` instead

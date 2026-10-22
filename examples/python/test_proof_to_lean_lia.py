@@ -343,17 +343,25 @@ def wide_rewrite_instance(variables=9):
     return "\n".join(lines) + "\n"
 
 
-def wide_abs_instance(variables=12, ite=False):
+def wide_abs_instance(variables=12, ite=False, strict=False, scale=1):
     """Every |x_i| at least one and their sum at most variables - 1.
 
     Z3's rewriter logs (abs x) as (ite (<= 0 x) x (* -1 x)), so the rewrite
     of the sum relates 2 * variables ite terms (the abs renderings against
     the rewriter's form); splitting them is exponential, bridging each pair
     is not. With ite the input writes the SMT-LIB definition of abs itself,
-    (ite (>= x 0) x (- x)), which the rewriter normalizes the same way.
+    (ite (>= x 0) x (- x)), which the rewriter normalizes the same way, with
+    strict as (ite (> x 0) x (- x)), whose condition the rewriter negates
+    (swapping the branches) and the reconstructor tightens; with scale the
+    magnitude is of (* scale x), whose condition the rewriter divides by
+    the coefficient.
     """
     names = ["x%d" % i for i in range(variables)]
-    magnitude = ("(ite (>= %s 0) %s (- %s))" if ite else "(abs %s)").replace("%s", "{0}")
+    argument = "{0}" if scale == 1 else "(* %d {0})" % scale
+    if ite:
+        magnitude = "(ite (%s %s 0) %s (- %s))" % (">" if strict else ">=", argument, argument, argument)
+    else:
+        magnitude = "(abs %s)" % argument
     lines = ["(set-logic QF_LIA)"] + ["(declare-const %s Int)" % name for name in names]
     lines += ["(assert (>= %s 1))" % magnitude.format(name) for name in names]
     lines.append("(assert (<= (+ %s) %d))" % (" ".join(magnitude.format(name) for name in names), variables - 1))
@@ -558,11 +566,14 @@ class TestIntegerValidation(unittest.TestCase):
                 keys.setdefault(proof_to_lean._real_atom_key(graph, node), []).append(node)
             self.assertEqual(len(keys), 12)
             for (kind, condition, then_key, else_key), members in keys.items():
-                self.assertEqual((kind, condition[0], condition[2]), ("ite", "<=", 0))
+                # The condition 0 <= x is keyed as the complement of its
+                # canonical atom x + 1 <= 0 (leading coefficient positive),
+                # so the branches are swapped: -x, then x.
+                self.assertEqual((kind, condition[0], condition[2]), ("ite", "<=", 1))
                 self.assertEqual(len(members), 2)
                 variable = condition[1][0][0]
-                self.assertEqual(condition[1], ((variable, -1),))
-                self.assertEqual((then_key, else_key), ((((variable, 1),), 0), (((variable, -1),), 0)))
+                self.assertEqual(condition[1], ((variable, 1),))
+                self.assertEqual((then_key, else_key), ((((variable, -1),), 0), (((variable, 1),), 0)))
             wide = next(node for node in range(len(graph.nodes)) if graph.kind(node) == z3.Z3_OP_PR_REWRITE
                         and len(proof_to_lean._opaque_int_atoms(graph, [graph.conclusion(node)])) == 24)
             lemma = text.split("private theorem rewrite_%d " % wide, 1)[1].split("\n\n", 1)[0]
@@ -581,19 +592,38 @@ class TestIntegerValidation(unittest.TestCase):
             # A rewrite of one assertion bridges its one pair.
             self.assertEqual(text.count("revert _e"), 13)
             self.assertNotIn("sorry", text)
-        # Over Int the strict (ite (> x 0) x (- x)) is a different term
-        # (both branches agree at zero, but the keys compare structure):
-        # its condition tightens to x - 1 >= 0 and gets no partner.
-        source = wide_abs_instance(variables=2, ite=True).replace("(>= x0 0)", "(> x0 0)")
-        certificate = proof_certificate.export_clause_log_certificate(source)
-        graph = proof_to_lean._validate_graph(source, certificate)
-        keys = {}
-        for node in range(len(graph.nodes)):
-            if graph.kind(node) == z3.Z3_OP_ITE and graph.is_arith(node):
-                keys.setdefault(proof_to_lean._real_atom_key(graph, node), []).append(node)
-        self.assertEqual(sorted(len(members) for members in keys.values()), [1, 1, 2])
-        self.assertEqual({key[1][2] for key in keys}, {0, 1})
-        self.assertEqual(proof_to_lean.reconstruct(source, certificate).count("revert _e"), 2)
+        # The condition of an ite is keyed up to Z3's normalization over
+        # Int too: the strict (ite (> x 0) x (- x)), whose condition the
+        # reconstructor tightens to x - 1 >= 0 and the rewriter writes as
+        # (ite (<= x 0) (* -1 x) x), and (abs (* 2 x)), whose condition
+        # 0 <= 2x the rewriter divides to 0 <= x, each bridge with their
+        # rewriter's form (the canonical atom x <= 0 without a swap, and
+        # the complement of x + 1 <= 0 with one).
+        for source, constant in ((wide_abs_instance(variables=2, ite=True, strict=True), 0),
+                                 (wide_abs_instance(variables=2, scale=2), 1)):
+            certificate = proof_certificate.export_clause_log_certificate(source)
+            graph = proof_to_lean._validate_graph(source, certificate)
+            keys = {}
+            for node in range(len(graph.nodes)):
+                if graph.kind(node) in (z3.Z3_OP_ITE, z3.Z3_OP_ABS) and graph.is_arith(node):
+                    keys.setdefault(proof_to_lean._real_atom_key(graph, node), []).append(node)
+            self.assertEqual(sorted(len(members) for members in keys.values()), [2, 2])
+            self.assertEqual({(key[1][0], key[1][1][0][1], key[1][2]) for key in keys}, {("<=", 1, constant)})
+            self.assertEqual(proof_to_lean.reconstruct(source, certificate).count("revert _e"), 3)
+        # Over Int the complement of x <= 0 is x >= 1, so (ite (<= x 0) a b)
+        # and (ite (>= x 1) b a) have one key, and (ite (>= x 0) b a) another.
+        source = "(set-logic QF_LIA)\n(declare-const x Int)\n(declare-const y Int)\n"
+        source += "".join("(assert (>= (+ (ite %s) y) 1))\n" % ite for ite in (
+            "(<= x 0) x y", "(>= x 1) y x", "(>= x 0) y x"))
+        source += "(assert (<= y 0))\n(assert (<= (- x) 0))\n(check-sat)\n"
+        graph = proof_to_lean._validate_graph(source, proof_certificate.export_clause_log_certificate(source))
+        ites = [node for node in range(len(graph.nodes)) if graph.kind(node) == z3.Z3_OP_ITE and graph.is_arith(node)]
+        keys = [proof_to_lean._real_atom_key(graph, node) for node in ites]
+        self.assertEqual(len(ites), 6)  # the three of the input and the rewriter's form of each
+        self.assertEqual(sorted(keys.count(key) for key in set(keys)), [2, 4])
+        self.assertEqual(keys[0], keys[1])  # the input's ites come first (ids are topological)
+        self.assertNotEqual(keys[1], keys[2])
+        self.assertEqual(sorted(key[1][2] for key in set(keys)), [0, 1])
 
     def test_legacy_unsupported_label_is_a_coefficient_free_farkas(self):
         # theory_lra labels a conflict (_ th-lemma arith unsupported) when
@@ -1020,6 +1050,14 @@ class TestIntegerLeanIntegration(unittest.TestCase):
                 self.assertEqual(text.count("revert _e"), 13)
                 # The 13 rewrites and the Farkas lemma over the 12 atoms.
                 self.assertEqual(len(re.findall(r"\n       omega\)\n    \| \(unfold ", text)), 14)
+        # The strict (ite (> x 0) x (- x)) and (abs (* 2 x)) bridge with the
+        # rewriter's forms of their conditions (negated with the branches
+        # swapped, divided by the coefficient); each timed out unbridged.
+        for variant in (dict(ite=True, strict=True), dict(scale=2)):
+            source = wide_abs_instance(**variant)
+            with self.subTest(**variant):
+                certificate = self.check(source)
+                self.assertEqual(proof_to_lean.reconstruct(source, certificate).count("revert _e"), 13)
         source = wide_abs_instance()
         certificate = self.check(source, core="legacy")
         text = proof_to_lean.reconstruct(source, certificate)

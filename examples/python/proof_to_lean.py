@@ -28,7 +28,7 @@ import tempfile
 import z3
 
 from proof_certificate import (
-    ProofExportError, bound_combination_refutes, integer_tightened, is_uninterpreted_sort,
+    ProofExportError, _rounded, bound_combination_refutes, integer_tightened, is_uninterpreted_sort,
     linear_combination_refutes, numeral_value, parse_assertions, query_snapshot,
 )
 
@@ -1475,10 +1475,10 @@ def _real_argument_helpers(graph, reachable, atom_indices, variable_indices):
     linear arithmetic reasons about atoms, so (f (- x y)) and (f (+ x (* -1
     y))), which Z3's rewriter identifies, stay apart in Lean, as do (f (ite
     (> x 0) x (- x))) and (f (ite (<= x 0) (* -1 x) x)), the rewriter's
-    normal form of the same ite. Every pair of reachable numeric arguments
-    with one normal form (_real_argument_key) gets an explicit equality,
-    which the theory tactic proves on its own (splitting the ite conditions)
-    and grind then uses for congruence.
+    normal form of the same ite over Real and Int alike. Every pair of
+    reachable numeric arguments with one normal form (_real_argument_key)
+    gets an explicit equality, which the theory tactic proves on its own
+    (splitting the ite conditions) and grind then uses for congruence.
     """
     groups = {}
     for node in sorted(reachable):
@@ -1502,10 +1502,11 @@ def _real_argument_key(graph, node):
     """The linear form of a Real or Int term, with its ite atoms keyed up to Z3's normalization.
 
     Variables and applications are atoms of their own; an ite whose condition
-    is a linear atom is keyed by the canonical polarity of that condition
-    (the non-strict comparison, swapping the branches when the condition is
-    the strict complement) and by the keys of its branches. Two terms with
-    one key denote the same value, which grind proves and the helper states.
+    is a linear atom is keyed by the canonical form of that condition
+    (_condition_key: swapping the branches when the condition is the
+    complement of the canonical atom) and by the keys of its branches. Two
+    terms with one key denote the same value, which the theory tactic
+    proves and the helper states.
     """
     terms = {}
     constant = _linear_term(graph, node, Fraction(1), terms)
@@ -1516,9 +1517,12 @@ def _real_argument_key(graph, node):
 def _real_atom_key(graph, atom):
     """The key of an atom of the linear forms: an ite up to Z3's normalization, abs as its ite, else itself.
 
-    An ite whose condition is no linear atom, or with a branch outside the
-    linear forms (the dead branch dividing by zero in the rewriter's factor
-    cancellation, see _validate_graph), is opaque: its own key.
+    An ite is keyed by the canonical form of its condition (_condition_key)
+    and the keys of its branches, swapped when the canonical condition is
+    the complement. An ite whose condition is no linear atom, or with a
+    branch outside the linear forms (the dead branch dividing by zero in
+    the rewriter's factor cancellation, see _validate_graph), is opaque:
+    its own key.
     """
     try:
         return _ite_atom_key(graph, atom)
@@ -1529,25 +1533,71 @@ def _real_atom_key(graph, atom):
 def _ite_atom_key(graph, atom):
     if graph.kind(atom) == z3.Z3_OP_ABS:
         # SMT-LIB's (abs t) is (ite (>= t 0) t (- t)), which Z3's rewriter
-        # logs as (ite (<= 0 t) t (* -1 t)): the key of that ite, so that
-        # the two bridge (_atom_bridge_facts) instead of being split.
+        # logs as (ite (<= 0 t) t (* -1 t)) with the condition normalized:
+        # the key of that ite, so that the two bridge (_atom_bridge_facts)
+        # instead of being split. The condition (<= 0 t) holds as 0 - t <= 0.
+        argument = graph.arguments(atom)[0]
         terms = {}
-        constant = _linear_term(graph, graph.arguments(atom)[0], Fraction(1), terms)
-        atoms = tuple(sorted(((_real_atom_key(graph, variable), value)
-                              for variable, value in terms.items() if value != 0), key=repr))
-        negated = tuple(sorted(((key, -value) for key, value in atoms), key=repr))
-        return ("ite", ("<=", negated, -constant), (atoms, constant), (negated, -constant))
-    if graph.kind(atom) != z3.Z3_OP_ITE:
-        return ("atom", atom)
-    condition, then_branch, else_branch = graph.arguments(atom)
-    relation, terms, constant = _polarity_constraint(graph, condition, True)
+        constant = _linear_term(graph, argument, Fraction(1), terms)
+        condition, swapped = _condition_key(
+            graph, "<=", {variable: -value for variable, value in terms.items()}, -constant)
+        then_key = _real_argument_key(graph, argument)
+        else_key = (tuple(sorted(((key, -value) for key, value in then_key[0]), key=repr)), -then_key[1])
+    else:
+        if graph.kind(atom) != z3.Z3_OP_ITE:
+            return ("atom", atom)
+        condition, then_branch, else_branch = graph.arguments(atom)
+        condition, swapped = _condition_key(graph, *_polarity_constraint(graph, condition, True))
+        then_key, else_key = _real_argument_key(graph, then_branch), _real_argument_key(graph, else_branch)
+    if swapped:
+        then_key, else_key = else_key, then_key
+    return ("ite", condition, then_key, else_key)
+
+
+def _condition_key(graph, relation, terms, constant):
+    """The canonical key of an ite condition that holds as sum(terms) + constant relation 0.
+
+    Z3's rewriter normalizes the atom of a condition (0 <= 2x to 0 <= x,
+    over Int 2x + 1 <= 0 to x + 1 <= 0, the rounding of _rounded) and
+    writes a strict or a negated condition as the complement of a
+    non-strict atom with the branches swapped (x > 0 to (ite (<= x 0) b a),
+    over Int also x >= 1, its tightened form, see _polarity_constraint).
+    The key is the atom with its leading coefficient positive, over Int
+    primitive and rounded, choosing the complement when the leading
+    coefficient is negative: over Int the complement of t <= 0 is
+    -t + 1 <= 0, over Real the strict -t < 0 (keyed as the non-strict atom
+    it complements), an equality has no complement and is only scaled.
+    Returns the key and whether it is the complement's, in which case the
+    branches of the ite are to be swapped. Two conditions with one key
+    (and one swap) denote one truth value, so a wrong key costs nothing
+    but a bridge the theory tactic cannot prove.
+    """
+    keyed = {}
+    for variable, value in terms.items():
+        # Two atoms with one key denote one value: one coefficient.
+        key = _real_atom_key(graph, variable)
+        keyed[key] = keyed.get(key, Fraction(0)) + value
+    keyed = {key: value for key, value in keyed.items() if value != 0}
+    swapped = False
     if relation == "<":
-        relation, constant = "<=", -constant
-        terms = {variable: -value for variable, value in terms.items()}
-        then_branch, else_branch = else_branch, then_branch
-    condition_key = (relation, tuple(sorted(((_real_atom_key(graph, variable), value)
-                                              for variable, value in terms.items()), key=repr)), constant)
-    return ("ite", condition_key, _real_argument_key(graph, then_branch), _real_argument_key(graph, else_branch))
+        # Over Real only (strict Int conditions are tightened): the strict
+        # complement of the non-strict atom, branches swapped.
+        relation, constant, swapped = "<=", -constant, True
+        keyed = {key: -value for key, value in keyed.items()}
+    if keyed:
+        leading = keyed[min(keyed, key=repr)]
+        if relation == "=":
+            keyed = {key: value / leading for key, value in keyed.items()}
+            constant /= leading
+        elif graph.numeric == "Int":
+            keyed, constant = _rounded(keyed, constant)
+            if leading < 0:
+                keyed = {key: -value for key, value in keyed.items()}
+                constant, swapped = 1 - constant, not swapped
+        else:
+            keyed = {key: value / abs(leading) for key, value in keyed.items()}
+            constant /= abs(leading)
+    return (relation, tuple(sorted(keyed.items(), key=repr)), constant), swapped
 
 
 def _boolean_structure(graph, node, atom_indices, memo=None):
