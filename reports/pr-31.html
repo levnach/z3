@@ -5,132 +5,117 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PR #31: Omit redundant mod bounds from re-derived Int Farkas lemmas in Lean</title>
 <style>
-:root {
-  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-  --code-bg: #f6f8fa; --border: #d1d9e0; --warn: #9a6700; --ok: #1a7f37;
-}
-@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-    --code-bg: #161b22; --border: #3d444d; --warn: #d29922; --ok: #3fb950;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --pass: #1a7f37; --badge: #8250df;
   }
-}
-body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; }
-main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .25rem; }
-h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
-h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-a { color: var(--accent); }
-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
-pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem 1rem; overflow-x: auto; line-height: 1.4; }
-pre code { background: none; padding: 0; font-size: .82rem; }
-table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
-th, td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; vertical-align: top; }
-th { background: var(--code-bg); }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.meta { color: var(--muted); font-size: .95rem; }
-.state { display: inline-block; border: 1px solid var(--ok); color: var(--ok); border-radius: 999px; padding: 0 .6rem; font-weight: 600; font-size: .85rem; }
-.note { border-left: 4px solid var(--warn); padding: .3rem .9rem; background: var(--code-bg); }
-.expl { color: var(--muted); margin-top: -.4rem; }
-dt { font-weight: 600; margin-top: .7rem; }
-dd { margin-left: 1.2rem; }
-footer { color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); margin-top: 3rem; padding-top: 1rem; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --pass: #3fb950; --badge: #ab7df8;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+         max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+  a { color: var(--link); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2rem; }
+  h3 { font-size: 1.05rem; margin-bottom: .3rem; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .badge { display: inline-block; background: var(--badge); color: #fff; border-radius: 1rem; padding: 0 .6rem; font-size: .85rem; font-weight: 600; }
+  code { font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .82rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; margin: .8rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .3rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--pass); font-weight: 600; }
+  .note { color: var(--muted); font-size: .92rem; }
+  dt { font-weight: 600; margin-top: .6rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .6rem; color: var(--muted); font-size: .85rem; }
 </style>
 </head>
 <body>
-<main>
 
 <header>
 <h1>Omit redundant mod bounds from re-derived Int Farkas lemmas in Lean</h1>
 <p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/31">levnach/z3#31</a> into <code>master</code>
-&middot; <span class="state">OPEN</span>
-&middot; opened 2026-10-22T16:33:50Z
-&middot; loop iteration 31
+  <a href="https://github.com/levnach/z3/pull/31">Pull request #31</a> on levnach/z3 ·
+  <span class="badge">MERGED</span> · merged 2026-10-22T16:56:03Z ·
+  merge commit <a href="https://github.com/levnach/z3/commit/914b4b8d0a20b803dff90bcbf53fd2d342d5f2e8"><code>914b4b8</code></a> ·
+  loop iteration 31
 </p>
-<p class="meta">This pull request is open and <strong>not merged</strong>.
-The change under review ends at commit
-<a href="https://github.com/levnach/z3/commit/62bf7fc9faf3511376a1525f7c7ee34731a09998"><code>62bf7fc9f</code></a>.
-It contains two commits: the main change and a follow-up that answers the review.</p>
 </header>
 
-<section id="summary">
-<h2>In one paragraph</h2>
+<h2 id="summary">In one paragraph</h2>
 <p>
-When the Lean reconstructor proves an Int <a href="#g-theory-lemma">theory lemma</a> over <a href="#g-mod">mod</a> terms, it treats each <a href="#g-atom">atom</a> as an opaque variable and calls the <a href="#g-omega">omega</a> <a href="#g-tactic">tactic</a>.
-Before this PR it first stated two <a href="#g-bound">bounds</a> for every mod atom, such as 0 &le; (x mod 3) &lt; 3.
-For a <a href="#g-farkas-lemma">Farkas lemma</a> that carries its <a href="#g-coefficient">coefficients</a>, those bounds are useless.
-Python has already checked that the coefficients form a <a href="#g-linear-combination">linear combination</a> that reaches a contradiction over the bare atoms.
-The bounds only made omega do extra <a href="#g-case-analysis">case analysis</a>.
-This PR drops them for such lemmas, and keeps them for <a href="#g-cut">cuts</a> and the other cases that need them.
-On one large <a href="#g-qf-uflia">QF_UFLIA</a> <a href="#g-certificate">certificate</a>, Lean's check time fell from 48 s to 22 s.
-That matters because a lemma twice as wide could have run out of <a href="#g-heartbeat">heartbeats</a>, so a correct <a href="#g-refutation">refutation</a> would have gone uncertified.
+This PR makes some Lean proofs much faster without changing what is proved.
+For a <a href="#g-farkas">Farkas lemma</a> over <a href="#g-int">Int</a> <a href="#g-atom">atoms</a> that include <a href="#g-mod"><code>mod</code></a> terms,
+the reconstructor used to state two <a href="#g-bound">bounds</a> per <code>mod</code> atom before calling the
+<a href="#g-omega"><code>omega</code></a> <a href="#g-tactic">tactic</a>.
+Those bounds are not needed there.
+The reconstructor has already re-derived the lemma as a <a href="#g-linear-combination">linear combination</a> of its <a href="#g-literal">literals</a>,
+so the <a href="#g-generalize">generalized</a> goal holds without them.
+The extra facts only made <code>omega</code> do <a href="#g-case-analysis">case analysis</a>.
+On one wide <a href="#g-qf-uflia">QF_UFLIA</a> <a href="#g-certificate">certificate</a>, Lean time fell from 48 s to 22 s.
+That matters because a lemma twice as wide could have run out of <a href="#g-heartbeats">heartbeats</a>.
+Z3 would solve such an input, but Lean would fail to certify it.
 </p>
-</section>
 
-<section id="background">
-<h2>Background</h2>
+<h2 id="background">Background</h2>
 <p>
-Before this PR, the pipeline already certified Int <a href="#g-theory-lemma">theory lemmas</a> over <code>div</code>, <a href="#g-mod">mod</a> and <code>abs</code> <a href="#g-atom">atoms</a>.
-It did this by <a href="#g-generalize">generalizing</a> the atoms and calling <a href="#g-omega">omega</a>, with the mod <a href="#g-bound">bounds</a> always in context.
+The previous iterations taught the reconstructor to prove Int <a href="#g-theory-lemma">theory lemmas</a> over
+<code>div</code>, <code>mod</code>, <code>abs</code> and <a href="#g-uf">uninterpreted function</a> atoms by first generalizing those atoms to plain integers.
+For every such lemma, the bounds of each <code>mod</code> atom were stated and reverted into the goal.
 A stress run at twice the usual instance size found no rejected input.
-It did find one input that Z3 solves in seconds but that spent most of its Lean time on a single 33-<a href="#g-literal">literal</a> <a href="#g-farkas-lemma">Farkas lemma</a> over 26 atoms.
-The pipeline was therefore <a href="#g-soundness">sound</a> on that input but close to a <a href="#g-completeness">completeness</a> gap.
-The work serves milestone 3 of the project plan, "Equality and linear arithmetic".
+But one <a href="#g-refutation">refutation</a> spent most of its Lean time on a single 33-literal Farkas lemma with 14 <code>mod</code> atoms.
+This work serves milestone 3, equality and linear arithmetic, where each fragment must be completed end-to-end.
 </p>
-</section>
 
-<section id="changes">
-<h2>What changed</h2>
+<h2 id="changes">What changed</h2>
 <ul>
-<li>A Farkas or bound <a href="#g-theory-lemma">theory lemma</a> with coefficients now reaches <a href="#g-omega">omega</a> without any mod <a href="#g-bound">bounds</a>, so wide lemmas check much faster.</li>
-<li>Cuts, lemmas without coefficients, and theory rewrites still get the bounds, because nothing else justifies them.</li>
-<li>A new test runs a large random instance (seed 75) through Z3, the certificate exporter and the Lean kernel, then checks the shape of every generalized lemma.</li>
-<li>The README and the project plan now say exactly when the bounds are stated, with timings measured on an idle machine.</li>
+  <li>A Farkas or bound lemma that carries coefficients is now proved by <code>omega</code> over its bare atoms, with no <code>mod</code> bounds in the way.</li>
+  <li>A <a href="#g-cut">cut</a>, a lemma without coefficients, and a theory rewrite still get the bounds, because they may silently rely on them.</li>
+  <li>A new Lean-checked test runs the wide seed-75 instance and checks the shape of every generalized lemma by its hint.</li>
+  <li>The README and the plan document now describe which lemmas get bounds, with timings measured on an idle machine.</li>
 </ul>
 <p>
-The reconstructor change is small.
-A new helper, <code>_combination_certified</code>, recognizes the steps that Python has already re-derived.
-For those steps, the lemma builder skips the bound facts.
-Think of a teacher who has already checked a student's sum line by line.
-Handing the grader a list of extra hints about each number only slows the grader down.
-No Lean files and no C++ code changed.
+The decision is one new predicate, <code>_combination_certified</code>, in the reconstructor.
+Think of it like a receipt: once the reconstructor has checked the sum itself, Lean does not need the extra hints about each price.
+No Lean library file and no C++ code changed.
 </p>
-<p>Per-commit line counts, from the agents' recorded <code>git diff --stat</code> output:</p>
 <table>
-<thead><tr><th>File</th><th>Main commit <code>15080c111</code></th><th>Review follow-up <code>62bf7fc9f</code></th></tr></thead>
-<tbody>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">25 lines (mostly added)</td><td class="num">+3 / &minus;3</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td class="num">+46</td><td class="num">+7 / &minus;7</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">13 lines changed</td><td class="num">&mdash;</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">+35</td><td class="num">15 lines changed</td></tr>
-<tr><td><code>examples/python/README</code></td><td class="num">&mdash;</td><td class="num">17 lines changed</td></tr>
-<tr><th>Total</th><th class="num">+114 / &minus;5</th><th class="num">+28 / &minus;24</th></tr>
-</tbody>
+  <tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr>
+  <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">24</td><td class="num">1</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Tests</td><td class="num">46</td><td class="num">0</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Tests</td><td class="num">9</td><td class="num">4</td></tr>
+  <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">10</td><td class="num">7</td></tr>
+  <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">36</td><td class="num">0</td></tr>
+  <tr><th>Total (5 files)</th><th></th><th class="num">125</th><th class="num">12</th></tr>
 </table>
-</section>
 
-<section id="example">
-<h2>Worked example</h2>
-<p class="note">
-This PR is a speed-up, not a new capability.
-The old code also accepts every small input, including this one.
-So "Before" below shows the lemma the old code generated, not an error.
-The real slowdown only shows up on large inputs like seed 75; see the timing table under "How it was verified".
+<h2 id="example">Worked example</h2>
+<p>
+This PR is a speed fix, not a new feature.
+The old code already accepted every input that the new code accepts, including the slow seed-75 instance.
+So there is no small input with a "before" rejection.
+Instead, the example below shows the real change in the generated Lean text on a tiny input.
+Both versions were run on it, and Lean accepted both files.
 </p>
 
-<h3>(a) The input</h3>
+<h3>(a) Input</h3>
 <pre><code>(declare-const x Int)
 (declare-const y Int)
 (assert (&gt;= (mod x 3) 1))
 (assert (&gt;= (mod y 3) 1))
 (assert (&lt;= (+ (mod x 3) (mod y 3)) 1))
 (check-sat)</code></pre>
-<p class="expl">Two mod terms are each at least 1, yet their sum is at most 1, so the assertions are contradictory.</p>
-<p>Z3 explains the contradiction with a <a href="#g-theory-lemma">theory lemma</a> recorded as <code>th-lemma farkas 1 1 1</code>.
-The three ones are the coefficients: add the three inequalities once each and you get 2 &le; 1.</p>
+<p>Two remainders that are each at least 1 cannot add up to at most 1. Z3 closes this with one Farkas lemma whose coefficients are 1, 1, 1.</p>
 
-<h3>(b) Before: the lemma the pre-PR reconstructor generated</h3>
+<h3>(b) Before: the pre-PR reconstructor</h3>
+<p>The old reconstructor printed <code>Lean checked the refutation</code>. There was no error. Its Farkas lemma stated four bounds before <code>omega</code>:</p>
 <pre><code>private theorem th_lemma_49 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_48 _atoms _vars) := by
   unfold formula_48 formula_47 formula_46 formula_45 formula_41 formula_36 formula_22 term_8 term_3
@@ -144,16 +129,33 @@ The three ones are the coefficients: add the three inequalities once each and yo
        generalize (term_2 _atoms _vars) = _o1
        omega)
     | ...</code></pre>
-<p class="expl">The four <code>have</code> lines state 0 &le; m &lt; 3 for both mod atoms before omega runs, although the proof never needs them.</p>
-<p>Lean accepted this old file too. Running the pre-PR reconstructor on the input produced no error.</p>
+<p>Each <code>have _m</code> line proves <code>0 &lt;= y mod 3 &lt; 3</code> or the same for <code>x</code>. On a tiny lemma this costs little. On the 14-atom lemma these facts took <code>omega</code> 27 s.</p>
 
-<h3>(c) After: what the reconstructor generates now</h3>
-<pre><code>def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) % (term_1 _atoms _vars))
+<h3>(c) After: the generated Lean</h3>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((3 : Int))
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) % (term_1 _atoms _vars))
 ...
 def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_5 _atoms _vars) % (term_1 _atoms _vars))
-...
-def formula_48 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_45 _atoms _vars) (Or (formula_46 _atoms _vars) (formula_47 _atoms _vars)))</code></pre>
-<p class="expl">The two mod atoms become <code>term_2</code> and <code>term_6</code>, and <code>formula_48</code> is the lemma's <a href="#g-clause">clause</a> of three negated literals.</p>
+...</code></pre>
+<p><code>term_2</code> is <code>x mod 3</code> and <code>term_6</code> is <code>y mod 3</code>. These are the two <code>mod</code> atoms.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_4 _atoms _vars))
+    (_h1 : (formula_7 _atoms _vars))
+    (_h2 : (formula_9 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p>The theorem says the three assertions together imply <code>False</code>.</p>
+<pre><code>private theorem rewrite_43 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_42 _atoms _vars) := by
+  ...
+    | (have _m0_0 : ((0 : Int)) &lt;= (term_6 _atoms _vars) := ...
+       ...
+       revert _m0_0 _m0_1 _m1_0 _m1_1
+       ...
+       omega)
+    | ...</code></pre>
+<p>A theory rewrite has no coefficients to check, so it still gets the bounds.</p>
 <pre><code>private theorem th_lemma_49 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_48 _atoms _vars) := by
   unfold formula_48 formula_47 formula_46 formula_45 formula_41 formula_36 formula_22 term_8 term_3
@@ -163,153 +165,131 @@ def formula_48 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (
        omega)
     | (unfold term_6 term_5 term_2 term_1 term_0
        first | omega | grind (splits := 64))</code></pre>
-<p class="expl">The Farkas lemma now replaces each mod atom by a fresh variable and calls omega directly, with no bound facts.</p>
-<pre><code>private theorem rewrite_43 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
-    : (formula_42 _atoms _vars) := by
-  unfold formula_42 formula_41 formula_9 term_8 term_3
-  first
-    | (have _m0_0 : ((0 : Int)) &lt;= (term_6 _atoms _vars) := ...
-       ...
-       omega)
-    | ...</code></pre>
-<p class="expl">A theory rewrite in the same file still states the bounds, as the PR intends.</p>
-<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
-    (_h0 : (formula_4 _atoms _vars))
-    (_h1 : (formula_7 _atoms _vars))
-    (_h2 : (formula_9 _atoms _vars))
-    : False :=
-  ...</code></pre>
-<p class="expl">The final theorem says the three assertions together imply False.</p>
-<p>Lean accepted the new file: the check script reported "Lean checks passed."
-The only difference between the old and new files is the removed <code>have</code> and <code>revert</code> lines in <code>th_lemma_49</code>.</p>
-</section>
+<p>The Farkas lemma now goes straight to generalizing the two atoms and calling <code>omega</code>. The unfolded fallback after the second <code>|</code> is unchanged.</p>
+<p><span class="pass">Lean accepted the file.</span> <code>scripts/check_lean.sh</code> reported "Lean checks passed."</p>
 
-<section id="verification">
-<h2>How it was verified</h2>
+<h2 id="verification">How it was verified</h2>
 <p>
-In plain terms, every proof test in the repository passed on the final branch head, run separately by the implementer, the reviewer and the integrator.
-The large seed-75 file still checks in Lean, in less than half the time.
-The reviewer also confirmed that the new and changed test assertions fail against the old code.
+All Python test suites for the exporter and the reconstructor passed, and so did the z3test proof scripts.
+The loop merged this PR on its local gate instead of waiting for GitHub CI, because only Python, docs and tests changed.
+The gate mirrors the Lean steps of the <code>releaseClang</code> CI job and ran on a Darwin arm64 machine.
 </p>
 <table>
-<thead><tr><th>Local check</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>275 tests, OK (718 s)</td></tr>
-<tr><td>Certificate tests, <code>test_proof_certificate.py</code></td><td>86 tests, OK</td></tr>
-<tr><td><code>scripts/check_lean.sh</code></td><td>Build and Lean checks passed</td></tr>
-<tr><td>z3test proof tests</td><td>46 tests, OK</td></tr>
-<tr><td>Proof matrix, Boolean inputs, legacy proof core</td><td>6 of 6 Lean-verified</td></tr>
-<tr><td>Proof matrix, QF_LRA inputs, clause log</td><td>8 of 8 Lean-verified</td></tr>
-<tr><td>New seed-75 test alone</td><td>OK, about 50 s</td></tr>
-</tbody>
+  <tr><th>Local gate step</th><th>Result</th><th>Time</th></tr>
+  <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">3 s</td></tr>
+  <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">725 s</td></tr>
+  <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">15 s</td></tr>
+  <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+  <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
 </table>
+<p>The implementer and the reviewer also timed the seed-75 certificate with the old and new reconstructor.</p>
 <table>
-<thead><tr><th>Seed-75 certificate, idle machine</th><th>Before</th><th>After</th></tr></thead>
-<tbody>
-<tr><td>Lean check time for the whole file</td><td class="num">47.7 s</td><td class="num">22.1 s</td></tr>
-<tr><td>Longest single omega call</td><td class="num">27.4 s</td><td class="num">about 3 s</td></tr>
-<tr><td><code>have _m</code> bound lines</td><td class="num">4,610</td><td class="num">1,248</td></tr>
-<tr><td>Omega-generalized lemmas carrying bounds</td><td class="num">264 of 320</td><td class="num">0 of 320</td></tr>
-<tr><td>Cut lemmas keeping their bounds</td><td class="num">67 of 67</td><td class="num">67 of 67</td></tr>
-</tbody>
+  <tr><th>Measure (seed 75, idle machine)</th><th>Before</th><th>After</th></tr>
+  <tr><td>Lean time for the whole file</td><td class="num">47.7 s</td><td class="num">22.1 s</td></tr>
+  <tr><td>Longest single <code>omega</code> call</td><td class="num">27.4 s</td><td class="num">about 3 s</td></tr>
+  <tr><td><code>have _m</code> lines in the file</td><td class="num">4,610</td><td class="num">1,248</td></tr>
+  <tr><td><code>omega</code> blocks carrying bounds</td><td class="num">264 of 320</td><td class="num">0 of 320</td></tr>
+  <tr><td>Cut blocks keeping their bounds</td><td class="num">67 of 67</td><td class="num">67 of 67</td></tr>
+  <tr><td>Reconstruction tests (<code>test_proof_to_lean*.py</code>)</td><td colspan="2">275 tests, OK</td></tr>
+  <tr><td>Exporter tests (<code>test_proof_certificate.py</code>)</td><td colspan="2">86 tests, OK</td></tr>
+  <tr><td>z3test proof scripts</td><td colspan="2">46 tests, OK</td></tr>
 </table>
 <p>
-No separate local gate record exists for this iteration, so this page reports only the agents' own runs above.
-No CI status files were available when this report was written.
-The CI results are therefore unknown here and should be read from the PR page.
+<strong>GitHub CI:</strong> no CI check results were recorded for this PR, and there were no CI fix rounds.
+GitHub CI runs on <code>master</code> after the merge. Its outcome is unknown to this report.
+The new test runs only in the "Check native Boolean proofs in Lean" step of the <code>releaseClang</code> job, which gets about 50 s longer.
 </p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR with no blocker or major findings.</p>
 <table>
-<thead><tr><th>CI workflow / job / step</th><th>Status</th></tr></thead>
-<tbody>
-<tr><td><code>.github/workflows/ci.yml</code>, job "Ubuntu build - cmake - releaseClang", step "Check native Boolean proofs in Lean"</td><td>Unknown at report time. See the <a href="https://github.com/levnach/z3/pull/31/checks">PR checks</a>.</td></tr>
-</tbody>
+  <tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr>
+  <tr><td>Minor</td><td>README still described the old behavior</td><td>Fixed</td></tr>
+  <tr><td>Nit</td><td>Test constant reused another seed's name</td><td>Fixed</td></tr>
+  <tr><td>Nit</td><td>Headline timings were measured under load</td><td>Fixed</td></tr>
+  <tr><td>Nit</td><td>Test pins Z3's lemma shape on one seed</td><td>Kept on purpose</td></tr>
 </table>
-<p>That CI step is the only one that runs the new test, which adds about 50 s to it. No CI fix rounds were recorded.</p>
-</section>
+<p>
+<strong>The stale README.</strong> The reviewer read the user-facing README next to the code.
+It still said every Farkas lemma gets <code>mod</code> bounds before <code>omega</code>.
+A maintainer debugging a slow lemma would have been misled. The paragraph was rewritten to say only cuts and coefficient-free lemmas get the bounds.
+</p>
+<p>
+<strong>The confusing name.</strong> The new test used <code>WIDE_DIVISION_SEED</code> for seed 75.
+The QF_LIA tests already use that name for seed 67 at a different size.
+Someone searching after a failure would land on the wrong test. The constant became <code>WIDE_FARKAS_SEED</code>.
+</p>
+<p>
+<strong>The inflated timings.</strong> The reviewer re-timed the slow file on an idle machine.
+It took 48 s before the change, not 140 s. The first figures were taken while stress runs loaded the machine.
+The speedup was real, but wrong numbers would mislead anyone tuning heartbeat budgets later.
+The plan note, a docstring and a test comment now give idle timings and mark the loaded ones.
+</p>
+<p>
+<strong>The pinned test.</strong> The reviewer noted that the test expects at least 14 <code>mod</code> atoms and all three hints on one seed.
+An unrelated change in Z3's explanations could break it. The author kept it, because it proves the test exercises the wide case.
+Existing tests pin seeds the same way.
+</p>
 
-<section id="review">
-<h2>Review</h2>
-<p>The reviewer approved the PR. There were no blocker or major findings.</p>
+<h2 id="risks">Risks and open questions</h2>
 <ul>
-<li><strong>Minor, fixed.</strong> The reviewer read the README while checking the change. It still said the mod bounds are stated before omega on every step. A maintainer chasing a slow lemma would have been misled. The paragraph now says the bounds appear only on the <a href="#g-grind">grind</a> path, that is, for cuts and lemmas without coefficients.</li>
-<li><strong>Nit, fixed.</strong> The new test reused the constant name <code>WIDE_DIVISION_SEED</code>, which another test file uses for a different seed. Someone searching for it after a failure could land in the wrong place. It is now <code>WIDE_FARKAS_SEED</code>.</li>
-<li><strong>Nit, fixed.</strong> The reviewer re-timed the seed-75 file and could not reproduce the headline "140 s". That number was measured while the stress run loaded the machine. The plan note, docstring and test comment now give the idle figures and label the loaded ones.</li>
-<li><strong>Nit, kept on purpose.</strong> The test pins details of Z3's explanation on one seed, such as at least 14 mod atoms in the widest lemma. An unrelated Z3 change could break it. The author kept it because it proves the test really exercises the wide case, as earlier seed-pinned tests do.</li>
+  <li>Soundness is unaffected. Only ordinary <code>have</code> lines were dropped, and nothing new is trusted. A missing fact can make a proof fail, never succeed wrongly.</li>
+  <li>If the Python re-derivation and Lean's generalized goal ever disagreed, the generalized attempt would fail. The unchanged unfolded fallback would then run.</li>
+  <li>The new test depends on how Z3 explains conflicts for seed 75. A change there could break it without any reconstructor bug.</li>
+  <li>GitHub CI results for the merged commit are not recorded here.</li>
 </ul>
-</section>
 
-<section id="risks">
-<h2>Risks and open questions</h2>
+<h2 id="next">What comes next</h2>
 <ul>
-<li>Soundness is not at risk. Only ordinary <code>have</code> lines were removed, and missing facts can make a proof fail, never succeed wrongly. Nothing new is trusted.</li>
-<li>If Python's re-derivation and Lean's generalized goal ever disagreed, the fast attempt would fail. The unchanged fallback, which unfolds the atoms, would then run.</li>
-<li>The new test depends on Z3's explanation shape for one random seed, as discussed under Review.</li>
-<li>The Lean CI step becomes about 50 s longer.</li>
+  <li>Build a direct Farkas proof term from the coefficients, so these lemmas no longer depend on how <code>omega</code> eliminates variables.</li>
+  <li>Profile the other slow stress certificates, such as <code>lia-ite79</code>, <code>lia-ite88</code> and legacy <code>lia-ite86</code>.</li>
+  <li>Widen the frontend for <code>get-value</code> after <code>check-sat</code> and for commands after <code>exit</code>.</li>
 </ul>
-</section>
 
-<section id="next">
-<h2>What comes next</h2>
-<ul>
-<li>Build a direct Farkas proof term from the coefficients, so these lemmas no longer depend on omega's heuristics.</li>
-<li>Profile the other slow stress-run certificates (<code>lia-ite79</code>, <code>lia-ite88</code>, legacy <code>lia-ite86</code>). Their timings were inflated by load.</li>
-<li>Widen the SMT-LIB frontend for <code>get-value</code> after <code>check-sat</code> and for commands after <code>exit</code>.</li>
-</ul>
-</section>
-
-<section id="glossary">
-<h2>Glossary</h2>
+<h2 id="glossary">Glossary</h2>
 <dl>
-<dt id="g-atom">atom</dt>
-<dd>A term the arithmetic reasoning treats as one unknown, such as <code>(mod x 3)</code> or <code>f(y)</code>.</dd>
-<dt id="g-bound">bound</dt>
-<dd>A fact limiting a value's range, such as 0 &le; (x mod 3) &lt; 3. In Z3 hints, "bound" also names a lemma kind that combines bounds.</dd>
-<dt id="g-case-analysis">case analysis</dt>
-<dd>Proving a goal by splitting into cases and handling each one, for example one case per possible value of a bounded variable.</dd>
-<dt id="g-certificate">certificate</dt>
-<dd>The proof data Z3 exports, which the reconstructor turns into a Lean file.</dd>
-<dt id="g-clause">clause</dt>
-<dd>A disjunction of literals, read as "at least one of these holds". Example: &not;a &or; &not;b &or; c.</dd>
-<dt id="g-coefficient">coefficient</dt>
-<dd>A number that multiplies a term or inequality. In 2x + 3y, the coefficients are 2 and 3.</dd>
-<dt id="g-completeness">completeness</dt>
-<dd>The property that every correct proof can be checked. A timeout on a valid lemma is a completeness gap.</dd>
-<dt id="g-cut">cut</dt>
-<dd>An integer step that rounds a bound. Example: from 2x &le; 3 over integers, conclude x &le; 1.</dd>
-<dt id="g-farkas-lemma">Farkas lemma</dt>
-<dd>A theory lemma showing linear inequalities are contradictory. Adding them with suitable non-negative coefficients gives a false statement such as 0 &lt; 0.</dd>
-<dt id="g-generalize">generalize</dt>
-<dd>A Lean tactic that replaces a term by a fresh variable, forgetting what the term was.</dd>
-<dt id="g-grind">grind</dt>
-<dd>A general-purpose Lean tactic that combines congruence closure, case splits and arithmetic.</dd>
-<dt id="g-heartbeat">heartbeat</dt>
-<dd>Lean's unit of work. A proof that exceeds the <code>maxHeartbeats</code> limit is stopped and fails.</dd>
-<dt id="g-linear-combination">linear combination</dt>
-<dd>A sum of terms each multiplied by a constant, such as 1&middot;a + 1&middot;b + 1&middot;c.</dd>
-<dt id="g-literal">literal</dt>
-<dd>An atomic formula or its negation, such as x &ge; 1 or &not;(x &ge; 1).</dd>
-<dt id="g-mod">mod</dt>
-<dd>The remainder of integer division. In SMT-LIB, <code>(mod 7 3)</code> is 1, and the result is always between 0 and the divisor's absolute value minus one.</dd>
-<dt id="g-omega">omega</dt>
-<dd>A Lean tactic that decides linear integer arithmetic goals.</dd>
-<dt id="g-qf-uflia">QF_UFLIA</dt>
-<dd>The SMT-LIB logic of quantifier-free formulas with uninterpreted functions and linear integer arithmetic.</dd>
-<dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of assertions leads to False.</dd>
-<dt id="g-soundness">soundness</dt>
-<dd>The property that the checker never accepts a wrong proof.</dd>
-<dt id="g-tactic">tactic</dt>
-<dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> or <code>grind</code>.</dd>
-<dt id="g-theory-lemma">theory lemma</dt>
-<dd>A clause that holds because of a background theory such as integer arithmetic, not because of Boolean logic alone.</dd>
-<dt id="g-uninterpreted-function">uninterpreted function</dt>
-<dd>A function symbol with no fixed meaning, only that equal inputs give equal outputs. The "UF" in QF_UFLIA.</dd>
+  <dt id="g-atom">atom</dt>
+  <dd>A term the arithmetic treats as one opaque unknown, such as <code>(mod x 3)</code> or <code>(f y)</code>.</dd>
+  <dt id="g-bound">bound</dt>
+  <dd>A fact that limits a value from below or above. For <code>mod</code> by <code>k</code>, the bounds are <code>0 &lt;= m</code> and <code>m &lt; |k|</code>. In Z3, <code>bound</code> is also a hint for a lemma derived from bounds.</dd>
+  <dt id="g-case-analysis">case analysis</dt>
+  <dd>Proving a goal by splitting into cases and proving each one. Bounded variables invite splits over their range.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The proof Z3 exports as a file, which an independent checker replays.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An integer lemma that rounds a bound, for example from <code>2x &lt;= 3</code> to <code>x &lt;= 1</code>. Z3 marks these with the hint <code>cut</code>.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A theory lemma whose literals, each multiplied by a nonnegative coefficient and added up, give an obvious contradiction such as <code>0 &lt; 0</code>.</dd>
+  <dt id="g-generalize">generalize</dt>
+  <dd>Replacing a term in the goal with a fresh variable, so the proof cannot look inside it. In Lean this is the <code>generalize</code> tactic.</dd>
+  <dt id="g-heartbeats">heartbeats</dt>
+  <dd>Lean's work counter. A proof that exceeds <code>maxHeartbeats</code> is stopped and fails.</dd>
+  <dt id="g-int">Int</dt>
+  <dd>The sort of mathematical integers, with no overflow.</dd>
+  <dt id="g-linear-combination">linear combination</dt>
+  <dd>A sum of terms, each multiplied by a constant, such as <code>2a + 3b</code>.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>x &gt;= 1</code> or <code>not (x &gt;= 1)</code>. A clause is a disjunction of literals.</dd>
+  <dt id="g-mod">mod</dt>
+  <dd>The remainder of integer division. SMT-LIB's <code>mod</code> is Euclidean, so the result is never negative.</dd>
+  <dt id="g-omega">omega</dt>
+  <dd>A Lean tactic that decides linear arithmetic over integers and naturals.</dd>
+  <dt id="g-qf-uflia">QF_UFLIA</dt>
+  <dd>The SMT-LIB logic of quantifier-free formulas with uninterpreted functions and linear integer arithmetic.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Real</code> or <code>Bool</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> or <code>grind</code>.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that is valid in a background theory, here integer arithmetic. Z3 records it as a <code>th-lemma</code> step with a hint.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only thing known is that equal arguments give equal results.</dd>
 </dl>
-</section>
 
 <footer>
 Generated by the Lean certificate improvement loop on 2026-10-22.
 </footer>
-</main>
 </body>
 </html>
