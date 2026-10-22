@@ -8,13 +8,13 @@
   :root {
     color-scheme: light dark;
     --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b60; --line: #d9d9de;
-    --code-bg: #f4f4f6; --accent: #0b5fb0; --badge-bg: #fff3cd; --badge-fg: #6b4e00;
+    --code-bg: #f4f4f6; --accent: #0b5fb0; --badge-bg: #e0e7ff; --badge-fg: #2b2f8a;
     --ok-bg: #e6f4ea; --ok-fg: #1e6b34; --warn-bg: #fdecea; --warn-fg: #8a1c1c; --na-bg: #ececef; --na-fg: #4a4a50;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #121214; --fg: #e8e8ea; --muted: #a4a4ab; --line: #34343a;
-      --code-bg: #1d1d22; --accent: #7ab7ff; --badge-bg: #4a3a00; --badge-fg: #ffe28a;
+      --code-bg: #1d1d22; --accent: #7ab7ff; --badge-bg: #2a2d5e; --badge-fg: #c7ccff;
       --ok-bg: #163a22; --ok-fg: #9fe2b3; --warn-bg: #4a1a1a; --warn-fg: #ffb3b3; --na-bg: #2a2a30; --na-fg: #c8c8cf;
     }
   }
@@ -26,7 +26,7 @@
   a { color: var(--accent); }
   .meta { color: var(--muted); font-size: .95rem; }
   .badge { display: inline-block; padding: .1rem .5rem; border-radius: .5rem; font-size: .85rem; font-weight: 600; }
-  .open { background: var(--badge-bg); color: var(--badge-fg); }
+  .merged { background: var(--badge-bg); color: var(--badge-fg); }
   .ok { background: var(--ok-bg); color: var(--ok-fg); }
   .fail { background: var(--warn-bg); color: var(--warn-fg); }
   .na { background: var(--na-bg); color: var(--na-fg); }
@@ -51,23 +51,23 @@
   <h1>Balance outlined Inputs and normalize wide rewrites over opaque terms</h1>
   <p class="meta">
     <a href="https://github.com/levnach/z3/pull/32">Pull request #32</a> against <code>master</code> of levnach/z3 ·
-    <span class="badge open">OPEN</span> · opened 2026-10-22T19:30:29Z · loop iteration 32
+    <span class="badge merged">MERGED</span> · 2026-10-22T19:53:03Z · loop iteration 32
   </p>
   <p class="meta">
-    This pull request is <strong>not merged</strong>. The change is at commit
-    <a href="https://github.com/levnach/z3/commit/63fa0f92a88a4e573d7f124e8c5629912bc5b1df"><code>63fa0f9</code></a>,
-    the second of two commits on the branch.
+    Merged on 2026-10-22T19:53:03Z as commit
+    <a href="https://github.com/levnach/z3/commit/614975fb763a23894920eeda5d1503fcf4d5b3bd"><code>614975f</code></a>.
+    The pull request was opened at 2026-10-22T19:30:29Z and squash-merged as that single commit.
   </p>
 </header>
 
 <h2 id="one-paragraph">In one paragraph</h2>
 <p>
 This PR changes only the Python reconstructor that turns a Z3 <a href="#g-certificate">certificate</a> into Lean text.
-It fixes two limits that an end-to-end scan of sample QF_LIA and QF_UFLIA files exposed.
-First, large proofs are split into chunk lemmas, and every chunk receives all input <a href="#g-assertion">assertions</a> as one <a href="#g-conjunction">conjunction</a>.
+It fixes two limits that a scan of sample QF_LIA and QF_UFLIA files exposed.
+First, long proofs are split into chunk lemmas, and every chunk receives all input <a href="#g-assertion">assertions</a> as one <a href="#g-conjunction">conjunction</a>.
 That conjunction was nested to the right, so reaching the last of 1,211 assertions took 1,210 <a href="#g-projection">projections</a>, and Lean ran out of its <a href="#g-heartbeat">heartbeat</a> budget.
 The conjunction is now a balanced tree, so no assertion is more than about ten projections deep.
-Second, a wide <a href="#g-rewrite">rewrite</a> over many arithmetic <a href="#g-atom">atoms</a> is proved atom by atom and then <a href="#g-propositional">propositionally</a>.
+Second, a wide <a href="#g-theory">theory</a> <a href="#g-rewrite">rewrite</a> over many arithmetic <a href="#g-atom">atoms</a> is proved atom by atom and then <a href="#g-propositional">propositionally</a>.
 That path accepted only atoms over plain variables.
 It now also accepts <a href="#g-linear-form">linear forms</a> over opaque terms such as applications of an <a href="#g-uninterpreted-function">uninterpreted function</a>, <a href="#g-modulo">modulo</a>, and integer division.
 Both fixes keep the trust boundary where it was: every new Lean statement is still checked by Lean, and nothing is taken on faith from Z3.
@@ -75,7 +75,8 @@ Both fixes keep the trust boundary where it was: every new Lean statement is sti
 
 <h2 id="background">Background</h2>
 <p>
-Before this PR, the pipeline certified Boolean, QF_UF, QF_LRA, QF_LIA, QF_UFLRA, and QF_UFLIA <a href="#g-refutation">refutations</a>, including proofs long enough to be outlined into chunks.
+Before this PR, the pipeline certified <a href="#g-boolean">Boolean</a>, QF_UF, QF_LRA, QF_LIA, QF_UFLRA, and QF_UFLIA <a href="#g-refutation">refutations</a>, including proofs long enough to be outlined into chunks.
+On the arithmetic side it already replayed <a href="#g-farkas">Farkas lemmas</a> and <a href="#g-cut">cuts</a> over the integers.
 Two sample files that Z3 solved in seconds still failed in Lean.
 One had 1,211 assertions and timed out on the projection chain.
 The other rewrote an <a href="#g-equivalence">equivalence</a> between two <a href="#g-disjunction">disjunctions</a> of twenty integer equalities over function applications, and the <code>grind</code> <a href="#g-tactic">tactic</a> split exponentially on it.
@@ -85,10 +86,10 @@ The work serves milestone 3 of the plan, equality and linear arithmetic, by clos
 
 <h2 id="what-changed">What changed</h2>
 <ul>
-  <li><strong>Balanced input conjunction.</strong> Outlined proofs can now draw any assertion out of a conjunction of hundreds or thousands of assertions without exhausting Lean's heartbeat budget. Think of a phone book sorted into halves instead of one long list.</li>
-  <li><strong>Wide rewrites over opaque terms.</strong> A rewrite with more than sixteen arithmetic atoms whose linear forms mention <code>(f x)</code>, <code>mod</code>, or <code>div</code> is now proved atom by atom and then propositionally, instead of being handed whole to the <code>grind</code> tactic.</li>
+  <li><strong>Balanced input conjunction.</strong> Outlined proofs can now pull any assertion out of a conjunction of hundreds or thousands of assertions without exhausting Lean's heartbeat budget. It works like finding a name by halving a sorted list instead of reading from the top.</li>
+  <li><strong>Wide rewrites over opaque terms.</strong> A rewrite with more than sixteen arithmetic atoms whose linear forms mention <code>(f x)</code>, modulo, or integer division is now proved atom by atom and then propositionally, instead of being handed whole to the <code>grind</code> tactic.</li>
   <li><strong>A gate that keeps the hard cases with <code>grind</code>.</strong> When an atom over an opaque term appears on only one side of the rewrite, Z3's simplifier must have reasoned about that term. Such rewrites still go to <code>grind</code>, which can prove them through <a href="#g-congruence">congruence</a> and the bounds of modulo.</li>
-  <li><strong>Terms with an if-then-else term inside stay excluded.</strong> The logged form of absolute value is an <code>ite</code>, whose condition is a formula. Those rewrites keep the bridging path added in iteration 30.</li>
+  <li><strong>Terms with an <a href="#g-ite">if-then-else term</a> inside stay excluded.</strong> The logged form of absolute value is an <code>ite</code>, whose condition is a formula. Those rewrites keep the bridging path added in iteration 30.</li>
   <li><strong>Tests and documentation.</strong> Five new Lean-checked tests cover both features and the gate, one unit test checks the balanced projection paths for every count up to 69, and the plan document gained a dated note.</li>
 </ul>
 
@@ -108,13 +109,13 @@ The work serves milestone 3 of the plan, equality and linear arithmetic, by clos
 
 <h2 id="worked-example">Worked example</h2>
 <p>
-The example is the 601-assertion disjunction from the PR's wide test, generated and run through the real pipeline for this report.
-A smaller eighteen-atom example over an uninterpreted function was tried first.
+The example is the 601-assertion disjunction from the PR's wide test, generated and run through the real pipeline for this report on the merged code.
+A smaller eighteen-atom input over an uninterpreted function was tried first.
 The pre-change code already certified it through <code>grind</code>, so it does not show a new capability and is not used here.
 </p>
 
 <h3>(a) The input</h3>
-<p class="explain">One disjunction of 600 Boolean variables, then each variable denied. Repeated lines are cut.</p>
+<p class="explain">One disjunction of 600 variables of <a href="#g-sort">sort</a> Bool, then each variable denied. Repeated lines are cut. The full file has 1,202 lines.</p>
 <pre><code>(declare-const p0 Bool)
 (declare-const p1 Bool)
 ...
@@ -127,26 +128,28 @@ The pre-change code already certified it through <code>grind</code>, so it does 
 (check-sat)</code></pre>
 
 <h3>(b) Before</h3>
-<p class="explain">The pre-change reconstructor produced Lean text with the last assertion 600 projections deep. Lean rejected it.</p>
+<p class="explain">The pre-change reconstructor accepted the certificate and produced Lean text with the last assertion 600 projections deep. Lean rejected that text after 7.7 seconds.</p>
 <pre><code>old_example2.lean:2547:0: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
 old_example2.lean:3656:8: error: (kernel) unknown constant '...proof_step_1806'</code></pre>
-<p class="explain">The lemma at that line projected the last assertion as <code>_inputs.2.2.2.2</code> followed by 596 more <code>.2</code> fields.</p>
+<p class="explain">The lemma at line 2547 is the one that gathers the chunk results. Its projection of the last assertion was <code>_inputs.2.2.2.2</code> followed by 596 more <code>.2</code> fields.</p>
 
 <h3>(c) After</h3>
 <p class="explain">The current reconstructor generates a balanced conjunction. Lean accepted the file. The declarations:</p>
-<pre><code>def formula_600 (_atoms : Nat -&gt; Prop) : Prop := (Or (formula_0 _atoms) (Or (formula_1 _atoms) ...
+<pre><code>def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
+...
+def formula_600 (_atoms : Nat -&gt; Prop) : Prop := (Or (formula_0 _atoms) (Or (formula_1 _atoms) ...
 def formula_601 (_atoms : Nat -&gt; Prop) : Prop := (Not (formula_0 _atoms))
 ...
 private def Inputs (_atoms : Nat -&gt; Prop) : Prop :=
   (And (And (And (And (And ... (And (formula_600 _atoms) (formula_601 _atoms)) (formula_602 _atoms)) ...</code></pre>
-<p class="explain">Every assertion becomes a named formula, and the conjunction of all 601 of them is now split in halves at every level.</p>
+<p class="explain">Every assertion becomes a named formula, and the conjunction of all 601 of them is split in halves at every level.</p>
 <pre><code>private theorem proof_step_1804 (_atoms : Nat -&gt; Prop)
     (_inputs : Inputs _atoms)
     : (formula_1200 _atoms) :=
   let _step_1804 : (formula_1200 _atoms) :=
     _inputs.2.2.2.2.2.2.2.2.2
   _step_1804</code></pre>
-<p class="explain">The lemma for the last assertion now reaches it in nine projections instead of 600.</p>
+<p class="explain">The lemma for the last assertion now reaches it in nine projections instead of 600. No path in the file is longer than ten.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
     (_h0 : (formula_600 _atoms))
     (_h1 : (formula_601 _atoms))
@@ -154,15 +157,15 @@ private def Inputs (_atoms : Nat -&gt; Prop) : Prop :=
     (_h600 : (formula_1200 _atoms))
     : False :=
   proof_step_1806 _atoms (And.intro (And.intro (And.intro ... (And.intro _h0 _h1) _h2) (And.intro _h3 _h4)) ...</code></pre>
-<p class="explain">The main theorem packs the 601 hypotheses into the same balanced shape and hands them to the chunk lemmas. The check with <code>check_lean.sh</code> passed.</p>
+<p class="explain">The main theorem packs the 601 hypotheses into the same balanced shape and hands them to the chunk lemmas. The check with <code>check_lean.sh</code> reported "Lean checks passed".</p>
 
 <h2 id="verified">How it was verified</h2>
 <p>
 Locally, the whole Lean reconstruction suite passed, as did the certificate exporter tests, the Lean project build, and the z3test proof suite.
-The reviewer's failing input now verifies on both variants, and the three benchmark files that motivated the PR verify in seconds.
-The local gate file for this iteration has not been recorded, so the gate result is unknown.
-No CI status files were recorded when this report was generated, so the table below lists the relevant workflow step without a result.
-There were no CI fix rounds.
+The reviewer's failing input now verifies in both of its forms, and the three benchmark files that motivated the PR verify in seconds.
+Because the change touches only documentation and the Python examples, the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate mirrors the steps of the Ubuntu releaseClang CI job that exercise this work, and every step passed.
+No CI status files were recorded for the PR, there were no CI fix rounds, and the GitHub run on <code>master</code> after the merge is not recorded here.
 </p>
 <table>
   <thead><tr><th>Local check</th><th>Result</th></tr></thead>
@@ -170,13 +173,23 @@ There were no CI fix rounds.
     <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>281 tests, OK, 746 s</td></tr>
     <tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td>86 tests, OK</td></tr>
     <tr><td>Lean project build and checks, <code>check_lean.sh</code></td><td>passed</td></tr>
-    <tr><td>z3test proof suite</td><td>OK, exit 0</td></tr>
+    <tr><td>z3test proof suite</td><td>46 tests, OK</td></tr>
     <tr><td>Targeted normalized-rewrite tests</td><td>13 tests, OK</td></tr>
     <tr><td>QF_LIA <code>BART-PT-002/RF-00.smt2</code>, 1,211 assertions</td><td>before: Lean timeout; after: verified, Lean 6.9 s</td></tr>
     <tr><td>QF_LIA <code>BART-PT-005/RC-11.smt2</code></td><td>before: Lean failed; after: verified, 33 s</td></tr>
     <tr><td>QF_UFLIA <code>Wisa/xs-05-11-2-5-3-2.smt2</code></td><td>before: Lean failed; after: verified, Lean 4.3 s</td></tr>
     <tr><td>Outlined 601-assertion disjunction</td><td>before: Lean timeout; after: verified, 19 s</td></tr>
     <tr><td>Outlined 1,001-assertion disjunction</td><td>before: Lean timeout; after: verified, 86 s</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td><span class="badge ok">pass</span></td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td><span class="badge ok">pass</span></td><td class="num">751 s</td></tr>
+    <tr><td>z3test proof script tests</td><td><span class="badge ok">pass</span></td><td class="num">15 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object), 6 files</td><td><span class="badge ok">pass</span></td><td class="num">4 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log), 8 files</td><td><span class="badge ok">pass</span></td><td class="num">6 s</td></tr>
   </tbody>
 </table>
 <table>
@@ -187,18 +200,17 @@ There were no CI fix rounds.
 </table>
 
 <h2 id="review">Review</h2>
-<p>The reviewer's verdict on the first commit was "request changes", with one major finding and two nits. All three were fixed in the second commit.</p>
+<p>The reviewer's verdict on the implementer's commit was "request changes", with one major finding and two nits. All three were fixed on the branch before the PR was opened, and the branch was squash-merged as one commit.</p>
 <h3>Major: a decided modulo bound slipped through the gate</h3>
 <p>
-The first commit's gate asked only whether both sides of a rewrite mentioned the same set of opaque terms.
-The reviewer built a QF_LIA input with eighteen atoms over <code>(mod x 10)</code> plus one extra <a href="#g-literal">literal</a>, <code>(&lt; (mod x0 10) 0)</code>.
-Z3's simplifier knows that a remainder is never negative, so it dropped that literal in one rewrite step.
+The first version of the gate asked only whether both sides of a rewrite mentioned the same set of opaque terms.
+The reviewer built a QF_LIA input with eighteen atoms over <code>(mod x 10)</code> plus one extra <a href="#g-literal">literal</a> in the <a href="#g-clause">clause</a>, <code>(&lt; (mod x0 10) 0)</code>.
+Z3's simplifier knows that a remainder by a positive divisor is never negative, so it dropped that literal in one rewrite step.
 The modulo term still appeared in the other atoms, so the gate judged the rewrite normalizable.
-The propositional lemma then saw an atom on the left with no partner on the right and could not prove it, and Lean failed with <code>grind failed</code>.
+The propositional lemma then saw an atom on the left with no partner on the right, and Lean failed with <code>grind failed</code>.
 Before the PR the same input had verified through <code>grind</code>, so this was an acceptance regression.
 The fix compares the canonical keys of the atoms on each side.
-A key present on one side only is allowed only when its atom ranges over variables alone.
-Any disappearing atom over an opaque term sends the whole rewrite back to <code>grind</code>.
+A key present on one side only is allowed only when its atom ranges over variables alone, so any disappearing atom over an opaque term sends the rewrite back to <code>grind</code>.
 The reviewer's input became a Lean-checked regression test for both forms of the bound.
 </p>
 <h3>Nits</h3>
@@ -213,7 +225,7 @@ The reviewer's input became a Lean-checked regression test for both forms of the
   <li><strong>Acceptance may shift.</strong> Some wide rewrites that <code>grind</code> used to prove whole now take the atom-by-atom path. If a per-atom lemma or the propositional lemma fails, the result is a Lean failure, as before.</li>
   <li><strong>Every outlined proof's text changed.</strong> All outlined tests were re-run, but any downstream tool that compared generated text would see differences.</li>
   <li><strong>CI time grows.</strong> The Lean CI step gets about 46 s longer from the new tests.</li>
-  <li><strong>Unknown at report time.</strong> CI results and the local gate had not been recorded.</li>
+  <li><strong>CI on master is unverified here.</strong> The merge rested on the local gate on one machine. The GitHub run on <code>master</code> had not been recorded when this report was written.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
@@ -233,8 +245,10 @@ The reviewer's input became a Lean-checked regression test for both forms of the
   <dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>(or (not p) q r)</code>.</dd>
   <dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal results: if <code>x = y</code> then <code>f x = f y</code>.</dd>
   <dt id="g-conjunction">conjunction</dt><dd>A formula joined with "and". It is true only when every part is true.</dd>
+  <dt id="g-cut">cut</dt><dd>An integer reasoning step that rounds a bound, for example from <code>2x &lt;= 5</code> to <code>x &lt;= 2</code>.</dd>
   <dt id="g-disjunction">disjunction</dt><dd>A formula joined with "or". It is true when at least one part is true.</dd>
   <dt id="g-equivalence">equivalence</dt><dd>A formula stating that two formulas have the same truth value, written <code>Iff</code> in Lean.</dd>
+  <dt id="g-farkas">Farkas lemma</dt><dd>A proof step that adds linear inequalities with nonnegative weights to reach a contradiction such as <code>0 &lt; 0</code>.</dd>
   <dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit of work for a single declaration. A declaration that exceeds the budget fails with a deterministic timeout.</dd>
   <dt id="g-ite">if-then-else term</dt><dd>A term that picks one of two values by a condition, written <code>ite</code> in SMT-LIB. Z3 logs absolute value this way.</dd>
   <dt id="g-linear-form">linear form</dt><dd>A sum of terms times constants, such as <code>2x + 3y - 7</code>. Here the terms may be variables or opaque terms like <code>(f x)</code>.</dd>
