@@ -1379,22 +1379,27 @@ Int equalities over applications of uninterpreted functions, differing in
 flattening, order, and orientation, and `grind` on the whole equivalence
 split exponentially. The linear forms may now also range over opaque
 terms without a formula inside (applications, `div`, `mod`), keyed by
-node, provided both sides of the rewrite share the same opaque terms
-(Z3's rewriter also simplifies inside a function's arguments, and then
-the atoms differ by more than their linear form; such a rewrite goes to
-`grind` as before), and the Boolean structure above the atoms consists of
-connectives and Boolean variables alone, which the propositional lemma
-can bind; an `ite` term (the logged form of `abs`) stays excluded and
-keeps the iter-030 bridging. The Wisa file verifies in 5 s. Nothing is
-trusted: every atom equivalence is a `grind`-proved `have`, and the
-propositional lemma is checked by Lean. Tests: `test_proof_to_lean.py`
-(`_balanced_select` follows `_balanced` within its height for every
-count up to 69), `test_proof_to_lean_wide.py` (the 601-assertion
-disjunction outlined, every assertion at most ten projections deep),
-`test_proof_to_lean_lia.py` and `test_proof_to_lean_uflia.py` (wide
-rewrites over `mod` and over applications through the normalized path; a
-rewrite inside an application's argument stays with `grind`, both
-through Lean).
+node, provided every atom whose canonical key occurs on one side of the
+rewrite only ranges over variables alone (`_normalizable_rewrite`,
+`_normalized_atom`). An atom over an opaque term that disappears from
+one side means Z3's rewriter reasoned about the term, which the
+propositional lemma over abstract atoms cannot: it decides
+`(< (mod x 10) 0)` from the bounds of `mod`, and it simplifies inside a
+function's arguments, so that the atoms differ by more than their linear
+form; such a rewrite goes to `grind` as before. The Boolean structure
+above the atoms must consist of connectives and Boolean variables alone,
+which the propositional lemma can bind; an `ite` term (the logged form
+of `abs`) stays excluded and keeps the iter-030 bridging. The Wisa file
+verifies in 5 s. Nothing is trusted: every atom equivalence is a
+`grind`-proved `have`, and the propositional lemma is checked by Lean.
+Tests: `test_proof_to_lean.py` (`_balanced_select` follows `_balanced`
+within its height for every count up to 69), `test_proof_to_lean_wide.py`
+(the 601-assertion disjunction outlined, every assertion at most ten
+projections deep), `test_proof_to_lean_lia.py` and
+`test_proof_to_lean_uflia.py` (wide rewrites over `mod` and over
+applications through the normalized path; a wide rewrite deciding a
+`mod`-bound atom and a rewrite inside an application's argument stay
+with `grind`, all through Lean).
 
 **Legacy `(_ th-lemma arith unsupported)` over Int (2026-10-21).**
 `theory_lra::set_proof_params` labels an LP conflict `unsupported` instead

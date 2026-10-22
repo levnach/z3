@@ -746,51 +746,44 @@ class TestIntegerMixedLeanIntegration(unittest.TestCase):
         context = z3.Context()
         f = z3.Function("f", z3.IntSort(context), z3.IntSort(context))
         variables = [z3.Int("x%d" % i, context) for i in range(3)]
-        original = z3.Or(*[f(var + 0) <= 5 for var in variables])
         rewritten = z3.Or(*[f(var) <= 5 for var in reversed(variables)])
-        assertions = [original, z3.Not(rewritten)]
-        solver = z3.Solver(ctx=context)
-        solver.add(assertions)
-        source = solver.to_smt2()
-        dag = proof_certificate.DagBuilder()
-        roots = [dag.expression(assertion) for assertion in assertions]
-        asserted = dag.rule(z3.Z3_OP_PR_ASSERTED, "asserted", 0)
-        first = dag.node(asserted, [roots[0]])
-        rewrite = dag.node(dag.rule(z3.Z3_OP_PR_REWRITE, "rewrite", 0), [dag.expression(original == rewritten)])
-        mp = dag.node(dag.rule(z3.Z3_OP_PR_MODUS_PONENS, "mp", 2), [first, rewrite, dag.expression(rewritten)])
-        negated = dag.node(asserted, [roots[1]])
-        root = dag.node(dag.rule(z3.Z3_OP_PR_UNIT_RESOLUTION, "unit-resolution", 2),
-                        [mp, negated, dag.expression(z3.BoolVal(False, context))])
-        certificate = dag.certificate(source, "qf_uflia", roots, root)
+
+        def certify(original):
+            # A hand-built certificate: original, rewritten to rewritten,
+            # refuted against its asserted negation.
+            assertions = [original, z3.Not(rewritten)]
+            solver = z3.Solver(ctx=context)
+            solver.add(assertions)
+            source = solver.to_smt2()
+            dag = proof_certificate.DagBuilder()
+            roots = [dag.expression(assertion) for assertion in assertions]
+            asserted = dag.rule(z3.Z3_OP_PR_ASSERTED, "asserted", 0)
+            first = dag.node(asserted, [roots[0]])
+            rewrite = dag.node(dag.rule(z3.Z3_OP_PR_REWRITE, "rewrite", 0),
+                               [dag.expression(original == rewritten)])
+            mp = dag.node(dag.rule(z3.Z3_OP_PR_MODUS_PONENS, "mp", 2), [first, rewrite, dag.expression(rewritten)])
+            negated = dag.node(asserted, [roots[1]])
+            root = dag.node(dag.rule(z3.Z3_OP_PR_UNIT_RESOLUTION, "unit-resolution", 2),
+                            [mp, negated, dag.expression(z3.BoolVal(False, context))])
+            return source, dag.certificate(source, "qf_uflia", roots, root), rewrite
+
+        source, certificate, rewrite = certify(z3.Or(*[f(var + 0) <= 5 for var in variables]))
         with patch.object(proof_to_lean, "_NORMALIZED_REWRITE_ATOMS", 0):
             text = proof_to_lean.reconstruct(source, certificate)
             self.assertNotIn("normalized_rewrite_", text)
             self.assertIn("private theorem rewrite_", text)
             with tempfile.TemporaryDirectory() as directory:
                 proof_to_lean.check_and_write(source, certificate, Path(directory) / "checked.lean")
-            # The same clause over f(x) on both sides is normalizable, since
-            # the two sides share every opaque term.
+            # Every atom's key occurs on one side only, over an opaque term.
             graph = proof_to_lean._validate_graph(source, certificate)
             conclusion = graph.conclusion(rewrite)
             reachable, _ = proof_to_lean._reachable(graph, conclusion)
             atoms = [formula for formula in reachable if graph.kind(formula) == z3.Z3_OP_LE]
             self.assertEqual(len(atoms), 6)
             self.assertFalse(proof_to_lean._normalizable_rewrite(graph, rewrite, reachable, atoms))
-        shared =z3.Or(*[f(var) <= 5 for var in variables])
-        assertions = [shared, z3.Not(rewritten)]
-        solver = z3.Solver(ctx=context)
-        solver.add(assertions)
-        source = solver.to_smt2()
-        dag = proof_certificate.DagBuilder()
-        roots = [dag.expression(assertion) for assertion in assertions]
-        asserted = dag.rule(z3.Z3_OP_PR_ASSERTED, "asserted", 0)
-        first = dag.node(asserted, [roots[0]])
-        rewrite = dag.node(dag.rule(z3.Z3_OP_PR_REWRITE, "rewrite", 0), [dag.expression(shared == rewritten)])
-        mp = dag.node(dag.rule(z3.Z3_OP_PR_MODUS_PONENS, "mp", 2), [first, rewrite, dag.expression(rewritten)])
-        negated = dag.node(asserted, [roots[1]])
-        root = dag.node(dag.rule(z3.Z3_OP_PR_UNIT_RESOLUTION, "unit-resolution", 2),
-                        [mp, negated, dag.expression(z3.BoolVal(False, context))])
-        certificate = dag.certificate(source, "qf_uflia", roots, root)
+        # The same clause over f(x) on both sides is normalizable, since the
+        # two sides share every atom.
+        source, certificate, _ = certify(z3.Or(*[f(var) <= 5 for var in variables]))
         with patch.object(proof_to_lean, "_NORMALIZED_REWRITE_ATOMS", 0):
             text = proof_to_lean.reconstruct(source, certificate)
             self.assertIn("private theorem normalized_rewrite_", text)

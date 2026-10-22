@@ -1115,6 +1115,23 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         self.assertEqual(len(atoms), 18)
         self.assertTrue(all("(_vars " in line and " % (((10 : Int)))" in line for line in atoms), atoms[0])
 
+    def test_wide_rewrites_deciding_a_mod_bound_stay_with_grind(self):
+        # Z3's rewriter decides (< (mod x0 10) 0) and (>= (mod x0 10) 10)
+        # from the bounds of mod, so the clause-log core's one rewrite step
+        # drops the literal while every mod term stays in the other atoms.
+        # The propositional lemma over abstract atoms cannot prove that, so
+        # an atom whose key occurs on one side only and ranges over an
+        # opaque term sends the rewrite to grind, which knows the bounds.
+        for extra in ("(< (mod x0 10) 0)", "(>= (mod x0 10) 10)"):
+            with self.subTest(extra=extra):
+                source = wide_rewrite_instance(term="(mod {0} 10)")
+                source = source.replace("(assert (or ", "(assert (or %s " % extra, 1)
+                self.assertIn(extra, source)
+                certificate = self.check(source)
+                text = proof_to_lean.reconstruct(source, certificate)
+                self.assertNotIn("normalized_rewrite_", text)
+                self.assertIn("private theorem rewrite_", text)
+
     def test_outlined_integer_proofs_preserve_the_statement(self):
         with patch.object(proof_to_lean, "_OUTLINE_PROOF_STEPS", 0):
             for name in ("lia_gomory", "lia_distinct"):

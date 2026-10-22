@@ -2080,14 +2080,19 @@ def _normalizable_rewrite(graph, node, reachable, atoms):
 
     The linear forms of the atoms may range over variables and over opaque
     terms without a formula inside (applications of uninterpreted
-    functions, div, mod): _normalized_rewrite keys such a term by its node,
-    so both sides of the rewrite must share the same opaque terms (Z3's
-    rewriter also simplifies inside a function's arguments, and then the
-    atoms differ by more than their linear form). An ite term is excluded,
-    since its condition is a formula the atom rewrites could reach inside
-    it (abs is logged as an ite). Every other formula must be a connective
-    or a Boolean variable, as the propositional lemma binds the atoms alone.
-    Anything else goes to grind as before.
+    functions, div, mod), which _normalized_rewrite keys by node. An atom
+    whose canonical key (_normalized_atom) occurs on one side of the
+    rewrite only may range over variables alone: the propositional lemma
+    then proves its disappearance, as it did before opaque terms were
+    admitted. With an opaque term in it, such an atom signals that Z3's
+    rewriter reasoned about the term, which the lemma over abstract atoms
+    cannot: it decides (< (mod x 10) 0) from the bounds of mod, and it
+    simplifies inside a function's arguments, (f (+ x 0)) to (f x), so
+    that the two sides' atoms differ by more than their linear form. An ite
+    term is excluded, since its condition is a formula the atom rewrites
+    could reach inside it (abs is logged as an ite). Every other formula
+    must be a connective or a Boolean variable, as the propositional lemma
+    binds the atoms alone. Anything else goes to grind as before.
     """
     def formula_free(term):
         pending, seen = [term], set()
@@ -2101,8 +2106,13 @@ def _normalizable_rewrite(graph, node, reachable, atoms):
             pending.extend(graph.arguments(current))
         return True
 
+    def order(variable):
+        # Any total order keys two atoms alike exactly when _normalized_rewrite's does.
+        return (0 if not graph.arguments(variable) else 1), variable
+
+    atom_set = set(atoms)
     for formula in reachable:
-        if formula in atoms or graph.is_term(formula):
+        if formula in atom_set or graph.is_term(formula):
             continue
         kind, arguments = graph.kind(formula), graph.arguments(formula)
         if kind == z3.Z3_OP_UNINTERPRETED:
@@ -2114,16 +2124,43 @@ def _normalizable_rewrite(graph, node, reachable, atoms):
         elif kind not in _NORMALIZED_CONNECTIVES:
             return False
     try:
-        opaque = {}
+        keys = []
         for side in graph.arguments(graph.conclusion(node)):
             side_reachable = _reachable(graph, side)[0]
-            opaque[side] = {term for atom in atoms if atom in side_reachable
-                            for term in _atom_constraint(graph, atom)[1] if graph.arguments(term)}
-        if any(not formula_free(term) for terms in opaque.values() for term in terms):
-            return False
+            keys.append({_normalized_atom(graph, atom, order)[0] for atom in atoms if atom in side_reachable})
     except ReconstructionError:
         return False
-    return len(set(map(frozenset, opaque.values()))) == 1
+    opaque = {term for side in keys for _, ordered, _ in side for (kind, term), _ in ordered if kind == 1}
+    if any(not formula_free(term) for term in opaque):
+        return False
+    left, right = keys
+    return all(kind == 0 for _, ordered, _ in left ^ right for (kind, _), _ in ordered)
+
+
+def _normalized_atom(graph, atom, order):
+    """The canonical key of an arithmetic atom's linear form, and whether the atom is its negation.
+
+    The key is (relation, ((order(term), coefficient), ...), constant) with
+    the terms sorted by order and the first one's coefficient scaled to 1
+    (its absolute value for <=), so that positive multiples of one
+    constraint share a key. Over Int every atom is already tightened to
+    t <= 0, whose complement is -t + 1 <= 0: a form with a negative leading
+    coefficient is keyed as the negation of its complement, so that (< x 5)
+    and (>= x 5) share one atom (the replay's _Normalizer does the same)
+    and the propositional lemma sees them as complementary.
+    """
+    relation, terms, constant = _atom_constraint(graph, atom)
+    negated = relation == "<"
+    if negated:
+        terms, constant, relation = {var: -value for var, value in terms.items()}, -constant, "<="
+    first = min(terms, key=order) if terms else None
+    if graph.numeric == "Int" and relation == "<=" and terms and terms[first] < 0:
+        terms, constant, negated = {var: -value for var, value in terms.items()}, -constant + 1, True
+    if terms:
+        scale = terms[first] if relation == "=" else abs(terms[first])
+        terms, constant = {var: value / scale for var, value in terms.items()}, constant / scale
+    ordered = tuple(sorted((order(var), value) for var, value in terms.items()))
+    return (relation, ordered, constant), negated
 
 
 def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_indices):
@@ -2150,23 +2187,8 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         "    : %s := by" % _formula(graph, graph.conclusion(node)),
     ]
     for atom in atoms:
-        relation, terms, constant = _atom_constraint(graph, atom)
-        negated = relation == "<"
-        if negated:
-            terms, constant, relation = {var: -value for var, value in terms.items()}, -constant, "<="
-        first = min(terms, key=order) if terms else None
-        if graph.numeric == "Int" and relation == "<=" and terms and terms[first] < 0:
-            # Over Int every atom is already tightened to t <= 0, whose
-            # complement is -t + 1 <= 0: key the row with a negative leading
-            # coefficient as the negation of its complement, so that (< x 5)
-            # and (>= x 5) share one atom (the replay's _Normalizer does the
-            # same) and the propositional lemma sees them as complementary.
-            terms, constant, negated = {var: -value for var, value in terms.items()}, -constant + 1, True
-        if terms:
-            scale = terms[first] if relation == "=" else abs(terms[first])
-            terms, constant = {var: value / scale for var, value in terms.items()}, constant / scale
-        ordered = tuple(sorted((order(var), value) for var, value in terms.items()))
-        key = relation, ordered, constant
+        key, negated = _normalized_atom(graph, atom, order)
+        relation, ordered, constant = key
         scale = 1
         for value in [value for _, value in ordered] + [constant]:
             scale = scale * value.denominator // _gcd(scale, value.denominator)
