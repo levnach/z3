@@ -1222,12 +1222,15 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     (the legacy core's th-lemma and arithmetic monotonicity) is stated as the
     implication from the premise conclusions and applied to their steps.
 
-    With opaque_tactic (Int theory lemmas, see _opaque_tactic), the Int
-    atoms of the linear forms (div, mod, abs, ite, and applications, see
-    _linear_term) are first generalized to fresh integers and that tactic
-    is tried on the resulting linear goal, so neither the Euclidean
-    operators are unfolded nor the ite atoms split (a lemma over a dozen
-    div, mod, and abs atoms by negative numerals used to exhaust its
+    With opaque_tactic (Int theory lemmas, see _opaque_tactic; theory
+    rewrites, see _opaque_rewrite_tactic), the atoms of the linear forms
+    (div, mod, abs, ite, and applications, see _linear_term) are first
+    generalized to fresh numbers, after the mod bounds (_mod_bound_facts)
+    and the equalities between atoms of one key (_atom_bridge_facts) are
+    stated and reverted, and that tactic is tried on the resulting linear
+    goal, so neither the Euclidean operators are unfolded nor the ite atoms
+    split (a lemma over a dozen div, mod, and abs atoms by negative
+    numerals, and a rewrite over a dozen abs terms, used to exhaust their
     heartbeats). A lemma that needs the atoms' definitions fails that
     attempt and is proved as before, definitions unfolded.
     """
@@ -1256,8 +1259,13 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
             inside |= _reachable(graph, atom)[0]
         lines.append("  unfold " + " ".join(_definition_names(graph, outside)))
         lines.append("  first")
+        facts, names = _mod_bound_facts(graph, atoms)
+        bridges, bridge_names = _atom_bridge_facts(graph, atoms)
+        facts, names = facts + bridges, names + bridge_names
+        if names:
+            facts.append("revert " + " ".join(names))
         lines.append("    | (" + "\n       ".join(
-            _mod_bound_facts(graph, atoms)
+            facts
             + ["generalize %s = _o%d" % (_term(graph, atom), position) for position, atom in enumerate(atoms)]
             + [opaque_tactic + ")"]))
         fallback = ["unfold " + " ".join(_definition_names(graph, inside))]
@@ -1302,6 +1310,7 @@ def _mod_bound_facts(graph, atoms):
     best effort: Int.emod_neg expects the divisor rendered as the negation
     of a numeral, which is how Z3 writes a negative constant; should a fact
     fail to prove, the generalized attempt fails and the fallback runs.
+    Returns the have lines and the names of the facts, for the caller to revert.
     """
     lines, names = [], []
     for position, atom in enumerate(atoms):
@@ -1317,9 +1326,34 @@ def _mod_bound_facts(graph, atoms):
         lines.append("have _m%d_1 : %s < ((%d : Int)) := by unfold %s; %s" % (
             position, _term(graph, atom), abs(divisor), definitions, upper))
         names += ["_m%d_0" % position, "_m%d_1" % position]
-    if names:
-        lines.append("revert " + " ".join(names))
-    return lines
+    return lines, names
+
+
+def _atom_bridge_facts(graph, atoms):
+    """State the equality of every two atoms with one key (_real_atom_key), to revert before generalizing.
+
+    Z3's rewriter normalizes an ite term (its condition's polarity, the
+    branch order, (abs t) to its defining ite), so a rewrite of an
+    assertion, or a lemma over both forms, relates atoms that denote one
+    value but render differently; generalized apart they are unrelated
+    integers and the attempt fails, while splitting every ite (what omega
+    and grind do unaided) is exponential in their number. Each equality is
+    a two-way split the theory tactic proves on its own; reverted into the
+    goal, it survives the generalization as an equation between the fresh
+    variables. Returns the have lines and the names of the facts.
+    """
+    groups = {}
+    for atom in atoms:
+        groups.setdefault(_real_atom_key(graph, atom), []).append(atom)
+    lines, names = [], []
+    for members in groups.values():
+        for first, second in zip(members, members[1:]):
+            definitions = _definition_names(graph, _reachable(graph, first)[0] | _reachable(graph, second)[0])
+            lines.append("have _e%d_%d : %s = %s := by unfold %s; %s" % (
+                first, second, _term(graph, first), _term(graph, second), " ".join(definitions),
+                _theory_tactic(graph)))
+            names.append("_e%d_%d" % (first, second))
+    return lines, names
 
 
 def _opaque_tactic(graph, node):
@@ -1340,6 +1374,21 @@ def _opaque_tactic(graph, node):
     if graph.numeric != "Int" or parameters[0] not in ("farkas", "bound", "cut"):
         return None
     return "omega" if len(parameters) > 1 else "grind (splits := 64)"
+
+
+def _opaque_rewrite_tactic(graph):
+    """The tactic proving a theory rewrite over its atoms generalized.
+
+    Z3's rewriter normalizes the linear atoms and the propositional
+    structure around the atoms of the linear forms without using what an
+    ite, a div, or an application denotes, so the rewrite holds over the
+    atoms generalized once those it only renamed are bridged
+    (_atom_bridge_facts): a linear goal, omega over Int and grind over
+    Rat. A rewrite that does use an atom's definition ((ite c t t) to t,
+    the rewriter folding a mod by its bounds) fails this attempt fast and
+    is proved with the definitions unfolded, as before.
+    """
+    return "omega" if graph.numeric == "Int" else "grind (splits := 64)"
 
 
 _OPAQUE_INT_KINDS = (z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_ABS, z3.Z3_OP_ITE, z3.Z3_OP_UNINTERPRETED)
@@ -1465,13 +1514,33 @@ def _real_argument_key(graph, node):
 
 
 def _real_atom_key(graph, atom):
+    """The key of an atom of the linear forms: an ite up to Z3's normalization, abs as its ite, else itself.
+
+    An ite whose condition is no linear atom, or with a branch outside the
+    linear forms (the dead branch dividing by zero in the rewriter's factor
+    cancellation, see _validate_graph), is opaque: its own key.
+    """
+    try:
+        return _ite_atom_key(graph, atom)
+    except ReconstructionError:
+        return ("atom", atom)
+
+
+def _ite_atom_key(graph, atom):
+    if graph.kind(atom) == z3.Z3_OP_ABS:
+        # SMT-LIB's (abs t) is (ite (>= t 0) t (- t)), which Z3's rewriter
+        # logs as (ite (<= 0 t) t (* -1 t)): the key of that ite, so that
+        # the two bridge (_atom_bridge_facts) instead of being split.
+        terms = {}
+        constant = _linear_term(graph, graph.arguments(atom)[0], Fraction(1), terms)
+        atoms = tuple(sorted(((_real_atom_key(graph, variable), value)
+                              for variable, value in terms.items() if value != 0), key=repr))
+        negated = tuple(sorted(((key, -value) for key, value in atoms), key=repr))
+        return ("ite", ("<=", negated, -constant), (atoms, constant), (negated, -constant))
     if graph.kind(atom) != z3.Z3_OP_ITE:
         return ("atom", atom)
     condition, then_branch, else_branch = graph.arguments(atom)
-    try:
-        relation, terms, constant = _polarity_constraint(graph, condition, True)
-    except ReconstructionError:
-        return ("atom", atom)  # a condition that is no linear atom: opaque
+    relation, terms, constant = _polarity_constraint(graph, condition, True)
     if relation == "<":
         relation, constant = "<=", -constant
         terms = {variable: -value for variable, value in terms.items()}
@@ -1858,7 +1927,8 @@ def _rewrite_lemma(graph, node, atom_indices, variable_indices=None, terms=None)
     if graph.is_term(left):
         # A rewrite between terms (the legacy core simplifies ite terms, for
         # example (ite true a b) to a): a theory tautology for grind.
-        lines, term = _grind_lemma(graph, node, "rewrite", atom_indices, variable_indices)
+        lines, term = _grind_lemma(graph, node, "rewrite", atom_indices, variable_indices,
+                                   opaque_tactic=_opaque_rewrite_tactic(graph))
         return lines, set(), term
     if theory:
         atoms = [formula for formula in sorted(reachable)
@@ -1868,7 +1938,8 @@ def _rewrite_lemma(graph, node, atom_indices, variable_indices=None, terms=None)
         if len(atoms) > _NORMALIZED_REWRITE_ATOMS and not distinct and _linear_over_variables(graph, atoms):
             lines, term = _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_indices)
         else:
-            lines, term = _grind_lemma(graph, node, "rewrite", atom_indices, variable_indices)
+            lines, term = _grind_lemma(graph, node, "rewrite", atom_indices, variable_indices,
+                                       opaque_tactic=_opaque_rewrite_tactic(graph))
         return lines, set(), term
     proof, atoms = _structural_equivalence(graph, left, right, atom_indices)
     if proof is None:
