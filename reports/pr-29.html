@@ -22,47 +22,39 @@ footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--line)
 <header>
 <h1>Prove Int theory lemmas over their div/mod/abs atoms generalized</h1>
 <p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/29">levnach/z3#29</a> &middot; state <strong>OPEN</strong> &middot; opened 2026-10-22T00:07:46Z &middot; loop iteration 29
+Pull request <a href="https://github.com/levnach/z3/pull/29">levnach/z3#29</a> &middot; state <strong>MERGED</strong> &middot; merged 2026-10-22T03:51:08Z &middot; loop iteration 29
 </p>
-<p>This pull request is <strong>not merged</strong>. The report describes the change as of its head commit
-<a href="https://github.com/levnach/z3/commit/7d4ca0f4d3a9e2c8f613a266216928352a2ebf7c"><code>7d4ca0f4d</code></a>,
-which sits on top of <code>08741c963</code> on <code>master</code>. The PR holds two commits.</p>
+<p>Opened 2026-10-22T00:07:46Z against <code>master</code> at <code>08741c963</code>, and merged as the squash commit
+<a href="https://github.com/levnach/z3/commit/1b7595c70b08ef5bfdf2dd21e92b3204f099792a"><code>1b7595c70</code></a>.</p>
 </header>
 
 <h2 id="one-paragraph">In one paragraph</h2>
 <p>
-Before this change, the Lean reconstructor proved every integer <a href="#g-theory-lemma">theory lemma</a> by unfolding the definitions of all its <a href="#g-atom">atoms</a>, including <a href="#g-div-mod">Euclidean division and remainder</a> and <a href="#g-abs">absolute value</a>, and then running the <a href="#g-omega">omega</a> or <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a>.
-When a lemma mixed a dozen such atoms with negative divisors, that proof exhausted Lean's <a href="#g-heartbeats">heartbeat</a> budget, so one <a href="#g-certificate">certificate</a> from the iteration-27 stress run was never certified.
-The PR adds a first attempt that keeps each <code>div</code>, <code>mod</code>, <code>abs</code>, <a href="#g-ite">if-then-else</a> and <a href="#g-uf">uninterpreted function</a> atom closed, as if it were a fresh integer, states the known <a href="#g-bound">bounds</a> of every remainder, and lets omega or grind close the remaining <a href="#g-qf-lia">linear integer</a> goal.
-If that attempt fails, the previous proof runs unchanged as a fallback.
-The trust boundary does not move. Both attempts use ordinary tactics checked by the Lean <a href="#g-kernel">kernel</a>, and a false lemma fails both.
+This PR changes how the Lean reconstructor proves an integer <a href="#g-theory-lemma">theory lemma</a> whose <a href="#g-literal">literals</a> contain <a href="#g-div-mod">Euclidean division or remainder</a>, <a href="#g-abs">absolute value</a>, <a href="#g-ite">if-then-else term</a>, or <a href="#g-uf">uninterpreted function</a> <a href="#g-atom">atoms</a>.
+Before, every such lemma was proved by unfolding all its atoms and running the <a href="#g-omega">omega</a> or <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a>.
+A lemma over a dozen atoms with negative divisors exhausted Lean's <a href="#g-heartbeats">heartbeat</a> budget, so one <a href="#g-certificate">certificate</a> from the iteration-27 stress run was never certified.
+Now a lemma with <a href="#g-hint">hint</a> <code>farkas</code>, <code>bound</code>, or <code>cut</code> first <a href="#g-generalize">generalizes</a> each atom to a fresh integer, states the <a href="#g-bound">bounds</a> of every remainder, and closes the remaining <a href="#g-qf-lia">linear integer</a> goal.
+If that fails, the previous proof runs unchanged as a fallback.
+Both attempts use ordinary tactics checked by the Lean <a href="#g-kernel">kernel</a>, and a false lemma fails both, so the trust boundary does not move.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-The pipeline exports Z3's <a href="#g-clause-log">clause log</a> for linear integer problems with <code>div</code>, <code>mod</code> by a numeral, and <code>abs</code>, and checks each theory lemma in Lean.
-A <a href="#g-farkas">Farkas</a> or bound lemma with coefficients already has its linear combination re-derived in Python, while a <a href="#g-cut">cut</a> or a coefficient-free lemma reaches Lean with only the shapes of its <a href="#g-literal">literals</a> checked.
-Lean then had to re-prove each lemma from the definitions of division and remainder.
+The pipeline exports Z3's <a href="#g-clause-log">clause log</a> for linear integer problems whose atoms of <a href="#g-sort">sort</a> Int include <code>div</code>, <code>mod</code> by a numeral, and <code>abs</code>, and checks each theory lemma in Lean.
+A <a href="#g-farkas">Farkas</a> or bound lemma with coefficients already had its linear combination re-derived in Python, while a <a href="#g-cut">cut</a> or a coefficient-free lemma reached Lean with only the shapes of its literals checked.
+Lean then re-proved each lemma from the definitions of division and remainder.
 The omega tactic does not read a remainder by a negative numeral, so every such lemma fell to grind, which case-splits each absolute value.
 That is where the seed-67 stress certificate timed out.
 The change serves milestone 3 of the plan, equality and linear arithmetic, and the regression methodology that gates it.
 </p>
 
 <h2 id="what-changed">What changed</h2>
-<h3>Lean reconstructor (<code>proof_to_lean.py</code>)</h3>
 <ul>
-<li><strong>Opaque first attempt.</strong> An integer theory lemma with <a href="#g-hint">hint</a> <code>farkas</code>, <code>bound</code>, or <code>cut</code> whose literals contain div, mod, abs, ite, or application atoms is now proved with those atoms <a href="#g-generalize">generalized</a> to fresh integers. Think of each atom as a sealed box: the new proof reasons about the labels on the boxes without opening them.</li>
-<li><strong>Remainder bounds restored.</strong> Before generalizing, the proof states <code>0 &lt;= m &lt; |k|</code> for every remainder atom from Lean's library, because Z3 fixes these facts at base level and leaves them out of the lemmas it explains.</li>
-<li><strong>Tactic chosen by hint.</strong> A lemma with coefficients goes to omega, which closes the linear goal at once. A cut or a coefficient-free lemma goes to grind, whose integer module handled a twenty-atom cut in about a second where omega needed minutes.</li>
-<li><strong>Old proof kept as fallback.</strong> The two attempts sit under Lean's <code>first</code> combinator, so anything that verified before still verifies, and lemmas without such atoms produce byte-identical Lean text.</li>
-</ul>
-<h3>Tests (<code>test_proof_to_lean_lia.py</code>)</h3>
-<ul>
-<li><strong>Shape and behaviour pinned.</strong> New tests check the two-branch text per hint and atom kind on four documented inputs and on seed 67, verify the seed-67 instance end to end, show that a lemma false over the generalized atom falls through to the fallback, and show that a false cut over a remainder atom is rejected by both attempts.</li>
-</ul>
-<h3>Documentation</h3>
-<ul>
-<li><strong>README and plan note.</strong> The Python README describes the generalized attempt and its fallback, and the plan document carries a dated analysis of the problem and what remains undone.</li>
+<li><strong>Reconstructor: generalized first attempt.</strong> An integer theory lemma with hint <code>farkas</code>, <code>bound</code>, or <code>cut</code> is now proved with its atoms treated as sealed boxes, so Lean reasons about the labels without opening them.</li>
+<li><strong>Reconstructor: remainder bounds restored.</strong> Before sealing the boxes, the proof states <code>0 &lt;= m &lt; |k|</code> for every remainder atom, because Z3 fixes these facts at base level and leaves them out of the lemmas it explains.</li>
+<li><strong>Reconstructor: tactic by hint, old proof kept.</strong> A lemma with coefficients goes to omega, a cut or coefficient-free lemma goes to grind, and the previous proof sits behind both under Lean's <code>first</code> combinator.</li>
+<li><strong>Tests: shape and behaviour pinned.</strong> New tests check the two-branch text per hint and atom kind, verify seed 67 end to end, show a real fall-through to the fallback, and show that a false cut is rejected by both attempts.</li>
+<li><strong>Documentation.</strong> The Python README describes the generalized attempt and its fallback, and the plan document carries a dated analysis of the problem and what remains undone.</li>
 </ul>
 
 <table>
@@ -75,14 +67,14 @@ The change serves milestone 3 of the plan, equality and linear arithmetic, and t
 <tr><td>Total (4 files)</td><td>341</td><td>23</td><td>&nbsp;</td></tr>
 </tbody>
 </table>
-<p class="note">Line counts are from the diff between the base and head commits. The lines removed from the test file belong to an older false-lemma check that was rewritten in place.</p>
+<p class="note">Line counts are from the diff between the base commit and the merge commit.</p>
 
 <h2 id="worked-example">Worked example</h2>
 <p>
-The input is the PR's own stress instance: the random division problem with seed 67, six variables, and eighteen constraints, generated by the test module's generator.
-It is longer than the ten lines a worked example usually gets.
-Every three-variable, five-constraint instance from the same generator tried while writing this report was already accepted before the PR, so a shorter input that was newly certified could not be found.
-Z3 answers unsat and produces a clause-log certificate with 547 theory lemmas.
+The input is the PR's own stress instance: the random division problem with seed 67, six variables, and eighteen constraints.
+It is longer than ten lines because every smaller instance from the same generator was already accepted before the PR.
+Both runs below were made for this report, with the merged code and with the scripts of the base commit.
+The two exporters produced byte-identical certificates, so the difference lies entirely in the Lean text.
 </p>
 
 <h3>(a) The input</h3>
@@ -115,24 +107,23 @@ Z3 answers unsat and produces a clause-log certificate with 547 theory lemmas.
 
 <h3>(b) Before the PR</h3>
 <p>
-The exporter and the reconstructor from the base commit both ran without complaint and produced Lean text.
-The Lean check then rejected that text: five theory lemmas hit the heartbeat limit, so no proof file was published.
-The output below is the real run, with the directory of the temporary file removed and three identical errors replaced by <code>...</code>.
+The base-commit scripts produced Lean text, and the Lean check rejected it: five theory lemmas hit the heartbeat limit, so no proof file was published.
+The directory of the temporary file is removed below and three identical errors are replaced by <code>...</code>.
 </p>
 <pre><code>Build completed successfully (4 jobs).
-Checking z3_proof_n8dhc5n1.lean
-z3_proof_n8dhc5n1.lean:5016:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+Checking z3_proof_ncw3z42k.lean
+z3_proof_ncw3z42k.lean:5016:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
 
 Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
 ...
-z3_proof_n8dhc5n1.lean:5226:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+z3_proof_ncw3z42k.lean:5226:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
 ...
 Lean checking failed; no proof was published.</code></pre>
 
 <h3>(c) After the PR</h3>
-<p>The current scripts produced a Lean file of 10,914 lines, and the Lean check accepted it. The pieces below are quoted from that file.</p>
+<p>The merged scripts produced a Lean file the Lean check accepted. The pieces below are quoted from that file.</p>
 
-<p><strong>Declarations.</strong> Each term and formula of the certificate is a definition over the valuation of the variables. The ones below build the atom <code>x4 mod -3</code> and the lemma statement that uses it.</p>
+<p><strong>Declarations.</strong> Each term and formula of the certificate is a definition over the valuation of the variables, and these build the atom <code>x4 mod -3</code> and the clause that uses it.</p>
 <pre><code>-- Variable 4: "x0"
 -- Variable 5: "x4"
 ...
@@ -161,9 +152,9 @@ def formula_527 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((te
 def formula_553 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_433 _atoms _vars))
 def formula_554 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_527 _atoms _vars))
 def formula_555 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_553 _atoms _vars) (Or (formula_554 _atoms _vars) (formula_438 _atoms _vars)))</code></pre>
-<p>In words, <code>formula_555</code> is the <a href="#g-clause">clause</a>: either <code>x0 + (x4 mod -3)</code> is not 0, or <code>x4 mod -3</code> is below 2, or <code>x0</code> is negative.</p>
+<p>In words, the last <a href="#g-clause">clause</a> says: either <code>x0 + (x4 mod -3)</code> is not 0, or <code>x4 mod -3</code> is below 2, or <code>x0</code> is negative.</p>
 
-<p><strong>The theorem.</strong> The eighteen assertions imply <code>False</code>. This is the <a href="#g-refutation">refutation</a> the kernel checks.</p>
+<p><strong>The theorem.</strong> The eighteen assertions imply <code>False</code>, which is the <a href="#g-refutation">refutation</a> the kernel checks.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_17 _atoms _vars))
     (_h1 : (formula_31 _atoms _vars))
@@ -172,7 +163,7 @@ def formula_555 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or 
     : False :=
   ...</code></pre>
 
-<p><strong>A Farkas lemma over a remainder, proved with the atom generalized.</strong> This is the new two-branch shape. The first branch states that the remainder lies in <code>[0, 3)</code>, moves those facts into the goal, replaces the remainder by the fresh integer <code>_o0</code>, and lets omega finish. The second branch is the proof the pipeline used before.</p>
+<p><strong>A Farkas lemma over a remainder, in the new two-branch shape.</strong> The first branch states that the remainder lies in <code>[0, 3)</code>, replaces the remainder by the fresh integer <code>_o0</code>, and lets omega finish, while the second branch is the proof used before.</p>
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem th_lemma_556 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_555 _atoms _vars) := by
@@ -185,9 +176,9 @@ private theorem th_lemma_556 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
        omega)
     | (unfold term_380 term_183 term_36 term_18
        first | omega | grind (splits := 64))</code></pre>
-<p>The rewrite with <code>Int.emod_neg</code> turns the remainder by -3 into a remainder by 3, which is the form the library bound expects.</p>
+<p>The rewrite with <code>Int.emod_neg</code> turns the remainder by -3 into a remainder by 3, the form the library bound expects.</p>
 
-<p><strong>A cut over four atoms, proved with grind.</strong> Two of the atoms are remainders by positive numerals, so no rewrite is needed. All four are generalized, and grind's integer module closes the goal.</p>
+<p><strong>A cut over four atoms, proved with grind.</strong> All four atoms are generalized, two remainders by positive numerals get their bounds without a rewrite, and grind's integer module closes the goal.</p>
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem th_lemma_2216 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_2215 _atoms _vars) := by
@@ -205,82 +196,87 @@ private theorem th_lemma_2216 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
        grind (splits := 64))
     | (unfold term_511 term_370 term_145 term_101 term_73 term_29 term_1
        first | omega | grind (splits := 64))</code></pre>
-<p><strong>Result.</strong> The Lean check accepted the file: <code>Lean checked the refutation</code>. The same new text was also faster on an input both versions accept, shown below for scale.</p>
+<p><strong>Result.</strong> The reconstructor reported <code>Lean checked the refutation</code>, and a separate Lean check of the written file passed.</p>
 <table>
 <thead><tr><th>Input</th><th>Before the PR</th><th>After the PR</th></tr></thead>
 <tbody>
-<tr><td>seed 67, 6 variables, 18 constraints</td><td>rejected, 5 heartbeat timeouts</td><td>accepted, 396 lemmas use the new first attempt</td></tr>
+<tr><td>seed 67, 6 variables, 18 constraints</td><td>rejected, 5 heartbeat timeouts</td><td>accepted, 396 of 547 theory lemmas use the new first attempt</td></tr>
 <tr><td>seed 78, 3 variables, 5 constraints (10 lines)</td><td>accepted in 14.4 s</td><td>accepted in 1.1 s</td></tr>
 </tbody>
 </table>
-<p class="note">Timings are wall-clock seconds of the reconstruct-and-check step on this machine, run alone.</p>
+<p class="note">Seed-78 timings: reconstruct-and-check wall clock, run alone on the loop machine while the PR was open.</p>
 
 <h2 id="verified">How it was verified</h2>
 <p>
-Locally, the whole Lean-backed test suite passed, as did the certificate exporter tests, the external proof tests, the project's own Lean check, and the two matrix runs that guard the real and Boolean slices.
-A fall-through probe also confirmed that the new test really depends on the fallback: with the fallback branch replaced by <code>fail</code>, Lean rejects the text.
-The local gate file for this iteration has not been recorded.
-The PR description on GitHub still shows two unfilled placeholders where the suite and Lean results should appear. The numbers below come from the implementer's logs and the review, which reproduced them.
+The change touches only documentation, the Python examples, and their tests, so the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate mirrors the steps of the <code>releaseClang</code> CI job that exercise this work, and every step passed: the full Lean-backed test suite, the exporter tests, the external proof tests, and the two matrix runs that guard the <a href="#g-boolean">Boolean</a> and real slices.
+The implementer and the reviewer had reproduced the same results earlier on the PR's commits.
+The gate recorded far more time for the Lean-backed suite than the test runner itself reported, and the inputs do not explain the difference.
 </p>
 <table>
-<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
 <tbody>
-<tr><td>Lean-backed suite <code>test_proof_to_lean*.py</code></td><td class="ok">270 tests OK, 813.6 s (reviewer: 270 OK, 799.7 s)</td></tr>
-<tr><td>Exporter suite <code>test_proof_certificate.py</code></td><td class="ok">86 tests OK</td></tr>
-<tr><td>External proof tests (z3test)</td><td class="ok">46 tests OK</td></tr>
-<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Build completed successfully, Lean checks passed</td></tr>
-<tr><td>Matrix, QF_LRA clause log</td><td class="ok">8 of 8 lean-verified</td></tr>
-<tr><td>Matrix, Boolean legacy proof object</td><td class="ok">6 of 6 lean-verified</td></tr>
-<tr><td>Seed 67 through Lean</td><td class="ok">accepted, about 11 s (implementer), 12 s (reviewer), this report's run also accepted</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass, 86 tests</td><td>2 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass, 271 tests (runner: 676.9 s)</td><td>5619 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass, 46 tests</td><td>17 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="ok">6 of 6 lean-verified</td><td>4 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="ok">8 of 8 lean-verified</td><td>940 s</td></tr>
+<tr><td>Earlier: implementer's suite run (first commit)</td><td class="ok">270 tests OK</td><td>813.6 s</td></tr>
+<tr><td>Earlier: reviewer's suite run (first commit)</td><td class="ok">270 tests OK</td><td>799.7 s</td></tr>
+<tr><td>Earlier: <code>scripts/check_lean.sh</code> on the project</td><td class="ok">Build completed successfully, Lean checks passed</td><td>&nbsp;</td></tr>
 </tbody>
 </table>
 <p>
-CI was read directly from GitHub at 2026-10-22T01:14Z, about an hour after the PR opened. There were no CI fix rounds and no failures. One Windows job was still running at that time, so the table is a snapshot, not a final verdict. The new tests run in the <code>releaseClang</code> job of the CI workflow, which passed.
+GitHub CI on the PR's head commit finished with every check green, read from GitHub after the merge. There were no CI fix rounds and no failures judged unrelated. The new tests run in the <code>releaseClang</code> job, which passed.
 </p>
 <table>
 <thead><tr><th>Workflow</th><th>Checks</th><th>Status</th><th>Link</th></tr></thead>
 <tbody>
 <tr><td>CI</td><td>13 jobs, including <code>Ubuntu build - cmake - releaseClang</code></td><td class="ok">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793146">run</a></td></tr>
-<tr><td>Windows</td><td>mingw-build, build (x86), build (amd64_arm64)</td><td class="ok">passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793085">run</a></td></tr>
-<tr><td>Windows</td><td>build (x64)</td><td class="pend">in progress at snapshot</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793085/job/119559313996">job</a></td></tr>
+<tr><td>Windows</td><td>4 jobs: mingw-build, build (x86), build (x64), build (amd64_arm64)</td><td class="ok">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793085">run</a></td></tr>
 <tr><td>Solver determinism</td><td>7 trace jobs and the exact-trace comparison</td><td class="ok">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793113">run</a></td></tr>
 <tr><td>Determinism Linter</td><td>base, head, compare</td><td class="ok">all passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793076">run</a></td></tr>
 <tr><td>OCaml Binding CI (Ubuntu + macOS)</td><td>2 build-test jobs</td><td class="ok">passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793086">run</a></td></tr>
 <tr><td>WebAssembly Build</td><td>Check</td><td class="ok">passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793144">run</a></td></tr>
-<tr><td>Dispatch NFV formal audit</td><td>dispatch</td><td class="ok">passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697791262">run</a></td></tr>
+<tr><td>Dispatch NFV formal audit</td><td>3 dispatch runs (open, ready, merge)</td><td class="ok">passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697791262">run</a></td></tr>
 <tr><td>Mark Pull Requests Ready for Review</td><td>mark-ready</td><td class="ok">passed</td><td><a href="https://github.com/levnach/z3/actions/runs/39697793080">run</a></td></tr>
 </tbody>
 </table>
-<p class="note">Totals at the snapshot: 33 checks, 32 passed, 1 in progress, 0 failed. No C++ changed, so the C++ unit tests and benchmark tests were not run locally.</p>
+<p class="note">Totals on the head commit: 35 checks, 35 passed, 0 failed. No C++ changed, so the C++ unit tests and benchmark tests were not run locally.</p>
+<p>
+After the merge, GitHub CI started again on <code>master</code>. When this report was written, four of its workflows had passed and the CI, Determinism Linter, and Windows workflows were still running, so their final result is not known here.
+</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved the change with no blocking or major findings. They re-ran every cited test, read the full diff, and checked that the other callers of the changed function still produce the old text.</p>
+<p>The reviewer approved the change with no blocking or major findings, after re-running every cited test and reading the full diff.</p>
 <ul>
-<li><strong>Minor: README drift.</strong> The reviewer read the user-facing README and found it still described the single unfolded proof. A reader debugging a rejected certificate would not recognise the new <code>have</code>, <code>revert</code>, and <code>generalize</code> block. The second commit rewrote that paragraph to describe the generalized attempt, the stated remainder bounds, the tactic per hint, and the fallback.</li>
-<li><strong>Nit: no test of the fall-through.</strong> The reviewer wanted proof that a lemma whose first attempt fails really reaches the fallback. They tried relabelling two <code>arith</code> axioms of a documented input as cuts and saw Lean accept them. The implementer found that this evidence was wrong: those axioms are exactly the remainder bounds, which the first attempt proves from the stated facts, so the fallback never ran. The new test instead uses the unit <code>x &gt;= 3 * (div x 3)</code>, which no bound fact covers. Lean rejects it without the fallback and accepts it with the fallback. This mattered because the whole safety story of the change rests on <code>first</code> catching a failed branch.</li>
-<li><strong>Nit: divisor rendering assumption.</strong> The bound facts assume a negative divisor is printed as the negation of a numeral, which is how Z3 writes constants. A divisor written as a difference would make the fact fail and send the lemma to the fallback silently. The docstring now says the facts are best effort. There is no soundness impact, because a failed fact only fails the first branch.</li>
+<li><strong>Minor: README drift.</strong> The user-facing README still described the single unfolded proof, so a reader debugging a rejected certificate would not recognise the new <code>generalize</code> block. The second commit rewrote that paragraph.</li>
+<li><strong>Nit: no test of the fall-through.</strong> The reviewer wanted proof that a failed first attempt really reaches the fallback, and relabelled two <code>arith</code> axioms as cuts to show it. The implementer found that those axioms are exactly the remainder bounds, which the first attempt proves on its own, so the fallback never ran. The new test instead uses the unit <code>x &gt;= 3 * (div x 3)</code>, which Lean rejects without the fallback and accepts with it. This mattered because the safety of the change rests on <code>first</code> catching a failed branch.</li>
+<li><strong>Nit: divisor rendering assumption.</strong> The bound facts assume a negative divisor is printed as the negation of a numeral, which is how Z3 writes constants. A divisor written otherwise would send the lemma to the fallback silently, with no soundness impact, and the docstring now says so.</li>
 </ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li><strong>Text changes broadly.</strong> Every integer Farkas, bound, or cut lemma over such atoms, in both proof cores, now gets the two-branch proof. Nothing that previously verified has been seen to regress, but the surface is wide.</li>
-<li><strong>A slow failure would hurt.</strong> The first attempt is designed to fail fast when it fails. If omega ever fails slowly on a large lattice goal, it would spend the shared heartbeat budget before the fallback runs. Choosing the tactic by hint avoids the one case observed.</li>
-<li><strong>Reliance on complete explanations.</strong> The cut branch assumes Z3 lists every non-base-level fact a cut uses. The remainder bounds were the only omitted facts seen. Another omitted kind would simply fall back to the old proof.</li>
-<li><strong>Unfilled PR text.</strong> The PR body still carries two placeholders for the suite and Lean results, so a reader of the PR alone does not see those numbers.</li>
+<li><strong>Text changes broadly.</strong> Every integer Farkas, bound, or cut lemma over such atoms, in both proof cores, now gets the two-branch proof. No regression has been seen, but the surface is wide.</li>
+<li><strong>A slow failure would hurt.</strong> The first attempt is meant to fail fast, for example when an uninterpreted function atom's <a href="#g-congruence">congruence</a> matters. If omega ever fails slowly on a large lattice goal, it would spend the shared heartbeat budget before the fallback runs.</li>
+<li><strong>Reliance on complete explanations.</strong> The cut branch assumes Z3 lists every non-base-level fact a cut uses. The remainder bounds were the only omitted facts seen, and another kind would fall back to the old proof.</li>
+<li><strong>Unfilled PR text.</strong> The PR body on GitHub still carries two placeholders where the suite and Lean results should appear.</li>
+<li><strong>Gate timing.</strong> The local gate's Lean reconstruction step took far longer than the test runner itself reported, and the cause is not recorded.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-<li>Wait for the remaining Windows CI job, then move the PR forward.</li>
-<li>A rewrite whose assertion sums a dozen absolute values still times out, in its rewrite lemma rather than in a theory lemma. Rendering <code>abs</code> as the rewriter's ite, or bridging same-key ite atoms, is the noted follow-up.</li>
-<li>State the remainder bounds in the fallback too, so omega instead of grind can handle negative divisors in <code>arith</code> axioms.</li>
-<li>Implied-equality lemmas still use the unfolded proof. Their two halves are not re-derived in Python yet.</li>
+<li>Confirm the post-merge CI, Determinism Linter, and Windows runs on <code>master</code> finish green.</li>
+<li>A rewrite whose assertion sums a dozen absolute values still times out in its rewrite lemma. Rendering <code>abs</code> as the rewriter's ite is the noted follow-up.</li>
+<li>State the remainder bounds in the fallback too, so omega can replace grind on negative divisors in <code>arith</code> axioms.</li>
+<li>Implied-equality lemmas still use the unfolded proof.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
 <dl class="glossary">
 <dt id="g-abs">absolute value (<code>abs</code>)</dt><dd>The distance of an integer from zero. In SMT-LIB it is written as an if-then-else term: <code>(ite (&gt;= x 0) x (- x))</code>.</dd>
 <dt id="g-atom">atom</dt><dd>A smallest building block of a formula that a decision procedure treats as a unit. Here, a term such as <code>(mod x4 -3)</code> or <code>(abs x2)</code> inside a linear constraint.</dd>
+<dt id="g-boolean">Boolean</dt><dd>The sort of truth values, true and false, and the connectives over them such as <code>and</code>, <code>or</code>, and <code>not</code>.</dd>
 <dt id="g-bound">bound</dt><dd>An inequality that limits a term from one side, such as <code>0 &lt;= m</code> or <code>m &lt; 3</code>. A <em>bound lemma</em> is a theory lemma that derives one bound from others.</dd>
 <dt id="g-certificate">certificate</dt><dd>A machine-readable record of why a problem is unsatisfiable, exported from the solver and checked by an independent tool.</dd>
 <dt id="g-clause">clause</dt><dd>A disjunction of literals, read as "at least one of these holds". Example: <code>(or (not A) B C)</code>.</dd>
