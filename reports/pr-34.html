@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #34: Give generalized Int lattice lemmas two million heartbeats in Lean</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1d1d1f;
+    --muted: #5b5b60;
+    --accent: #0b5cad;
+    --border: #d9d9de;
+    --code-bg: #f4f4f6;
+    --ok-bg: #e6f4ea;
+    --ok-fg: #19692c;
+    --note-bg: #fff8e1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416;
+      --fg: #e8e8ea;
+      --muted: #a0a0a8;
+      --accent: #7ab7ff;
+      --border: #3a3a40;
+      --code-bg: #202024;
+      --ok-bg: #163a22;
+      --ok-fg: #9fe3b0;
+      --note-bg: #3a3214;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    max-width: 52rem;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 1.05rem;
+    line-height: 1.55;
+  }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.3rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.08rem; margin-top: 1.5rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta dt { font-weight: 600; display: inline; }
+  .meta dd { display: inline; margin: 0 0.9rem 0 0.25rem; }
+  .badge {
+    display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem;
+    background: var(--ok-bg); color: var(--ok-fg); font-weight: 600; font-size: 0.9rem;
+  }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.88rem;
+  }
+  code { background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 0.4rem;
+    padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.4;
+  }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0 1.2rem; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num, th.num { text-align: right; }
+  .note { background: var(--note-bg); border-left: 4px solid var(--accent); padding: 0.6rem 0.9rem; border-radius: 0.3rem; }
+  .explain { color: var(--muted); font-size: 0.95rem; margin: -0.4rem 0 1.2rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+  dl.glossary dd { margin: 0.1rem 0 0 1.2rem; }
+  footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Give generalized Int lattice lemmas two million heartbeats in Lean</h1>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/34">levnach/z3#34</a></dd>
+    <dt>State</dt><dd><span class="badge">MERGED</span></dd>
+    <dt>Loop iteration</dt><dd>34</dd><br>
+    <dt>Merged</dt><dd>2026-10-23T19:17:50Z</dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/0f56996bee2cb24f96706db37c6711ec93762b22"><code>0f56996be</code></a></dd>
+    <dt>Base</dt><dd><code>4c5ca56ff</code></dd>
+  </dl>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+This PR changes one number in the Lean reconstructor. A <a href="#g-theory-lemma">theory lemma</a> that is a <a href="#g-cut">cut</a>, or a <a href="#g-farkas-lemma">Farkas lemma</a> or <a href="#g-bound">bound</a> step without coefficients, is proved over its <a href="#g-atom">atoms</a> after <a href="#g-generalization">generalization</a> by the <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a>, which works on the <a href="#g-integer-lattice">integer lattice</a>. Such a lemma now gets two million <a href="#g-heartbeat">heartbeats</a> instead of one million. The newer <a href="#g-simplex">simplex</a> in upstream Z3 produces a different <a href="#g-refutation">refutation</a> for one pinned test input, and one of its cuts, with 25 distinct <a href="#g-literal">literals</a>, ran out of heartbeats, so the upstream pull request failed its Lean step. With the larger budget the same file verifies. Nothing new is trusted: a budget only bounds work, and a false lemma still fails.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR the pipeline already certified <a href="#g-linear-integer-arithmetic">linear integer arithmetic</a> inputs with <a href="#g-div-mod">div, mod</a>, and abs terms, and mixed inputs with an <a href="#g-uninterpreted-function">uninterpreted function</a>. Each theory lemma is tried first over its generalized atoms and then, if that fails, with every atom unfolded. Lemmas with coefficients go to <a href="#g-omega">omega</a>, lattice lemmas go to grind, and every lemma had the same one-million-heartbeat budget. That was enough for every proof the fork's own Z3 produced. Upstream CI tests the branch merged with upstream <code>master</code>, where the solver searches differently, and there one cut over thirteen atoms exhausted the budget. The work serves milestone 3 of the plan, equality and linear arithmetic.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+  <li><strong>Lattice lemmas get a bigger budget.</strong> A cut, or a coefficient-free Int Farkas or bound lemma, proved over generalized atoms now runs under two million heartbeats. Think of heartbeats as fuel: a bigger tank lets the tactic finish a long road, but it can never make a wrong road arrive.</li>
+  <li><strong>Every other lemma is unchanged.</strong> Coefficient lemmas proved by omega, the unfolded fallback, rewrites, and Boolean lemmas keep the million.</li>
+  <li><strong>A new helper names the shape.</strong> The function <code>_lattice_step</code> recognizes an Int theory lemma whose only parameter is a <a href="#g-hint">hint</a> of kind cut, farkas, or bound.</li>
+  <li><strong>Tests pin the budget.</strong> The lemma-shape test expects the budget per hint kind, the seed-67 division test asserts it and explains the upstream failure, and the QF_UFLIA seed-75 test asserts it for cuts.</li>
+  <li><strong>The plan records why a race was rejected.</strong> See the Review section.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">29</td><td class="num">8</td><td>Budget constant, <code>_lattice_step</code>, budget selection, documentation of the two tactics</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">34</td><td class="num">0</td><td>Dated note on the upstream failure, the fix, and the open race</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">10</td><td class="num">0</td><td>Budget per hint kind, seed-67 assertions</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td class="num">2</td><td class="num">1</td><td>Seed-75 cuts carry the budget</td></tr>
+    <tr><th>Total</th><th class="num">75</th><th class="num">9</th><th>One commit, four files</th></tr>
+  </tbody>
+</table>
+
+<h2 id="worked-example">Worked example</h2>
+<p class="note">
+On the fork's own Z3, no input exists that the old code rejected and the new code accepts. The budget only mattered under the upstream solver, which this machine does not have. The example shows what the PR changes in the generated Lean text, and the "Before" quotes the real upstream failure from the PR's change summary.
+</p>
+
+<h3>(a) The input</h3>
+<p>A random QF_LIA instance over div and mod by negative numerals, seed 24 of the test module's <code>random_division_instance</code> with three variables and four constraints.</p>
+<pre><code>(set-logic QF_LIA)
+(declare-const x0 Int)
+(declare-const x1 Int)
+(declare-const x2 Int)
+(assert (&gt; (+ (* -2 (div x0 -3)) (* 3 x2) (* 3 (mod x1 -3)) 0) 2))
+(assert (&gt;= (+ (* 1 x0) (* 3 (mod x2 -3)) (* 3 x1) 0) 5))
+(assert (or (&lt; (+ (* 3 x0) (* -1 (mod x1 -3)) 0) -4) (&lt; (+ (* 2 x2) 0) -1)))
+(assert (= (+ (* 2 (div (+ x0 x2) -2)) (* -2 (mod x2 -2)) 0) -3))
+(check-sat)
+</code></pre>
+<p class="explain">Z3 refutes it with 17 theory lemmas, among them exactly one cut. The exported certificate has 141 nodes.</p>
+
+<h3>(b) Before</h3>
+<p>The pre-PR scripts, extracted from the base commit, produced a Lean file that differs from the new one in exactly one line. Lean accepted that old file too.</p>
+<pre><code>$ diff old/example.lean example.lean
+281c281
+&lt; set_option maxHeartbeats 1000000 in
+---
+&gt; set_option maxHeartbeats 2000000 in
+</code></pre>
+<p>The rejection the PR fixes happened on the pinned seed-67 input under a local merge with upstream Z3, at the cut lemma <code>th_lemma_4248</code>:</p>
+<pre><code>(deterministic) timeout at whnf
+scripts/check_lean.sh: exit 1
+</code></pre>
+<p class="explain">That run needs a Z3 built from the merge with upstream master and was not repeated here.</p>
+
+<h3>(c) After</h3>
+<p>The declarations the cut lemma reasons about.</p>
+<pre><code>-- Variable 0: "x0"
+-- Variable 1: "x2"
+-- Variable 2: "x1"
+...
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+def term_33 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_1 _atoms _vars) + (term_6 _atoms _vars))
+def term_62 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (-(term_13 _atoms _vars))
+def term_102 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_33 _atoms _vars) / (term_62 _atoms _vars))
+def term_114 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_6 _atoms _vars) % (term_62 _atoms _vars))
+...
+</code></pre>
+<p class="explain">The two atoms are <code>(x0 + x2) div -2</code> and <code>x2 mod -2</code>, written with Lean's integer division and remainder.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_14 _atoms _vars))
+    (_h1 : (formula_22 _atoms _vars))
+    (_h2 : (formula_32 _atoms _vars))
+    (_h3 : (formula_39 _atoms _vars))
+    : False :=
+  ...
+</code></pre>
+<p class="explain">The main theorem takes the four assertions as hypotheses and derives False from the lemmas.</p>
+
+<pre><code>set_option maxHeartbeats 2000000 in
+private theorem th_lemma_133 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_132 _atoms _vars) := by
+  unfold formula_132 formula_131 formula_130 term_125 term_124 term_123 term_62 term_40 term_13 term_5
+  first
+    | (have _m0_0 : ((0 : Int)) &lt;= (term_114 _atoms _vars) := by unfold term_114 term_62 term_13 term_6; exact Int.emod_nonneg _ (by decide)
+       have _m0_1 : (term_114 _atoms _vars) &lt; ((2 : Int)) := by unfold term_114 term_62 term_13 term_6; rw [Int.emod_neg]; exact Int.emod_lt_of_pos _ (by decide)
+       revert _m0_0 _m0_1
+       generalize (term_114 _atoms _vars) = _o0
+       generalize (term_102 _atoms _vars) = _o1
+       grind (splits := 64))
+    | (unfold term_114 term_102 term_62 term_33 term_13 term_6 term_1
+       first | omega | grind (splits := 64))
+</code></pre>
+<p class="explain">This is the cut. It states the two mod bounds, replaces both atoms by fresh integers, and lets grind decide the lattice goal under the new budget. If that fails, it unfolds everything and tries omega, then grind.</p>
+<p>Lean accepted the new file, with trust level zero and warnings as errors.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+Locally, the whole certificate suite and the whole Lean reconstruction suite passed on a merge of the fork with upstream master, where the failure lived. The seed-67 file went from a heartbeat timeout to a clean check in about half a minute. No local gate file was recorded for this iteration, but the two test logs in the iteration state match the counts the PR gives. In CI, every check passed. There were no CI fix rounds.
+</p>
+
+<table>
+  <thead><tr><th>Local run (merge with upstream <code>ac62f5a6a</code>)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Certificate suite, 87 tests</td><td>OK in 2.4 s</td></tr>
+    <tr><td>Lean reconstruction suites, 281 tests</td><td>OK in 828 s</td></tr>
+    <tr><td>Seed 67, export and Lean check</td><td>Export 6 s, check exit 0 in 31 s, 129 lemmas carry the new budget</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>CI workflow</th><th class="num">Checks</th><th>Result</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td>CI (Ubuntu, macOS, Python bindings, OCaml, CMake packages)</td><td class="num">13</td><td>all pass</td><td><a href="https://github.com/levnach/z3/actions/runs/40001951012">run</a></td></tr>
+    <tr><td>Solver determinism (traces on eight compilers, compare)</td><td class="num">8</td><td>all pass</td><td><a href="https://github.com/levnach/z3/actions/runs/40001951238">run</a></td></tr>
+    <tr><td>Windows (x86, x64, arm64, mingw)</td><td class="num">4</td><td>all pass</td><td><a href="https://github.com/levnach/z3/actions/runs/40001951137">run</a></td></tr>
+    <tr><td>OCaml Binding CI (Ubuntu, macOS)</td><td class="num">2</td><td>all pass</td><td><a href="https://github.com/levnach/z3/actions/runs/40001951185">run</a></td></tr>
+    <tr><td>WebAssembly Build</td><td class="num">1</td><td>pass</td><td><a href="https://github.com/levnach/z3/actions/runs/40001951413">run</a></td></tr>
+    <tr><td>Determinism Linter (non-gating)</td><td class="num">3</td><td>all pass</td><td><a href="https://github.com/levnach/z3/actions/runs/40001951309">run</a></td></tr>
+    <tr><td>Dispatch NFV formal audit (non-gating)</td><td class="num">1</td><td>pass</td><td><a href="https://github.com/levnach/z3/actions/runs/40010288363">run</a></td></tr>
+    <tr><td>Mark Pull Requests Ready for Review (non-gating)</td><td class="num">1</td><td>pass</td><td><a href="https://github.com/levnach/z3/actions/runs/40001951019">run</a></td></tr>
+    <tr><th>Gating total</th><th class="num">28</th><th>28 pass, 0 pending, 0 failed</th><th></th></tr>
+  </tbody>
+</table>
+<p>The fork's CI runs the Python suites against the fork's Z3, so it never exercised the two-million budget. Only the upstream CI, or a local merge, does.</p>
+
+<h2 id="review">Review</h2>
+<p>
+No reviewer report was recorded in this iteration's inputs. The PR body carries one self-review that reads like a finding. The author first tried the obvious fix: run omega, which proves the failing cut in under a second, before grind, under a small budget so it would give up fast on cuts it cannot do. That broke six other lemmas in the same file. A heartbeat timeout in Lean is a runtime exception, and the <code>first</code> combinator does not catch it, so the timeout failed the whole lemma instead of moving on to grind. It mattered because the iteration-29 case is the mirror image, a twenty-atom cut where omega took minutes and grind took a second. Neither tactic dominates. The resolution was the budget increase alone, with the race recorded as open work in the plan.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li><strong>Twice the wasted work on a hopeless lemma.</strong> A false lattice lemma now burns up to two million heartbeats before the fallback runs. That is tens of seconds, not a soundness risk.</li>
+  <li><strong>The seed-67 test tracks the solver's search.</strong> The next simplex change may move the proof again. The budget has about a third of headroom over the observed need.</li>
+  <li><strong>The local gate tests fork master alone.</strong> Solver drift upstream shows only in upstream CI.</li>
+  <li><strong>One budget for both tactics is a stopgap.</strong> A real race between omega and grind needs a tactic that catches runtime exceptions, hence a heavier import in every generated file.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Decide whether a budget race with <code>Lean.Core.tryCatchRuntimeEx</code> is worth the heavier import.</li>
+  <li>Consider a loop gate that builds the fork merged with upstream master.</li>
+  <li>Watch the upstream pull request's Lean step now that the budget is in place.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-atom">atom</dt>
+  <dd>The smallest formula, with no Boolean connective inside. In arithmetic, also an integer term treated as a unit, such as <code>x mod -2</code>.</dd>
+  <dt id="g-bound">bound</dt>
+  <dd>A theory lemma hint saying a variable or term lies above or below a constant, as in <code>0 &lt;= x mod 3</code>.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort of truth values, true and false.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>A or not B or C</code>. A refutation is built from clauses.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An inference valid only over integers. Example: from <code>2x &lt;= 3</code> conclude <code>x &lt;= 1</code>, which fails over the reals.</dd>
+  <dt id="g-div-mod">div, mod</dt>
+  <dd>Integer division and remainder. SMT-LIB fixes the remainder to be non-negative, even for a negative divisor.</dd>
+  <dt id="g-farkas-lemma">Farkas lemma</dt>
+  <dd>A contradiction obtained by adding inequalities with non-negative coefficients until <code>0 &lt; 0</code> appears. The coefficients are the certificate.</dd>
+  <dt id="g-generalization">generalization</dt>
+  <dd>Replacing a term in a goal by a fresh variable, so the tactic no longer sees inside it. Here, <code>x mod -2</code> becomes an unknown integer with its known bounds.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A Lean tactic that combines case splitting, congruence closure, and an integer arithmetic module that works on the integer lattice.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work, roughly thousands of small memory allocations. The option <code>maxHeartbeats</code> stops a proof attempt that exceeds the budget.</dd>
+  <dt id="g-hint">hint</dt>
+  <dd>The label Z3 attaches to a theory lemma saying how it was found, such as <code>farkas</code>, <code>bound</code>, <code>cut</code>, or <code>euf</code>.</dd>
+  <dt id="g-integer-lattice">integer lattice</dt>
+  <dd>The grid of integer points inside the real solutions of a set of inequalities. Reasoning about which grid points exist is what makes integer problems harder than real ones.</dd>
+  <dt id="g-linear-integer-arithmetic">linear integer arithmetic</dt>
+  <dd>Formulas over integer variables with addition and multiplication by constants. SMT-LIB calls the quantifier-free fragment <code>QF_LIA</code>.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation.</dd>
+  <dt id="g-omega">omega</dt>
+  <dd>A Lean decision procedure for linear integer arithmetic. It is complete for that fragment but can be slow on goals with many case splits.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions cannot all be true, ending in the empty clause or False.</dd>
+  <dt id="g-simplex">simplex</dt>
+  <dd>The algorithm Z3's arithmetic solver uses to find or rule out real solutions of linear constraints. Changes to it change which proof Z3 finds.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically, such as <code>omega</code>, <code>grind</code>, or <code>unfold</code>.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause Z3's arithmetic or equality solver asserts as valid, which the Lean file must prove on its own. Written <code>th-lemma</code> in the certificate.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with no definition, only the rule that equal arguments give equal results. Example: <code>f</code> in <code>(declare-fun f (Int) Int)</code>.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-23. Report for iteration 34, pull request <a href="https://github.com/levnach/z3/pull/34">levnach/z3#34</a>.
+</footer>
+
+</body>
+</html>
