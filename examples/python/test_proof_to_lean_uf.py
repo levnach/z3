@@ -876,7 +876,14 @@ class TestUninterpretedValidation(unittest.TestCase):
             # The lemma is over the implying assertions only, never all of them.
             literals = graph.clause(graph.conclusion(node))
             self.assertLess(len(literals), len(graph.assertions) + 1)
-        proof_to_lean.reconstruct(source, certificate)
+        text = proof_to_lean.reconstruct(source, certificate)
+        # These clauses rest on the value of the ite under the distinct, not
+        # on the Boolean structure over opaque atoms: no propagation proof
+        # is found and the lemmas go to grind alone (see _cnf_lemma).
+        self.assertNotIn("Classical.byContradiction", text)
+        for node in cnf:
+            self.assertTrue(text.split("private theorem th_lemma_%d " % node, 1)[1].split("\n\n", 1)[0]
+                            .endswith("\n  grind (splits := 64)"))
 
     def test_distinct_gate_clauses_are_def_axioms_proved_from_the_pairs(self):
         source = UF_INPUTS["uf_distinct_gates"]
