@@ -1412,13 +1412,16 @@ the negation of its complement). `_cnf_lemma` now proves it first by
 `_PropositionalProver` (iter-018) in a classical mode over the Boolean
 structure with every theory atom a leaf rendered by its definition name
 (`_boolean_structure(..., leaves=...)`), after stating, as `have`
-equivalences the theory tactic proves on its own, a bridge between every
-two leaves of one constraint key and between a leaf and the first leaf of
-its complementary key (`_leaf_bridges`, `_leaf_key`: coprime integer
+equivalences the theory tactic proves on its own, a chain of bridges
+through the leaves of one constraint key and one bridge between two
+complementary keys (`_leaf_bridges`, `_leaf_key`: coprime integer
 coefficients, Int bounds rounded, equality sides unordered); the unfolded
 `grind` proof stays as the second alternative of `first` and alone when
 the prover finds no refutation (the `alldiff` clauses of `uf_ite_alldiff`
-need the `ite`'s value). Nothing is trusted: the term, the bridges, and
+need the `ite`'s value). The fallback unfolds what the attempt did not,
+and again a formula shared between the clause and the inside of a leaf (a
+predicate's Boolean argument), which occurs folded once more when the
+leaf is unfolded. Nothing is trusted: the term, the bridges, and
 the fallback are checked by Lean. The Wisa file verifies in 13 s of Lean
 (was a timeout after 900 s); its text grows from 0.75 MB to 2.7 MB (each
 propagation step restates its proposition over the leaf names). Tests:

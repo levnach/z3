@@ -504,7 +504,9 @@ class TestIntegerMixedValidation(unittest.TestCase):
                 bridged.add((first, second))
             self.assertTrue(fallback.startswith("unfold "), fallback)
             self.assertTrue(fallback.endswith("\n       first | omega | grind (splits := 64))"), fallback)
-            # The fallback unfolds what the head did not, and nothing twice.
+            # The fallback unfolds what the head did not, and nothing twice:
+            # no formula of this input is shared between the clause and the
+            # inside of a theory atom (see the QF_UF shared-argument test).
             rest = fallback.split("\n", 1)[0].split()[1:]
             self.assertFalse(set(rest) & set(unfolded))
             self.assertEqual(set(rest) | set(unfolded),

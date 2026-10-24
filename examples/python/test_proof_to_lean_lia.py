@@ -744,6 +744,37 @@ class TestIntegerValidation(unittest.TestCase):
         for _, definitions in bridges:
             self.assertTrue(all(name.startswith(("formula_", "term_")) for name in definitions))
 
+    def test_complementary_leaf_groups_are_joined_by_one_bridge(self):
+        # Two groups of two complementary leaves each: a chain through each
+        # group and one bridge between the groups' first leaves, which the
+        # chains carry to the other members.
+        source = """\
+(set-logic QF_LIA)
+(declare-const x Int)
+(declare-const y Int)
+(assert (or (< x y) (> y x) (>= x y) (<= y x)))
+(assert false)
+(check-sat)
+"""
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        (clause,) = [assertion for assertion in graph.assertions if graph.kind(assertion) == z3.Z3_OP_OR]
+        leaves = {}
+        proof_to_lean._boolean_structure(graph, clause, {}, {}, leaves)
+        self.assertEqual(len(leaves), 4)
+        self.assertEqual(len({proof_to_lean._leaf_key(graph, leaf)[0] for leaf in leaves}), 2)
+        bridges = [bridge for bridge, _ in proof_to_lean._leaf_bridges(graph, leaves)]
+        self.assertEqual(len(bridges), 1 + 1 + 1)
+        self.assertEqual(sum(bridge[2][0] == "not" for bridge in bridges), 1)
+        groups = {}
+        for leaf in sorted(leaves):
+            groups.setdefault(proof_to_lean._leaf_key(graph, leaf)[0], []).append(leaf)
+        first, second = sorted(groups.values())
+        self.assertEqual(sorted((bridge[1][1], bridge[2][1]) for bridge in bridges if bridge[2][0] != "not"),
+                         [tuple(first), tuple(second)])
+        (joint,) = [bridge for bridge in bridges if bridge[2][0] == "not"]
+        self.assertEqual((joint[1][1], joint[2][1][1]), (first[0], second[0]))
+
     def test_fragment_and_sort_consistency(self):
         source = LIA_INPUTS["lia_gomory"]
         for fragment in ("qf_lra", "qf_uflra"):

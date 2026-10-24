@@ -1253,12 +1253,15 @@ def _gcd(left, right):
 
 
 def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tactic=None, structural=None,
-                 unfolded=()):
+                 unfolded=(), folded=()):
     """Prove a conclusion over theory atoms with grind after unfolding its definitions.
 
     With structural (tactic lines) and unfolded (nodes), the caller's own
     proof attempt over the definitions it names unfolded comes first (see
-    _cnf_lemma); the attempts below unfold the rest.
+    _cnf_lemma); the attempts below unfold the rest, and again every
+    unfolded node in folded (the nodes under the caller's opaque leaves),
+    since a node shared between the outside and the inside of a leaf
+    occurs folded once more when the leaf is unfolded.
 
     grind decides linear arithmetic over ordered fields, congruence closure
     over uninterpreted functions, and propositional structure; the Lean kernel
@@ -1327,7 +1330,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
             + [opaque_tactic])
         remaining = inside
     else:
-        remaining = reachable - unfolded
+        remaining = reachable - (unfolded - set(folded))
     fallback = ["unfold " + " ".join(_definition_names(graph, remaining))] if remaining else []
     fallback.extend(helper.strip() for helper in _theory_helpers(graph, reachable, atom_indices, variable_indices))
     fallback.append(_theory_tactic(graph))
@@ -2134,9 +2137,15 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
                                                      _theory_tactic(graph))
                for (bridge, definitions), name in zip(bridges, names)]
     attempt.append("exact (Classical.byContradiction %s)" % refutation)
+    # The connectives outside the leaves are unfolded before the attempt; a
+    # formula shared with the inside of a leaf (a predicate's Boolean
+    # argument) is unfolded again by the fallback once the leaf is.
+    inside = set()
+    for leaf in leaves:
+        inside |= _reachable(graph, leaf)[0]
     return _grind_lemma(graph, node, "th_lemma", atom_indices, variable_indices,
                         opaque_tactic=_opaque_tactic(graph, node), structural=attempt,
-                        unfolded=_reachable_outside(graph, conclusion, leaves))
+                        unfolded=_reachable_outside(graph, conclusion, leaves), folded=inside)
 
 
 def _leaf_bridges(graph, leaves):
@@ -2152,17 +2161,19 @@ def _leaf_bridges(graph, leaves):
     unfolded) and given to the prover as a fact. Returns (structure,
     definition names) pairs.
     """
-    by_key, bridges = {}, []
+    by_key, bridges, joined = {}, [], set()
     keyed = [(leaf, _leaf_key(graph, leaf)) for leaf in sorted(leaves)]
     for leaf, (key, _) in keyed:
         by_key.setdefault(key, []).append(leaf)
     for members in by_key.values():
+        # A chain through the group: propagation crosses it in both directions.
         bridges.extend((first, second, False) for first, second in zip(members, members[1:]))
     for leaf, (key, complement) in keyed:
-        # One bridge joins the two groups; propagation crosses the others.
-        for other in by_key.get(complement, [])[:1]:
-            if (other, leaf, True) not in bridges:
-                bridges.append((leaf, other, True))
+        # One bridge, between the first leaves, joins two complementary
+        # groups; the chains carry it to their other members.
+        if complement in by_key and frozenset((key, complement)) not in joined:
+            joined.add(frozenset((key, complement)))
+            bridges.append((leaf, by_key[complement][0], True))
     result = []
     for leaf, other, negated in bridges:
         definitions = _definition_names(graph, _reachable(graph, leaf)[0] | _reachable(graph, other)[0])
