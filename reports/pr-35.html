@@ -8,12 +8,12 @@
   :root {
     color-scheme: light dark;
     --bg: #ffffff; --fg: #1f2328; --muted: #57606a; --line: #d0d7de;
-    --code-bg: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --badge-bg: #ddf4ff;
+    --code-bg: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --badge-bg: #dafbe1;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117; --fg: #e6edf3; --muted: #8d96a0; --line: #30363d;
-      --code-bg: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --badge-bg: #1b2a3d;
+      --code-bg: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --badge-bg: #1b3a27;
     }
   }
   html { background: var(--bg); color: var(--fg); }
@@ -35,7 +35,7 @@
   caption { text-align: left; color: var(--muted); font-size: .95em; padding-bottom: .25rem; }
   .meta { color: var(--muted); margin: 0 0 1rem; }
   .badge { display: inline-block; background: var(--badge-bg); border: 1px solid var(--line);
-           border-radius: 999px; padding: 0 .6em; font-size: .85em; font-weight: 600; }
+           border-radius: 999px; padding: 0 .6em; font-size: .85em; font-weight: 600; color: var(--ok); }
   .ok { color: var(--ok); font-weight: 600; }
   .warn { color: var(--warn); font-weight: 600; }
   .note { color: var(--muted); font-size: .95em; }
@@ -50,63 +50,60 @@
   <h1>Prove cnf bridges by propagation over opaque theory atoms in Lean</h1>
   <p class="meta">
     <a href="https://github.com/levnach/z3/pull/35">Pull request #35</a> on levnach/z3 &middot;
-    <span class="badge">OPEN</span> &middot; 2026-10-24T03:17:30Z &middot; loop iteration 35
+    <span class="badge">MERGED</span> &middot; 2026-10-24T03:50:58Z &middot; loop iteration 35
   </p>
-  <p>This PR is open and <strong>not merged</strong>. The report describes its head, change commit
-    <a href="https://github.com/levnach/z3/commit/0396b792429248d20caa1b220931783084e2e9b9"><code>0396b79</code></a>.
-    The PR holds two commits on top of its base.</p>
+  <p class="meta">Merged into <code>master</code> on 2026-10-24T03:50:58Z as commit
+    <a href="https://github.com/levnach/z3/commit/f273d7237a7904cded1675095b955963afc2bbaf"><code>f273d72</code></a>.
+    The PR carried two commits on top of its base <code>d197a5e</code>: the change and the review fixes.</p>
 </header>
 
-<h2 id="one-paragraph">In one paragraph</h2>
+<h2 id="summary">In one paragraph</h2>
 <p>
-  When Z3 writes its <a href="#g-clause-log">clause log</a>, it sometimes records a
-  <a href="#g-clause">clause</a> it had already simplified, and ties it back to the original
-  <a href="#g-assertion">assertion</a> with a <a href="#g-theory-lemma">theory lemma</a> of kind <code>cnf</code>.
-  Before this PR, the reconstructor proved such a lemma by unfolding the whole assertion and handing it to an
-  arithmetic <a href="#g-tactic">tactic</a>. That tactic split on every <a href="#g-ite">if-then-else term</a>
-  and every <a href="#g-disjunction">disjunction</a>, and on one real QF_UFLIA input it never finished.
-  The lemma is now proved first as a <a href="#g-refutation">refutation</a> by
+  Z3's <a href="#g-clause-log">clause log</a> sometimes records a <a href="#g-clause">clause</a> it had already
+  simplified. The exporter ties it back to the original <a href="#g-assertion">assertion</a> with a
+  <a href="#g-theory-lemma">theory lemma</a> of kind <code>cnf</code>. Before this PR, the reconstructor proved that
+  lemma by unfolding the whole assertion and handing it to an arithmetic <a href="#g-tactic">tactic</a>. The tactic
+  split on every <a href="#g-ite">if-then-else term</a> and <a href="#g-disjunction">disjunction</a>, and on one real
+  QF_UFLIA input it never finished. The lemma is now proved first as a <a href="#g-refutation">refutation</a> by
   <a href="#g-propagation">propagation</a> over the <a href="#g-boolean">Boolean</a> shape of the clause, with every
   <a href="#g-theory-atom">theory atom</a> kept as an opaque leaf. Two leaves that denote one
   <a href="#g-linear-constraint">linear constraint</a>, or complementary ones, or one equality with its sides swapped,
-  are joined by an <a href="#g-equivalence">equivalence</a> the theory tactic proves on its own. The old unfolded
-  proof stays as a fallback. Lean still checks every piece, so nothing new is trusted, and the cost of these
-  lemmas now grows with the clause rather than with the whole assertion.
+  are joined by an <a href="#g-equivalence">equivalence</a> the theory tactic proves. The old proof stays as a
+  fallback. Lean still checks every piece, and the cost now grows with the clause, not the whole assertion.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-  The pipeline already certified QF_UFLIA inputs mixing <a href="#g-uninterpreted-function">uninterpreted functions</a>
+  The pipeline already certified QF_UFLIA inputs that mix <a href="#g-uninterpreted-function">uninterpreted functions</a>
   with integer arithmetic, including <a href="#g-farkas">Farkas</a>, <a href="#g-cut">cut</a>, and
-  <a href="#g-congruence">congruence</a> lemmas. What it could not finish was the <code>cnf</code> bridge for a large
-  assertion. The corpus scan of iteration 32 left the <code>Wisa</code> family of z3test's SMT-LIB sample unverified,
-  and every theory lemma that timed out there was a <code>cnf</code> bridge. Z3's
-  <a href="#g-clausification">clausification</a> only normalizes each atom, for instance by swapping the sides of an
-  equality, so these clauses follow from their sources by propositional reasoning once the atoms are bridged. The work
-  serves milestone 3 of the plan, equality and linear arithmetic.
+  <a href="#g-congruence">congruence</a> lemmas. It could not finish the <code>cnf</code> bridges of a large
+  assertion. The corpus scan of iteration 32 left the Wisa family of z3test's SMT-LIB sample unverified, and every
+  theory lemma that timed out there was such a bridge. Z3's <a href="#g-clausification">clausification</a> only
+  normalizes each atom, for instance by swapping the sides of an equality, so these clauses follow from their sources
+  by propositional reasoning once the atoms are bridged. The work serves milestone 3 of the plan, equality and
+  linear arithmetic.
 </p>
 
-<h2 id="what-changed">What changed</h2>
+<h2 id="changes">What changed</h2>
 <p>Only the Python reconstructor, its tests, and the documentation changed. No C++ or Lean library code was touched.</p>
 <ul>
-  <li><strong>Lemma proof.</strong> A <code>cnf</code> lemma is now first proved by contradiction through a chain of
-    small propagation steps over the clause's Boolean shape, with every theory atom left folded. It is like checking a
-    wiring diagram without opening any of the boxes.</li>
+  <li><strong>Lemma proof.</strong> A <code>cnf</code> lemma is now first proved by
+    <a href="#g-proof-by-contradiction">contradiction</a> through a chain of small propagation steps, with every
+    theory atom left folded. It is like checking a wiring diagram without opening any of the boxes.</li>
   <li><strong>Bridges.</strong> Two atoms that are really one constraint, such as <code>(= (cnt 0) 1)</code> and
     <code>(= 1 (cnt 0))</code>, or one equality over an uninterpreted <a href="#g-sort">sort</a> with its sides swapped,
-    get a small equivalence proved by the theory tactic so propagation can cross between them.</li>
+    get a small equivalence proved by the theory tactic.</li>
   <li><strong>Fallback.</strong> The previous unfolded proof remains as the second alternative, and stands alone when
-    propagation finds no refutation. After the review it also re-unfolds a formula shared between the clause and the
-    inside of a leaf.</li>
+    propagation finds no refutation.</li>
   <li><strong>Tests.</strong> A short new input reproduces the Wisa shape, and tests force the fallback by replacing the
     propagation term with one Lean rejects. Through Z3's legacy proof core the same input produced the first live
-    <code>smt</code> theory lemma steps, which the existing path already proves.</li>
-  <li><strong>Documentation.</strong> The README paragraph on <code>cnf</code> lemmas and a dated note in the plan
-    describe the new proof and its fallback.</li>
+    <code>smt</code> steps, which the existing path already proves.</li>
+  <li><strong>Documentation.</strong> The README and a dated note in the plan describe the new proof and its
+    fallback.</li>
 </ul>
 
 <table>
-  <caption>Files touched by the PR, base <code>d197a5e</code> to head <code>0396b79</code></caption>
+  <caption>Files touched by the PR, base <code>d197a5e</code> to merge commit <code>f273d72</code></caption>
   <thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
   <tbody>
     <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">226</td><td class="num">38</td></tr>
@@ -120,11 +117,10 @@
   </tbody>
 </table>
 
-<h2 id="worked-example">Worked example</h2>
+<h2 id="example">Worked example</h2>
 <p>
-  The input is a ten-line cut of the PR's new test input. Each of <code>fmt 0</code> and <code>fmt 1</code> is either
-  <code>percent</code> or <code>s</code>. The counter <code>cnt 0</code> is 1 for the pair (<code>percent</code>,
-  <code>s</code>) and 0 otherwise, yet the last conjunct demands at least 2.
+  The input is a ten-line cut of the PR's new test input. The counter <code>cnt 0</code> is 1 for one pair of
+  format values and 0 otherwise, yet the last conjunct demands at least 2.
 </p>
 
 <h3>(a) The input</h3>
@@ -138,17 +134,16 @@
              (or (= (fmt 1) percent) (= (fmt 1) s))
              (ite (and (= (fmt 0) percent) (= (fmt 1) s)) (= (cnt 0) 1) (= (cnt 0) 0))
              (&gt;= (cnt 0) 2)))
-(check-sat)
-</code></pre>
-<p>Z3 answers <code>unsat</code>. Its clause log assumes the gate clauses of the <code>ite</code> without the
+(check-sat)</code></pre>
+<p>Z3's clause log assumes the <a href="#g-gate-clause">gate clauses</a> of the <code>ite</code> without the
   <code>ite</code> <a href="#g-literal">literal</a>, so the exporter emits three <code>cnf</code> lemmas tying them to
-  the assertion.</p>
+  the assertion. The exporter did not change, and the old and new certificates are byte-identical.</p>
 
 <h3>(b) Before</h3>
 <p>
-  The pre-PR scripts, extracted from the base commit, did not reject this small input. They exported it and Lean
-  accepted the result. The difference lies in how each <code>cnf</code> lemma was proved. The pre-PR text unfolds every
-  definition and hands everything to the arithmetic tactics:
+  The pre-PR scripts, extracted from the base commit, did not reject this small input, and Lean accepted their output.
+  The difference is how each <code>cnf</code> lemma was proved. The pre-PR text unfolds every definition, including
+  every theory atom, and hands the whole assertion to the arithmetic tactics:
 </p>
 <pre><code>private theorem th_lemma_56 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) ...
     : (formula_55 _atoms _vars _U _elems _funs _preds _bool _int _ifuns) := by
@@ -156,25 +151,23 @@
          formula_20 formula_19 formula_18 term_17 formula_16 formula_15 formula_14
          formula_13 term_12 term_11 formula_10 formula_9 formula_8 term_7 term_6
          formula_5 term_4 term_3 formula_2 term_1 term_0
-  first | omega | grind (splits := 64)
-</code></pre>
+  first | omega | grind (splits := 64)</code></pre>
 <p>
-  That is fast here because the assertion is small. On the Wisa file <code>xs-05-12-1-4-2-1.smt2</code>, one very
-  large assertion with dozens of such lemmas, the same shape did not finish, as the table in the verification section
-  shows. For this report the pre-PR exporter and reconstructor were re-run on that file today. The export succeeded,
-  and Lean rejected the generated file after about twelve minutes. Its first error line was:
+  That is fast here because the assertion is small. On the Wisa file <code>xs-05-12-1-4-2-1.smt2</code>, one
+  3,600-character assertion with 30 such lemmas, the same shape did not finish. The pre-PR scripts' Lean text for
+  that file was checked again today for this report. Lean rejected it after about seven and a half minutes, with
+  exit status 1. Its first error line was:
 </p>
-<pre><code>wisa_old.lean:1220:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
-</code></pre>
+<pre><code>wisa_old.lean:1220:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached</code></pre>
 <p>
-  Line 1220 is the start of <code>th_lemma_451</code>, one of the <code>cnf</code> lemmas. The same timeout hit
-  seventeen theory lemmas, and the kernel then reported nine of them as unknown constants when the main theorem used
-  them, so the pre-PR pipeline could not certify this input. The check exited with status 1.
+  Line 1220 starts <code>th_lemma_451</code>, one of the <code>cnf</code> lemmas. The same timeout hit seventeen
+  theory lemmas, and the kernel then reported nine of them as unknown constants where the main theorem used them.
+  So the pre-PR pipeline could not certify this input.
 </p>
 
 <h3>(c) After</h3>
-<p>These are the declarations behind the first <code>cnf</code> lemma in the new output. The long binder list is
-  shortened to <code>...</code>.</p>
+<p>The declarations behind the first <code>cnf</code> lemma in the new output, with the binder list shortened to
+  <code>...</code>:</p>
 <pre><code>-- (= (cnt 0) 1) as written in the assertion
 def formula_18 (_atoms : Nat -&gt; Prop) ... : Prop :=
   ((term_17 ...) = (term_11 ...))
@@ -183,14 +176,12 @@ def formula_54 (_atoms : Nat -&gt; Prop) ... : Prop :=
   ((term_11 ...) = (term_17 ...))
 -- the cnf clause: not(assertion) or not(gate) or (= 1 (cnt 0))
 def formula_55 (_atoms : Nat -&gt; Prop) ... : Prop :=
-  (Or (formula_53 ...) (Or (formula_46 ...) (formula_54 ...)))
-</code></pre>
+  (Or (formula_53 ...) (Or (formula_46 ...) (formula_54 ...)))</code></pre>
 <p>Two definitions name the same equality with its sides swapped, and the third is the clause to prove.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_U : Type) ...
     (_h0 : (formula_23 _atoms _vars _U _elems _funs _preds _bool _int _ifuns))
     : False :=
-  ...
-</code></pre>
+  ...</code></pre>
 <p>The main theorem says the single assertion, named <code>formula_23</code>, leads to a contradiction.</p>
 <pre><code>private theorem th_lemma_56 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) ...
     : (formula_55 _atoms _vars _U _elems _funs _preds _bool _int _ifuns) := by
@@ -208,21 +199,19 @@ def formula_55 (_atoms : Nat -&gt; Prop) ... : Prop :=
            ...
            (False.elim (_f10 (Classical.byContradiction (fun _g =&gt; _f3 _g))))) : False))))
     | (unfold formula_54 formula_22 term_21 formula_19 formula_18 term_17 formula_14 ...
-       first | omega | grind (splits := 64))
-</code></pre>
+       first | omega | grind (splits := 64))</code></pre>
 <p>
   Only the connectives are unfolded. The bridge <code>_f1</code> is the one place arithmetic is used, to show the two
-  orientations of the equality agree. The rest is a chain of named steps that assume the clause is false and reach
-  <code>False</code> without opening any atom. The second alternative is the old unfolded proof.
-  Lean accepted the file: the check script reported <span class="ok">Lean checks passed</span>.
+  orientations of the equality agree. The named steps then assume the clause is false and reach <code>False</code>
+  without opening any atom. The second alternative is the old unfolded proof.
 </p>
+<p class="ok">Lean accepted the file: the check script reported "Lean checks passed" on the merged code today.</p>
 
 <h2 id="verification">How it was verified</h2>
 <p>
-  Locally, the whole Lean-backed reconstructor suite passed, the exporter tests passed, and the proof-matrix runs over
-  the Boolean and QF_LRA regression files were all Lean-verified. All seven Wisa files now verify end to end, the
-  slowest in under forty seconds of Lean. The reviewer also confirmed that the generated text for every lemma kind
-  other than <code>cnf</code>, including the Farkas, cut, and congruence lemmas, is byte-identical to the parent commit.
+  Locally, every test suite and proof-matrix run passed, and all seven Wisa files now verify end to end, the slowest
+  in under forty seconds of Lean. The reviewer also confirmed that the generated text for every lemma kind other than
+  <code>cnf</code> is byte-identical to the parent commit.
 </p>
 <table>
   <caption>Local verification reported in the PR body, after the review fixes</caption>
@@ -239,16 +228,31 @@ def formula_55 (_atoms : Nat -&gt; Prop) ... : Prop :=
   </tbody>
 </table>
 <table>
-  <caption>The Wisa file that motivated the PR. Steps, lemma count, text size, and the "after" time are from the PR body. The "before" row is today's re-run of the pre-PR scripts for this report.</caption>
+  <caption>The Wisa file that motivated the PR. Steps, lemma count, text size, and the "after" time are from the PR body. The "before" column is today's re-run of the pre-PR scripts for this report.</caption>
   <thead><tr><th>File</th><th class="num">Proof steps</th><th class="num">cnf lemmas</th><th>Lean text</th><th>Lean before</th><th>Lean after</th></tr></thead>
   <tbody>
-    <tr><td><code>xs-05-12-1-4-2-1</code></td><td class="num">720</td><td class="num">30</td><td>0.75 MB to 2.7 MB</td><td class="warn">iteration 32: timeout at 900 s, 9 lemmas failing<br>today: rejected after about 744 s, 17 heartbeat timeouts, 9 lemmas unknown to the kernel</td><td class="ok">3.8 s</td></tr>
+    <tr><td><code>xs-05-12-1-4-2-1</code></td><td class="num">720</td><td class="num">30</td><td>0.75 MB to 2.7 MB</td>
+      <td>iteration 32: timeout at 900 s, 9 lemmas failing<br>today: rejected after about 450 s, 17 heartbeat timeouts, 9 lemmas unknown to the kernel</td><td class="ok">3.8 s</td></tr>
   </tbody>
 </table>
 <p>
-  The loop's local gate has not been recorded for this iteration. No CI status files were available when this report
-  was written, so the CI outcome is unknown and may still be pending. There were no CI fix rounds. The PR body names
-  the two CI jobs that run the changed tests.
+  The change touched only documentation and Python examples, so the loop merged it on its local gate, which mirrors
+  the relevant steps of the <code>releaseClang</code> CI job. Every step passed.
+</p>
+<table>
+  <caption>Local gate recorded for this iteration</caption>
+  <thead><tr><th>Step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">848 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">16 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+<p>
+  No CI status files were recorded for this iteration, so the GitHub CI outcome is unknown and may still be pending.
+  There were no CI fix rounds.
 </p>
 <table>
   <caption>CI workflows and checks</caption>
@@ -256,47 +260,44 @@ def formula_55 (_atoms : Nat -&gt; Prop) ... : Prop :=
   <tbody>
     <tr><td><code>ci.yml</code>, Ubuntu build, cmake, releaseClang</td><td>Full reconstructor suite with Lean</td><td class="warn">not recorded</td></tr>
     <tr><td><code>ci.yml</code>, Python bindings, manylinux</td><td>Python-only tests of the suite, no Lean</td><td class="warn">not recorded</td></tr>
-    <tr><td colspan="3"><a href="https://github.com/levnach/z3/pull/35/checks">Live check status on GitHub</a></td></tr>
+    <tr><td colspan="3"><a href="https://github.com/levnach/z3/pull/35/checks">Check status of the PR on GitHub</a> &middot;
+      <a href="https://github.com/levnach/z3/commit/f273d7237a7904cded1675095b955963afc2bbaf/checks">Check status of the merge commit</a></td></tr>
   </tbody>
 </table>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved with no blockers and no major findings. They re-ran the full suite, re-derived the
-  byte-identity claim, and Lean-checked the Wisa-shaped input with the fallback forced. Three findings were fixed in the
-  second commit, and one suggestion was declined.</p>
+<p>The reviewer approved with no blockers and no major findings. Three findings were fixed in the PR's second
+  commit, and one suggestion was declined.</p>
 <ul>
   <li><strong>Minor, fixed.</strong> The reviewer built a QF_UF probe where a Boolean formula appears both in the
-    clause and as the argument of a <a href="#g-predicate">predicate</a>. The fallback unfolded the predicate but left
-    the inner copy of the formula folded, so a clause that needed that inner structure, for instance through
-    congruence, could fail where it used to pass. The fix keeps every node under a leaf in the fallback's unfold list,
-    and a new test Lean-checks both proofs on that probe.</li>
+    clause and as the argument of a <a href="#g-predicate">predicate</a>. The fallback left the inner copy of the
+    formula folded, so a clause that needed that inner structure could fail where it used to pass. The fix keeps every
+    node under a leaf in the fallback's unfold list, and a new test Lean-checks both proofs on that probe.</li>
   <li><strong>Nit, fixed.</strong> With two complementary groups of two atoms each, the code stated five bridges where
-    three suffice. Extra bridges are harmless for soundness but cost a tactic call each. One bridge per pair of
-    complementary groups is now stated, and a test pins the count.</li>
-  <li><strong>Nit, fixed.</strong> The dated note in the plan repeated the inaccurate "one bridge per pair" wording and
-    was corrected with the code.</li>
-  <li><strong>Suggestion, not taken.</strong> A Python-side shape check for the newly live <code>smt</code> theory lemma
-    steps. The hint is the legacy core's generic theory-combination step with no fixed shape, Lean already proves the
-    implication, and a check fitted to the shapes seen so far could reject valid certificates.</li>
+    three suffice. Extra bridges are harmless but cost a tactic call each. A test now pins the count.</li>
+  <li><strong>Nit, fixed.</strong> The dated note in the plan repeated the inaccurate bridge count and was corrected
+    with the code.</li>
+  <li><strong>Suggestion, not taken.</strong> A Python-side shape check for the newly live <code>smt</code> steps. The
+    hint has no fixed shape and Lean already proves the implication, so such a check could reject valid
+    certificates.</li>
 </ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li><strong>Axioms.</strong> The new proofs use <a href="#g-proof-by-contradiction">proof by contradiction</a> and the
+  <li><strong>Axioms.</strong> The new proofs use proof by contradiction and the
     <a href="#g-excluded-middle">excluded middle</a>. Theory certificates already depended on the standard Lean axioms
     through <code>grind</code>, so the reported axiom list is unchanged.</li>
   <li><strong>Text size.</strong> Every propagation step restates its proposition over the leaf names, so the Lean text
-    for the Wisa file grew several times over, as the table above shows. A per-lemma size cap switches to the unfolded
-    proof alone when a lemma would grow too large.</li>
+    for the Wisa file grew several times over. A per-lemma size cap falls back to the unfolded proof alone.</li>
   <li><strong>What is not bridged.</strong> Applications inside atoms are keyed by node, so <code>(f (+ x 1))</code> and
     <code>(f (+ 1 x))</code> are not recognized as one leaf. Such a lemma falls back to the unfolded proof.</li>
-  <li><strong>Unknown gain elsewhere.</strong> Only the Wisa family was measured. The saving on the rest of the corpus
-    has not been scanned yet.</li>
+  <li><strong>CI after the merge.</strong> The merge rested on the local gate. The GitHub CI result on
+    <code>master</code> was not available when this report was written.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-  <li>Wait for CI on the PR and record the local gate.</li>
+  <li>Confirm the GitHub CI result on <code>master</code> for the merge commit.</li>
   <li>Re-scan the SMT-LIB sample corpus to measure the saving beyond the Wisa family.</li>
   <li>Reduce the size of the propagation text, and key applications inside atoms up to argument normalization.</li>
 </ul>
@@ -324,29 +325,31 @@ def formula_55 (_atoms : Nat -&gt; Prop) ... : Prop :=
   <dt id="g-excluded-middle">excluded middle</dt>
   <dd>The classical principle that every proposition is either true or false, written <code>Classical.em</code> in Lean.</dd>
   <dt id="g-farkas">Farkas lemma</dt>
-  <dd>A way to show linear inequalities contradict each other: a weighted sum of them yields something false, like <code>0 &lt; 0</code>.</dd>
+  <dd>A way to show linear inequalities contradict each other: add non-negative multiples of them to reach a false statement such as <code>0 &lt; 0</code>.</dd>
+  <dt id="g-gate-clause">gate clause</dt>
+  <dd>A clause that defines one connective of the input, for example that an if-then-else term agrees with its "then" branch when its condition holds.</dd>
   <dt id="g-ite">if-then-else term</dt>
   <dd>A term that picks one of two values by a condition, written <code>(ite c t e)</code> in SMT-LIB.</dd>
   <dt id="g-linear-constraint">linear constraint</dt>
-  <dd>An equality or inequality between sums of variables with constant coefficients, such as <code>2x - y &lt;= 3</code>.</dd>
+  <dd>An equality or inequality between sums of variables with constant coefficients, such as <code>x + 2y &lt;= 5</code>.</dd>
   <dt id="g-literal">literal</dt>
-  <dd>An atom or its negation, such as <code>(= (cnt 0) 1)</code> or <code>(not (= (cnt 0) 1))</code>.</dd>
+  <dd>An atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
   <dt id="g-predicate">predicate</dt>
   <dd>An uninterpreted function whose result is Boolean, such as <code>(P x)</code>.</dd>
   <dt id="g-proof-by-contradiction">proof by contradiction</dt>
-  <dd>Proving a statement by assuming its negation and deriving <code>False</code>, written <code>Classical.byContradiction</code> in Lean.</dd>
+  <dd>Proving a statement by assuming it is false and deriving <code>False</code>, written <code>Classical.byContradiction</code> in Lean.</dd>
   <dt id="g-propagation">propagation</dt>
-  <dd>Deriving the forced value of one part of a formula from values already known, as a chain of small steps.</dd>
+  <dd>Deriving the truth value of a connective's parts from the connective, step by step, as when "a or b" is false so both a and b are false.</dd>
   <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of statements is contradictory, ending in <code>False</code>.</dd>
+  <dd>A proof that a set of formulas cannot all be true, ending in <code>False</code>.</dd>
   <dt id="g-sort">sort</dt>
-  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dd>The type of a value, such as Int, Real, or Bool. An uninterpreted sort is one whose elements have no fixed meaning.</dd>
   <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that searches for a proof automatically, such as <code>omega</code> for integer arithmetic or <code>grind</code>.</dd>
+  <dd>A Lean command that searches for a proof automatically, such as <code>omega</code> for integer arithmetic or <code>grind</code> for equalities and case splits.</dd>
   <dt id="g-theory-atom">theory atom</dt>
-  <dd>A Boolean formula with no connectives inside, decided by a theory, such as an equality or a comparison of integers.</dd>
+  <dd>The smallest formula a theory decides, such as <code>(= (cnt 0) 1)</code> or <code>(&lt;= x y)</code>, with no Boolean connective at the top.</dd>
   <dt id="g-theory-lemma">theory lemma</dt>
-  <dd>A clause that a theory solver claims is valid on its own, which the certificate must justify. Z3 tags each one with a hint kind.</dd>
+  <dd>A clause that holds by the rules of a theory alone, for example integer arithmetic, recorded in the certificate with a hint such as <code>farkas</code> or <code>cnf</code>.</dd>
   <dt id="g-uninterpreted-function">uninterpreted function</dt>
   <dd>A function symbol with no definition, such as <code>cnt</code> here. Only congruence is known about it.</dd>
 </dl>
