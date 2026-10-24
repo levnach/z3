@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #36: Ignore trimmer deletions of clauses the proof never added</title>
+<style>
+:root { color-scheme: light dark; --bg: #ffffff; --fg: #1d1d1f; --muted: #5b5b60; --line: #d9d9de; --code-bg: #f4f4f6; --accent: #0b5cad; --ok: #1a7f37; --warn: #9a6700; }
+@media (prefers-color-scheme: dark) { :root { --bg: #121214; --fg: #e8e8ea; --muted: #a3a3aa; --line: #333338; --code-bg: #1e1e22; --accent: #7cb4f0; --ok: #57c27a; --warn: #e3b341; } }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--fg); max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .25rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--accent); }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; border: 1px solid var(--line); border-radius: .4rem; padding: 0 .45rem; font-size: .85rem; font-weight: 600; }
+.badge.open { color: var(--ok); border-color: var(--ok); }
+.badge.unknown { color: var(--warn); border-color: var(--warn); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; background: var(--code-bg); padding: .05rem .3rem; border-radius: .25rem; }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: .4rem; padding: .8rem; overflow-x: auto; white-space: pre; font-size: .85rem; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+dl.glossary dt { font-weight: 600; margin-top: .7rem; }
+dl.glossary dd { margin: .1rem 0 0 1.2rem; }
+.note { border-left: 3px solid var(--accent); padding: .3rem .8rem; color: var(--muted); margin: .8rem 0; }
+footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Ignore trimmer deletions of clauses the proof never added</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/36">Pull request #36</a> on levnach/z3 &middot;
+<span class="badge open">OPEN</span> &middot; opened 2026-10-24T05:03:06Z &middot; loop iteration 36
+</p>
+<p class="meta">This pull request is <strong>not merged</strong>. It targets <code>master</code> and contains one commit,
+<a href="https://github.com/levnach/z3/commit/2e65224290070c594a9f48352fb98746dbe7f873">2e65224</a>,
+on top of base commit <code>3f0a614</code>.</p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+The native <a href="#g-trimmer">proof trimmer</a> cuts a <a href="#g-clause-log">clause log</a> down to the
+<a href="#g-core">dependency core</a> the <a href="#g-refutation">refutation</a> needs.
+On one <a href="#g-qf-lra">QF_LRA</a> input from the z3test corpus it crashed with an internal error.
+It had recorded deletions of <a href="#g-clause">clauses</a> it never added, and its backward pass revived them.
+A revived clause took part in <a href="#g-unit-propagation">unit propagation</a> but was registered nowhere, so the core pointed at a clause the proof never had.
+Now the trimmer ignores deletions logged after its <a href="#g-conflict">conflict</a> and records one only when it held a copy of the clause.
+The failing input now trims, exports in seconds, and its Lean <a href="#g-certificate">certificate</a> checks with the standard <a href="#g-axiom">axioms</a>.
+The trimmer stays an untrusted hint: the Python replay re-derives every retained step by <a href="#g-rup">RUP</a>, and Lean checks the result.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+The pipeline already exported QF_LRA clause logs and proved them in Lean, including the large hard16 input fixed on 2026-10-22.
+Since then a trimmer failure makes the exporter replay the untrimmed log instead of aborting.
+For the LassoRanker file this fallback produced Lean text too large to check within the corpus scan's time budget, so the file stayed untriaged.
+The work serves milestone 3, equality and <a href="#g-linear-arithmetic">linear arithmetic</a>, and the corpus scan that finds inputs the pipeline cannot yet certify.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<p>Think of the trimmer as an editor marking which pages of a proof are needed. It used to note pages torn out after the proof had ended and paste them back in later. Now it records a removal only for a page that was really in the binder.</p>
+<ul>
+<li><strong>Deletions after the conflict are ignored.</strong> The trimmer finds its conflict as soon as the clause set becomes inconsistent, often thousands of steps before Z3 logs the empty clause.</li>
+<li><strong>A deletion is recorded only when a copy was held.</strong> The new helper <code>detach</code> looks for a clause object or an attached <a href="#g-binary-clause">binary clause</a> in its <a href="#g-watch-list">watch list</a>. A never-added clause or a <a href="#g-unit-clause">unit clause</a> leaves nothing to revive.</li>
+<li><strong>A C++ unit test pins both placements</strong> of the never-added clause <code>(or (not b) c d)</code>, deleted after the conflict and before it. The old trimmer fails it with the production error.</li>
+<li><strong>A Python test runs the same logs through the real executable</strong> with warnings turned into errors, so a silent fallback cannot hide the defect.</li>
+<li><strong>The plan document gains a dated section</strong> on the defect and the fix.</li>
+</ul>
+
+<table>
+<thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>src/sat/sat_proof_trim.cpp</code></td><td>Trimmer logic</td><td class="num">35</td><td class="num">19</td></tr>
+<tr><td><code>src/sat/sat_proof_trim.h</code></td><td>Trimmer interface</td><td class="num">1</td><td class="num">1</td></tr>
+<tr><td><code>src/test/proof_replay.cpp</code></td><td>C++ unit test</td><td class="num">58</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Python test</td><td class="num">48</td><td class="num">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Documentation</td><td class="num">29</td><td class="num">0</td></tr>
+<tr><td><strong>Total, 5 files, 1 commit</strong></td><td></td><td class="num"><strong>172</strong></td><td class="num"><strong>19</strong></td></tr>
+</tbody>
+</table>
+
+<h2 id="worked-example">Worked example</h2>
+<p>
+The example is the <a href="#g-boolean">Boolean</a> problem from the PR's new tests, written in <a href="#g-smt-lib">SMT-LIB</a>. Five constants of <a href="#g-sort">sort</a> Bool and six <a href="#g-assertion">assertions</a> are inconsistent: <code>b</code> is forced, so <code>c</code> or <code>x</code> holds, and <code>x</code> yields both <code>d</code> and <code>(not d)</code>.
+</p>
+<div class="note">The PR changes the trimmer inside the z3 executable, not the exporter or the Lean rules. The trimmer only runs on large logs, so here it was driven directly on the test's clause log. All outputs are from real runs on the current build or runs captured by the integrator and implementer.</div>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const a Bool)
+(declare-const b Bool)
+(declare-const c Bool)
+(declare-const x Bool)
+(declare-const d Bool)
+(assert a)
+(assert (or (not a) b))
+(assert (or (not b) c x))
+(assert (or (not x) d))
+(assert (or (not x) (not d)))
+(assert (not c))
+(check-sat)</code></pre>
+<p>The test's clause log holds the same clauses as <a href="#g-literal">literal</a> lists. The trimmer's conflict is at <code>(assume (not c))</code>. The two lines after it are the never-added clause and its deletion.</p>
+<pre><code>(declare-fun a () Bool)
+...
+(declare-fun rup () Proof)
+(assume a)
+(assume (not a) b)
+(assume (not b) c x)
+(assume (not x) d)
+(assume (not x) (not d))
+(infer c rup)
+(assume (not c))
+(infer (not b) c d rup)
+(del (not b) c d)
+(infer rup)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The integrator rebuilt the unit tests with the base commit's trimmer and ran the new test. It aborted with the production error. The phantom clause prints as <code>-2 3 5</code> in the trimmer's numbering.</p>
+<pre><code>$ ./build/test-z3 proof_replay
+libc++abi: terminating due to uncaught exception of type default_exception: proof trimming: internal error, the clause -2 3 5 used by the proof was never added</code></pre>
+<p>On the LassoRanker file the pre-change export printed the same error as a warning and fell back to the untrimmed log.</p>
+<pre><code>WARNING: native proof trimming failed, replaying the untrimmed log: (error "line 141681 column 10: proof trimming: internal error, the clause -8348 -8393 -8426 8451 used by the proof was never added")
+export 239.6s {... 'th-lemma': 5019, 'unit-resolution': 31890}
+reconstruct 9.1s chars=29025372</code></pre>
+<p>The reporter did not rebuild the old trimmer. The exporter and reconstructor scripts are untouched by the PR, so the old scripts give the same output as the "After" block.</p>
+
+<h3>(c) After</h3>
+<p>The current trimmer accepts both test logs with exit code 0 and nothing on standard error. The core keeps the eight needed steps and drops the phantom clause.</p>
+<pre><code>$ ./build/z3 -smt2 solver.proof.trim=true after_conflict.log
+(assume a $34)
+...
+(assume (not x) (not d) $42)
+(define-const $44 Proof (deps 5 4 3 2 1 0))
+(infer c rup $44)
+(define-const $46 Proof (deps 6))
+(assume (not c) $46)
+(define-const $48 Proof (deps 8 5 6))
+(infer rup $48)</code></pre>
+<p>The standard pipeline exported a certificate of <a href="#g-resolution">unit-resolution</a> steps and generated this Lean file. Each formula is a definition over an abstract assignment of atoms.</p>
+<pre><code>namespace Z3Proofs.NativeCertificate.pf1228074a510a3134cd85ee5c325e9592ed8f27f17159f5e02c54c9941c5d410
+
+def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
+def formula_3 (_atoms : Nat -&gt; Prop) : Prop := (Or (formula_1 _atoms) (formula_2 _atoms))
+def formula_7 (_atoms : Nat -&gt; Prop) : Prop := (Or (formula_4 _atoms) (Or (formula_5 _atoms) (formula_6 _atoms)))
+...
+def formula_37 (_atoms : Nat -&gt; Prop) : Prop := False</code></pre>
+<p>The theorem states that the six assertions together imply False.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
+    (_h0 : (formula_0 _atoms))
+    (_h1 : (formula_3 _atoms))
+    (_h2 : (formula_7 _atoms))
+    (_h3 : (formula_10 _atoms))
+    (_h4 : (formula_12 _atoms))
+    (_h5 : (formula_13 _atoms))
+    : False :=</code></pre>
+<p>The closing steps derive <code>x</code>, then <code>d</code>, and finish the refutation with the clause that forbids <code>d</code>.</p>
+<pre><code>  ...
+  let _step_35 : (formula_6 _atoms) :=
+    (_step_33.resolve_left _step_34)
+  let _step_36 : (formula_9 _atoms) :=
+    (_step_21.resolve_left (fun _literal =&gt; _literal _step_35))
+  let _step_38 : (formula_37 _atoms) :=
+    (False.elim ((_step_17.resolve_left (fun _literal =&gt; _literal _step_35)) _step_36))
+  _step_38</code></pre>
+<p>The Lean check accepted the file. This Lean text is unchanged by the PR. What is newly certified is the LassoRanker file, with numbers in the next section.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+Locally, every suite the change can touch passed. The LassoRanker file now trims, exports in about half a minute, and Lean accepts it in under two minutes with the standard axioms.
+The new unit test fails on the old trimmer, so it really guards the defect. The reviewer reproduced the trimmed log byte for byte.
+The loop's separate local gate has not been recorded for this iteration.
+</p>
+<table>
+<thead><tr><th>Local check (integrator, commit 2e65224)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>C++ unit tests, <code>test-z3 proof_replay</code></td><td>PASS</td></tr>
+<tr><td>Certificate test suite</td><td>88 tests, OK</td></tr>
+<tr><td>Lean-suite test that forces native trimming</td><td>1 test, OK</td></tr>
+<tr><td>z3test proof scripts</td><td>46 tests, OK</td></tr>
+<tr><td>Lean project build and checks</td><td>passed</td></tr>
+<tr><td>LassoRanker clause log through the trimmer</td><td>rc 0, 62,659 retained lines, identical across three independent runs</td></tr>
+<tr><td>LassoRanker end to end</td><td>export 25.6 s, 7,984 steps, 13.3 MB Lean, Lean rc 0 in 110 s</td></tr>
+<tr><td>Full Lean reconstruction suite (implementer run)</td><td>288 tests in 821 s, OK</td></tr>
+<tr><td>z3test regression benchmarks (implementer run)</td><td>951 files, no failure</td></tr>
+<tr><td>Proof matrix, Boolean and QF_LRA cells (implementer run)</td><td>6 of 6 and 8 of 8 Lean-verified</td></tr>
+<tr><td>hard16, the 2026-10-22 trimmer input</td><td>still trims, 10,132 steps, Lean rc 0</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Before and after on the LassoRanker file</th><th>Before (fallback)</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>Trimmer</td><td>internal error</td><td>62,659 retained lines</td></tr>
+<tr><td>Export</td><td>239.6 s, 46,145 steps</td><td>26.3 s, 7,984 steps</td></tr>
+<tr><td>Lean text</td><td>29.0 MB</td><td>13.3 MB</td></tr>
+<tr><td>Lean check</td><td>not run, scan timeout</td><td>rc 0 in 115 s</td></tr>
+</tbody>
+</table>
+<p>No CI status was recorded when this report was written, so the CI outcome is unknown and is not inferred from local results. There were no CI fix rounds.</p>
+<table>
+<thead><tr><th>CI workflow or check</th><th>Status</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>GitHub Actions checks on the PR head</td><td><span class="badge unknown">not recorded</span></td><td><a href="https://github.com/levnach/z3/pull/36/checks">PR checks page</a></td></tr>
+</tbody>
+</table>
+<p>According to the PR body, the C++ test runs in every unit-test job and the Python test runs in the Python wheel job.</p>
+
+<h2 id="review">Review</h2>
+<p>Verdict: <strong>APPROVE</strong>, with no blocker, major, or minor findings and two nits. The reviewer rebuilt the tree, reran the suites, and read the solver code to confirm that reviving a unit was a no-op.</p>
+<ol>
+<li><strong>Nit, the test depends on propagation order.</strong> It only catches the old bug if the revived phantom clause implies <code>d</code> before the registered binary clause does. A change to watch-list order could let the old code pass, silently weakening the guard. Not changed: without the third clause the unit <code>c</code> is no longer derivable, so any order-independent variant would be an invalid log. The Python test is a second guard.</li>
+<li><strong>Nit, documentation order.</strong> The new dated section sits between a 2026-10-19 entry and the 2026-10-22 entry. Not changed: it sits directly before the earlier trimmer note, which keeps the two adjacent.</li>
+</ol>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li><strong>Ignoring later deletions assumes the conflict is the proof's end.</strong> A clause set inconsistent at one step stays inconsistent later, so the earlier core is a valid proof. A wrong core would be rejected by the Python replay and by Lean.</li>
+<li><strong>Unit deletions are no longer recorded.</strong> Reviving one was a no-op, so output for logs without phantom clauses is unchanged, as hard16 confirms.</li>
+<li><strong>A <a href="#g-theory-lemma">theory lemma</a> deleted under other literals</strong> than the trimmer assumed now stays attached. A later step may cite it, which is a valid earlier clause.</li>
+<li><strong>The binary-watch check</strong> scans one watch list per binary deletion. Z3 does not log binary deletions today.</li>
+<li><strong>CI results are unknown</strong> at the time of this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Mark core membership per clause id rather than per literal set, so the trimmer emits only the final clause's closure instead of every logged copy.</li>
+<li>Scan the larger LassoRanker files skipped by size, and the <code>clocksynchro_3clocks</code> input whose Lean check times out.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+<dt id="g-assertion">assertion</dt><dd>A formula the input declares to be true. In SMT-LIB it is written <code>(assert ...)</code>.</dd>
+<dt id="g-axiom">axiom</dt><dd>A statement a proof checker accepts without proof. Lean's standard ones are <code>propext</code>, <code>Classical.choice</code>, and <code>Quot.sound</code>. A certificate that depends only on these trusts nothing about the solver.</dd>
+<dt id="g-binary-clause">binary clause</dt><dd>A clause with exactly two literals, such as <code>(or (not x) d)</code>. Solvers store these directly in watch lists instead of as clause objects.</dd>
+<dt id="g-boolean">Boolean</dt><dd>A value that is either true or false. The sort Bool.</dd>
+<dt id="g-certificate">certificate</dt><dd>A machine-checkable record of why a result holds. Here, the proof steps exported from Z3 and the Lean file built from them.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, for example <code>(or (not b) c x)</code>. It is satisfied when at least one literal is true.</dd>
+<dt id="g-clause-log">clause log</dt><dd>Z3's running record of every clause it added, inferred, or deleted while solving, written as <code>assume</code>, <code>infer</code>, and <code>del</code> lines.</dd>
+<dt id="g-conflict">conflict</dt><dd>The moment unit propagation finds a clause whose literals are all false. The clause set is then inconsistent.</dd>
+<dt id="g-core">dependency core</dt><dd>The subset of logged steps that the final empty clause actually depends on. Everything outside the core can be dropped without weakening the proof.</dd>
+<dt id="g-linear-arithmetic">linear arithmetic</dt><dd>Reasoning about sums of variables times constants compared with constants, such as 2x + y &le; 5. No products of variables.</dd>
+<dt id="g-literal">literal</dt><dd>A Boolean variable or its negation, such as <code>c</code> or <code>(not c)</code>.</dd>
+<dt id="g-trimmer">proof trimmer</dt><dd>The C++ component in Z3 that replays a clause log by unit propagation, finds the conflict, and computes the dependency core by probing which earlier clauses each step needs. Its output is a hint that is checked again later.</dd>
+<dt id="g-qf-lra">QF_LRA</dt><dd>The SMT-LIB logic of quantifier-free linear real arithmetic. Formulas mix Boolean structure with linear constraints over real numbers.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions is inconsistent, ending in the empty clause or in False.</dd>
+<dt id="g-resolution">resolution</dt><dd>The rule that combines two clauses sharing a literal and its negation into one clause without them. Unit resolution is the case where one of the two clauses is a single literal.</dd>
+<dt id="g-rup">RUP (reverse unit propagation)</dt><dd>A way to check an inferred clause: assume all its literals are false and confirm that unit propagation over the listed premises reaches a conflict.</dd>
+<dt id="g-smt-lib">SMT-LIB</dt><dd>The standard text format for SMT problems, with commands such as <code>declare-const</code>, <code>assert</code>, and <code>check-sat</code>. The input in the worked example is written in it.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that a theory solver, for example the arithmetic solver, proves valid on its own and hands to the Boolean search.</dd>
+<dt id="g-unit-clause">unit clause</dt><dd>A clause with a single literal. Adding it fixes that literal's value for the rest of the search.</dd>
+<dt id="g-unit-propagation">unit propagation</dt><dd>Repeatedly finding a clause with all but one literal false and setting the remaining literal true, until nothing changes or a conflict appears.</dd>
+<dt id="g-watch-list">watch list</dt><dd>The per-literal index a solver keeps of the clauses that must be revisited when that literal becomes false. A binary clause is attached by placing it in the watch lists of its two literals.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-23 for iteration 36.
+</footer>
+</body>
+</html>
