@@ -23,7 +23,8 @@ h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
 h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
 h3 { font-size: 1.05rem; margin-top: 1.4rem; }
 .meta { color: var(--muted); font-size: 0.95rem; }
-.badge { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; border: 1px solid var(--ok); color: var(--ok); font-weight: 600; font-size: 0.85rem; }
+.badge { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; border: 1px solid #8250df; color: #8250df; font-weight: 600; font-size: 0.85rem; }
+@media (prefers-color-scheme: dark) { .badge { border-color: #ab7df8; color: #ab7df8; } }
 code { background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.9em; }
 pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; font-size: 0.82rem; line-height: 1.45; }
 pre code { background: none; padding: 0; }
@@ -46,61 +47,63 @@ footer { margin-top: 3rem; padding-top: 0.6rem; border-top: 1px solid var(--bord
 <h1>Prove propagation lemmas as tactic scripts over named gates</h1>
 <p class="meta">
 Pull request <a href="https://github.com/levnach/z3/pull/38">levnach/z3#38</a> ·
-State: <span class="badge">OPEN</span> ·
-Date: 2026-10-27T22:12:00Z ·
+State: <span class="badge">MERGED</span> ·
+Merged 2026-10-27T22:34:55Z ·
 Loop iteration 38
 </p>
-<p>This pull request is open and <strong>not merged</strong>.
-The change it proposes is commit
-<a href="https://github.com/levnach/z3/commit/ba9390aa424eadd8d0a7234129f3df561a092e55"><code>ba9390a</code></a>,
-on top of an earlier commit in the same PR.</p>
+<p class="meta">
+Merge commit
+<a href="https://github.com/levnach/z3/commit/e088115ce30691e071ffee9f9f490d92ac53aeea"><code>e088115</code></a>
+on <code>master</code>, base <code>d3628f4</code>.
+</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>The reconstructor now writes each
-<a href="#g-propagation">propagation</a> proof as a
-<a href="#g-tactic">tactic</a> script, one step per line, instead of one deeply nested
-<a href="#g-proof-term">proof term</a>.
-Inside a <a href="#g-cnf-lemma">cnf lemma</a>, it refers to each
-<a href="#g-gate">gate</a> by its existing
-<a href="#g-definition">definition</a>, so nothing has to be
-<a href="#g-unfold">unfolded</a> first.
-The replay also stores its canonical keys by
-<a href="#g-interning">interning</a>, which makes export of deep
-<a href="#g-boolean">Boolean</a> circuits fast.
-Together, these let a large
-<a href="#g-bounded-model-checking">bounded model checking</a> input from the
-<a href="#g-difference-logic">difference logic</a> benchmark set get a
+<p>
+The reconstructor now writes each <a href="#g-propagation">propagation</a> proof as a
+<a href="#g-tactic-script">tactic script</a>, one step per line.
+Before, it wrote one deeply nested <a href="#g-proof-term">proof term</a>.
+Inside a <a href="#g-cnf-lemma">cnf lemma</a>, each <a href="#g-gate">gate</a> is now named by
+its existing Lean <a href="#g-definition">definition</a>, so nothing is
+<a href="#g-unfold">unfolded</a> up front.
+The replay also <a href="#g-interning">interns</a> its <a href="#g-canonical-form">canonical forms</a>,
+which makes export of deep <a href="#g-boolean">Boolean</a> circuits fast.
+Together, these let a large <a href="#g-bmc">bounded model checking</a> input from the
+<a href="#g-difference-logic">difference logic</a> benchmarks get a
 <a href="#g-refutation">refutation</a> that Lean accepts.
 That input used to run out of <a href="#g-heartbeat">heartbeats</a>.
-No lemma statement changes, and no <a href="#g-axiom">axiom</a> is added.</p>
+No lemma statement changes, and no <a href="#g-axiom">axiom</a> is added.
+</p>
 
 <h2 id="background">Background</h2>
-<p>Before this PR, smaller inputs already got Lean proofs.
+<p>
+Before this PR, small and medium inputs already got Lean proofs.
 The corpus scan of iteration 32 left one QF_IDL input failing in Lean.
-Its whole refutation rests on one <a href="#g-theory-lemma">theory lemma</a>,
-a <a href="#g-cnf-lemma">cnf lemma</a> that ties an assumed
-<a href="#g-clause">clause</a> to the single 13,000-node
+Its whole refutation rests on a single <a href="#g-theory-lemma">theory lemma</a>.
+That is a cnf lemma tying an assumed <a href="#g-clause">clause</a> to the one 13,000-node
 <a href="#g-assertion">assertion</a>.
-Three separate costs each sank that lemma: unfolding every definition, Lean's
-<a href="#g-elaboration">elaboration</a> of a deeply nested term, and slow key sorting during export.
-The work serves milestone 3 of the plan, equality and linear arithmetic,
-and the plan's goal of checking larger benchmark collections.</p>
+Three separate costs each sank that lemma.
+They were unfolding every definition, Lean's <a href="#g-elaboration">elaboration</a> of a deeply nested term,
+and slow key sorting during export.
+The work serves milestone 3 of the plan, equality and linear arithmetic, on larger benchmarks.
+</p>
 
 <h2 id="changes">What changed</h2>
 <ul>
 <li><strong>Reconstructor:</strong> a propagation proof is now a list of <code>have</code> lines that Lean checks in close to linear time, so a lemma with ten thousand steps no longer times out.</li>
-<li><strong>Reconstructor:</strong> gates are named by the definitions they came from, so a cnf lemma unfolds nothing up front and <a href="#g-unification">unification</a> opens one definition per step.</li>
-<li><strong>Reconstructor:</strong> a step through an <a href="#g-conjunction">and</a> or an <a href="#g-disjunction">or</a> no longer writes out the other operands, so its text stays short even for very wide gates.</li>
-<li><strong>Replay:</strong> each canonical form gets a small integer key over its children's keys, so exporting the deep circuit now takes seconds instead of minutes.</li>
+<li><strong>Reconstructor:</strong> gates are named by the definitions they came from, so a cnf lemma unfolds nothing first and <a href="#g-unification">unification</a> opens one definition per step.</li>
+<li><strong>Reconstructor:</strong> a step through a <a href="#g-conjunction">conjunction</a> or <a href="#g-disjunction">disjunction</a> no longer writes out the other operands, so its text stays short even for very wide gates.</li>
+<li><strong>Replay:</strong> each canonical form gets a small integer key built from its children's keys, so the deep circuit now exports in seconds instead of minutes.</li>
 <li><strong>Tests:</strong> the full BubbleSort benchmark file is now a regression test that must verify in Lean, and existing shape tests expect the new script form.</li>
 </ul>
-<p>An analogy for the first bullet: a nested term is like one sentence with ten thousand nested clauses.
+<p>
+An analogy for the first bullet: a nested term is like one sentence with ten thousand nested clauses.
 Lean must re-read the rest of the sentence at every clause.
-A tactic script is a numbered list, where each line is read once.</p>
+A tactic script is a numbered list, where each line is read once.
+</p>
 
 <table>
-<caption>Files touched (base <code>d3628f4</code> to head <code>ba9390a</code>, two commits)</caption>
+<caption>Files touched (base <code>d3628f4</code> to merge commit <code>e088115</code>)</caption>
 <thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
 <tbody>
 <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">169</td><td class="num">140</td></tr>
@@ -114,13 +117,15 @@ A tactic script is a numbered list, where each line is read once.</p>
 <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>tests</td><td class="num">4</td><td class="num">3</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td>tests</td><td class="num">2</td><td class="num">2</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>plan note</td><td class="num">41</td><td class="num">0</td></tr>
-<tr><th>Total (11 files)</th><td></td><td class="num">526</td><td class="num">219</td></tr>
+<tr><th colspan="2">Total (11 files)</th><th class="num">526</th><th class="num">219</th></tr>
 </tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
-<p>Small inputs already passed before this PR, so the example is the benchmark file the PR adds as a test.
-It is shown trimmed, but both pipelines ran on the full file.</p>
+<p>
+Small inputs already passed before this PR, so the example is the benchmark file the PR adds as a test.
+It is shown trimmed, but both pipelines ran on the full file.
+</p>
 
 <h3>(a) The input, trimmed</h3>
 <pre><code>(set-logic QF_IDL)
@@ -133,28 +138,31 @@ It is shown trimmed, but both pipelines ran on the full file.</p>
 (assert (let ((?v_1 (not P8)) (?v_9 (not P22)) (?v_0 (not P24)) (?v_2 (not P26)))
         (let ((?v_4 (and ?v_1 ?v_2)) (?v_3 (and P12 ?v_2))) ...
 (check-sat)</code></pre>
-<p class="explain">Integer and Boolean variables, then one huge assertion, a circuit of <code>and</code>, <code>or</code>, and <code>not</code> gates.</p>
+<p class="explain">There are 120 integer and Boolean variables, then one huge assertion built from <code>and</code>, <code>or</code>, and <code>not</code> gates.</p>
 
 <h3>(b) Before: the pipeline at the PR base</h3>
-<p>The old exporter succeeded slowly. The old reconstructor's own Lean check then failed, so it wrote no file. The path is shortened.</p>
-<pre><code>z3_proof_oftjinvq.lean:16972:72086: error: (deterministic) timeout at `transform`, maximum number of heartbeats (1000000) has been reached
+<p>
+The old exporter succeeded, slowly.
+The old reconstructor's own Lean check then failed, so it wrote no file.
+</p>
+<pre><code>z3_proof_cq93wgwm.lean:16972:72086: error: (deterministic) timeout at `transform`, maximum number of heartbeats (1000000) has been reached
 ...
 Lean checking failed; no proof was published.</code></pre>
 <p class="explain">Lean ran out of heartbeats inside the cnf lemma, where the old proof first unfolded every definition of the circuit.</p>
 
 <h3>(c) After: the Lean file the reconstructor now writes</h3>
-<p>Trimmed excerpts from the generated file follow.</p>
+<p>The generated file has 13,091 definitions. These are trimmed excerpts.</p>
 <pre><code>def formula_10268 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (formula_43 _atoms _vars) (formula_10267 _atoms _vars))
 ...
-def formula_14070 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_14069 _atoms _vars) (formula_13453 _atoms _vars))
-...</code></pre>
+def formula_14069 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_10268 _atoms _vars))
+def formula_14070 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_14069 _atoms _vars) (formula_13453 _atoms _vars))</code></pre>
 <p class="explain">Every node of the circuit is a named definition, and each refers to its children by name.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_10268 _atoms _vars))
     : False :=
   proof_step_14730 _atoms _vars _h0</code></pre>
-<p class="explain">The main theorem: for any values of the variables, the assertion implies <code>False</code>.</p>
+<p class="explain">The main theorem says that, for any values of the variables, the assertion implies False.</p>
 
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem th_lemma_14071 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
@@ -175,161 +183,186 @@ private theorem th_lemma_14071 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
        exact (False.elim (_f9819 (And.left _f9842))))
     | (unfold formula_14070 formula_14069 formula_13453 ...
        first | omega | grind (splits := 64))</code></pre>
-<p class="explain">The one cnf lemma assumes its clause is false and propagates line by line to a contradiction, with the unchanged <a href="#g-fallback">fallback</a> as second choice.</p>
-
-<p><strong>Lean accepted the file.</strong> The repository's Lean check script printed "Lean checks passed."</p>
+<p class="explain">The one cnf lemma assumes its clause is false and propagates line by line to a contradiction, with the unchanged fallback as a second choice.</p>
+<p>
+Each <code>_ _</code> placeholder is filled in by unification instead of being written out.
+<strong>Lean accepted the file.</strong> The repository's Lean check script printed "Lean checks passed."
+</p>
 
 <table>
-<caption>Measurements from the two runs made for this report</caption>
-<thead><tr><th>Stage</th><th>Before (PR base)</th><th>After (this PR)</th></tr></thead>
+<caption>Measurements from the runs made for this report</caption>
+<thead><tr><th>Stage</th><th>Before (PR base)</th><th>After (merged code)</th></tr></thead>
 <tbody>
-<tr><td>Export the certificate</td><td class="num">2 min 8 s</td><td class="num">5.3 s</td></tr>
-<tr><td>Reconstruct and check in Lean</td><td class="num">1 min 1 s, <span class="fail">timeout</span></td><td class="num">24.9 s, <span class="pass">checked</span></td></tr>
-<tr><td>Separate Lean check of the written file</td><td>no file written</td><td class="num">24.3 s, <span class="pass">passed</span></td></tr>
+<tr><td>Export the certificate</td><td class="num">126.4 s</td><td class="num">5.1 s</td></tr>
+<tr><td>Reconstruct and check in Lean</td><td>61.6 s, <span class="fail">heartbeat timeout</span></td><td>23.7 s, <span class="pass">checked</span></td></tr>
+<tr><td>Separate run of <code>scripts/check_lean.sh</code> on the written file</td><td>no file written</td><td>23.2 s, <span class="pass">passed</span></td></tr>
 </tbody>
 </table>
 
 <h2 id="verification">How it was verified</h2>
-<p>All of the reconstructor's Lean tests passed, including the new BubbleSort test.
-The reviewer also cut that lemma's heartbeat limit and it still checked.
-The driver's local gate has not been recorded yet, so its result is unknown.</p>
+<p>
+Every Lean test passed on the final code, including the new BubbleSort test.
+The reviewer cut that lemma's heartbeat limit well below the default, and it still checked.
+The change touched only Python, tests, and docs, so the loop merged it on its local gate, which passed every step.
+GitHub CI was still finishing at report time, and no check had failed.
+The Ubuntu releaseClang job, which runs the Lean tests, was still in progress.
+</p>
+
 <table>
-<caption>Local verification on the final commit</caption>
+<caption>Local gate (the driver's run before merging, Darwin arm64)</caption>
+<thead><tr><th>Step</th><th>Result</th><th>Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">2 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">890 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
+</tbody>
+</table>
+
+<table>
+<caption>Implementer and reviewer runs on the final commit</caption>
 <thead><tr><th>Check</th><th>Result</th></tr></thead>
 <tbody>
 <tr><td>All <code>test_proof_to_lean*.py</code> suites</td><td class="pass">291 tests OK</td></tr>
 <tr><td><code>test_proof_certificate.py</code></td><td class="pass">89 tests OK</td></tr>
-<tr><td><code>scripts/check_lean.sh</code> (Lean project)</td><td class="pass">passed</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="pass">passed</td></tr>
 <tr><td>z3test proof tests</td><td class="pass">46 tests OK</td></tr>
 <tr><td>Boolean matrix, Lean</td><td class="pass">6 of 6 verified</td></tr>
 <tr><td>QF_LRA matrix, Lean</td><td class="pass">8 of 8 verified</td></tr>
-<tr><td>BubbleSort lemma with heartbeats cut to 400,000 (reviewer)</td><td class="pass">checked</td></tr>
+<tr><td>BubbleSort lemma with heartbeats cut to 400,000 (reviewer)</td><td class="pass">checked, 25.5 s, peak 4.49 GB</td></tr>
 <tr><td><code>test-z3</code>, <code>test_benchmarks.py</code></td><td>not run (no C++ change)</td></tr>
 </tbody>
 </table>
-<p>One test run after a review fix failed, because a second test class lacked the new helper.
-That was fixed and the whole suite re-run. No CI fix rounds were recorded.</p>
-<p>CI was still running when this report was generated, so the table below is a snapshot.
-See the <a href="https://github.com/levnach/z3/pull/38/checks">PR's checks page</a> for current results.
-The Lean steps run inside <em>Ubuntu build - cmake - releaseClang</em> and the manylinux AMD64 Python build.</p>
+<p>
+One test run after a review fix failed because a second test class lacked the new helper.
+That was fixed and the whole suite re-run.
+No CI fix rounds were recorded.
+</p>
+
 <table>
-<caption>CI checks (snapshot at report time)</caption>
+<caption>GitHub checks on the PR head (snapshot at report time, same tree as the merge commit)</caption>
 <thead><tr><th>Workflow</th><th>Check</th><th>State</th></tr></thead>
 <tbody>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558985">Ubuntu build - cmake - releaseClang</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558944">Python bindings (manylinux Centos AMD64) build</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559278">Ubuntu build - cmake - debugClang</a></td><td class="pending">queued</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559138">Ubuntu build - cmake - debugGcc</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559255">Ubuntu build - cmake - releaseSTGcc</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558961">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558909">MacOS build with CMake</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559174">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559076">CMake package - latest CMake</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559121">CMake package - minimum builder and consumer</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559059">Ubuntu with OCaml</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559088">Ubuntu with OCaml on z3-static</a></td><td class="pending">in progress</td></tr>
-<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558683">Python build-script unit tests</a></td><td class="pass">pass</td></tr>
-<tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947816/job/122501557997">build (x64)</a></td><td class="pending">in progress</td></tr>
-<tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947816/job/122501558346">build (x86)</a></td><td class="pending">in progress</td></tr>
-<tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947816/job/122501558255">build (amd64_arm64)</a></td><td class="pending">in progress</td></tr>
-<tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947816/job/122501558398">mingw-build</a></td><td class="pending">in progress</td></tr>
-<tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947774/job/122501557524">Check</a></td><td class="pending">in progress</td></tr>
-<tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/40592948210/job/122501559486">Determinism linter (base)</a></td><td class="pending">in progress</td></tr>
-<tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/40592948210/job/122501559706">Determinism linter (head)</a></td><td class="pending">in progress</td></tr>
-<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558455">Trace (clang)</a></td><td class="pass">pass</td></tr>
-<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558488">Trace (gcc)</a></td><td class="pass">pass</td></tr>
-<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558557">Trace (gcc-unsigned-char)</a></td><td class="pass">pass</td></tr>
-<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558635">Trace (libcxx)</a></td><td class="pass">pass</td></tr>
-<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558567">Trace (libcxx-random)</a></td><td class="pass">pass</td></tr>
-<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558099">Trace (apple-clang)</a></td><td class="pending">in progress</td></tr>
-<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558590">Trace (msvc)</a></td><td class="pending">in progress</td></tr>
-<tr><td>Dispatch NFV formal audit</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947201/job/122501558040">dispatch</a></td><td class="pass">pass</td></tr>
-<tr><td>Mark Pull Requests Ready for Review</td><td><a href="https://github.com/levnach/z3/actions/runs/40592947971/job/122501558207">mark-ready</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td>CMake package - latest CMake</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559076">pass</a></td></tr>
+<tr><td>CI</td><td>CMake package - minimum builder and consumer</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559121">pass</a></td></tr>
+<tr><td>CI</td><td>MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559174">pass</a></td></tr>
+<tr><td>CI</td><td>MacOS build with CMake</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558909">pass</a></td></tr>
+<tr><td>CI</td><td>Python bindings (manylinux Centos AMD64) build</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558944">pass</a></td></tr>
+<tr><td>CI</td><td>Python bindings (manylinux Centos ARM64 cross) build</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558961">pass</a></td></tr>
+<tr><td>CI</td><td>Python build-script unit tests</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558683">pass</a></td></tr>
+<tr><td>CI</td><td>Ubuntu build - cmake - debugClang</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559278">pass</a></td></tr>
+<tr><td>CI</td><td>Ubuntu build - cmake - debugGcc</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559138">pass</a></td></tr>
+<tr><td>CI</td><td>Ubuntu build - cmake - releaseClang</td><td><a class="pending" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501558985">in progress</a></td></tr>
+<tr><td>CI</td><td>Ubuntu build - cmake - releaseSTGcc</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559255">pass</a></td></tr>
+<tr><td>CI</td><td>Ubuntu with OCaml</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559059">pass</a></td></tr>
+<tr><td>CI</td><td>Ubuntu with OCaml on z3-static</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947965/job/122501559088">pass</a></td></tr>
+<tr><td>Windows</td><td>build (amd64_arm64)</td><td><a class="pending" href="https://github.com/levnach/z3/actions/runs/40592947816/job/122501558255">in progress</a></td></tr>
+<tr><td>Windows</td><td>build (x64)</td><td><a class="pending" href="https://github.com/levnach/z3/actions/runs/40592947816/job/122501557997">in progress</a></td></tr>
+<tr><td>Windows</td><td>build (x86)</td><td><a class="pending" href="https://github.com/levnach/z3/actions/runs/40592947816/job/122501558346">in progress</a></td></tr>
+<tr><td>Windows</td><td>mingw-build</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947816/job/122501558398">pass</a></td></tr>
+<tr><td>WebAssembly Build</td><td>Check</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947774/job/122501557524">pass</a></td></tr>
+<tr><td>Determinism Linter</td><td>Determinism linter (base)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592948210/job/122501559486">pass</a></td></tr>
+<tr><td>Determinism Linter</td><td>Determinism linter (head)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592948210/job/122501559706">pass</a></td></tr>
+<tr><td>Determinism Linter</td><td>compare</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592948210/job/122502453684">pass</a></td></tr>
+<tr><td>Solver determinism</td><td>Compare exact traces</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947850/job/122502501812">pass</a></td></tr>
+<tr><td>Solver determinism</td><td>Trace (apple-clang)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558099">pass</a></td></tr>
+<tr><td>Solver determinism</td><td>Trace (clang)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558455">pass</a></td></tr>
+<tr><td>Solver determinism</td><td>Trace (gcc)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558488">pass</a></td></tr>
+<tr><td>Solver determinism</td><td>Trace (gcc-unsigned-char)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558557">pass</a></td></tr>
+<tr><td>Solver determinism</td><td>Trace (libcxx)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558635">pass</a></td></tr>
+<tr><td>Solver determinism</td><td>Trace (libcxx-random)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558567">pass</a></td></tr>
+<tr><td>Solver determinism</td><td>Trace (msvc)</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947850/job/122501558590">pass</a></td></tr>
+<tr><td>Dispatch NFV formal audit</td><td>dispatch</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40595914799/job/122511664217">pass</a></td></tr>
+<tr><td>Mark Pull Requests Ready for Review</td><td>mark-ready</td><td><a class="pass" href="https://github.com/levnach/z3/actions/runs/40592947971/job/122501558207">pass</a></td></tr>
 </tbody>
 </table>
+<p>See the <a href="https://github.com/levnach/z3/pull/38/checks">PR's checks page</a> for current results.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved with no blocker and no major findings.
-They checked that no lemma or theorem statement changed, so a bad proof can only be rejected.</p>
+<p>
+The reviewer approved with no blocker and no major findings.
+They checked that no lemma or theorem statement changed, so a bad proof can only be rejected.
+</p>
 <ul>
 <li><strong>Minor: the slow test did its work twice.</strong>
-The reviewer timed the new test and saw it rebuild the large Lean file just to read one lemma.
-That wasted CI time. Fixed: a new helper, <code>checked_text</code>, returns the text Lean already checked.</li>
+The reviewer timed the new test and saw it rebuild the 3.9 MB Lean file just to read one lemma.
+That wasted CI time in a job with a 90-minute limit.
+Fixed: a new helper, <code>checked_text</code>, returns the text Lean already checked.</li>
 <li><strong>Nit: outdated comments.</strong>
 Two comments still described the old nested term, which could mislead someone tuning the size budget.
 Fixed: both now describe tactic scripts.</li>
 <li><strong>Nit: a clock-based assertion.</strong>
 A wall-clock limit could fail on a slow runner for no real reason.
 Fixed: removed, since the heartbeat limit catches a slowdown deterministically.</li>
-<li><strong>Nit: two over-long lines.</strong> Fixed: wrapped.</li>
-<li><strong>Suggestion: note the memory use.</strong> Done in the test comment.</li>
+<li><strong>Nit: two lines over 120 characters.</strong> Fixed: wrapped.</li>
+<li><strong>Suggestion: note the memory use.</strong> Done: the test comment records the peak of about 4.5 GB.</li>
 </ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
 <li>Many lemmas now have new proof text. Lean checks each one, so a mistake can only make a lemma fail.</li>
-<li><a href="#g-case-split">Case splits</a> rely on <code>refine</code> listing its open goals in source order. Every case split in the tests exercises this.</li>
-<li>The new test needs about 4.5 GB of memory, which adds load to a CI job with a time limit.</li>
-<li>On a huge formula, the fallback still unfolds names one at a time, so a failed attempt now fails slowly.</li>
+<li>Case splits rely on <code>refine</code> listing its open goals in source order. Every <a href="#g-case-split">case split</a> in the tests exercises this.</li>
+<li>The new test needs about 4.5 GB of memory and about a minute. That adds load to a CI job with a time limit.</li>
+<li>On a huge formula, the fallback still unfolds names one at a time. A failed structural attempt now fails slowly instead of fast.</li>
+<li>The CI result of the job that runs the new Lean test was not known at report time.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
 <li>Use <code>delta</code> instead of a name-by-name unfold in the fallback paths.</li>
 <li>Use definitions instead of tactic <code>let</code> lines for normalized rewrites over thousands of gates.</li>
-<li>Re-scan the benchmark corpus, since the old key-sorting cost may have hidden other large failures.</li>
+<li>Re-scan the benchmark corpus. The old key-sorting cost may have hidden other large failures behind the 60 s export timeout.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
 <dl>
 <dt id="g-assertion">assertion</dt>
-<dd>A formula given to the solver with <code>assert</code>. The solver must show that all assertions together cannot be true.</dd>
+<dd>A formula given to the solver with <code>assert</code>. All assertions together must be shown impossible.</dd>
 <dt id="g-axiom">axiom</dt>
 <dd>A statement Lean accepts without proof. The standard ones here are <code>propext</code>, <code>Classical.choice</code>, and <code>Quot.sound</code>.</dd>
 <dt id="g-boolean">Boolean</dt>
 <dd>The sort of truth values, true and false. In SMT-LIB it is <code>Bool</code>.</dd>
-<dt id="g-bounded-model-checking">bounded model checking</dt>
-<dd>Checking a system for a fixed number of steps by unrolling it into one big formula. The formula is often a huge circuit of gates.</dd>
+<dt id="g-bmc">bounded model checking</dt>
+<dd>Checking a system for a fixed number of steps by unrolling it into one big formula. The result is often a huge circuit of gates.</dd>
+<dt id="g-canonical-form">canonical form</dt>
+<dd>One standard way of writing a formula, so that two equal formulas look the same. For example, <code>(and b a)</code> and <code>(and a b)</code> get one form.</dd>
 <dt id="g-case-split">case split</dt>
-<dd>Proving a goal by handling each possibility separately, for example once with <code>p</code> true and once with <code>p</code> false.</dd>
+<dd>Proving a goal by handling each possibility separately, for example once with p true and once with p false.</dd>
 <dt id="g-clause">clause</dt>
-<dd>A disjunction of <a href="#g-literal">literals</a>, such as <code>a or not b or c</code>.</dd>
+<dd>A disjunction of literals, such as <code>a or not b or c</code>.</dd>
 <dt id="g-cnf-lemma">cnf lemma</dt>
-<dd>A theory lemma that ties a clause to the original formula it was derived from when the formula was turned into clauses (conjunctive normal form).</dd>
+<dd>A theory lemma that ties a clause to the formula it came from when the formula was turned into clauses (conjunctive normal form).</dd>
 <dt id="g-conjunction">conjunction</dt>
 <dd>An "and" of formulas. It is true only when every part is true.</dd>
 <dt id="g-definition">definition</dt>
 <dd>A named Lean expression, such as <code>formula_46</code>, that stands for a longer formula.</dd>
 <dt id="g-difference-logic">difference logic</dt>
-<dd>Arithmetic where every atom compares the difference of two variables to a constant, like <code>x - y &lt;= 3</code>. The integer version is the SMT-LIB logic QF_IDL.</dd>
+<dd>Arithmetic where every atom compares a difference of two variables to a constant, like <code>x - y &lt;= 3</code>. The integer version is the SMT-LIB logic QF_IDL.</dd>
 <dt id="g-disjunction">disjunction</dt>
 <dd>An "or" of formulas. It is true when at least one part is true.</dd>
 <dt id="g-elaboration">elaboration</dt>
-<dd>Lean's step of turning written proof text into a fully explicit internal term, filling in types and missing parts.</dd>
-<dt id="g-fallback">fallback</dt>
-<dd>A second proof attempt that runs only when the first one fails, here an automatic tactic such as <code>grind</code>.</dd>
+<dd>Lean's step of turning written proof text into a fully typed term it can check.</dd>
 <dt id="g-gate">gate</dt>
-<dd>One connective node of a Boolean circuit, such as an and, or, not, or iff applied to its inputs.</dd>
+<dd>One node of a Boolean circuit, such as an <code>and</code>, <code>or</code>, or <code>not</code> of other nodes.</dd>
 <dt id="g-heartbeat">heartbeat</dt>
-<dd>Lean's unit of work. A proof that uses more than its heartbeat limit stops with a timeout error.</dd>
+<dd>Lean's unit of work. A proof that uses more than <code>maxHeartbeats</code> stops with a timeout error.</dd>
 <dt id="g-interning">interning</dt>
-<dd>Storing each distinct value once and referring to it by a small number. Two equal values always get the same number.</dd>
-<dt id="g-literal">literal</dt>
-<dd>An atom or its negation, such as <code>p</code> or <code>not p</code>.</dd>
+<dd>Storing each distinct value once and referring to it by a small number. Equal values then get equal numbers.</dd>
 <dt id="g-proof-term">proof term</dt>
-<dd>A proof written as a single expression, where every step is nested inside the next one.</dd>
+<dd>A proof written as one expression, where each step is nested inside the next.</dd>
 <dt id="g-propagation">propagation</dt>
-<dd>Deriving new truth values from known ones. If <code>a and b</code> is true, then <code>a</code> is true.</dd>
+<dd>Deriving new facts one at a time from known ones. For example, from <code>a and b</code> derive <code>a</code>, or from <code>a or b</code> and <code>not a</code> derive <code>b</code>.</dd>
 <dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of formulas leads to a contradiction, so the formulas cannot all be true.</dd>
-<dt id="g-tactic">tactic</dt>
-<dd>A command in a Lean <code>by</code> block that builds part of a proof, such as <code>have</code>, <code>refine</code>, or <code>exact</code>. A tactic script is a list of them.</dd>
+<dd>A proof that a set of formulas leads to False, so they cannot all be true.</dd>
+<dt id="g-tactic-script">tactic script</dt>
+<dd>A proof written as a list of tactics, one per line, that Lean runs in order. A tactic is a command that builds part of a proof, such as <code>have</code>, <code>refine</code>, or <code>exact</code>.</dd>
 <dt id="g-theory-lemma">theory lemma</dt>
-<dd>A clause that holds because of a background theory, such as arithmetic, rather than by pure Boolean reasoning.</dd>
+<dd>A clause justified by a theory, such as arithmetic or the clause conversion, rather than by resolution.</dd>
 <dt id="g-unfold">unfold</dt>
-<dd>Replacing a definition's name with its body. Unfolding thousands of names one by one rewrites a large goal thousands of times.</dd>
+<dd>Replacing a definition's name by its body, such as <code>formula_46</code> by the formula it stands for.</dd>
 <dt id="g-unification">unification</dt>
-<dd>Lean's way of finding the missing pieces of an expression, written <code>_</code>, by matching it against the expected type.</dd>
+<dd>Lean's way of filling in a placeholder <code>_</code> by matching the types on both sides.</dd>
 </dl>
 
 <footer>
