@@ -38,10 +38,10 @@
   .meta dd { display: inline; margin: 0 1.2rem 0 .3rem; }
   .badge { display: inline-block; font-weight: 700; padding: .05em .55em; border-radius: 999px;
            border: 1px solid currentColor; font-size: .85rem; }
-  .open { color: var(--warn); }
+  .merged { color: var(--ok); }
+  .pending { color: var(--warn); }
   .ok { color: var(--ok); }
   .bad { color: var(--bad); }
-  .note { border-left: 3px solid var(--accent); padding: .3rem .9rem; margin: 1rem 0; color: var(--muted); }
   dl.glossary dt { font-weight: 600; margin-top: .7rem; }
   dl.glossary dd { margin: .1rem 0 0 1.2rem; }
   footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
@@ -52,56 +52,57 @@
 <header>
   <h1>Prove normalized rewrites by propagation over let-named structures</h1>
   <p class="meta">
-    <span class="badge open">OPEN, not merged</span>
+    <span class="badge merged">MERGED</span>
     &nbsp; Pull request <a href="https://github.com/levnach/z3/pull/37">levnach/z3 #37</a>
-    &nbsp; Change commit <a href="https://github.com/levnach/z3/commit/604596bd2b5b969ecda58c2f16a64dc3e97d4b3f"><code>604596b</code></a>
+    &nbsp; Merge commit <a href="https://github.com/levnach/z3/commit/d3628f4c315bfa6ba3ceabb3d473dfea6c55723a"><code>d3628f4</code></a>
   </p>
   <dl class="meta">
+    <dt>Merged</dt><dd>2026-10-27T19:48:43Z</dd>
     <dt>Opened</dt><dd>2026-10-27T19:16:38Z</dd>
     <dt>Loop iteration</dt><dd>37</dd>
     <dt>Base</dt><dd><code>02f6a7e</code></dd>
-    <dt>Commits in the PR</dt><dd>2</dd>
   </dl>
-  <p class="meta">This pull request is open and has not been merged. The description below covers both of its commits.</p>
+  <p class="meta">The pull request was squash-merged into <code>master</code>. Its two branch commits, the change and the
+  review fixes, became the single merge commit above. This page describes the whole change.</p>
 </header>
 
 <h2 id="one-paragraph">In one paragraph</h2>
 <p>
 This PR changes how the Lean reconstructor proves the <a href="#g-propositional">propositional</a> part of a
-<a href="#g-normalized-atom">normalized</a> linear <a href="#g-rewrite">rewrite</a>. Such a rewrite relates a wide
-<a href="#g-disjunction">disjunction</a> as written to the <a href="#g-flattening">flattened</a> form that Z3's
-simplifier produces. Before, a small projection search tried to build a <a href="#g-proof-term">proof term</a>
-and otherwise handed the whole <a href="#g-equivalence">equivalence</a> to the <code>grind</code>
-<a href="#g-tactic">tactic</a>. Now the existing propagation prover builds the term. Every
-<a href="#g-conjunction">conjunction</a> and disjunction inside it is named once by a
-<a href="#g-let">let binding</a>, and a true disjunction gets <a href="#g-case-analysis">case analysis</a>
-before any <a href="#g-atom">atom</a> is split with <a href="#g-excluded-middle">excluded middle</a>. As a result the
-last untriaged QF_LRA corpus failure, a clock synchronization benchmark, now has a complete Lean
-<a href="#g-refutation">refutation</a>. The <code>grind</code> fallback stays, no axiom is added, and Lean still
-checks every term.
+<a href="#g-normalized-atom">normalized</a> linear <a href="#g-rewrite">rewrite</a>, which relates a wide
+<a href="#g-disjunction">disjunction</a> as written to its <a href="#g-flattening">flattened</a> form. Before, a small
+search tried to build a <a href="#g-proof-term">proof term</a> and otherwise handed the whole
+<a href="#g-equivalence">equivalence</a> to the <code>grind</code> <a href="#g-tactic">tactic</a>. Now the existing
+propagation prover builds the term. Every <a href="#g-conjunction">conjunction</a> and disjunction inside it is named
+once by a <a href="#g-let">let binding</a>, and a true disjunction gets <a href="#g-case-analysis">case analysis</a>
+before any <a href="#g-atom">atom</a> is split with <a href="#g-excluded-middle">excluded middle</a>. The last
+untriaged QF_LRA corpus failure, a clock synchronization benchmark, now has a complete Lean
+<a href="#g-refutation">refutation</a>. The <code>grind</code> fallback stays, no <a href="#g-axiom">axiom</a> is
+added, and Lean still checks every term.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-Before this PR the pipeline certified <a href="#g-boolean">Boolean</a> refutations, <a href="#g-congruence">congruence</a> over
-<a href="#g-uf">uninterpreted functions</a>, and <a href="#g-linear-arithmetic">linear arithmetic</a> over reals and
-integers, with <a href="#g-theory-lemma">theory lemmas</a> justified by the <a href="#g-farkas">Farkas lemma</a>
-and by <a href="#g-cut">cuts</a>. A wide rewrite over many arithmetic atoms took a separate path. Each atom was
-rewritten to a canonical form, and one lemma over the atom names carried the propositional change. The search for that
-lemma knew nothing about a <a href="#g-constant-atom">constant atom</a> such as <code>(&lt;= 0 0)</code>, and the
-<code>grind</code> fallback ran out of time on a 74-way disjunction whose <a href="#g-literal">literals</a> are shared
-among several conjunctions. So a benchmark Z3 solves in a second had no certificate. The work serves milestone 3 of the
-plan, equality and linear arithmetic completed end to end.
+Before this PR the pipeline certified <a href="#g-boolean">Boolean</a> refutations, <a href="#g-congruence">congruence</a>
+over <a href="#g-uf">uninterpreted functions</a>, and <a href="#g-linear-arithmetic">linear arithmetic</a> over reals and
+integers, with <a href="#g-theory-lemma">theory lemmas</a> justified by the <a href="#g-farkas">Farkas lemma</a> and by
+<a href="#g-cut">cuts</a>. A wide rewrite over many arithmetic atoms rewrote each atom to a canonical form, and one lemma
+over the atom names carried the propositional change. The search for that lemma knew nothing about a
+<a href="#g-constant-atom">constant atom</a> such as <code>(&lt;= 0 0)</code>, and <code>grind</code> ran out of time on
+a 74-way disjunction whose <a href="#g-literal">literals</a> are shared among several conjunctions. So a benchmark Z3
+solves in a second had no certificate. The work serves milestone 3 of the plan, equality and linear arithmetic
+completed end to end.
 </p>
 
 <h2 id="what-changed">What changed</h2>
 <h3>Lean reconstructor</h3>
 <ul>
-  <li><strong>Propagation instead of projection search.</strong> A rewrite that drops a conjunct made false by a
-      constant atom now gets a direct proof term from the propagation prover instead of a bare <code>grind</code> call.</li>
+  <li><strong>Propagation instead of a projection search.</strong> A rewrite that drops a conjunct made false by a
+      constant atom now gets a direct proof term instead of a bare <code>grind</code> call. The old search did not know
+      that <code>(&lt;= 0 0)</code> is true.</li>
   <li><strong>Structures named once.</strong> Every and, or, implies and iff node inside a term gets a
       <code>let</code> name, like an abbreviation defined at the top of a document. A step through a deeply nested
-      disjunction now costs a few names, where it used to restate the whole chain and exhaust the character budget.</li>
+      disjunction now costs a few names instead of restating the whole chain.</li>
   <li><strong>Lean infers the easy types.</strong> Steps through conjunctions and disjunctions carry enough explicit
       operands that their <code>have</code> lines need no type, which makes terms smaller still.</li>
   <li><strong>Cases before splits.</strong> A true disjunction with undetermined disjuncts is case-analysed, one branch
@@ -110,11 +111,9 @@ plan, equality and linear arithmetic completed end to end.
 </ul>
 <h3>Tests and documentation</h3>
 <ul>
-  <li><strong>Two new end-to-end instances</strong> go through Lean: a small flattening rewrite with a constant atom,
-      and the exact Boolean skeleton of the clock synchronization rewrite over 85 fresh bounds, which the old
-      reconstructor could not certify.</li>
-  <li><strong>Unit tests</strong> pin the new term shape, the case analysis without excluded middle, and a parity
-      threshold that moved from six to eight atoms. The plan document gains a dated note.</li>
+  <li><strong>Two new Lean-checked instances</strong>: a small flattening rewrite with a constant atom, and the exact
+      Boolean skeleton of the clock synchronization rewrite, which the old reconstructor could not certify. Unit tests
+      pin the new term shape, and the plan document gains a dated note.</li>
 </ul>
 
 <table>
@@ -133,9 +132,9 @@ plan, equality and linear arithmetic completed end to end.
 <h2 id="example">Worked example</h2>
 <p>
 The example is built from the PR's clock-shaped test, reduced to two symmetric groups, with every atom a bound on one
-variable so the file stays short. The assertion is a 45-way left-nested disjunction over 65 distinct atoms. The
-<a href="#g-unit-clause">unit clause</a> <code>(&lt;= x 1)</code> makes every atom true, so every disjunct is false.
-Z3 flattens the disjunction, drops duplicates, and drops the conjuncts made false by the constant atom.
+variable so the file stays short. The <a href="#g-unit-clause">unit clause</a> <code>(&lt;= x 1)</code> makes every
+atom true, so every disjunct is false. Z3 flattens the disjunction, drops duplicates, and drops the conjuncts made false
+by the constant atom. Both runs below were made for this report, the "before" run with the scripts of the base commit.
 </p>
 
 <h3>(a) The input</h3>
@@ -144,32 +143,27 @@ Z3 flattens the disjunction, drops duplicates, and drops the conjuncts made fals
 (assert (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (not (&lt;= x 1)) (not (&lt;= x 2))) (not (&lt;= x 3))) (not (&lt;= x 4))) (not (&lt;= x 5))) (not (&lt;= x 6))) (not (&lt;= x 7))) (not (&lt;= x 8))) (not (&lt;= x 9))) (not (&lt;= x 10))) (not (&lt;= x 7))) (not (&lt;= x 11))) (not (&lt;= x 12))) (not (&lt;= x 13))) (not (&lt;= x 7))) (and (or (not (&lt;= x 14)) (not (&lt;= x 32))) (not (&lt;= x 16)))) (and (or (not (&lt;= x 15)) (not (&lt;= x 33))) (not (&lt;= x 17)))) (and (and (not (&lt;= x 14)) (not (&lt;= x 15))) (not (&lt;= x 14)))) (and (&lt;= x 14) (or (not (&lt;= x 34)) (not (&lt;= x 35))))) (and (&lt;= x 15) (or (not (&lt;= x 36)) (not (&lt;= x 37))))) (and (and (&lt;= x 14) (not (&lt;= x 18))) (or (or (not (&lt;= x 38)) (not (&lt;= x 39))) (not (&lt;= x 40))))) (and (and (&lt;= x 15) (not (&lt;= x 19))) (or (or (not (&lt;= x 41)) (not (&lt;= x 42))) (not (&lt;= x 43))))) (and (or (not (&lt;= x 18)) (&lt;= x 16)) (or (not (&lt;= x 44)) (not (&lt;= x 45))))) (and (or (not (&lt;= x 19)) (&lt;= x 17)) (or (not (&lt;= x 46)) (not (&lt;= x 47))))) (and (or (not (&lt;= x 18)) (&lt;= x 16)) (or (not (&lt;= x 48)) (not (&lt;= x 49))))) (and (or (not (&lt;= x 19)) (&lt;= x 17)) (or (not (&lt;= x 50)) (not (&lt;= x 51))))) (and (&lt;= x 16) (not (&lt;= x 52)))) (and (&lt;= x 17) (not (&lt;= x 53)))) (and (&lt;= x 16) (or (not (&lt;= x 54)) (not (&lt;= x 55))))) (and (&lt;= x 17) (or (not (&lt;= x 56)) (not (&lt;= x 57))))) (not (&lt;= x 20))) (not (&lt;= x 21))) (not (&lt;= x 7))) (not (&lt;= x 7))) (not (&lt;= x 7))) (and (or (not (&lt;= x 22)) (not (&lt;= x 23))) (not (&lt;= x 24)))) (and (and (not (&lt;= x 22)) (not (&lt;= x 22))) (not (&lt;= x 22)))) (and (&lt;= x 22) (or (not (&lt;= 0 0)) (not (&lt;= 0 0))))) (and (and (&lt;= x 22) (not (&lt;= x 25))) (or (or (not (&lt;= x 26)) (not (&lt;= x 58))) (not (&lt;= x 59))))) (and (and (&lt;= x 22) (not (&lt;= x 25))) (or (or (not (&lt;= x 26)) (not (&lt;= x 60))) (not (&lt;= x 61))))) (and (or (not (&lt;= x 25)) (&lt;= x 24)) (or (not (&lt;= x 27)) (not (&lt;= x 28))))) (and (or (not (&lt;= x 25)) (&lt;= x 24)) (or (not (&lt;= x 62)) (not (&lt;= x 63))))) (and (or (not (&lt;= x 25)) (&lt;= x 24)) (or (not (&lt;= x 64)) (not (&lt;= x 65))))) (and (&lt;= x 24) (not (&lt;= x 29)))) (and (&lt;= x 24) (or (not (&lt;= x 30)) (not (&lt;= x 31))))))
 (assert (&lt;= x 1))
 (check-sat)</code></pre>
-<p>The file is five lines. The third line is long because the whole disjunction is one assertion, as in the benchmark.</p>
+<p>The third line is long because the whole disjunction is one assertion, as in the benchmark.</p>
 
 <h3>(b) Before the PR</h3>
 <p>
-The certificate exporter, untouched by this PR, produced the clause log. The old reconstructor found no direct term for
-the lemma over the normalized atoms and emitted only the fallback:
+The old reconstructor found no direct term for the lemma over the normalized atoms and emitted only the fallback:
 </p>
 <pre><code>private theorem normalized_rewrite_1045 (_atoms : Nat -&gt; Prop) (_atom0 : Prop) (_atom1 : Prop) ...
     : (Iff (Or (Or (Or ... (Not _atom0) (Not _atom1)) (Not _atom2)) ...) ...) :=
   by grind (splits := 64)</code></pre>
 <p>Lean rejected that file after 49 seconds, so no certificate was published. The first error line was:</p>
-<pre><code>clock2r1.lean:3217:5: error: `grind` failed
-case grind.2.2.2.2.2.2.1.2.2.2.1.1.2.1.2.2.2.2.1.2</code></pre>
-<p>
-The full three-group skeleton of the PR's test fails the same way under the old code, after 87 seconds in this report's run.
-</p>
+<pre><code>example.lean:3217:5: error: `grind` failed
+case grind.2.2.2.2.2.2.1.2.2.2.1.1.2.1.2.2.2.2.2.2</code></pre>
 
 <h3>(c) After the PR</h3>
-<p>Lean accepted the new file, 5,921 lines long, in about five seconds. The pieces below are trimmed, with <code>...</code> where lines were cut.</p>
+<p>Lean accepted the new file in about five seconds. The pieces below are trimmed, with <code>...</code> where lines were cut.</p>
 
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
 def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
 def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &lt;= (term_1 _atoms _vars))
-def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (formula_2 _atoms _vars))
 ...</code></pre>
-<p>The declarations encode the input: the variable, the constant 1, the atom <code>x &lt;= 1</code>, and its negation, with the rest of the formula built the same way.</p>
+<p>The declarations encode the input: the variable, the constant 1, and the atom <code>x &lt;= 1</code>.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     (_h0 : (formula_299 _atoms _vars))
@@ -185,7 +179,7 @@ def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (
     change ((_vars 0) &lt;= (((1 : Rat)))) &lt;-&gt; ((((1 : Rat)) * _vars 0) + ((-1 : Rat)) &lt;= ((0 : Rat)))
     grind
   ...</code></pre>
-<p>Each arithmetic atom is rewritten to its normalized form and given a name, so the Boolean lemma below can treat the atoms as opaque propositions.</p>
+<p>Each arithmetic atom is rewritten to its normalized form and named, so the Boolean lemma below treats atoms as opaque propositions.</p>
 
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem normalized_rewrite_1045 (_atoms : Nat -&gt; Prop) (_atom0 : Prop) (_atom1 : Prop) ... (_atom64 : Prop)
@@ -201,23 +195,34 @@ private theorem normalized_rewrite_1045 (_atoms : Nat -&gt; Prop) (_atom0 : Prop
       have _f5 := (mt (@And.right _atom47 _) _f4);
       (Or.elim _f1 (fun _f6 =&gt; (Or.elim _f6 (fun _f7 =&gt; ...
         (have _f13 := (Or.elim _f12 (fun _g =&gt; _g) (fun _g =&gt; absurd _g _f5)); ...</code></pre>
-<p>The forward direction first settles the constant atom: <code>(Not True)</code> is refuted, then the disjunction of its two copies, then the conjunction containing it. Then it case-analyses the nested disjunction, one branch per disjunct.</p>
+<p>The forward direction first refutes the constant atom's conjunct, then case-analyses the nested disjunction, one branch per disjunct.</p>
 
 <pre><code>    (fun (_f408 : _s109) =&gt; ((have _f409 : True := True.intro; ...
       (Or.elim _f408 (fun _f413 =&gt; (have _f414 := (@Or.inl _ (Not _atom1) _f413);
         have _f415 := (@Or.inl _ (Not _atom2) _f414); ...
       have _f1673 := (@Or.inl _ _s99 _f1672); _f1673)))) ... : _s100)))) | grind (splits := 64)</code></pre>
-<p>The backward direction takes each flattened disjunct and injects it into the nested form with one short step per level. The whole term uses no excluded middle, and <code>grind</code> remains as the fallback after the vertical bar.</p>
+<p>The backward direction injects each flattened disjunct into the nested form, one short step per level. The term uses no excluded middle, and <code>grind</code> remains as the fallback after the vertical bar.</p>
 
 <h2 id="verified">How it was verified</h2>
 <p>
-Locally, every Lean-checking suite passed, both regression matrix cells were fully Lean-verified, and the clock
+Every Lean-checking suite passed locally, both regression matrix cells were fully Lean-verified, and the clock
 synchronization corpus file now verifies end to end with only Lean's standard axioms. The reviewer reran the full suite
-with the same numbers. The local gate for this iteration has not been recorded. No CI status was recorded when this
-report was written, so the CI rows below are pending rather than passed. There were no CI fix rounds.
+with the same results. Because the change touches only Python examples and documentation, the loop merged it on its
+local gate, which mirrors the Lean steps of the Ubuntu CI job and passed on every step. No GitHub CI status for the PR
+was recorded, so the CI rows below are unknown rather than passed. There were no CI fix rounds.
 </p>
 <table>
-  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">845 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">16 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="ok">pass</td><td class="num">7 s</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Check run by the implementer and reviewer</th><th>Result</th></tr></thead>
   <tbody>
     <tr><td>Lean-checked unit and integration tests (<code>test_proof_to_lean*.py</code>)</td><td class="ok">290 tests OK, 846 s</td></tr>
     <tr><td>Certificate exporter tests</td><td class="ok">88 tests OK</td></tr>
@@ -232,10 +237,11 @@ report was written, so the CI rows below are pending rather than passed. There w
 <table>
   <thead><tr><th>CI workflow and step</th><th>Status</th><th>Link</th></tr></thead>
   <tbody>
-    <tr><td>CI, manylinux: Test Python wheel</td><td class="open">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
-    <tr><td>CI, Ubuntu cmake: Check native Boolean proofs in Lean</td><td class="open">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
-    <tr><td>CI, Ubuntu cmake: Require Lean-certified Boolean matrix results</td><td class="open">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
-    <tr><td>CI, Ubuntu cmake: Require Lean-certified QF_LRA matrix results</td><td class="open">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+    <tr><td>CI, manylinux: Test Python wheel</td><td class="pending">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+    <tr><td>CI, Ubuntu cmake: Check native Boolean proofs in Lean</td><td class="pending">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+    <tr><td>CI, Ubuntu cmake: Require Lean-certified Boolean matrix results</td><td class="pending">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+    <tr><td>CI, Ubuntu cmake: Require Lean-certified QF_LRA matrix results</td><td class="pending">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+    <tr><td>CI on <code>master</code> after the merge</td><td class="pending">unknown at report time</td><td><a href="https://github.com/levnach/z3/commit/d3628f4c315bfa6ba3ceabb3d473dfea6c55723a">merge commit</a></td></tr>
   </tbody>
 </table>
 
@@ -244,31 +250,32 @@ report was written, so the CI rows below are pending rather than passed. There w
 <ul>
   <li><strong>Dead branch in the disjunction eliminator (nit, fixed).</strong> The helper that builds an
       <code>Or.elim</code> chain had a branch for a single handler, but both callers always pass two or more. Dead
-      defensive code makes every reader work out why it is dead, so the second commit replaced it with an assertion.
-      The emitted terms did not change.</li>
+      code makes a reader work out why it is dead, so the second commit replaced it with an assertion.</li>
   <li><strong>Stale docstring (nit, fixed).</strong> The prover's summary still said an unsettled direction splits on
-      an atom with excluded middle, while the term now case-analyses an assumed disjunction first. A reader trusting the
-      summary would expect the wrong term, so the paragraph now describes the real order.</li>
+      an atom, while the term now case-analyses an assumed disjunction first. The paragraph now describes the real
+      order.</li>
   <li><strong>Sibling names repeated per step (nit, deferred).</strong> Three helpers write out all remaining
-      siblings at every step through a wide gate, which is quadratic in the gate's width. No current input comes near
-      the budget, and fixing it changes the term shape again, so it is recorded as a follow-up.</li>
+      siblings at every step through a wide gate, which is quadratic in its width. No current input comes near the
+      budget, and fixing it changes the term shape again, so it is a follow-up.</li>
 </ul>
 <p>
 The reviewer also stripped the <code>grind</code> fallback and confirmed that Lean accepts the direct terms alone, for
-the two test instances and for generated inputs with Boolean <code>ite</code>, <code>xor</code>, equality and
-implication under the disjunction. They confirmed that the clock-shaped test fails under the base commit.
+the test instances and for generated inputs with a Boolean <a href="#g-ite">if-then-else term</a>,
+<a href="#g-xor">exclusive or</a>, equality and <a href="#g-implication">implication</a> under the disjunction. They
+also confirmed that the clock-shaped test fails under the base commit.
 </p>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
   <li><strong>Every propositional term changed shape.</strong> The let-named form is now used for all propositional
-      rewrites and cnf lemmas, not only normalized rewrites. Lean checks each term and the fallbacks are unchanged, but
-      a corpus re-scan is the right next evidence.</li>
+      rewrites and <a href="#g-cnf">CNF</a> lemmas. Lean checks each term and the fallbacks are unchanged, but a
+      corpus re-scan is the right next evidence.</li>
   <li><strong>A propositional rewrite has no <code>first</code>.</strong> Its truth-table fallback is chosen ahead of
       time, so a term Lean rejected would fail the certificate, as before the PR.</li>
   <li><strong>Case split scanning.</strong> The search for a true disjunction rescans every structure on each call,
-      negligible today but noticeable for a lemma with thousands of structures and splits.</li>
-  <li><strong>CI is not yet recorded.</strong> The local results are strong, but the published CI status is unknown.</li>
+      which a lemma with thousands of structures and splits would feel.</li>
+  <li><strong>GitHub CI did not gate the merge.</strong> The local gate passed, but the CI status on
+      <code>master</code> was unknown when this report was written.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
@@ -282,12 +289,16 @@ implication under the disjunction. They confirmed that the clock-shaped test fai
 <dl class="glossary">
   <dt id="g-atom">atom</dt>
   <dd>A formula with no Boolean connective inside it, such as <code>x &lt;= 5</code> or a Boolean variable.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. Lean's standard ones are propositional extensionality, choice, and quotient soundness.</dd>
   <dt id="g-boolean">Boolean</dt>
   <dd>The sort of truth values, true and false.</dd>
   <dt id="g-case-analysis">case analysis</dt>
   <dd>Proving a goal from a disjunction by proving it once under each disjunct. In Lean this is <code>Or.elim</code>.</dd>
   <dt id="g-clause">clause</dt>
   <dd>A disjunction of literals, such as <code>(or (not a) b)</code>.</dd>
+  <dt id="g-cnf">CNF, conjunctive normal form</dt>
+  <dd>A formula written as a conjunction of clauses. A CNF lemma relates a formula to the clauses that encode it.</dd>
   <dt id="g-congruence">congruence</dt>
   <dd>Equal arguments give equal results: from <code>a = b</code> follows <code>f(a) = f(b)</code>.</dd>
   <dt id="g-conjunction">conjunction</dt>
@@ -302,12 +313,18 @@ implication under the disjunction. They confirmed that the clock-shaped test fai
   <dd>Two formulas that always have the same truth value, written <code>iff</code> or <code>=</code> on Booleans.</dd>
   <dt id="g-excluded-middle">excluded middle</dt>
   <dd>The principle that every proposition is either true or false, used to split a proof into two cases.</dd>
+  <dt id="g-xor">exclusive or (<code>xor</code>)</dt>
+  <dd>A connective that is true when exactly one of its two operands is true.</dd>
   <dt id="g-farkas">Farkas lemma</dt>
   <dd>A set of linear inequalities is contradictory exactly when some nonnegative combination of them gives <code>0 &lt; 0</code>.</dd>
   <dt id="g-flattening">flattening</dt>
   <dd>Rewriting nested disjunctions such as <code>(or (or a b) c)</code> into one wide disjunction <code>(or a b c)</code>.</dd>
   <dt id="g-hypothesis">hypothesis</dt>
   <dd>A formula assumed to be true for the course of a proof.</dd>
+  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+  <dd>A term that picks one of two values by a Boolean condition, written <code>(ite c a b)</code> in SMT-LIB.</dd>
+  <dt id="g-implication">implication</dt>
+  <dd>A formula "if a then b", written <code>(=&gt; a b)</code>, false only when a is true and b is false.</dd>
   <dt id="g-let">let binding</dt>
   <dd>A local name for a sub-expression inside a term, so the expression is written once and referred to by name.</dd>
   <dt id="g-linear-arithmetic">linear arithmetic</dt>
@@ -337,7 +354,7 @@ implication under the disjunction. They confirmed that the clock-shaped test fai
 </dl>
 
 <footer>
-  Generated by the Lean certificate improvement loop on 2026-10-27, iteration 37. Pull request state at generation: OPEN.
+  Generated by the Lean certificate improvement loop on 2026-10-27, iteration 37. Pull request state at generation: MERGED.
 </footer>
 </body>
 </html>
