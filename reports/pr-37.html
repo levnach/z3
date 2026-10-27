@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #37: Prove normalized rewrites by propagation over let-named structures</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1d1d1f; --muted: #5c5c66; --line: #d9d9e0;
+    --code-bg: #f4f4f8; --accent: #0b57d0; --ok: #1a7f37; --warn: #9a6700; --bad: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15161a; --fg: #e8e8ec; --muted: #a0a0ab; --line: #34353c;
+      --code-bg: #1f2026; --accent: #8ab4f8; --ok: #5fc27a; --warn: #e3b341; --bad: #f28b82;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         line-height: 1.55; max-width: 60rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .5rem; }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
+  p, li, dd { max-width: 48rem; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em;
+         background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem;
+        overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: .85rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; margin: .8rem 0 1.2rem; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: .4rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta dt { font-weight: 600; display: inline; }
+  .meta dd { display: inline; margin: 0 1.2rem 0 .3rem; }
+  .badge { display: inline-block; font-weight: 700; padding: .05em .55em; border-radius: 999px;
+           border: 1px solid currentColor; font-size: .85rem; }
+  .open { color: var(--warn); }
+  .ok { color: var(--ok); }
+  .bad { color: var(--bad); }
+  .note { border-left: 3px solid var(--accent); padding: .3rem .9rem; margin: 1rem 0; color: var(--muted); }
+  dl.glossary dt { font-weight: 600; margin-top: .7rem; }
+  dl.glossary dd { margin: .1rem 0 0 1.2rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Prove normalized rewrites by propagation over let-named structures</h1>
+  <p class="meta">
+    <span class="badge open">OPEN, not merged</span>
+    &nbsp; Pull request <a href="https://github.com/levnach/z3/pull/37">levnach/z3 #37</a>
+    &nbsp; Change commit <a href="https://github.com/levnach/z3/commit/604596bd2b5b969ecda58c2f16a64dc3e97d4b3f"><code>604596b</code></a>
+  </p>
+  <dl class="meta">
+    <dt>Opened</dt><dd>2026-10-27T19:16:38Z</dd>
+    <dt>Loop iteration</dt><dd>37</dd>
+    <dt>Base</dt><dd><code>02f6a7e</code></dd>
+    <dt>Commits in the PR</dt><dd>2</dd>
+  </dl>
+  <p class="meta">This pull request is open and has not been merged. The description below covers both of its commits.</p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+This PR changes how the Lean reconstructor proves the <a href="#g-propositional">propositional</a> part of a
+<a href="#g-normalized-atom">normalized</a> linear <a href="#g-rewrite">rewrite</a>. Such a rewrite relates a wide
+<a href="#g-disjunction">disjunction</a> as written to the <a href="#g-flattening">flattened</a> form that Z3's
+simplifier produces. Before, a small projection search tried to build a <a href="#g-proof-term">proof term</a>
+and otherwise handed the whole <a href="#g-equivalence">equivalence</a> to the <code>grind</code>
+<a href="#g-tactic">tactic</a>. Now the existing propagation prover builds the term. Every
+<a href="#g-conjunction">conjunction</a> and disjunction inside it is named once by a
+<a href="#g-let">let binding</a>, and a true disjunction gets <a href="#g-case-analysis">case analysis</a>
+before any <a href="#g-atom">atom</a> is split with <a href="#g-excluded-middle">excluded middle</a>. As a result the
+last untriaged QF_LRA corpus failure, a clock synchronization benchmark, now has a complete Lean
+<a href="#g-refutation">refutation</a>. The <code>grind</code> fallback stays, no axiom is added, and Lean still
+checks every term.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR the pipeline certified <a href="#g-boolean">Boolean</a> refutations, <a href="#g-congruence">congruence</a> over
+<a href="#g-uf">uninterpreted functions</a>, and <a href="#g-linear-arithmetic">linear arithmetic</a> over reals and
+integers, with <a href="#g-theory-lemma">theory lemmas</a> justified by the <a href="#g-farkas">Farkas lemma</a>
+and by <a href="#g-cut">cuts</a>. A wide rewrite over many arithmetic atoms took a separate path. Each atom was
+rewritten to a canonical form, and one lemma over the atom names carried the propositional change. The search for that
+lemma knew nothing about a <a href="#g-constant-atom">constant atom</a> such as <code>(&lt;= 0 0)</code>, and the
+<code>grind</code> fallback ran out of time on a 74-way disjunction whose <a href="#g-literal">literals</a> are shared
+among several conjunctions. So a benchmark Z3 solves in a second had no certificate. The work serves milestone 3 of the
+plan, equality and linear arithmetic completed end to end.
+</p>
+
+<h2 id="what-changed">What changed</h2>
+<h3>Lean reconstructor</h3>
+<ul>
+  <li><strong>Propagation instead of projection search.</strong> A rewrite that drops a conjunct made false by a
+      constant atom now gets a direct proof term from the propagation prover instead of a bare <code>grind</code> call.</li>
+  <li><strong>Structures named once.</strong> Every and, or, implies and iff node inside a term gets a
+      <code>let</code> name, like an abbreviation defined at the top of a document. A step through a deeply nested
+      disjunction now costs a few names, where it used to restate the whole chain and exhaust the character budget.</li>
+  <li><strong>Lean infers the easy types.</strong> Steps through conjunctions and disjunctions carry enough explicit
+      operands that their <code>have</code> lines need no type, which makes terms smaller still.</li>
+  <li><strong>Cases before splits.</strong> A true disjunction with undetermined disjuncts is case-analysed, one branch
+      per disjunct, before any atom is split. Checking each door of a hallway in turn beats flipping every light switch
+      in the building.</li>
+</ul>
+<h3>Tests and documentation</h3>
+<ul>
+  <li><strong>Two new end-to-end instances</strong> go through Lean: a small flattening rewrite with a constant atom,
+      and the exact Boolean skeleton of the clock synchronization rewrite over 85 fresh bounds, which the old
+      reconstructor could not certify.</li>
+  <li><strong>Unit tests</strong> pin the new term shape, the case analysis without excluded middle, and a parity
+      threshold that moved from six to eight atoms. The plan document gains a dated note.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th>Lines changed</th><th>What</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">346</td><td>prover, normalized rewrite, removed projection search</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">127</td><td>two new Lean-checked instances</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">72</td><td>term shape, case analysis, parity thresholds</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">41</td><td>dated note</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td class="num">4</td><td>text expectations</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td class="num">4</td><td>text expectations</td></tr>
+    <tr><td>Total</td><td class="num">439 added, 155 removed</td><td>6 files, no C++ change</td></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+The example is built from the PR's clock-shaped test, reduced to two symmetric groups, with every atom a bound on one
+variable so the file stays short. The assertion is a 45-way left-nested disjunction over 65 distinct atoms. The
+<a href="#g-unit-clause">unit clause</a> <code>(&lt;= x 1)</code> makes every atom true, so every disjunct is false.
+Z3 flattens the disjunction, drops duplicates, and drops the conjuncts made false by the constant atom.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(declare-const x Real)
+(assert (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (or (not (&lt;= x 1)) (not (&lt;= x 2))) (not (&lt;= x 3))) (not (&lt;= x 4))) (not (&lt;= x 5))) (not (&lt;= x 6))) (not (&lt;= x 7))) (not (&lt;= x 8))) (not (&lt;= x 9))) (not (&lt;= x 10))) (not (&lt;= x 7))) (not (&lt;= x 11))) (not (&lt;= x 12))) (not (&lt;= x 13))) (not (&lt;= x 7))) (and (or (not (&lt;= x 14)) (not (&lt;= x 32))) (not (&lt;= x 16)))) (and (or (not (&lt;= x 15)) (not (&lt;= x 33))) (not (&lt;= x 17)))) (and (and (not (&lt;= x 14)) (not (&lt;= x 15))) (not (&lt;= x 14)))) (and (&lt;= x 14) (or (not (&lt;= x 34)) (not (&lt;= x 35))))) (and (&lt;= x 15) (or (not (&lt;= x 36)) (not (&lt;= x 37))))) (and (and (&lt;= x 14) (not (&lt;= x 18))) (or (or (not (&lt;= x 38)) (not (&lt;= x 39))) (not (&lt;= x 40))))) (and (and (&lt;= x 15) (not (&lt;= x 19))) (or (or (not (&lt;= x 41)) (not (&lt;= x 42))) (not (&lt;= x 43))))) (and (or (not (&lt;= x 18)) (&lt;= x 16)) (or (not (&lt;= x 44)) (not (&lt;= x 45))))) (and (or (not (&lt;= x 19)) (&lt;= x 17)) (or (not (&lt;= x 46)) (not (&lt;= x 47))))) (and (or (not (&lt;= x 18)) (&lt;= x 16)) (or (not (&lt;= x 48)) (not (&lt;= x 49))))) (and (or (not (&lt;= x 19)) (&lt;= x 17)) (or (not (&lt;= x 50)) (not (&lt;= x 51))))) (and (&lt;= x 16) (not (&lt;= x 52)))) (and (&lt;= x 17) (not (&lt;= x 53)))) (and (&lt;= x 16) (or (not (&lt;= x 54)) (not (&lt;= x 55))))) (and (&lt;= x 17) (or (not (&lt;= x 56)) (not (&lt;= x 57))))) (not (&lt;= x 20))) (not (&lt;= x 21))) (not (&lt;= x 7))) (not (&lt;= x 7))) (not (&lt;= x 7))) (and (or (not (&lt;= x 22)) (not (&lt;= x 23))) (not (&lt;= x 24)))) (and (and (not (&lt;= x 22)) (not (&lt;= x 22))) (not (&lt;= x 22)))) (and (&lt;= x 22) (or (not (&lt;= 0 0)) (not (&lt;= 0 0))))) (and (and (&lt;= x 22) (not (&lt;= x 25))) (or (or (not (&lt;= x 26)) (not (&lt;= x 58))) (not (&lt;= x 59))))) (and (and (&lt;= x 22) (not (&lt;= x 25))) (or (or (not (&lt;= x 26)) (not (&lt;= x 60))) (not (&lt;= x 61))))) (and (or (not (&lt;= x 25)) (&lt;= x 24)) (or (not (&lt;= x 27)) (not (&lt;= x 28))))) (and (or (not (&lt;= x 25)) (&lt;= x 24)) (or (not (&lt;= x 62)) (not (&lt;= x 63))))) (and (or (not (&lt;= x 25)) (&lt;= x 24)) (or (not (&lt;= x 64)) (not (&lt;= x 65))))) (and (&lt;= x 24) (not (&lt;= x 29)))) (and (&lt;= x 24) (or (not (&lt;= x 30)) (not (&lt;= x 31))))))
+(assert (&lt;= x 1))
+(check-sat)</code></pre>
+<p>The file is five lines. The third line is long because the whole disjunction is one assertion, as in the benchmark.</p>
+
+<h3>(b) Before the PR</h3>
+<p>
+The certificate exporter, untouched by this PR, produced the clause log. The old reconstructor found no direct term for
+the lemma over the normalized atoms and emitted only the fallback:
+</p>
+<pre><code>private theorem normalized_rewrite_1045 (_atoms : Nat -&gt; Prop) (_atom0 : Prop) (_atom1 : Prop) ...
+    : (Iff (Or (Or (Or ... (Not _atom0) (Not _atom1)) (Not _atom2)) ...) ...) :=
+  by grind (splits := 64)</code></pre>
+<p>Lean rejected that file after 49 seconds, so no certificate was published. The first error line was:</p>
+<pre><code>clock2r1.lean:3217:5: error: `grind` failed
+case grind.2.2.2.2.2.2.1.2.2.2.1.1.2.1.2.2.2.2.1.2</code></pre>
+<p>
+The full three-group skeleton of the PR's test fails the same way under the old code, after 87 seconds in this report's run.
+</p>
+
+<h3>(c) After the PR</h3>
+<p>Lean accepted the new file, 5,921 lines long, in about five seconds. The pieces below are trimmed, with <code>...</code> where lines were cut.</p>
+
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
+def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &lt;= (term_1 _atoms _vars))
+def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (formula_2 _atoms _vars))
+...</code></pre>
+<p>The declarations encode the input: the variable, the constant 1, the atom <code>x &lt;= 1</code>, and its negation, with the rest of the formula built the same way.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_299 _atoms _vars))
+    (_h1 : (formula_2 _atoms _vars))
+    : False :=
+  proof_step_1587 _atoms _vars (And.intro _h0 _h1)</code></pre>
+<p>The final theorem: from the big disjunction and the unit bound as <a href="#g-hypothesis">hypotheses</a>, Lean derives False.</p>
+
+<pre><code>private theorem rewrite_1045 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_1044 _atoms _vars) := by
+  let _atom0 : Prop := ((((1 : Rat)) * _vars 0) + ((-1 : Rat)) &lt;= ((0 : Rat)))
+  have _norm2 : (formula_2 _atoms _vars) &lt;-&gt; _atom0 := by
+    change ((_vars 0) &lt;= (((1 : Rat)))) &lt;-&gt; ((((1 : Rat)) * _vars 0) + ((-1 : Rat)) &lt;= ((0 : Rat)))
+    grind
+  ...</code></pre>
+<p>Each arithmetic atom is rewritten to its normalized form and given a name, so the Boolean lemma below can treat the atoms as opaque propositions.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem normalized_rewrite_1045 (_atoms : Nat -&gt; Prop) (_atom0 : Prop) (_atom1 : Prop) ... (_atom64 : Prop)
+    : (Iff (Or (Or (Or ... (Not _atom0) (Not _atom1)) (Not _atom2)) (Not _atom3)) ...) ...) :=
+  by first | exact (let _s0 : Prop := (Or (Not _atom0) (Not _atom1)); let _s1 : Prop := (Or _s0 (Not _atom2));
+    let _s2 : Prop := (Or _s1 (Not _atom3)); ... let _s14 : Prop := (Or (Not _atom13) (Not _atom14));
+    let _s15 : Prop := (And _s14 (Not _atom15)); ...</code></pre>
+<p>This is the new feature: 110 <code>let</code> names, one per and or or node, so every later step is written over short names.</p>
+
+<pre><code>    (Iff.intro (fun (_f1 : _s100) =&gt; ((have _f2 : True := True.intro;
+      have _f3 : (Not (Not True)) := (fun _g =&gt; _g _f2);
+      have _f4 := (not_or.mpr (And.intro _f3 _f3));
+      have _f5 := (mt (@And.right _atom47 _) _f4);
+      (Or.elim _f1 (fun _f6 =&gt; (Or.elim _f6 (fun _f7 =&gt; ...
+        (have _f13 := (Or.elim _f12 (fun _g =&gt; _g) (fun _g =&gt; absurd _g _f5)); ...</code></pre>
+<p>The forward direction first settles the constant atom: <code>(Not True)</code> is refuted, then the disjunction of its two copies, then the conjunction containing it. Then it case-analyses the nested disjunction, one branch per disjunct.</p>
+
+<pre><code>    (fun (_f408 : _s109) =&gt; ((have _f409 : True := True.intro; ...
+      (Or.elim _f408 (fun _f413 =&gt; (have _f414 := (@Or.inl _ (Not _atom1) _f413);
+        have _f415 := (@Or.inl _ (Not _atom2) _f414); ...
+      have _f1673 := (@Or.inl _ _s99 _f1672); _f1673)))) ... : _s100)))) | grind (splits := 64)</code></pre>
+<p>The backward direction takes each flattened disjunct and injects it into the nested form with one short step per level. The whole term uses no excluded middle, and <code>grind</code> remains as the fallback after the vertical bar.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+Locally, every Lean-checking suite passed, both regression matrix cells were fully Lean-verified, and the clock
+synchronization corpus file now verifies end to end with only Lean's standard axioms. The reviewer reran the full suite
+with the same numbers. The local gate for this iteration has not been recorded. No CI status was recorded when this
+report was written, so the CI rows below are pending rather than passed. There were no CI fix rounds.
+</p>
+<table>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Lean-checked unit and integration tests (<code>test_proof_to_lean*.py</code>)</td><td class="ok">290 tests OK, 846 s</td></tr>
+    <tr><td>Certificate exporter tests</td><td class="ok">88 tests OK</td></tr>
+    <tr><td>Pinned Lean project build and checks (<code>check_lean.sh</code>)</td><td class="ok">passed</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">46 tests OK</td></tr>
+    <tr><td>Boolean regression matrix, legacy proof object cell</td><td class="ok">6 of 6 Lean-verified</td></tr>
+    <tr><td>QF_LRA regression matrix, clause log cell</td><td class="ok">8 of 8 Lean-verified</td></tr>
+    <tr><td>Corpus file <code>clocksynchro_3clocks.main_invar.base.smt2</code></td><td class="ok">Lean passes in 25 s, was <code>grind</code> failed after 97 s</td></tr>
+    <tr><td>Not run</td><td>C++ unit tests, benchmark tests, build-script tests (no C++ or script change)</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>CI workflow and step</th><th>Status</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td>CI, manylinux: Test Python wheel</td><td class="open">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+    <tr><td>CI, Ubuntu cmake: Check native Boolean proofs in Lean</td><td class="open">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+    <tr><td>CI, Ubuntu cmake: Require Lean-certified Boolean matrix results</td><td class="open">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+    <tr><td>CI, Ubuntu cmake: Require Lean-certified QF_LRA matrix results</td><td class="open">not recorded</td><td><a href="https://github.com/levnach/z3/pull/37/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blocker, major or minor finding and three nits.</p>
+<ul>
+  <li><strong>Dead branch in the disjunction eliminator (nit, fixed).</strong> The helper that builds an
+      <code>Or.elim</code> chain had a branch for a single handler, but both callers always pass two or more. Dead
+      defensive code makes every reader work out why it is dead, so the second commit replaced it with an assertion.
+      The emitted terms did not change.</li>
+  <li><strong>Stale docstring (nit, fixed).</strong> The prover's summary still said an unsettled direction splits on
+      an atom with excluded middle, while the term now case-analyses an assumed disjunction first. A reader trusting the
+      summary would expect the wrong term, so the paragraph now describes the real order.</li>
+  <li><strong>Sibling names repeated per step (nit, deferred).</strong> Three helpers write out all remaining
+      siblings at every step through a wide gate, which is quadratic in the gate's width. No current input comes near
+      the budget, and fixing it changes the term shape again, so it is recorded as a follow-up.</li>
+</ul>
+<p>
+The reviewer also stripped the <code>grind</code> fallback and confirmed that Lean accepts the direct terms alone, for
+the two test instances and for generated inputs with Boolean <code>ite</code>, <code>xor</code>, equality and
+implication under the disjunction. They confirmed that the clock-shaped test fails under the base commit.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li><strong>Every propositional term changed shape.</strong> The let-named form is now used for all propositional
+      rewrites and cnf lemmas, not only normalized rewrites. Lean checks each term and the fallbacks are unchanged, but
+      a corpus re-scan is the right next evidence.</li>
+  <li><strong>A propositional rewrite has no <code>first</code>.</strong> Its truth-table fallback is chosen ahead of
+      time, so a term Lean rejected would fail the certificate, as before the PR.</li>
+  <li><strong>Case split scanning.</strong> The search for a true disjunction rescans every structure on each call,
+      negligible today but noticeable for a lemma with thousands of structures and splits.</li>
+  <li><strong>CI is not yet recorded.</strong> The local results are strong, but the published CI status is unknown.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Re-scan the corpus from iteration 32 with the new prover.</li>
+  <li>Add the dual case analyses: a false conjunction and a true implication.</li>
+  <li>Bind the sibling tails as further <code>let</code> names to remove the quadratic sibling lists.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-atom">atom</dt>
+  <dd>A formula with no Boolean connective inside it, such as <code>x &lt;= 5</code> or a Boolean variable.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort of truth values, true and false.</dd>
+  <dt id="g-case-analysis">case analysis</dt>
+  <dd>Proving a goal from a disjunction by proving it once under each disjunct. In Lean this is <code>Or.elim</code>.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>(or (not a) b)</code>.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>Equal arguments give equal results: from <code>a = b</code> follows <code>f(a) = f(b)</code>.</dd>
+  <dt id="g-conjunction">conjunction</dt>
+  <dd>An "and" of formulas, true only when every part is true.</dd>
+  <dt id="g-constant-atom">constant atom</dt>
+  <dd>An atom with no variables, such as <code>(&lt;= 0 0)</code>, which is simply true or simply false.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An inequality over integers tightened by rounding, such as <code>2x &lt;= 3</code> giving <code>x &lt;= 1</code>.</dd>
+  <dt id="g-disjunction">disjunction</dt>
+  <dd>An "or" of formulas, true when at least one part is true.</dd>
+  <dt id="g-equivalence">equivalence</dt>
+  <dd>Two formulas that always have the same truth value, written <code>iff</code> or <code>=</code> on Booleans.</dd>
+  <dt id="g-excluded-middle">excluded middle</dt>
+  <dd>The principle that every proposition is either true or false, used to split a proof into two cases.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A set of linear inequalities is contradictory exactly when some nonnegative combination of them gives <code>0 &lt; 0</code>.</dd>
+  <dt id="g-flattening">flattening</dt>
+  <dd>Rewriting nested disjunctions such as <code>(or (or a b) c)</code> into one wide disjunction <code>(or a b c)</code>.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A formula assumed to be true for the course of a proof.</dd>
+  <dt id="g-let">let binding</dt>
+  <dd>A local name for a sub-expression inside a term, so the expression is written once and referred to by name.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Reasoning about sums of variables times constants compared by <code>&lt;=</code>, <code>&lt;</code> and <code>=</code>, over reals (QF_LRA) or integers (QF_LIA).</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or the negation of an atom.</dd>
+  <dt id="g-normalized-atom">normalized atom</dt>
+  <dd>An arithmetic atom rewritten to one canonical shape, here <code>c1 * x + c0 &lt;= 0</code>, so equal atoms get the same name.</dd>
+  <dt id="g-proof-term">proof term</dt>
+  <dd>An explicit expression whose type is the statement being proved. Lean checks it directly, with no search.</dd>
+  <dt id="g-propositional">propositional</dt>
+  <dd>Concerning only the Boolean structure of a formula, with the atoms treated as opaque.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assumptions leads to False.</dd>
+  <dt id="g-rewrite">rewrite</dt>
+  <dd>A step that replaces a formula by an equivalent one, such as the simplifier's flattening of a disjunction.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A procedure that searches for a proof, such as <code>grind</code>. It may fail or run out of time where a proof term cannot.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A fact that holds by arithmetic alone, such as <code>x &lt;= 1</code> and <code>x &gt; 2</code> being contradictory.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no definition, about which only equality facts are known.</dd>
+  <dt id="g-unit-clause">unit clause</dt>
+  <dd>A clause with exactly one literal, which fixes that literal's truth value.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-27, iteration 37. Pull request state at generation: OPEN.
+</footer>
+</body>
+</html>
