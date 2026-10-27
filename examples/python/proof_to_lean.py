@@ -1800,14 +1800,14 @@ def _render_connective(kind, children):
 
 
 def _eliminate_or(proof, handlers):
-    """Apply one handler per disjunct of a right-nested disjunction proof.
+    """Apply one handler per disjunct of a right-nested disjunction proof (two or more).
 
     The proof is the first Or.elim's major premise, so every handler's
     binder type follows from it and the term's type is the handlers'
-    common result type, with no ascription.
+    common result type, with no ascription. An or structure always has two
+    or more children (_structure_fold), so there are two or more handlers.
     """
-    if len(handlers) == 1:
-        return "(%s %s)" % (handlers[0], proof)
+    assert len(handlers) >= 2
     result = handlers[-1]
     for handler in reversed(handlers[1:-1]):
         result = "(fun _tail => Or.elim _tail %s %s)" % (handler, result)
@@ -1873,9 +1873,11 @@ class _PropositionalProver:
 
     The two sides are gates over shared atoms. A direction is proved by
     assuming one side, propagating truth values through the gates (each
-    propagation step is a typed `have` whose proof uses only the immediate
+    propagation step is a `have` whose proof uses only the immediate
     operands, as in _gate_contradiction), and, while propagation alone does
-    not settle the other side, splitting on an atom with Decidable.em; a
+    not settle the other side, doing case analysis on a true disjunction
+    with undetermined disjuncts (Or.elim, see _case_split) or, when no
+    assumed disjunction remains, splitting on an atom with Decidable.em; a
     branch ends with the other side proved or with a contradiction. Double
     negations are cancelled by Decidable.byContradiction on atoms only, so
     the term needs no decidability instance for a compound formula, and only
