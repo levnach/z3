@@ -102,10 +102,13 @@ _LATTICE_LEMMA_HEARTBEATS = 2000000
 _NORMALIZED_CONNECTIVES = (z3.Z3_OP_AND, z3.Z3_OP_OR, z3.Z3_OP_NOT, z3.Z3_OP_IMPLIES, z3.Z3_OP_IFF,
                            z3.Z3_OP_XOR, z3.Z3_OP_ITE, z3.Z3_OP_TRUE, z3.Z3_OP_FALSE)
 # Propagation steps and atom splits a propositional rewrite's direct proof may
-# take, and characters its typed `have` steps may render, before the truth
-# table is used instead (see _PropositionalProver). A term of one million
-# characters checks in a few seconds; a parity rewrite over seven atoms
-# renders 2.8 MB and exceeds Lean's heartbeat limit.
+# take, and characters its `have` lines may render (the `refine` and bullet
+# lines are not counted), before the truth table is used instead (see
+# _PropositionalProver). The proof is a tactic script, which Lean elaborates
+# in time about linear in its steps (a nested term was quadratic): the 1.1 MB
+# cnf lemma of a 13,000-node QF_IDL circuit checks in under a minute, while
+# a parity rewrite over seven atoms renders 2.8 MB and exceeds Lean's
+# heartbeat limit.
 _STRUCTURAL_REWRITE_STEPS = 20000
 _STRUCTURAL_REWRITE_CHARS = 1000000
 _RESERVED_SORTS = ("Bool", "Real", "Int", "Proof")
@@ -2062,7 +2065,8 @@ class _PropositionalProver:
                 return None
             names.append(name)
             branches.append(branch)
-        return lines + ["refine (Or.elim %s (fun %s => ?_) (fun %s => ?_))" % (split, names[0], names[1])] + _bullets(branches)
+        refine = "refine (Or.elim %s (fun %s => ?_) (fun %s => ?_))" % (split, names[0], names[1])
+        return lines + [refine] + _bullets(branches)
 
     def _case_split(self, state):
         """A true disjunction with two or more undetermined disjuncts and no true one, with its proof, or None.
@@ -2398,12 +2402,12 @@ def _leaf_key(graph, leaf):
 def _rewrite_lemma(graph, node, atom_indices, variable_indices=None, terms=None):
     """Generate a Lean lemma for a rewrite step, checked independently of the assertions.
 
-    A propositional rewrite is proved by a direct term from gate propagation
-    and case splits on atoms (_PropositionalProver); the exhaustive truth
-    table over the atoms' decidability witnesses, exponential in their number,
-    is the fallback when the prover gives up. Theory rewrites go to grind,
-    except that a rewrite between two identical formulas (the legacy core
-    records one per assertion) is Iff.refl.
+    A propositional rewrite is proved by a tactic script of gate propagation
+    and case splits on atoms over the folded goal (_PropositionalProver); the
+    exhaustive truth table over the atoms' decidability witnesses, exponential
+    in their number, is the fallback when the prover gives up. Theory
+    rewrites go to grind, except that a rewrite between two identical
+    formulas (the legacy core records one per assertion) is Iff.refl.
     """
     conclusion = graph.conclusion(node)
     left, right = _equivalence(graph, conclusion, "rewrite")
@@ -2639,7 +2643,8 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         "    : %s :=" % _render_structure(("iff", left, right)),
     ]
     if equivalence is not None:
-        boolean_lemma.extend(["  by first", "    | (" + "\n       ".join(equivalence) + ")", "    | grind (splits := 64)"])
+        boolean_lemma.extend(["  by first", "    | (" + "\n       ".join(equivalence) + ")",
+                              "    | grind (splits := 64)"])
     else:
         boolean_lemma.append("  by grind (splits := 64)")
     lines.append("  simpa only [%s] using (normalized_rewrite_%d _atoms %s)" % (
