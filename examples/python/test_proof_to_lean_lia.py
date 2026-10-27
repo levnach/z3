@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -1161,6 +1162,41 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         # The legacy core rewrites each abs term to its ite on its own.
         self.assertEqual(text.count("revert _e"), 12)
         self.assertRegex(text, r"private theorem rewrite_\d+ .*\n.*\n.*\n  first\n    \| \(have _e")
+
+    def test_bounded_model_checking_circuit_verifies_through_one_cnf_lemma(self):
+        # SMT-LIB QF_IDL Averest/buble_sort/BubbleSort_safe_bgmc007: one
+        # assertion, a 13,000-node Boolean circuit (and, or, not, iff over
+        # Boolean variables and a few difference bounds) that Z3 simplifies
+        # before logging, so the whole refutation rests on one cnf lemma
+        # tying an assumed clause to the assertion. Its propagation proof
+        # has about ten thousand steps: as one nested term it exhausted the
+        # heartbeats (first in the unfold of the 13,000 definitions, then in
+        # the term itself, which Lean elaborates in time quadratic in the
+        # nesting), and the export spent two minutes sorting nested keys.
+        # Now the proof is a tactic script naming the gates by their
+        # definitions, with nothing unfolded, and the whole file verifies.
+        source = (_EXAMPLES / "data" / "BubbleSort_safe_bgmc007.smt2").read_text()
+        start = time.time()
+        certificate = self.check(source)
+        elapsed = time.time() - start
+        graph = proof_to_lean._validate_graph(source, certificate)
+        cnf = [node for node in _th_lemma_nodes(certificate) if graph.decl(node).parameters == ("cnf",)]
+        self.assertEqual(len(cnf), 1)
+        self.assertEqual(certificate["rule_counts"]["th-lemma"], 1)
+        self.assertGreater(len(graph.nodes), 13000)
+        text = proof_to_lean.reconstruct(source, certificate)
+        lemma = text.split("private theorem th_lemma_%d " % cnf[0], 1)[1].split("\n\n", 1)[0]
+        head, _, attempts = lemma.partition("\n  first\n")
+        self.assertNotIn("unfold", head)
+        structural, fallback = attempts.split("\n    | (")
+        self.assertIn("refine Classical.byContradiction ?_\n       refine (fun (_f", structural)
+        self.assertGreater(structural.count("\n       have _f"), 5000)
+        self.assertNotIn("let _s", structural)
+        self.assertLess(len(structural), proof_to_lean._STRUCTURAL_REWRITE_CHARS)
+        self.assertTrue(fallback.startswith("unfold formula_"), fallback[:80])
+        # Export, reconstruction, and Lean together, on an idle machine: about
+        # a minute; the bound only catches a return to the old behaviour.
+        self.assertLess(elapsed, 900, elapsed)
 
     def test_arith_lemmas_over_real_atoms_verify(self):
         # The arith hint is accepted in Real certificates too, where grind
