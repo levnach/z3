@@ -21,6 +21,7 @@ Abstract:
 #include "sat/smt/arith_theory_checker.h"
 #include "sat/smt/distinct_theory_checker.h"
 #include "sat/smt/tseitin_theory_checker.h"
+#include "util/gparams.h"
 #include "util/z3_exception.h"
 #include <cstdlib>
 #include <iostream>
@@ -948,7 +949,47 @@ static void tst_trim_assumed_empty_clauses() {
     ENSURE(core[2].second.size() == 2);
 }
 
+// A Boolean term under an uninterpreted function, x = (not q) in (pb (not q)),
+// is a solver variable of its own, and the log prints its literals as (not q)
+// and (not (not q)), the same text as q negated and q. The trimmer stripped
+// one negation per literal, so (not (not q)) became a variable unrelated to
+// q, the final conflict over it was not found, and the export replayed the
+// untrimmed log (random_bool_argument_instance seeds 347 and 2088 of
+// test_proof_to_lean_uf.py, iter-041). Every negation is stripped now.
+static void tst_trim_double_negation() {
+    char const* log =
+        "(declare-fun q () Bool)\n"
+        "(declare-fun pb (Bool) Bool)\n"
+        "(assume (not q))\n"
+        "(assume (not (not q)) (pb true))\n"
+        "(assume (not (pb true)))\n"
+        "(declare-fun rup () Proof)\n"
+        "(infer rup)\n";
+    gparams::set("solver.proof.trim", "true");
+    ast_manager m;
+    reg_decl_plugins(m);
+    cmd_context ctx(false, &m);
+    install_proof_cmds(ctx);
+    std::istringstream is(log);
+    std::ostringstream captured;
+    bool ok;
+    {
+        std::streambuf* saved = std::cout.rdbuf(captured.rdbuf());
+        ok = parse_smt2_commands(ctx, is);
+        std::cout.rdbuf(saved);
+    }
+    gparams::set("solver.proof.trim", "false");
+    std::string out = captured.str();
+    std::cout << out;
+    ENSURE(ok);
+    ENSURE(out.find("not derivable") == std::string::npos);
+    // The empty clause depends on all three assumptions.
+    for (char const* deps : {"(deps 0)", "(deps 1)", "(deps 2)", "(deps 3 "})
+        ENSURE(out.find(deps) != std::string::npos);
+}
+
 void tst_proof_replay() {
+    tst_trim_double_negation();
     tst_trim_satisfied_clause();
     tst_trim_watches_literals_that_are_not_false();
     tst_trim_assumed_empty_clauses();
