@@ -1610,6 +1610,19 @@ detected" instead of exhausting the machine. Tests: `test_proof_certificate.py`
 (`test_moderate_logs_are_trimmed_by_default`, on the train-gate benchmark in
 `examples/python/data`), `scripts/tests/test_check_lean.py`.
 
+More logs now reach the trimmer, and with them three open trimmer bugs, each
+handled by the untrimmed fallback (a `RuntimeWarning`, one wasted run):
+(1) it crashes (SIGSEGV or SIGBUS, never any output) on any `arith`-hinted
+inference over `div`/`mod` by a constant; the minimal input is the first ten
+lines of the log of `test_proof_to_lean_lia.random_division_instance(24)`,
+ending in `(infer $137 $139)` with `$137 = (= (+ (* (- 3) (div x2 (- 3)))
+(mod x2 (- 3))) x2)`, and 58 of the seeds 1 to 59 crash; (2) for
+`random_instance(1, 10, 30, ite=True)` it prints only the empty clause, as
+`(deps 172 172)`, likely `add_core(null, NONE)` in `proof_trim::trim`
+finding the empty clause's own entry; (3) the log of one input of the Lean suite is rejected
+("the inferred clause 47 -59 is not derivable by unit propagation"). All three need C++ fixes in
+`src/sat/sat_proof_trim.cpp`, each with a `src/test` regression.
+
 ### Trimmed QF_UF logs; assumption search by shared symbols (2026-10-27)
 
 A first end-to-end pass over z3test's `smtlib-sample` QF_UF files found two

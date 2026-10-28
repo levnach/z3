@@ -2990,13 +2990,13 @@ class TestClauseLogDependencies(unittest.TestCase):
         with patch.object(proof_clause_log, "_TRIM_THRESHOLD", 0):
             failed = subprocess.CompletedProcess([], 1, "", "trimmer failed")
             with patch.object(proof_clause_log.subprocess, "run", return_value=failed):
-                with self.assertWarnsRegex(RuntimeWarning, r"trimming failed \(exit status 1\).*trimmer failed"):
+                with self.assertWarnsRegex(RuntimeWarning, "trimming exited with status 1.*trimmer failed"):
                     self.assertEqual(proof_clause_log.trim_clause_log("unused", _LRA_LOG), _LRA_LOG)
             rejected = subprocess.CompletedProcess(
                 [], 0, '(error "line 3 column 10: proof trimming: the inferred clause 5 is not derivable by '
                        'unit propagation from the preceding clauses")\n', "")
             with patch.object(proof_clause_log.subprocess, "run", return_value=rejected):
-                with self.assertWarnsRegex(RuntimeWarning, "not derivable by unit propagation"):
+                with self.assertWarnsRegex(RuntimeWarning, "trimming reported an error.*not derivable by unit propagation"):
                     self.assertEqual(proof_clause_log.trim_clause_log("unused", _LRA_LOG), _LRA_LOG)
             cyclic = subprocess.CompletedProcess([], 0, _DEPENDENCY_LOG.replace("(deps 4 0 1)", "(deps 4 3)"), "")
             with patch.object(proof_clause_log.subprocess, "run", return_value=cyclic):

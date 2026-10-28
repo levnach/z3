@@ -1743,7 +1743,7 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         self.assertTrue(proof_clause_log._TRIM_THRESHOLD <= len(log) < 1_000_000, len(log))
         self.assertIn("(deps ", core)
         self.assertIn(".unsat' depends on axioms: " + _STANDARD_AXIOMS, report)
-        with patch.object(proof_clause_log, "_TRIM_THRESHOLD", len(log) + 1):
+        with patch.object(proof_clause_log, "_TRIM_THRESHOLD", float("inf")):
             untrimmed = proof_certificate.export_clause_log_certificate(source)
         self.assertLess(3 * len(certificate["nodes"]), len(untrimmed["nodes"]))
         self.assertLess(certificate["rule_counts"]["th-lemma"], untrimmed["rule_counts"]["th-lemma"])
