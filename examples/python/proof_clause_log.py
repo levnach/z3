@@ -186,8 +186,8 @@ def trim_clause_log(z3_executable, text, timeout=None):
         except OSError as error:
             raise ProofExportError("cannot run native proof trimming: %s" % error) from error
         if run.returncode or "(error" in run.stdout:
-            warnings.warn("native proof trimming failed, replaying the untrimmed log: %s"
-                          % (run.stderr + run.stdout)[-2000:], RuntimeWarning)
+            warnings.warn("native proof trimming failed (exit status %d), replaying the untrimmed log: %s"
+                          % (run.returncode, (run.stderr + run.stdout)[-2000:]), RuntimeWarning)
             return text
         if run.stderr.strip():
             warnings.warn("native proof trimming diagnostics:\n" + run.stderr[-2000:], RuntimeWarning)
