@@ -914,9 +914,44 @@ static void tst_trim_watches_literals_that_are_not_false() {
     ENSURE(core3[1].first == 2 && core3[1].second.size() == 1 && core3[1].second[0] == 1);
 }
 
+// An empty clause inferred under a theory hint is assumed (proof_cmds treats
+// theory axioms as assumptions). When nothing before it conflicts, its core
+// would be itself; trim() rejects it. An assumed empty clause that follows a
+// conflict is not part of the core.
+static void tst_trim_assumed_empty_clauses() {
+    params_ref params;
+    reslimit limit;
+    sat::proof_trim trim(params, limit);
+    sat::literal x(trim.mk_var(), false), y(trim.mk_var(), false);
+    trim.init_clause(); trim.add_literal(x.var(), x.sign()); trim.assume(0);
+    trim.init_clause(); trim.add_literal(y.var(), y.sign()); trim.assume(1);
+    trim.init_clause(); trim.assume(2);    // (infer (arith ...)) of the empty clause
+    bool rejected = false;
+    try {
+        trim.trim();
+    }
+    catch (z3_exception& ex) {
+        rejected = std::string(ex.what()).find("theory axiom whose premises are unknown") != std::string::npos;
+    }
+    ENSURE(rejected);
+
+    sat::proof_trim trim2(params, limit);
+    sat::literal a(trim2.mk_var(), false), b(trim2.mk_var(), false);
+    trim2.init_clause(); trim2.add_literal(a.var(), a.sign()); trim2.assume(0);
+    trim2.init_clause(); trim2.add_literal(a.var(), !a.sign()); trim2.assume(1);
+    trim2.init_clause(); trim2.assume(2);
+    trim2.init_clause(); trim2.add_literal(b.var(), b.sign()); trim2.assume(3);
+    trim2.init_clause(); trim2.infer(4);
+    auto core = trim2.trim();
+    ENSURE(core.size() == 3);
+    ENSURE(core[0].first == 0 && core[1].first == 1 && core[2].first == 4);
+    ENSURE(core[2].second.size() == 2);
+}
+
 void tst_proof_replay() {
     tst_trim_satisfied_clause();
     tst_trim_watches_literals_that_are_not_false();
+    tst_trim_assumed_empty_clauses();
     tst_trim_duplicate_binary_keeps_implied_literal();
     tst_trim_rejects_underivable_inference();
     tst_trim_ignores_deletions_of_clauses_never_added();

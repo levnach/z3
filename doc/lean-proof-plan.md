@@ -1856,6 +1856,11 @@ inferred empty clause depends on the assumed one. An inferred empty clause
 that arrives without a conflict is checked by propagating the whole trail
 again; if that finds none either, `trim()` rejects the log ("the empty
 clause is not derivable by unit propagation") instead of writing a cycle.
+An empty clause inferred under a theory hint is assumed like any theory
+axiom; when it is the first conflict, the trimmer cannot know its premises,
+and `trim()` rejects the log ("the empty clause is a theory axiom whose
+premises are unknown") rather than make it depend on itself. An assumed
+empty clause after the conflict is left out of the core.
 (3) Z3 logs div/mod axioms under a bare `arith` hint, for which
 `euf::theory_checker` has no plugin. The trimmer (`proof_cmds.cpp`) looked up
 the hint's clause anyway, read through a missing map entry, and crashed with
@@ -1865,7 +1870,8 @@ logged clause, like any other.
 The trust boundary is unchanged: the replay checks every retained step.
 Tests: `src/test/proof_replay.cpp` (`tst_trim_watches_literals_that_are_not_false`:
 the missed conflict, the rejected underivable empty clause, the assumed empty
-clause) and `test_proof_certificate.py` (one test per bug through the z3
+clause; `tst_trim_assumed_empty_clauses`: the rejected theory-axiom empty
+clause, the assumed empty clause after a conflict) and `test_proof_certificate.py` (one test per bug through the z3
 executable's trimmer with warnings as errors, then the core replayed; all
 three fail on the previous build). Four Lean-suite tests had been checking
 untrimmed certificates through these fallbacks: the wide division seeds of

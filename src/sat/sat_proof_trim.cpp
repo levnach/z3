@@ -40,6 +40,11 @@ namespace sat {
         SASSERT(cl.empty());
         if (!m_has_conflict)
             throw default_exception("proof trimming: the empty clause is not derivable by unit propagation from the preceding clauses");
+        // An empty clause that is the first conflict and is itself assumed
+        // (a theory axiom whose hint gives no clause to propagate) has no
+        // premises the trimmer can find: its core would be itself.
+        if (is_initial && m_conflict.empty() && m_clauses.find(cl).m_id == id)
+            throw default_exception("proof trimming: the empty clause is a theory axiom whose premises are unknown");
         m_result.push_back({id, unsigned_vector()});
         conflict_analysis_core(m_conflict, m_conflict_clause);
         m_trail.pop_back();
@@ -441,7 +446,8 @@ namespace sat {
         if (m_clause.empty()) {
             // The first empty clause stands for all: the core of an inferred
             // empty clause after an assumed one depends on the assumed one.
-            m_clauses.insert_if_not_there(m_clause, { {}, id, true });
+            // Like any clause, it is in the core only if the conflict uses it.
+            m_clauses.insert_if_not_there(m_clause, { {}, id, false });
             m_trail.push_back({ id , m_clause, nullptr, true, is_initial });
             return;
         }
