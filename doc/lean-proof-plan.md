@@ -1867,7 +1867,17 @@ Tests: `src/test/proof_replay.cpp` (`tst_trim_watches_literals_that_are_not_fals
 the missed conflict, the rejected underivable empty clause, the assumed empty
 clause) and `test_proof_certificate.py` (one test per bug through the z3
 executable's trimmer with warnings as errors, then the core replayed; all
-three fail on the previous build).
+three fail on the previous build). Four Lean-suite tests had been checking
+untrimmed certificates through these fallbacks: the wide division seeds of
+`test_proof_to_lean_lia.py` and `test_proof_to_lean_uflia.py` (their trimmed
+cores leave out the Farkas lemmas the tests are about) and the wide
+conjunction of `test_proof_to_lean_wide.py` (trimmed, its core is the
+assumed empty clause). They now export the untrimmed log explicitly; the
+conjunction test checks the trimmed default in Lean as well. Three
+fallbacks remain in the Lean suite, now as explicit errors: the "inferred
+clause ... not derivable" of a Boolean-predicate input, and two
+`random_bool_argument_instance` seeds whose final empty clause is not
+derivable over the clauses the trimmer assumes.
 
 ### Trimmer: deletions of clauses it never added (2026-10-23)
 
