@@ -1,0 +1,22 @@
+{
+  "pull_request": 41,
+  "head_sha": "d12b3384233490eca82ed2f38fe7ebfc61b58963",
+  "base_sha": "213bdc320dbeb676a240e958d5c0307e7e167b58",
+  "path_prefix": "fstar/audits/pr-41/d12b3384233490eca82ed2f38fe7ebfc61b58963/",
+  "verdict": "proved",
+  "run_url": "https://github.com/levnach/z3/actions/runs/40650431764",
+  "files": [
+    {
+      "name": "WatchPartition.fst",
+      "sha256": "aecb70633dde14a2b5d7f4b2d0003d87e00c59f2aaf822ececb6e44b024abae9"
+    },
+    {
+      "name": "REPORT.md",
+      "sha256": "ddd4e091aadb5f7e387ed240cc43a21f427a21f9bb9880878150b6eb507fb79b"
+    },
+    {
+      "name": "verification.log",
+      "sha256": "ebebec767fa0d26ee790111525c9011e5de30264236889a4bc36640fb6185231"
+    }
+  ]
+}
