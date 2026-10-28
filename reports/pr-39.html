@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #39: Use trimmed QF_UF clause logs and search assumptions by shared symbols</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --badge-bg: #dafbe1; --badge-fg: #116329;
+    --warn-bg: #fff8c5; --warn-fg: #7d4e00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --badge-bg: #12261e; --badge-fg: #3fb950;
+      --warn-bg: #272115; --warn-fg: #d29922;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; font-weight: 600;
+           background: var(--badge-bg); color: var(--badge-fg); font-size: 0.85rem; }
+  .note { background: var(--warn-bg); color: var(--warn-fg); padding: 0.5rem 0.8rem; border-radius: 6px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.75rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .explain { margin-top: -0.3rem; color: var(--muted); }
+  dl dt { font-weight: 600; margin-top: 0.7rem; }
+  dl dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Use trimmed QF_UF clause logs and search assumptions by shared symbols</h1>
+  <p class="meta">
+    <a href="https://github.com/levnach/z3/pull/39">Pull request #39</a> on levnach/z3 ·
+    state <span class="badge">OPEN</span> · 2026-10-28T02:07:42Z · loop iteration 39
+  </p>
+  <p class="note">This pull request is open and not merged. The change under review is commit
+    <a href="https://github.com/levnach/z3/commit/70998c7d9559b2e123fbf285ad56ba61652610ef"><code>70998c7d9</code></a>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>This PR makes two fixes to the Python exporter that turns a Z3
+<a href="#g-clause-log">clause log</a> into a certificate. First, the exporter now uses
+<a href="#g-trimming">trimmed</a> logs for <a href="#g-qf-uf">QF_UF</a> inputs. Before, a trimmed log
+started with the declaration of an <a href="#g-uninterpreted-sort">uninterpreted sort</a>, and the exporter
+rejected that line. It then fell back to the full log and built a much longer
+<a href="#g-refutation">refutation</a>. Second, when the exporter ties an assumed
+<a href="#g-clause">clause</a> to an input <a href="#g-assertion">assertion</a>, it now runs
+<a href="#g-solver-check">solver checks</a> only against the <a href="#g-conjunct">conjuncts</a> that share an
+<a href="#g-uninterpreted-symbol">uninterpreted symbol</a> with that clause. On one large input this cut the
+export from 90 seconds to about one second. Lean still checks every step, so
+<a href="#g-soundness">soundness</a> is untouched.</p>
+
+<h2 id="background">Background</h2>
+<p>The clause-log path could already certify many QF_UF inputs. Logs of 1 MB or more are first
+shortened by Z3's native trimmer, but for QF_UF this never worked. The trimmer copies the input's
+<code>declare-sort</code> line, and the exporter refused it. This was an open item in the plan's scaling survey.
+On inputs with many assertions, each unmatched assumed clause was also compared with every conjunct.
+The PR serves milestone 3, which adds <a href="#g-uninterpreted-function">uninterpreted functions</a> and
+equality reasoning end to end.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li><strong>Exporter:</strong> a trimmed clause log for a QF_UF input is now used directly, with no warning and no fallback to the full log.</li>
+  <li><strong>Exporter:</strong> on inputs with more than 64 conjuncts, an assumed clause is checked only against conjuncts that share a symbol with it, plus conjuncts that have no symbols.</li>
+  <li><strong>Exporter:</strong> the index behind that search uses memory linear in the input, even on a chain of thousands of nested <a href="#g-ite">if-then-else terms</a>.</li>
+  <li><strong>Tests:</strong> four new tests pin this down, including one that sends a trimmed QF_UF log through Lean with warnings turned into errors.</li>
+  <li><strong>Docs:</strong> the plan gains a dated note, and the <code>NEQ004_size4</code> survey item is marked fixed.</li>
+</ul>
+<p>The second fix works like a library index: look up a word instead of reading every book.
+A <a href="#g-satisfiable">satisfiable</a> conjunct with no shared symbol cannot imply a clause unless the clause
+is <a href="#g-valid">valid</a>. A missed clause still reaches the <a href="#g-unsat-core">unsat core</a> fallback.
+At worst, the filter costs <a href="#g-completeness">completeness</a>.</p>
+<table>
+  <thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>exporter</td><td class="num">64</td><td class="num">4</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>unit tests</td><td class="num">92</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Lean integration test</td><td class="num">25</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>plan</td><td class="num">35</td><td class="num">1</td></tr>
+  </tbody>
+</table>
+<p>The PR has two commits. The first adds both fixes and their tests. The second makes the symbol index linear on deep terms, after the review.</p>
+
+<h2 id="example">Worked example</h2>
+<p>This input follows the PR's new tests: a declared sort and an uninterpreted function.
+By <a href="#g-congruence">congruence</a>, a = b forces f a = f b, which contradicts the second assertion.
+Like the PR's new Lean test, these real runs set the trim threshold to 0, so even this tiny input is trimmed.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UF)
+(declare-sort U 0)
+(declare-fun f (U) U)
+(declare-fun a () U)
+(declare-fun b () U)
+(assert (= a b))
+(assert (not (= (f a) (f b))))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the base commit's exporter</h3>
+<pre><code>proof_clause_log.py:190: RuntimeWarning: native proof trimming wrote an unusable log, replaying the untrimmed log: unsupported trimmed-log command: declare-sort</code></pre>
+<p class="explain">The old exporter threw away the trimmed log because of its first line, <code>(declare-sort U 0)</code>.</p>
+<p>The old code did not stop. It fell back to the full log, and Lean accepted that longer proof.
+With warnings treated as errors, as in the PR's new test, the old code fails here.</p>
+<table>
+  <thead><tr><th>Certificate</th><th>Proof nodes</th><th><code>hypothesis</code></th><th><code>lemma</code></th><th><code>unit-resolution</code></th><th>Lean file lines</th></tr></thead>
+  <tbody>
+    <tr><td>Before: full log, after the fallback</td><td class="num">18</td><td class="num">1</td><td class="num">2</td><td class="num">2</td><td class="num">57</td></tr>
+    <tr><td>After: trimmed log</td><td class="num">15</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">45</td></tr>
+  </tbody>
+</table>
+
+<h3>(c) After: the Lean file generated now</h3>
+<pre><code>import Init
+...
+-- Uninterpreted sort "U" is the type _U; functions and predicates take argument lists.
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _elems 0
+...
+def formula_2 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := ((term_0 _atoms _U _elems _funs _preds _bool) = (term_1 _atoms _U _elems _funs _preds _bool))
+def term_3 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _funs 0 [(term_0 _atoms _U _elems _funs _preds _bool)]
+...</code></pre>
+<p class="explain">Each term of the input becomes a Lean definition. The sort U becomes an arbitrary Lean type, and the input's function and constants become arbitrary functions and elements of that type.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_10 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    : (formula_9 _atoms _U _elems _funs _preds _bool) := by
+  unfold formula_9 formula_8 formula_5 term_4 term_3 formula_2 term_1 term_0
+  grind (splits := 64)</code></pre>
+<p class="explain">This is the congruence <a href="#g-theory-lemma">theory lemma</a>, the clause “f a = f b or a ≠ b”, which Lean proves with its <code>grind</code> <a href="#g-tactic">tactic</a> instead of trusting Z3.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    (_h0 : (formula_2 _atoms _U _elems _funs _preds _bool))
+    (_h1 : (formula_6 _atoms _U _elems _funs _preds _bool))
+    : False :=
+  let _step_7 : (formula_2 _atoms _U _elems _funs _preds _bool) :=
+    _h0
+  let _step_10 : (formula_9 _atoms _U _elems _funs _preds _bool) :=
+    (th_lemma_10 _atoms _U _elems _funs _preds _bool)
+  let _step_11 : (formula_6 _atoms _U _elems _funs _preds _bool) :=
+    _h1
+  let _step_13 : (formula_12 _atoms _U _elems _funs _preds _bool) :=
+    (False.elim ((_step_10.resolve_left _step_11) _step_7))
+  ...</code></pre>
+<p class="explain">The two assertions are hypotheses, and one <a href="#g-unit-resolution">unit resolution</a> step against the lemma yields <code>False</code>, with no case split as in the fallback proof.</p>
+<p>Lean accepted the file. The project's Lean check script printed “Lean checks passed.”</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>The author ran the full local suite on the final commit, one Lean process at a time. Everything passed,
+including about 290 tests that check generated proofs in Lean. The reviewer re-ran most of it.
+The loop's separate local gate has not been recorded yet.</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Exporter unit tests, <code>test_proof_certificate</code></td><td>92 tests, OK</td></tr>
+    <tr><td>Lean-checked tests, <code>test_proof_to_lean*.py</code></td><td>292 tests, OK, 886 s</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>“Lean checks passed.”</td></tr>
+    <tr><td>z3test proof tests</td><td>46 tests, OK</td></tr>
+    <tr><td>Regression matrix, Boolean inputs, legacy proof object</td><td>6 of 6 verified in Lean</td></tr>
+    <tr><td>Regression matrix, QF_LRA inputs, clause log</td><td>8 of 8 verified in Lean</td></tr>
+    <tr><td>New tests against the pre-change code</td><td>all fail, as intended</td></tr>
+    <tr><td>C++ tests</td><td>not run, since no C++ changed</td></tr>
+  </tbody>
+</table>
+<p>The measured effect on real inputs, all from the Python exporter:</p>
+<table>
+  <thead><tr><th>Input</th><th>Measure</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td><code>NEQ004_size4</code></td><td>unit-resolution steps</td><td class="num">47,038</td><td class="num">16,643</td></tr>
+    <tr><td><code>NEQ004_size4</code></td><td>export time</td><td class="num">19 s</td><td class="num">3.3 s</td></tr>
+    <tr><td><code>NEQ004_size4</code></td><td>Lean time</td><td class="num">81 s</td><td class="num">40 s</td></tr>
+    <tr><td>Cambridge, trimmed log</td><td>solver checks</td><td class="num">274,092</td><td class="num">941</td></tr>
+    <tr><td>Cambridge, trimmed log</td><td>export time</td><td class="num">90 s</td><td class="num">1.2 s</td></tr>
+    <tr><td>Deep <code>ite</code> chain, depth 16,000</td><td>peak memory, first version vs final</td><td class="num">5.5 GB</td><td class="num">194 MB</td></tr>
+  </tbody>
+</table>
+<p>The Cambridge certificate is identical before and after.</p>
+<p>No CI results were available for this report, so their status is unknown. No CI fix rounds are recorded.</p>
+<table>
+  <thead><tr><th>CI job</th><th>Step</th><th>Runs</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel</td><td>new unit tests</td><td>unknown, see <a href="https://github.com/levnach/z3/pull/39/checks">PR checks</a></td></tr>
+    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native Boolean proofs in Lean</td><td>new Lean test</td><td>unknown, see <a href="https://github.com/levnach/z3/pull/39/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved with no blocker or major finding, and confirmed the speed numbers.</p>
+<ul>
+  <li><strong>Minor, fixed: memory blow-up on deep terms.</strong> The reviewer fed in a very deep chain of nested
+    if-then-else terms. The first version kept a symbol set for every subterm, and memory grew quadratically.
+    Such chains are not unusual in real encodings, so the exporter could run out of memory before Lean even started.
+    The fix walks the <a href="#g-dag">DAG</a> once per conjunct and frees the sets afterwards. A new test with a 16 MB limit guards it.</li>
+  <li><strong>Nit, fixed:</strong> a test comment said “two minutes” where every other source said 90 s.</li>
+  <li><strong>Nit, fixed:</strong> a badly wrapped paragraph in the plan's new note was reflowed.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>On large inputs the filter can change which conjunct ties a clause. Such cases fall to a later candidate or the unsat core fallback. Soundness is unaffected.</li>
+  <li>Subterms shared between conjuncts are walked once per conjunct, not once overall.</li>
+  <li>CI results are unknown at the time of writing.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Lower the 1 MB trim threshold for QF_UF. Cambridge's untrimmed log gives about 178k steps, its trimmed log 460.</li>
+  <li>The qg5 inputs still fail: trimming times out, or the Lean output is too large.</li>
+  <li>Cap Lean's memory, an urgent backlog item. Parallel Lean runs crashed the machine during this iteration.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-assertion">assertion</dt><dd>A formula the input states as true, written <code>(assert …)</code> in SMT-LIB.</dd>
+  <dt id="g-clause">clause</dt><dd>A disjunction of <a href="#g-literal">literals</a>, such as <code>p or not q</code>. It is true when at least one literal is true.</dd>
+  <dt id="g-clause-log">clause log</dt><dd>A record Z3 writes while solving: every clause it assumed, inferred, or deleted, with hints for theory steps.</dd>
+  <dt id="g-completeness">completeness</dt><dd>The ability to find a proof whenever one exists. Losing completeness means some inputs may fail, never that a wrong proof is accepted.</dd>
+  <dt id="g-conjunct">conjunct</dt><dd>One part of a conjunction. In <code>(and p q)</code> the conjuncts are <code>p</code> and <code>q</code>.</dd>
+  <dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal results: from <code>a = b</code> follows <code>f a = f b</code>.</dd>
+  <dt id="g-dag">DAG</dt><dd>Directed acyclic graph. Z3 stores terms this way, so a shared subterm is stored once and pointed to many times.</dd>
+  <dt id="g-ite">if-then-else term</dt><dd>A term that picks one of two values by a condition, written <code>(ite c x y)</code> in SMT-LIB.</dd>
+  <dt id="g-literal">literal</dt><dd>A Boolean atom or its negation, such as <code>p</code> or <code>not p</code>. An equation like <code>a = b</code> can be an atom.</dd>
+  <dt id="g-qf-uf">QF_UF</dt><dd>The SMT-LIB logic of quantifier-free formulas over uninterpreted sorts and functions with equality.</dd>
+  <dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
+  <dt id="g-satisfiable">satisfiable</dt><dd>A formula is satisfiable when some assignment of values makes it true.</dd>
+  <dt id="g-solver-check">solver check</dt><dd>One call to Z3 asking whether a formula is satisfiable, used here to test equivalence or implication.</dd>
+  <dt id="g-soundness">soundness</dt><dd>The guarantee that only true statements get proofs. A sound checker never accepts a wrong proof.</dd>
+  <dt id="g-sort">sort</dt><dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+  <dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically, such as <code>grind</code>. Lean's kernel still checks the result.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt><dd>A clause that holds because of a theory, such as equality, rather than pure Boolean logic. Example: <code>a ≠ b or f a = f b</code>.</dd>
+  <dt id="g-trimming">trimming</dt><dd>Removing the steps of a clause log that the final contradiction does not depend on, like keeping only the recipe steps the finished dish needs.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning. The only thing known is congruence. Example: <code>(declare-fun f (U) U)</code>.</dd>
+  <dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A <a href="#g-sort">sort</a> with no fixed meaning, declared with <code>(declare-sort U 0)</code>. Lean treats it as an arbitrary type.</dd>
+  <dt id="g-uninterpreted-symbol">uninterpreted symbol</dt><dd>A constant or function declared by the input, such as <code>a</code> or <code>f</code>, as opposed to built-ins like <code>and</code> or <code>=</code>.</dd>
+  <dt id="g-unit-resolution">unit resolution</dt><dd>A rule that removes a literal from a clause when its negation is known. From <code>p or q</code> and <code>not p</code> it gives <code>q</code>.</dd>
+  <dt id="g-unsat-core">unsat core</dt><dd>A subset of the assertions that is already unsatisfiable on its own.</dd>
+  <dt id="g-valid">valid</dt><dd>A formula is valid when every assignment makes it true, such as <code>p or not p</code>.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-27.
+</footer>
+
+</body>
+</html>
