@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #41: Fix native proof trimmer bugs that forced untrimmed replays</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6;
+         max-width: 50rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .state { display: inline-block; padding: 0 .5rem; border-radius: 1rem; border: 1px solid var(--ok);
+           color: var(--ok); font-weight: 600; font-size: .85rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+         background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: .8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: .82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .fail { color: var(--bad); font-weight: 600; }
+  .note { color: var(--muted); font-size: .92rem; }
+  dt { font-weight: 600; margin-top: .7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .88rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Fix native proof trimmer bugs that forced untrimmed replays</h1>
+  <p class="meta">
+    Pull request <a href="https://github.com/levnach/z3/pull/41">levnach/z3#41</a> ·
+    state <span class="state">OPEN</span> · 2026-10-28T07:29:37Z · loop iteration 41
+  </p>
+  <p>This pull request is open and <strong>not merged</strong>.
+    The change under review ends at commit
+    <a href="https://github.com/levnach/z3/commit/d12b3384233490eca82ed2f38fe7ebfc61b58963"><code>d12b33842</code></a>.
+    It contains four commits.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Large <a href="#g-clause-log">clause logs</a> go through Z3's native
+<a href="#g-trimming">trimming</a> before the Python <a href="#g-replay">replay</a> and the Lean check.
+Three bugs in the trimmer made it fail on about a third of those logs.
+It missed <a href="#g-conflict">conflicts</a> because it put a <a href="#g-clause">clause</a>'s
+<a href="#g-watched-literal">watched literals</a> on <a href="#g-literal">literals</a> that were already false.
+It treated an <a href="#g-assumption">assumed</a> <a href="#g-empty-clause">empty clause</a> as "no conflict yet".
+It crashed on the <a href="#g-div-mod">div and mod</a> axioms, whose <a href="#g-hint">hint</a> has no checker plugin.
+Each failure fell back, with a warning, to the slow untrimmed log.
+Now these logs use the trimmed <a href="#g-dependency-core">dependency core</a>.
+Lean still checks every step of the <a href="#g-refutation">refutation</a>, so nothing new is trusted.</p>
+
+<h2 id="background">Background</h2>
+<p>PR #40 lowered the trimming threshold to 4 KB, which exposed old trimmer bugs.
+Logs with <a href="#g-ite">if-then-else terms</a>, with integer division, or with an assertion that simplifies to false fell back to the untrimmed replay.
+Those certificates were correct, but each one checked Z3's whole search.
+This PR serves milestone 3, "Equality and linear arithmetic", and the plan's regression methodology.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>The trimmer now finds the conflicts it used to miss, because it watches literals that are not already false.</li>
+  <li>An input that simplifies to false now trims to a tiny core that points at its assumed empty clause.</li>
+  <li>Logs with integer <code>div</code> and <code>mod</code> now trim instead of crashing the trimmer.</li>
+  <li>When the trimmer cannot justify the final empty clause, it now says why instead of writing a self-dependent core.</li>
+  <li>Four Lean tests that had silently checked untrimmed certificates now ask for the untrimmed log on purpose.</li>
+</ul>
+<p>An analogy for the first fix: each clause has two smoke detectors, its watched literals.
+The old trimmer sometimes mounted both in rooms already burned out, so a real fire went unnoticed.</p>
+
+<table>
+  <thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/sat/sat_proof_trim.cpp</code></td><td>SAT trimmer</td><td class="num">45</td><td class="num">7</td></tr>
+    <tr><td><code>src/sat/sat_proof_trim.h</code></td><td>SAT trimmer</td><td class="num">3</td><td class="num">2</td></tr>
+    <tr><td><code>src/sat/smt/euf_proof_checker.cpp</code></td><td>Native checker</td><td class="num">5</td><td class="num">1</td></tr>
+    <tr><td><code>src/sat/smt/euf_proof_checker.h</code></td><td>Native checker</td><td class="num">2</td><td class="num">0</td></tr>
+    <tr><td><code>src/cmd_context/extra_cmds/proof_cmds.cpp</code></td><td>Trimmer command</td><td class="num">4</td><td class="num">1</td></tr>
+    <tr><td><code>src/test/proof_replay.cpp</code></td><td>C++ unit tests</td><td class="num">101</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Python tests</td><td class="num">163</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Lean tests</td><td class="num">15</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Lean tests</td><td class="num">5</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_wide.py</code></td><td>Lean tests</td><td class="num">10</td><td class="num">2</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan</td><td class="num">55</td><td class="num">1</td></tr>
+    <tr><th colspan="2">Total, 11 files</th><th class="num">408</th><th class="num">18</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This PR changes the trimmer, not the Lean code generator. So the example follows the division input of the PR's crash test through the trimmer.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIA)
+(declare-const x Int)
+(declare-const y Int)
+(assert (= (+ (* 2 y) (mod x 2)) 7))
+(assert (or (= x 0) (= x 2)))
+(check-sat)</code></pre>
+<p>If x is 0 or 2, then x mod 2 is 0. Then 2y would have to equal 7, which no integer y can do.</p>
+
+<p>Z3's 61-line clause log for it matches the test's log. It starts with div and mod axioms under a bare <code>arith</code> hint:</p>
+<pre><code>(define-const $24 Bool (= $22 x))
+(declare-fun arith (Bool) Proof)
+(define-const $25 Bool (not $24))
+(define-const $26 Proof (arith $25))
+(infer $24 $26)
+...</code></pre>
+
+<h3>(b) Before</h3>
+<p>I could not rerun the old trimmer, because the pre-PR z3 binary was not available. The pre-PR Python scripts are unchanged, so they would not show the bug.
+The implementer's scan of the old build recorded this warning for every division log:</p>
+<pre><code>native proof trimming exited with status -10, replaying the untrimmed log: </code></pre>
+<p>Status -10 is a bus error with no output. The PR reports the same failure for this test on the old build.</p>
+
+<h3>(c) After</h3>
+<p>I ran today's trimmer on the log with <code>solver.proof.trim=true</code>. It exited with status 0 and kept the axiom as a theory axiom:</p>
+<pre><code>(define-const $30 Proof (arith $29))
+(define-const $61 Proof (deps 0))
+(infer $28 $30 $61)
+...
+(define-const $82 Proof (deps 23 4 14 15 7 3 8 0 18 16))
+(infer rup $82)</code></pre>
+<p>In <code>deps</code>, the first number is the step's own id and the rest are its premises.
+The final empty clause, justified by <a href="#g-rup">RUP</a>, depends on real earlier steps, including step 0, the division axiom.</p>
+
+<p>This log is under 4 KB, so, like the PR's test, I forced trimming and turned warnings into errors.
+The <a href="#g-theorem">theorem</a> that <code>proof_to_lean.py</code> generated from the trimmed certificate is:</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_7 _atoms _vars))
+    (_h1 : (formula_11 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p>The two hypotheses are the two assertions, and the conclusion is False.</p>
+
+<pre><code>def formula_33 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_21 _atoms _vars) = (term_3 _atoms _vars))
+...
+private theorem th_lemma_37 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_33 _atoms _vars) := by
+  unfold formula_33 term_21 term_20 term_19 term_4 term_3 term_0
+  first | omega | grind (splits := 64)</code></pre>
+<p>This <a href="#g-lemma">lemma</a> is the division axiom 2·(x div 2) + (x mod 2) = x, the step the old trimmer crashed on. Lean proves it with a <a href="#g-tactic">tactic</a>, not by trust.</p>
+
+<p><strong>Result:</strong> Lean accepted the trimmed file ("Lean checks passed."). The default, untrimmed file passed too.</p>
+<table>
+  <thead><tr><th>Certificate for the example</th><th class="num">Proof nodes</th><th class="num">th-lemma nodes</th><th class="num">Lean lines</th><th>Lean check</th></tr></thead>
+  <tbody>
+    <tr><td>Default (untrimmed, under 4 KB)</td><td class="num">68</td><td class="num">10</td><td class="num">223</td><td class="pass">passed</td></tr>
+    <tr><td>Trimming forced</td><td class="num">52</td><td class="num">4</td><td class="num">157</td><td class="pass">passed</td></tr>
+  </tbody>
+</table>
+
+<h2 id="verification">How it was verified</h2>
+<p>In plain terms: the full Lean test suite passed, and large random logs no longer fall back.
+No local gate result was recorded. The implementer ran these on the final commit, except the last row. The reviewer matched them on the previous commit.</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>C++ unit tests <code>proof_replay proof_checker sat_smt_proof_scope</code></td><td class="pass">3 passed, 0 failed</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="pass">96 tests OK</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code> (Lean suite)</td><td class="pass">293 tests OK, 877 s</td></tr>
+    <tr><td>Trimmer fallbacks left in the Lean suite</td><td>3, all explicit errors. No cycles, no crashes.</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>z3test proof scripts</td><td class="pass">46 tests OK</td></tr>
+    <tr><td><code>proof_matrix.py --lean</code>, <code>lra_*.smt2</code></td><td class="pass">8 of 8 lean-verified</td></tr>
+    <tr><td>Proof canaries, no Lean</td><td class="pass">exit 0</td></tr>
+    <tr><td>z3test <code>regressions/smt2</code> benchmarks</td><td class="pass">exit 0</td></tr>
+    <tr><td>Trimmer scan, 40 seeds × 12 generators, logs ≥ 4 KB</td><td>before: 43 of 133 fell back · after: 0 of 133</td></tr>
+    <tr><td>Reviewer's six edge-case logs</td><td>2 fixed as described in Review, 4 unchanged and correct</td></tr>
+    <tr><td><code>proof_matrix.py --lean</code>, legacy proof object, 6 Boolean inputs</td><td class="pass">6 of 6 lean-verified</td></tr>
+  </tbody>
+</table>
+<p class="note">The last row ran on the commit before the review fix. That path does not use the trimmer.</p>
+
+<p>No CI results were recorded for this iteration, and no CI fix rounds. The table lists where the PR says its tests run.
+See the <a href="https://github.com/levnach/z3/pull/41/checks">PR checks page</a> for live status.</p>
+<table>
+  <thead><tr><th>CI job</th><th>Step that covers this PR</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Every unit-test job, for example <code>ubuntu-cmake</code></td><td>"Run unit tests" (<code>proof_replay</code>)</td><td class="unknown">not recorded</td></tr>
+    <tr><td>Python bindings (manylinux Centos AMD64) build</td><td>"Test Python wheel" (new trimmer tests)</td><td class="unknown">not recorded</td></tr>
+    <tr><td><code>ubuntu-cmake</code> (releaseClang)</td><td>"Check native Boolean proofs in Lean" (pinned Lean tests)</td><td class="unknown">not recorded</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved with no blocker or major findings, after reproducing every result.</p>
+<ul>
+  <li><strong>Minor: a theory empty clause still depended on itself.</strong>
+    The reviewer logged x ≥ 1 and x ≤ 0, then an empty clause under a bare <code>arith</code> hint.
+    The trimmer made that empty clause depend only on itself.
+    The replay caught the cycle and fell back, so nothing unsound happened.
+    Now the trimmer stops with a clear error instead.</li>
+  <li><strong>Nit: a late empty assumption was kept.</strong>
+    An assumed empty clause after the conflict stayed in the output, though nothing used it.
+    Now it enters the core only when the conflict uses it.</li>
+  <li><strong>Suggestion: run the trimmer tests in the releaseClang job too.</strong> Not done, because it changes CI. It is listed as a follow-up.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>Logs of 4 KB and up may now trim to different, usually smaller, cores.</li>
+  <li>Four Lean tests now pin the untrimmed log. Trimmed, the wide division cores drop the <a href="#g-farkas">Farkas lemmas</a> those tests target. One keeps only <a href="#g-cut">cuts</a> and bounds.</li>
+  <li>A few logs still fall back, when <a href="#g-unit-propagation">unit propagation</a> cannot reach the final empty clause.</li>
+  <li>A hint without a checker plugin is now treated as a <a href="#g-theory-axiom">theory axiom</a> for trimming only. The native checker is unchanged.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Fix two seeds that still fail to trim, likely over <a href="#g-congruence">congruence</a> lemmas the native checker calls "not congruent".</li>
+  <li>Fix "inferred clause 47 -59 is not derivable", from <a href="#g-boolean">Boolean</a> predicates without a <a href="#g-sort">sort</a>.</li>
+  <li>Rescan z3test's <code>smtlib-sample</code>, since its division and QF_UF logs may now trim.</li>
+  <li>Run <code>test_proof_certificate.py</code> in the releaseClang job.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-assumption">assumption</dt>
+  <dd>A clause the log takes as given, such as an input assertion or a theory axiom. It is written <code>(assume ...)</code>.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort with exactly two values, true and false.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>An "or" of literals, such as <code>(or (not a) b)</code>. It holds if at least one literal is true.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A file in which Z3 records every clause it assumed, inferred, or deleted while solving.</dd>
+  <dt id="g-conflict">conflict</dt>
+  <dd>A moment when every literal of some clause is false. It shows the current facts cannot all hold.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results: if a = b, then f(a) = f(b).</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An integer reasoning step that rounds a bound, for example from 2y ≤ 7 to y ≤ 3.</dd>
+  <dt id="g-dependency-core">dependency core</dt>
+  <dd>The steps of a log that the final empty clause really depends on. Trimming keeps only these.</dd>
+  <dt id="g-div-mod">div and mod</dt>
+  <dd>Integer division and remainder. For example, 7 div 2 is 3 and 7 mod 2 is 1.</dd>
+  <dt id="g-empty-clause">empty clause</dt>
+  <dd>A clause with no literals. It can never be true, so deriving it ends a refutation.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A linear-arithmetic step: adding inequalities with nonnegative weights gives an obvious contradiction, such as 0 &lt; 0.</dd>
+  <dt id="g-hint">hint</dt>
+  <dd>A tag on a logged step that says which rule justifies it, such as <code>rup</code>, <code>euf</code>, <code>cut</code>, or <code>arith</code>.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term that picks one of two values by a condition, written <code>ite</code> in SMT-LIB: <code>(ite (&gt; x 0) x 0)</code>.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A helper theorem proved once and then used in a bigger proof.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>A Boolean atom or its negation, such as <code>a</code> or <code>(not a)</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to false, so they cannot all hold together.</dd>
+  <dt id="g-replay">replay</dt>
+  <dd>Rechecking a logged proof step by step, here in Python before the Lean check.</dd>
+  <dt id="g-rup">reverse unit propagation (RUP)</dt>
+  <dd>A way to justify a clause: assume all its literals are false and show unit propagation reaches a conflict.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>omega</code> and <code>grind</code> are examples.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that Lean has checked.</dd>
+  <dt id="g-theory-axiom">theory axiom</dt>
+  <dd>A clause that is true by the meaning of arithmetic or equality, such as x = 2·(x div 2) + (x mod 2).</dd>
+  <dt id="g-trimming">trimming</dt>
+  <dd>Cutting a proof log down to the steps the final result needs, like keeping only the receipts an audit asks for.</dd>
+  <dt id="g-unit-propagation">unit propagation</dt>
+  <dd>Repeatedly setting the last unassigned literal of a clause to true when all its other literals are false.</dd>
+  <dt id="g-watched-literal">watched literal</dt>
+  <dd>One of two literals per clause that the solver monitors. The clause is revisited only when a watched literal becomes false.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-28.
+</footer>
+
+</body>
+</html>
