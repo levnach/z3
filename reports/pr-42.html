@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>PR #42: Proof trimming: strip every negation so Boolean arguments trim</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --wait: #9a6700; --bad: #cf222e;
+    --tag-bg: #ddf4ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --wait: #d29922; --bad: #f85149;
+      --tag-bg: #12263f;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem;
+  }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+         background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: .8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: .82rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); margin: 0; }
+  .tag { display: inline-block; background: var(--tag-bg); border: 1px solid var(--border);
+         border-radius: 999px; padding: 0 .6rem; font-size: .85rem; font-weight: 600; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .wait { color: var(--wait); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .note { color: var(--muted); font-size: .92rem; }
+  dt { font-weight: 600; margin-top: .6rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Proof trimming: strip every negation so Boolean arguments trim</h1>
+  <p class="meta">
+    <a href="https://github.com/levnach/z3/pull/42">Pull request #42</a> on levnach/z3 ·
+    <span class="tag">OPEN</span> · Date: 2026-10-28T15:49:44Z · Loop iteration 42
+  </p>
+  <p class="meta">
+    This PR is open and <strong>not merged</strong>.
+    The change commit is
+    <a href="https://github.com/levnach/z3/commit/a264539627e22220a2064c50ef325fce55b93d62"><code>a264539</code></a>.
+  </p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+  This PR fixes how Z3's native <a href="#g-trimming">proof trimming</a> reads
+  <a href="#g-negation">negation</a>.
+  A <a href="#g-boolean">Boolean</a> argument of an
+  <a href="#g-uf">uninterpreted function</a>, such as <code>(not q)</code> inside
+  <code>(pb (not q))</code>, is its own <a href="#g-variable">propositional variable</a> in the solver.
+  The <a href="#g-clause-log">clause log</a> then prints the opposite
+  <a href="#g-literal">literal</a> as <code>(not (not q))</code>.
+  The trimmer removed only one <code>not</code>, so it missed the conflict and fell back to the untrimmed log.
+  Now it removes every <code>not</code>, as the Python <a href="#g-replay">replay</a> always did.
+  It also honors the deletion of a <a href="#g-clause">clause</a> whose literals repeat.
+  So these inputs now reach Lean as smaller, trimmed <a href="#g-certificate">certificates</a>.
+  The <a href="#g-trust-boundary">trust boundary</a> does not move, because every kept step is still checked.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+  Clause logs of 4 KB or more pass through the native trimmer before the
+  <a href="#g-refutation">refutation</a> is rebuilt in Lean.
+  The trimmer keeps only the <a href="#g-core">core</a> of steps that the final
+  <a href="#g-empty-clause">empty clause</a> needs.
+  Before this PR, three Lean tests with Boolean arguments hit a trimmer failure and replayed the untrimmed log.
+  A wider scan found 9 such failures in 615 generated logs.
+  Lean still accepted the untrimmed certificates, so no result was wrong, only larger.
+  The PR serves Milestone 3 of the project plan: equality and uninterpreted functions, checked end to end.
+</p>
+
+<h2 id="changes">What changed</h2>
+<p>
+  Think of "not not hungry".
+  The old trimmer dropped one "not" and filed "not hungry" as a new word, unrelated to "hungry".
+  The fix drops every "not" and flips the sign each time.
+</p>
+<ul>
+  <li>The trimmer now reads <code>(not (not q))</code> as <code>q</code>, so it finds conflicts that pass through a negated Boolean argument.</li>
+  <li>Deleting a clause that repeats a literal, like "q or q or a", now really removes it from the trimmer's clause set.</li>
+  <li>The Boolean-argument and Boolean-predicate Lean tests now fail on any trimmer fallback, so Lean checks the trimmed certificates.</li>
+  <li>New C++ and Python tests pin both fixes, and each one fails on the old code.</li>
+  <li>A stray solver trace file that had been committed by accident is removed, and git now ignores it.</li>
+</ul>
+<table>
+  <thead><tr><th>Component</th><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td>Trimmer (C++)</td><td><code>src/cmd_context/extra_cmds/proof_cmds.cpp</code></td><td class="num">11</td><td class="num">1</td></tr>
+    <tr><td>Trimmer (C++)</td><td><code>src/sat/sat_proof_trim.cpp</code></td><td class="num">15</td><td class="num">5</td></tr>
+    <tr><td>Trimmer (C++)</td><td><code>src/sat/sat_proof_trim.h</code></td><td class="num">1</td><td class="num">0</td></tr>
+    <tr><td>C++ tests</td><td><code>src/test/proof_replay.cpp</code></td><td class="num">68</td><td class="num">0</td></tr>
+    <tr><td>Python tests</td><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">47</td><td class="num">0</td></tr>
+    <tr><td>Python and Lean tests</td><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">37</td><td class="num">2</td></tr>
+    <tr><td>Docs</td><td><code>doc/lean-proof-plan.md</code></td><td class="num">27</td><td class="num">1</td></tr>
+    <tr><td>Housekeeping</td><td><code>.gitignore</code></td><td class="num">2</td><td class="num">0</td></tr>
+    <tr><th colspan="2">Total, 8 files, 5 commits</th><th class="num">208</th><th class="num">9</th></tr>
+  </tbody>
+</table>
+<p class="note">The trace file was added and removed within the PR, so it is not in the net diff.</p>
+
+<h2 id="example">Worked example</h2>
+<p>The input comes from the PR's new Python test. All output below is from real runs.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UF)
+(declare-fun pb (Bool) Bool)
+(declare-const q Bool)
+(assert (not q))
+(assert (pb true))
+(assert (not (pb (not q))))
+(check-sat)</code></pre>
+<p>
+  Since <code>q</code> is false, <code>(not q)</code> equals <code>true</code>.
+  By congruence, <code>(pb (not q))</code> must then equal <code>(pb true)</code>, which contradicts the last two assertions.
+</p>
+
+<h3>(b) Before</h3>
+<p>
+  Z3 writes this clause log for the input. The lines that matter are:
+</p>
+<pre><code>(define-const $6 Bool (not q))
+(infer $6 $10)
+(define-const $8 Bool (pb $6))
+...
+(infer (not $7) $8 (not $6) $13)
+(declare-fun rup () Proof)
+(infer rup)</code></pre>
+<p>
+  The congruence step writes <code>(not $6)</code>, which spells out to <code>(not (not q))</code>.
+  The old trimmer read it as a variable unrelated to <code>q</code>, so the final RUP step found no conflict.
+  The bug is in the z3 binary, not the Python scripts, so the old scripts would not show it.
+  This old-trimmer output on this exact log was recorded with the fix reverted:
+</p>
+<pre><code>RuntimeWarning: native proof trimming exited with status 1, replaying the untrimmed log: (error "line 21 column 10: proof trimming: the empty clause is not derivable by unit propagation from the preceding clauses")</code></pre>
+<p>The export then replayed the whole log, and Lean accepted that larger certificate.</p>
+
+<h3>(c) After</h3>
+<p>
+  This log is 597 bytes, below the 4 KB trimming threshold.
+  So the export ran with the threshold at zero, as the PR's test does, and with warnings as errors.
+  No warning was raised. The trimmed core kept four steps:
+</p>
+<pre><code>(define-const $23 Bool (not q))
+(define-const $24 Bool (pb true))
+(define-const $26 Bool (pb $23))
+...
+(infer (not $24) $26 (not $23) $30 $41)
+(assume $24 $37)
+(assume (not q) $35)
+(assume (not $26) $39)
+(infer rup $43)</code></pre>
+<p>The trimmer kept the three assertions and the congruence step, and dropped the trivial <code>(assume true)</code> and the Tseitin step.</p>
+
+<p>The Lean file that the reconstructor generated, with each definition's six parameters shortened to <code>(...)</code>:</p>
+<pre><code>-- Atom 0: "q"
+-- Predicate 0: "pb"
+-- Boolean arguments of functions and predicates are injected into _U by _bool.
+...
+def formula_1 (...) : Prop := (Not (formula_0 _atoms _U _elems _funs _preds _bool))
+def formula_3 (...) : Prop := _preds 0 [(_bool (formula_2 _atoms _U _elems _funs _preds _bool))]
+def formula_4 (...) : Prop := _preds 0 [(_bool (formula_1 _atoms _U _elems _funs _preds _bool))]
+...
+def formula_7 (...) : Prop := (Or (formula_6 _atoms _U _elems _funs _preds _bool) (Or (formula_4 _atoms _U _elems _funs _preds _bool) (formula_0 _atoms _U _elems _funs _preds _bool)))</code></pre>
+<p>These encode <code>(not q)</code>, <code>(pb true)</code>, <code>(pb (not q))</code>, and the congruence clause "not pb(true), or pb(not q), or q".</p>
+
+<pre><code>private theorem th_lemma_8 (...)
+    : (formula_7 _atoms _U _elems _funs _preds _bool) := by
+  unfold formula_7 formula_6 formula_4 formula_3 formula_2 formula_1 formula_0
+  have _b1 : Or ((Not (_atoms 0))) (Not ((Not (_atoms 0)))) := Classical.em _
+  grind (splits := 64)</code></pre>
+<p>This lemma proves the congruence clause: it splits on whether <code>q</code> holds and lets a tactic finish each case.</p>
+
+<pre><code>theorem unsat (...)
+    (_h0 : (formula_1 _atoms _U _elems _funs _preds _bool))
+    (_h1 : (formula_3 _atoms _U _elems _funs _preds _bool))
+    (_h2 : (formula_5 _atoms _U _elems _funs _preds _bool))
+    : False :=
+  ...
+  let _step_13 : (formula_12 _atoms _U _elems _funs _preds _bool) :=
+    (False.elim (_step_10 ((_step_8.resolve_left (fun _literal =&gt; _literal _step_9)).resolve_left _step_11)))
+  ...</code></pre>
+<p>The main theorem takes the three assertions and derives <code>False</code> by resolving them against the congruence lemma.</p>
+
+<p><strong>Lean accepted the file.</strong> The project's Lean check script printed "Lean checks passed."</p>
+<table>
+  <thead><tr><th>Certificate for this input</th><th>Proof nodes</th><th>Rule counts</th></tr></thead>
+  <tbody>
+    <tr><td>Untrimmed, the default for a log this small</td><td class="num">21</td><td>asserted 3, def-axiom 2, hypothesis 1, lemma 2, th-lemma 1, unit-resolution 2</td></tr>
+    <tr><td>Trimmed, threshold lowered to zero</td><td class="num">15</td><td>asserted 3, lemma 1, th-lemma 1, unit-resolution 1</td></tr>
+  </tbody>
+</table>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+  The full Lean test suite passed with no trimmer warnings, down from three.
+  A scan of 615 random puzzles went from 9 trimmer failures to none.
+  No local gate record exists yet, so these results come from the PR description and the review.
+</p>
+<table>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>C++ unit tests <code>proof_replay</code>, <code>proof_checker</code>, <code>sat_smt_proof_scope</code></td><td><span class="ok">3 passed</span>, 0 failed</td></tr>
+    <tr><td>Deletion test with only the deletion fix reverted</td><td>fails as expected: "Failed to verify: rejected"</td></tr>
+    <tr><td>Negation test with only the negation fix reverted</td><td>fails as expected, reported by the implementer, confirmed by hand by the reviewer, not re-run</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td><span class="ok">97 tests OK</span></td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code>, full Lean suite</td><td><span class="ok">294 tests OK</span> in 903 s, 0 RuntimeWarning lines</td></tr>
+    <tr><td>Lean check script</td><td><span class="ok">Lean checks passed</span></td></tr>
+    <tr><td>z3test proof tests</td><td><span class="ok">46 tests OK</span></td></tr>
+    <tr><td>Proof matrix, legacy proof object, Boolean inputs</td><td><span class="ok">6/6</span> Lean-verified, exit 0</td></tr>
+    <tr><td>Proof matrix, clause log, LRA inputs</td><td><span class="ok">8/8</span> Lean-verified, exit 0</td></tr>
+    <tr><td>Proof canaries</td><td><span class="ok">exit 0</span>, only the known stale <code>t8.smt2</code> note</td></tr>
+    <tr><td>z3test SMT-LIB regressions</td><td><span class="ok">exit 0</span>, 952 files</td></tr>
+    <tr><td>Scan of generated Boolean-argument inputs, implementer only</td><td>9 of 615 fallbacks before, 0 after</td></tr>
+  </tbody>
+</table>
+<p>
+  CI was still running when this report was written.
+  Four checks had passed and none had failed. There were no CI fix rounds.
+  This table is a snapshot and may be out of date.
+</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Check</th><th>State</th></tr></thead>
+  <tbody>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646272">CMake package - latest CMake</a></td><td class="wait">in progress</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646347">CMake package - minimum builder and consumer</a></td><td class="wait">in progress</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646054">MacOS build with CMake</a></td><td class="wait">queued</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646435">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td class="wait">queued</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646351">Python bindings (manylinux Centos AMD64) build</a></td><td class="wait">in progress</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927645897">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="wait">in progress</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646580">Python build-script unit tests</a></td><td class="wait">queued</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646491">Ubuntu build - cmake - debugClang</a></td><td class="wait">in progress</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646374">Ubuntu build - cmake - debugGcc</a></td><td class="wait">in progress</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646548">Ubuntu build - cmake - releaseClang</a></td><td class="wait">queued</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646298">Ubuntu build - cmake - releaseSTGcc</a></td><td class="wait">in progress</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646159">Ubuntu with OCaml</a></td><td class="wait">in progress</td></tr>
+    <tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906707/job/122927646428">Ubuntu with OCaml on z3-static</a></td><td class="wait">in progress</td></tr>
+    <tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906619/job/122927645083">Determinism linter (base)</a></td><td class="ok">pass</td></tr>
+    <tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906619/job/122927644543">Determinism linter (head)</a></td><td class="ok">pass</td></tr>
+    <tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906619/job/122928599678">compare</a></td><td class="wait">queued</td></tr>
+    <tr><td>Dispatch NFV formal audit</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906327/job/122927646569">dispatch</a></td><td class="ok">pass</td></tr>
+    <tr><td>Finite-field regressions</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906516/job/122927644391">acceptance</a></td><td class="wait">in progress</td></tr>
+    <tr><td>Fstar NFV PR audit</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906389/job/122927647607">activation</a></td><td class="wait">queued</td></tr>
+    <tr><td>Mark Pull Requests Ready for Review</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906581/job/122927644184">mark-ready</a></td><td class="ok">pass</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40719907190/job/122927647369">Trace (apple-clang)</a></td><td class="wait">queued</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40719907190/job/122927647892">Trace (clang)</a></td><td class="wait">queued</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40719907190/job/122927648215">Trace (gcc-unsigned-char)</a></td><td class="wait">queued</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40719907190/job/122927647855">Trace (gcc)</a></td><td class="wait">queued</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40719907190/job/122927648277">Trace (libcxx-random)</a></td><td class="wait">queued</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40719907190/job/122927647984">Trace (libcxx)</a></td><td class="wait">queued</td></tr>
+    <tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40719907190/job/122927648280">Trace (msvc)</a></td><td class="wait">queued</td></tr>
+    <tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906778/job/122927644907">Check</a></td><td class="wait">in progress</td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906823/job/122927645953">build (amd64_arm64)</a></td><td class="wait">in progress</td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906823/job/122927645631">build (x64)</a></td><td class="wait">in progress</td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906823/job/122927645677">build (x86)</a></td><td class="wait">in progress</td></tr>
+    <tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40719906823/job/122927645243">mingw-build</a></td><td class="wait">in progress</td></tr>
+  </tbody>
+</table>
+<p class="note">The new Lean UF tests run only in the <code>releaseClang</code> job.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change. There were no blockers and no major findings.</p>
+<table>
+  <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr><td>minor</td><td>Stray trace file committed</td><td>Fixed</td></tr>
+    <tr><td>nit</td><td>New C++ test hand-rolls output capture</td><td>Fixed</td></tr>
+    <tr><td>nit</td><td>Deletions of clauses with repeated literals ignored</td><td>Fixed, with a new test</td></tr>
+    <tr><td>nit</td><td>Export-only test runs in one CI job</td><td>Not changed, with reasons</td></tr>
+  </tbody>
+</table>
+<p>
+  <strong>Stray trace file.</strong>
+  Some regression inputs turn tracing on and write <code>z3.log</code> when run from the repository root.
+  The loop driver had committed that file by accident, and every later run would recommit it.
+  It is now removed and ignored.
+</p>
+<p>
+  <strong>Test plumbing.</strong>
+  The new C++ test captured output by hand and reset the trimming setting to "false".
+  A crash would lose its diagnostics, and an exception would leak the setting into later tests.
+  It now uses the shared replay helper and a guard that restores the old setting.
+</p>
+<p>
+  <strong>Ignored deletions.</strong>
+  The reviewer logged "q or q or a", deleted it, then derived the empty clause.
+  The trimmer stored "q or a" but looked up "q or q or a", so it ignored the deletion.
+  This was not unsound, since the replay re-checks every step.
+  Both paths now normalize clauses the same way, and a new test fails without the fix.
+</p>
+<p>
+  <strong>Test placement.</strong>
+  The new export-only test runs in only one CI job.
+  It stayed there, because the C++ and certificate tests cover the defect on every platform.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The trimmer now treats the variable <code>(not q)</code> and "q negated" as one. They are logically equivalent, but the kept steps may differ from before. Every kept step is still replayed.</li>
+  <li>Two solver clauses can now map to one trimmer clause. Deleting one copy of a two-literal clause may drop a shared watched literal. At worst the export falls back with a warning. No such case appeared.</li>
+  <li>Only the implementer ran the 615-log scan and the negation-revert check.</li>
+  <li>CI results are unknown at the time of writing.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Rescan QF_UFLIA, QF_UFLRA, and SMT-LIB samples with Boolean terms under functions.</li>
+  <li>Teach the non-trimming native <code>euf</code> checker that <code>(not q)</code> is true when <code>q</code> is false. This does not affect Lean.</li>
+  <li>Remove the stale <code>t8.smt2</code> canary note.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort with exactly two values, true and false. Written <code>Bool</code> in SMT-LIB.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>A file that records a proof so that an independent checker can verify it step by step.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>An "or" of literals. Example: <code>q or not a</code>.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>Z3's record of every clause it assumed, inferred, or deleted while solving, with a hint for each inferred step.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal inputs give equal outputs. If <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+  <dt id="g-core">core</dt>
+  <dd>The subset of logged steps that the final empty clause actually depends on.</dd>
+  <dt id="g-empty-clause">empty clause</dt>
+  <dd>A clause with no literals. It can never be true, so deriving it proves a contradiction.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A helper theorem proved once and used inside a larger proof.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>A propositional variable or its negation. Example: <code>q</code> or <code>(not q)</code>.</dd>
+  <dt id="g-negation">negation</dt>
+  <dd>The "not" of a formula. It is true exactly when the formula is false.</dd>
+  <dt id="g-predicate">predicate</dt>
+  <dd>An uninterpreted function whose result is Boolean. Example: <code>pb</code> in this PR's tests.</dd>
+  <dt id="g-trimming">proof trimming</dt>
+  <dd>Cutting a clause log down to its core, so the certificate and its check are smaller.</dd>
+  <dt id="g-variable">propositional variable</dt>
+  <dd>A name the solver treats as a single true-or-false unknown. Z3 also gives one to each Boolean term it sees as an argument.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to a contradiction, that is, to False.</dd>
+  <dt id="g-replay">replay</dt>
+  <dd>Re-checking each logged step, one by one, before building the certificate.</dd>
+  <dt id="g-rup">RUP step</dt>
+  <dd>A "reverse unit propagation" step. A clause is accepted if assuming it false and running unit propagation reaches a conflict.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. Example: <code>grind</code>.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The line between code that must be correct for a result to be trusted and code whose output is re-checked anyway.</dd>
+  <dt id="g-tseitin">Tseitin step</dt>
+  <dd>A clause that links a compound formula to a new variable naming it. Example: <code>q or (not q)</code> for the name of <code>(not q)</code>.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only rule it obeys is congruence. Example: <code>(declare-fun pb (Bool) Bool)</code>.</dd>
+  <dt id="g-unit-propagation">unit propagation</dt>
+  <dd>Repeatedly finding clauses with one literal left that is not false, and making that literal true.</dd>
+  <dt id="g-watch">watched literal</dt>
+  <dd>One of two literals the solver monitors in each clause, so it notices quickly when the clause can propagate.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-28.
+</footer>
+</body>
+</html>
