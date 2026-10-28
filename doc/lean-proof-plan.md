@@ -1589,6 +1589,27 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Clause logs trimmed from 4 KB; Lean memory capped (2026-10-27)
+
+Clause logs were trimmed natively only from 1 MB up, so most real inputs
+replayed their whole search. Measured on z3test's `smtlib-sample`, trimming
+shrinks every log tried, whatever its size: `QF_UF_cambridge.3.prop1_ab_reg_max`
+(695 KB log) goes from 20,656 reachable proof steps, a 17 MB Lean file, and
+68 s of export plus Lean to 458 steps, 1.9 MB, and 6.4 s;
+`QF_UF_train-gate.6.prop1_ab_reg_max` (32 KB) from 711 KB of Lean to 120 KB;
+the QF_LIA `ring_2exp4_5vars_0ite_unsat` (13 KB) from a 4.7 s export to
+0.2 s; QF_LRA `Carpark2-t1-2` and `current_frame.base` export two to four
+times faster. `_TRIM_THRESHOLD` is now 4,096 characters, below which a log holds a
+few dozen commands. The trust boundary is unchanged: the trimmer only selects
+steps, the replay checks each retained one, and a failed or unusable trim
+still falls back to the untrimmed log with a warning. Every `lean` process of
+`scripts/check_lean.sh` and of the library build now runs with
+`--memory=8192`, so a runaway proof fails with "excessive memory consumption
+detected" instead of exhausting the machine. Tests: `test_proof_certificate.py`
+(`test_logs_of_a_few_kilobytes_are_trimmed`), `test_proof_to_lean_uf.py`
+(`test_moderate_logs_are_trimmed_by_default`, on the train-gate benchmark in
+`examples/python/data`), `scripts/tests/test_check_lean.py`.
+
 ### Trimmed QF_UF logs; assumption search by shared symbols (2026-10-27)
 
 A first end-to-end pass over z3test's `smtlib-sample` QF_UF files found two
