@@ -72,6 +72,13 @@ static std::string replay(char const* log) {
     return captured.str();
 }
 
+// Turn on native proof trimming for the replay and restore the previous value.
+struct scoped_trim {
+    std::string saved = gparams::get_value("solver.proof.trim");
+    scoped_trim() { gparams::set("solver.proof.trim", "true"); }
+    ~scoped_trim() { gparams::set("solver.proof.trim", saved.c_str()); }
+};
+
 static void check_verified_natively(std::string const& out, char const* hint) {
     std::cout << out;
     ENSURE(out.find("(verified-smt") == std::string::npos);
@@ -965,31 +972,51 @@ static void tst_trim_double_negation() {
         "(assume (not (pb true)))\n"
         "(declare-fun rup () Proof)\n"
         "(infer rup)\n";
-    gparams::set("solver.proof.trim", "true");
-    ast_manager m;
-    reg_decl_plugins(m);
-    cmd_context ctx(false, &m);
-    install_proof_cmds(ctx);
-    std::istringstream is(log);
-    std::ostringstream captured;
-    bool ok;
+    std::string out;
     {
-        std::streambuf* saved = std::cout.rdbuf(captured.rdbuf());
-        ok = parse_smt2_commands(ctx, is);
-        std::cout.rdbuf(saved);
+        scoped_trim trim;
+        out = replay(log);
     }
-    gparams::set("solver.proof.trim", "false");
-    std::string out = captured.str();
     std::cout << out;
-    ENSURE(ok);
     ENSURE(out.find("not derivable") == std::string::npos);
     // The empty clause depends on all three assumptions.
     for (char const* deps : {"(deps 0)", "(deps 1)", "(deps 2)", "(deps 3 "})
         ENSURE(out.find(deps) != std::string::npos);
 }
 
+// A logged clause can repeat a literal: (not $6) q a with $6 = (not q) is
+// q q a to the trimmer, which stores it as q a. Its deletion must remove it
+// too; it was ignored, so the empty clause below got a core over the deleted
+// clause. Without it the empty clause is not derivable from (not q) and
+// (not a), and the trimmer rejects the log.
+static void tst_trim_deletes_clauses_with_repeated_literals() {
+    params_ref params;
+    reslimit limit;
+    sat::proof_trim trim(params, limit);
+    sat::literal q(trim.mk_var(), false), a(trim.mk_var(), false);
+    auto clause = [&](std::initializer_list<sat::literal> literals) {
+        trim.init_clause();
+        for (auto literal : literals)
+            trim.add_literal(literal.var(), literal.sign());
+    };
+    clause({q, q, a}); trim.assume(0);
+    clause({q, q, a}); trim.del();
+    clause({~q}); trim.assume(1);
+    clause({~a}); trim.assume(2);
+    clause({}); trim.infer(3);
+    bool rejected = false;
+    try {
+        trim.trim();
+    }
+    catch (z3_exception& ex) {
+        rejected = std::string(ex.what()).find("empty clause is not derivable") != std::string::npos;
+    }
+    ENSURE(rejected);
+}
+
 void tst_proof_replay() {
     tst_trim_double_negation();
+    tst_trim_deletes_clauses_with_repeated_literals();
     tst_trim_satisfied_clause();
     tst_trim_watches_literals_that_are_not_false();
     tst_trim_assumed_empty_clauses();

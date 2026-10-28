@@ -1608,7 +1608,11 @@ in `src/test/proof_replay.cpp`, `test_native_trimming_strips_every_negation`
 in `test_proof_certificate.py` (both fail on the previous build), and in
 `test_proof_to_lean_uf.py` the Boolean-argument and Boolean-predicate Lean
 tests run with warnings as errors, so they check trimmed certificates, plus
-an export-only test over the other six seeds.
+an export-only test over the other six seeds. A clause can now repeat a
+literal, `(not (not q)) q a` is q q a; `sat::proof_trim` stored it without
+the repeat but looked up its deletion with it, so the deletion was ignored.
+Deletions are normalized like additions now
+(`tst_trim_deletes_clauses_with_repeated_literals`).
 
 ### Clause logs trimmed from 4 KB; Lean memory capped (2026-10-27)
 
