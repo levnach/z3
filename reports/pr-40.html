@@ -6,109 +6,141 @@
 <title>PR #40: Trim clause logs from 4 KB and cap Lean memory at 8 GB</title>
 <style>
 :root {
-  color-scheme: light dark;
-  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
-  --code-bg: #f6f8fa; --link: #0969da; --accent: #8250df;
-  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  --bg: #ffffff; --fg: #1d2025; --muted: #5a6270; --accent: #0b5cad;
+  --code-bg: #f3f5f8; --border: #d8dde4; --pass: #1a7f37; --warn: #9a6700; --row: #f8f9fb;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
-    --code-bg: #161b22; --link: #4493f8; --accent: #ab7df8;
-    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --bg: #15181d; --fg: #e3e6ea; --muted: #9aa3ae; --accent: #6cb4ff;
+    --code-bg: #1f242b; --border: #343b45; --pass: #56d364; --warn: #e3b341; --row: #1a1e24;
   }
 }
-body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-h1 { font-size: 1.7rem; line-height: 1.25; margin-bottom: .3rem; }
-h2 { font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; margin-top: 2.2rem; }
-h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-a { color: var(--link); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin: 0 0 .5rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
+a { color: var(--accent); }
+.meta { color: var(--muted); font-size: .95rem; }
+.meta dt { font-weight: 600; float: left; clear: left; width: 9.5rem; }
+.meta dd { margin: 0 0 .2rem 9.5rem; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 999px; font-size: .85rem; font-weight: 600;
+  border: 1px solid var(--pass); color: var(--pass); }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
-  background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
-pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: .8rem;
-  white-space: pre-wrap; overflow-wrap: anywhere; font-size: .82rem; line-height: 1.45; }
-pre code { background: none; padding: 0; font-size: inherit; }
-table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .92rem; }
-th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  background: var(--code-bg); padding: .05rem .3rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem 1rem;
+  overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: .82rem; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
 th { background: var(--code-bg); }
+tbody tr:nth-child(even) { background: var(--row); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.meta { color: var(--muted); }
-.badge { display: inline-block; font-weight: 600; border: 1px solid var(--accent); color: var(--accent);
-  border-radius: 999px; padding: 0 .6rem; font-size: .85rem; }
-.ok { color: var(--ok); font-weight: 600; }
+.pass { color: var(--pass); font-weight: 600; }
 .warn { color: var(--warn); font-weight: 600; }
-.bad { color: var(--bad); font-weight: 600; }
-.explain { margin-top: -.3rem; margin-bottom: 1.2rem; color: var(--muted); }
-dt { font-weight: 600; margin-top: .7rem; }
-dd { margin-left: 1.2rem; }
-footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: .8rem; color: var(--muted); font-size: .88rem; }
+.note { color: var(--muted); font-size: .92rem; }
+dl.glossary dt { font-weight: 700; margin-top: .7rem; }
+dl.glossary dd { margin: .1rem 0 0 1.2rem; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
 <h1>Trim clause logs from 4 KB and cap Lean memory at 8 GB</h1>
-<p class="meta">
-<a href="https://github.com/levnach/z3/pull/40">Pull request #40</a> in levnach/z3 ·
-state <span class="badge">OPEN</span> · 2026-10-28T04:17:47Z · loop iteration 40
-</p>
-<p>This pull request is <strong>not merged</strong>. The change it proposes ends at commit
-<a href="https://github.com/levnach/z3/commit/d324b2b29b86572922c3b0564fe970ca6956c064"><code>d324b2b29</code></a>.</p>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/40">levnach/z3#40</a></dd>
+  <dt>State</dt><dd><span class="badge">MERGED</span></dd>
+  <dt>Merged on</dt><dd>2026-10-28T05:38:42Z</dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/213bdc320dbeb676a240e958d5c0307e7e167b58"><code>213bdc320</code></a></dd>
+  <dt>Loop iteration</dt><dd>40</dd>
+</dl>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>The pipeline <a href="#g-replay">replays</a> Z3's <a href="#g-clause-log">clause log</a> to build a
-<a href="#g-refutation">refutation</a> for Lean. Until now, only logs of 1 MB or more went through Z3's native
-<a href="#g-proof-trimming">proof trimming</a> first. This PR lowers that threshold to 4,096 characters. Most real
-inputs now get a <a href="#g-certificate">certificate</a> with only the <a href="#g-clause">clauses</a> that the final
-<a href="#g-empty-clause">empty clause</a> depends on. On the measured inputs, certificates got 3 to 45 times smaller.
-The <a href="#g-trust-boundary">trust boundary</a> does not move. The trimmer's output is only a
-<a href="#g-hint">hint</a>, and Lean still checks every kept step. The PR also caps every Lean process at 8 GB, so
-a runaway proof fails instead of freezing the machine.</p>
+<p>
+Before the exporter <a href="#g-replay">replays</a> a <a href="#g-clause-log">clause log</a>,
+Z3's native <a href="#g-trimming">proof trimmer</a> can cut it down to the
+<a href="#g-clause">clauses</a> that the final <a href="#g-conflict">conflict</a> needs.
+This PR starts trimming at 4,096 characters instead of 1 MB.
+On real <a href="#g-logic">QF_UF</a> and QF_LIA inputs, the
+<a href="#g-certificate">certificate</a> shrinks by 3x to 45x, and checking gets up to 10x faster.
+The <a href="#g-trust-boundary">trust boundary</a> does not move.
+Every kept step is still replayed and checked in Lean, and a failed trim falls back to the whole log.
+The PR also caps every <code>lean</code> process at 8 GB of memory.
+Together, these make larger <a href="#g-refutation">refutations</a> practical to certify.
+</p>
 
 <h2 id="background">Background</h2>
-<p>The pipeline could already certify <a href="#g-logic">QF_UF</a>, QF_LRA and QF_LIA inputs through the clause
-log. But a log below 1 MB was replayed in full. Lean then re-checked Z3's whole search, dead ends included. One
-695 KB QF_UF log became 17.4 MB of Lean. PR #39 had made trimmed QF_UF logs usable over a declared
-<a href="#g-sort">sort</a>. This PR applies trimming to far more inputs. It serves milestone 3, "Equality and linear
-arithmetic". The memory cap answers an urgent backlog item: on 2026-10-27, four Lean processes at 24 to 41 GB each
-froze the development machine.</p>
+<p>
+Before this PR, only clause logs of 1 MB or more went through the trimmer.
+Smaller logs were replayed whole.
+The Lean refutation then covered Z3's entire search, including dead ends that the final
+<a href="#g-empty-clause">empty clause</a> never uses.
+Nothing was rejected, but proofs were much larger than needed.
+Lean processes also ran without a memory limit, and on 2026-10-27 four of them froze the development machine.
+This work serves milestone 3, equality and linear arithmetic.
+That milestone covers <a href="#g-uf">uninterpreted functions</a> with <a href="#g-congruence">congruence</a>.
+It also serves the plan to check larger SMT-LIB collections.
+</p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-<li>Clause logs of 4,096 characters or more are now trimmed before replay, so a 32 KB QF_UF log yields about 120 KB of Lean instead of 711 KB.</li>
-<li>When trimming fails, the warning now says why: the trimmer "exited with status N" or "reported an error".</li>
-<li>Every Lean run started by <code>check_lean.sh</code> or by the library build now stops at 8 GB with "excessive memory consumption detected".</li>
-<li>A real SMT-LIB QF_UF benchmark now tests that a mid-sized log is trimmed and still verifies.</li>
-<li>The plan records three native trimmer bugs that now show up more often.</li>
+  <li><strong>Exporter:</strong> clause logs of a few kilobytes are now trimmed, so their certificates keep only the steps the refutation needs.</li>
+  <li><strong>Exporter:</strong> when trimming fails, the warning now says why.</li>
+  <li><strong>Lean tooling:</strong> each Lean check and the library build now stop at 8 GB of memory instead of exhausting the machine.</li>
+  <li><strong>Tests:</strong> a real SMT-LIB QF_UF benchmark now guards the change. Its 32 KB log must be trimmed and still verify in Lean.</li>
+  <li><strong>Docs:</strong> the plan now lists three known trimmer bugs that more inputs reach, each with a reproducer.</li>
 </ul>
-<p>Think of a detective's notebook and final report. The notebook holds every lead. The report keeps only the clues
-that prove the case. Lean now reads the report, and still checks each clue itself. No C++ code changed.</p>
+<p>
+Trimming is like an editor who cuts a detective's notebook down to the clues that name the culprit.
+Lean is the judge who rereads every kept clue, so a bad edit cannot sneak a false clue past it.
+</p>
+
+<h3>Files touched</h3>
 <table>
-<tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr>
-<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Python exporter</td><td class="num">8</td><td class="num">3</td></tr>
-<tr><td><code>examples/python/README</code></td><td>Python exporter docs</td><td class="num">2</td><td class="num">1</td></tr>
+<thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Exporter</td><td class="num">8</td><td class="num">3</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Exporter docs</td><td class="num">2</td><td class="num">1</td></tr>
 <tr><td><code>examples/python/data/QF_UF_train-gate.6.prop1_ab_reg_max.smt2</code></td><td>Test data</td><td class="num">286</td><td class="num">0</td></tr>
 <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests</td><td class="num">14</td><td class="num">2</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Tests</td><td class="num">27</td><td class="num">1</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Tests</td><td class="num">2</td><td class="num">1</td></tr>
 <tr><td><code>scripts/check_lean.sh</code></td><td>Lean tooling</td><td class="num">1</td><td class="num">1</td></tr>
 <tr><td><code>lean/lakefile.toml</code></td><td>Lean tooling</td><td class="num">1</td><td class="num">1</td></tr>
-<tr><td><code>lean/README.md</code></td><td>Lean tooling docs</td><td class="num">5</td><td class="num">2</td></tr>
+<tr><td><code>lean/README.md</code></td><td>Lean docs</td><td class="num">5</td><td class="num">2</td></tr>
 <tr><td><code>scripts/tests/test_check_lean.py</code></td><td>Tests</td><td class="num">6</td><td class="num">1</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">34</td><td class="num">0</td></tr>
 <tr><th>11 files</th><th></th><th class="num">386</th><th class="num">13</th></tr>
+</tbody>
+</table>
+<p class="note">No C++ file changed.</p>
+
+<h3>Measured effect, from the PR description</h3>
+<table>
+<thead><tr><th>Benchmark</th><th>Log size</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>QF_UF <code>cambridge.3.prop1_ab_reg_max</code></td><td>695 KB</td><td>20,656 steps, 17.4 MB of Lean, 20.5 s export + 47.6 s Lean</td><td>458 steps, 1.9 MB of Lean, 1.2 s export + 5.2 s Lean</td></tr>
+<tr><td>QF_UF <code>train-gate.6.prop1_ab_reg_max</code></td><td>32 KB</td><td>711 KB of Lean, 1.0 s export + 2.5 s Lean</td><td>120 KB of Lean, 0.2 s export + 0.8 s Lean</td></tr>
+<tr><td>QF_LIA <code>ring_2exp4_5vars_0ite_unsat</code></td><td>13 KB</td><td>4.7 s export + 2.2 s Lean</td><td>0.2 s export + 1.0 s Lean</td></tr>
+</tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
-<p>This PR makes no new input certifiable. It changes which certificate is produced. So "Before" shows the old,
-larger result, not a rejection. All output comes from real runs on the PR's base and final commit.</p>
+<p>
+This PR certifies no new kind of input.
+It changes which proof is certified for logs between 4,096 characters and 1 MB.
+The old pipeline also accepted this input, so there is no rejection to quote.
+The PR's own test input has 286 lines, too long to show.
+This small <a href="#g-pigeonhole">pigeonhole</a> input in the same logic was written for this report.
+Its clause log falls between the old and new thresholds.
+</p>
 
 <h3>(a) The input</h3>
-<p>Four values <code>(f a)</code> to <code>(f d)</code> must differ, yet each equals one of three constants. This is
-the pigeonhole principle over an <a href="#g-uninterpreted-function">uninterpreted function</a>. Its clause log has
-7,537 characters, above the new threshold.</p>
 <pre><code>(set-logic QF_UF)
 (declare-sort U 0)
 (declare-fun f (U) U)
@@ -120,41 +152,39 @@ the pigeonhole principle over an <a href="#g-uninterpreted-function">uninterpret
 (assert (or (= (f c) x) (= (f c) y) (= (f c) z)))
 (assert (or (= (f d) x) (= (f d) y) (= (f d) z)))
 (check-sat)</code></pre>
+<p class="note">Four distinct values f(a) to f(d) must each equal one of only three constants. That is impossible.</p>
 
-<h3>(b) Before</h3>
-<p>With the base commit's scripts, export and Lean check both succeed, so there is no error to quote. The trimmer
-is never called. Directory names are removed below.</p>
-<pre><code>$ python3 old/proof_certificate.py example.smt2 &gt; old-example.json
-$ python3 proof_to_lean.py example.smt2 old-example.json -o old-example.lean
-Lean checked the refutation; wrote old-example.lean</code></pre>
-<p class="explain">The second command used the repository's copy of this script, which the PR does not change.</p>
+<h3>(b) Before: the base commit's exporter</h3>
+<pre><code>threshold: 1000000
+log characters: [7537]
+nodes: 314
+rule_counts: {'asserted': 5, 'hypothesis': 20, 'lemma': 36, 'th-lemma': 35, 'unit-resolution': 106}
+warnings: []</code></pre>
+<p>
+A small measuring script ran the base commit's exporter. The log was below 1 MB, so it was replayed untrimmed.
+Lean accepted this larger proof too. It ends at step 313.
+</p>
+<pre><code>  let _step_313 : (formula_81 _atoms _U _elems _funs _preds _bool) :=
+    (False.elim _step_312)
+  _step_313</code></pre>
+<p class="note">The Lean writer is unchanged by this PR, so the current writer rendered the base certificate.</p>
 
-<h3>(c) After</h3>
-<p>With the PR's code, the log is trimmed, and <code>check_lean.sh</code> printed "Lean checks passed."</p>
-<table>
-<tr><th>Measure</th><th>Before</th><th>After</th></tr>
-<tr><td>Trimmer called</td><td>no</td><td>yes</td></tr>
-<tr><td>Certificate nodes</td><td class="num">314</td><td class="num">235</td></tr>
-<tr><td><code>th-lemma</code> steps</td><td class="num">35</td><td class="num">24</td></tr>
-<tr><td><code>unit-resolution</code> steps</td><td class="num">106</td><td class="num">71</td></tr>
-<tr><td>Lean file lines</td><td class="num">933</td><td class="num">666</td></tr>
-<tr><td>Lean file bytes</td><td class="num">101,150</td><td class="num">71,576</td></tr>
-<tr><td>Lean accepted</td><td class="ok">yes</td><td class="ok">yes</td></tr>
-</table>
-<pre><code>-- Element 0: "a"
-...
--- Function 0: "f"
+<h3>(c) After: the merged exporter</h3>
+<pre><code>threshold: 4096
+log characters: [7537]
+nodes: 235
+rule_counts: {'asserted': 5, 'hypothesis': 18, 'lemma': 23, 'th-lemma': 24, 'unit-resolution': 71}
+warnings: []</code></pre>
+<p>The same log is now trimmed without warnings, and the certificate loses a quarter of its nodes.</p>
+
+<pre><code>-- Function 0: "f"
 -- Uninterpreted sort "U" is the type _U; functions and predicates take argument lists.
 ...
-def term_5 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _funs 0 [(term_4 _atoms _U _elems _funs _preds _bool)]
+def term_0 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _elems 0
+def term_1 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _funs 0 [(term_0 _atoms _U _elems _funs _preds _bool)]
 ...
-def term_9 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _elems 4
-...
-def formula_20 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := ((term_5 _atoms _U _elems _funs _preds _bool) = (term_9 _atoms _U _elems _funs _preds _bool))
-...
-def formula_31 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := (Or (formula_28 _atoms _U _elems _funs _preds _bool) (Or (formula_29 _atoms _U _elems _funs _preds _bool) (formula_30 _atoms _U _elems _funs _preds _bool)))</code></pre>
-<p class="explain">The declarations name each term. <code>term_5</code> is <code>(f c)</code>, <code>term_9</code> is
-<code>x</code>, and <code>formula_20</code> is the equality <code>(f c) = x</code>.</p>
+def formula_15 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := (Or (formula_10 _atoms _U _elems _funs _preds _bool) (Or (formula_12 _atoms _U _elems _funs _preds _bool) (formula_14 _atoms _U _elems _funs _preds _bool)))</code></pre>
+<p>The declared <a href="#g-sort">sort</a> becomes a Lean type. Here <code>term_1</code> stands for f(a), and formula 15 is the second assertion.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
     (_h0 : (formula_8 _atoms _U _elems _funs _preds _bool))
@@ -163,117 +193,182 @@ def formula_31 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_f
     (_h3 : (formula_23 _atoms _U _elems _funs _preds _bool))
     (_h4 : (formula_27 _atoms _U _elems _funs _preds _bool))
     : False :=
-  ...
-  _step_234</code></pre>
-<p class="explain">The theorem says the five assertions, <code>_h0</code> to <code>_h4</code>, prove
-<code>False</code> for every sort and every meaning of <code>f</code>.</p>
+...</code></pre>
+<p>The theorem has one <a href="#g-hypothesis">hypothesis</a> per assertion and concludes <code>False</code>, so trimming added no assumption.</p>
 
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem th_lemma_32 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
     : (formula_31 _atoms _U _elems _funs _preds _bool) := by
   unfold formula_31 formula_30 formula_29 formula_28 formula_24 formula_20 term_9 term_7 term_6 term_5 term_4
-  grind (splits := 64)</code></pre>
-<p class="explain">This <a href="#g-theory-lemma">theory lemma</a> is the clause "not (f d = x), or f c = f d, or not
-(f c = x)", true by <a href="#g-transitivity">transitivity</a>. The <a href="#g-tactic">tactic</a> <code>grind</code>
-proves it. Trimming dropped 11 of the 35 such lemmas.</p>
+  grind (splits := 64)
+...
+  let _step_234 : (formula_51 _atoms _U _elems _funs _preds _bool) :=
+    (False.elim _step_233)
+  _step_234</code></pre>
+<p>
+Each <a href="#g-theory-lemma">theory lemma</a> is an equality fact proved by the <code>grind</code> <a href="#g-tactic">tactic</a>.
+The trimmed proof needs fewer of them and ends at <code>_step_234</code>.
+</p>
 
-<h2 id="verified">How it was verified</h2>
-<p>About 300 Lean tests passed, every Lean matrix input verified, and one unrelated old test still fails. These
-runs are the implementer's and integrator's, on the final commit. No local gate result was recorded.</p>
 <table>
-<tr><th>Check</th><th>Result</th></tr>
-<tr><td>Lean test suite, <code>test_proof_to_lean*.py</code></td><td class="ok">293 tests OK, 904 s</td></tr>
-<tr><td>Certificate tests, <code>test_proof_certificate.py</code></td><td class="ok">93 tests OK</td></tr>
-<tr><td><code>scripts/check_lean.sh</code>, library rebuilt with the cap</td><td class="ok">Lean checks passed</td></tr>
-<tr><td>z3test proof tests</td><td class="ok">46 tests OK</td></tr>
-<tr><td>Boolean Lean matrix, legacy proof object</td><td class="ok">6/6 lean-verified</td></tr>
-<tr><td>QF_LRA Lean matrix, clause log</td><td class="ok">8/8 lean-verified</td></tr>
-<tr><td><code>scripts/tests</code></td><td class="warn">40 tests, 1 failure</td></tr>
+<thead><tr><th>Measure</th><th class="num">Before (untrimmed)</th><th class="num">After (trimmed)</th></tr></thead>
+<tbody>
+<tr><td>Certificate nodes</td><td class="num">314</td><td class="num">235</td></tr>
+<tr><td>Theory lemmas in Lean</td><td class="num">35</td><td class="num">24</td></tr>
+<tr><td>Lean file lines</td><td class="num">933</td><td class="num">666</td></tr>
+<tr><td>Lean file bytes</td><td class="num">101,150</td><td class="num">71,576</td></tr>
+</tbody>
 </table>
-<p>The failing <code>test_shell.test_log_extension_diagnostic</code> failed before this PR too. In the Lean suite,
-eight exports fell back to the untrimmed log and still passed.</p>
-<p>No CI status was recorded for this report. The jobs below are those the PR maps its checks to.</p>
+<p><strong>Lean result:</strong> the merged pipeline's file was accepted. <code>scripts/check_lean.sh</code> printed &ldquo;Lean checks passed.&rdquo;</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+The whole Lean test suite, about 300 tests, passed after the change, and again when the reviewer reran it.
+All CI checks passed on the first try, so no CI fix round was needed.
+No local gate record exists for this iteration, so the results below come from the PR description and the review.
+</p>
 <table>
-<tr><th>CI job / step</th><th>Covers</th><th>Status</th></tr>
-<tr><td><code>ubuntu-cmake</code> (releaseClang) / Check native Boolean proofs in Lean</td><td>Lean test suite</td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
-<tr><td>releaseClang / Require Lean-certified Boolean matrix results</td><td>z3test tests, Boolean matrix</td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
-<tr><td>releaseClang / Require Lean-certified QF_LRA matrix results</td><td>QF_LRA matrix</td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
-<tr><td><code>manylinux-python-amd64</code> / Test Python wheel</td><td>Certificate tests</td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
-<tr><td><code>python-script-tests</code> / Run Python script unit tests</td><td><code>scripts/tests</code></td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
+<thead><tr><th>Local command</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean suite, <code>test_proof_to_lean*.py</code></td><td class="pass">293 tests OK (author), 293 OK (reviewer)</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td class="pass">93 tests OK</td></tr>
+<tr><td><code>./scripts/check_lean.sh</code>, library rebuilt with the cap</td><td class="pass">&ldquo;Lean checks passed.&rdquo;</td></tr>
+<tr><td>z3test proof tests</td><td class="pass">46 tests OK</td></tr>
+<tr><td>Boolean matrix, legacy proof objects</td><td class="pass">6/6 lean-verified</td></tr>
+<tr><td>QF_LRA matrix, clause logs</td><td class="pass">8/8 lean-verified</td></tr>
+<tr><td><code>scripts/tests</code></td><td class="warn">40 tests, 1 failure, judged unrelated</td></tr>
+<tr><td>Trimmer fallbacks inside the Lean suite</td><td>8, all handled by the untrimmed replay</td></tr>
+</tbody>
 </table>
-<p>No CI fix rounds are recorded for this PR.</p>
+<p>
+The one failing script test, <code>test_log_extension_diagnostic</code>, already failed before this PR, which touches neither it nor the code it tests.
+</p>
+
+<h3>CI checks</h3>
+<p class="note">Recorded while the PR head was commit <code>d324b2b2</code>, before the squash merge.</p>
+<table>
+<thead><tr><th>Workflow</th><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761959">Ubuntu build - cmake - releaseClang</a> (runs the Lean checks)</td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761951">Ubuntu build - cmake - debugClang</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761922">Ubuntu build - cmake - releaseSTGcc</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761825">Ubuntu build - cmake - debugGcc</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761848">Python build-script unit tests</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761833">CMake package - minimum builder and consumer</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761880">CMake package - latest CMake</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761849">Ubuntu with OCaml on z3-static</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761870">Ubuntu with OCaml</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761807">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761761">Python bindings (manylinux Centos AMD64) build</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761893">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td class="pass">pass</td></tr>
+<tr><td>CI</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523646/job/122628761498">MacOS build with CMake</a></td><td class="pass">pass</td></tr>
+<tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523695/job/122628761665">build (x64)</a></td><td class="pass">pass</td></tr>
+<tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523695/job/122628761651">build (x86)</a></td><td class="pass">pass</td></tr>
+<tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523695/job/122628761774">build (amd64_arm64)</a></td><td class="pass">pass</td></tr>
+<tr><td>Windows</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523695/job/122628761338">mingw-build</a></td><td class="pass">pass</td></tr>
+<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523708/job/122629391002">Compare exact traces</a></td><td class="pass">pass</td></tr>
+<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523708/job/122628762077">Trace (apple-clang)</a></td><td class="pass">pass</td></tr>
+<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523708/job/122628761944">Trace (clang)</a></td><td class="pass">pass</td></tr>
+<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523708/job/122628762126">Trace (gcc)</a></td><td class="pass">pass</td></tr>
+<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523708/job/122628762053">Trace (gcc-unsigned-char)</a></td><td class="pass">pass</td></tr>
+<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523708/job/122628762098">Trace (libcxx)</a></td><td class="pass">pass</td></tr>
+<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523708/job/122628762013">Trace (libcxx-random)</a></td><td class="pass">pass</td></tr>
+<tr><td>Solver determinism</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523708/job/122628762007">Trace (msvc)</a></td><td class="pass">pass</td></tr>
+<tr><td>WebAssembly Build</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523694/job/122628761112">Check</a></td><td class="pass">pass</td></tr>
+<tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523645/job/122628761910">Determinism linter (base)</a></td><td class="pass">pass</td></tr>
+<tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523645/job/122628761471">Determinism linter (head)</a></td><td class="pass">pass</td></tr>
+<tr><td>Determinism Linter</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523645/job/122629203969">compare</a></td><td class="pass">pass</td></tr>
+<tr><td>Finite-field regressions</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523728/job/122628761494">acceptance</a></td><td class="pass">pass</td></tr>
+<tr><td>Dispatch NFV formal audit</td><td><a href="https://github.com/levnach/z3/actions/runs/40632081486/job/122630549119">dispatch</a></td><td class="pass">pass</td></tr>
+<tr><td>Mark Pull Requests Ready for Review</td><td><a href="https://github.com/levnach/z3/actions/runs/40631523674/job/122628761097">mark-ready</a></td><td class="pass">pass</td></tr>
+</tbody>
+</table>
+<p class="note">The first 26 rows are gating checks. All 26 passed and none were pending.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved the change, with no blocker or major findings.</p>
-<table>
-<tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr>
-<tr><td>minor</td><td>Trimmer crashes on <code>div</code>/<code>mod</code></td><td>Documented as a C++ follow-up</td></tr>
-<tr><td>minor</td><td>README still said 1 MB</td><td>Fixed</td></tr>
-<tr><td>nit</td><td>Misleading "exit status 0" warning</td><td>Fixed</td></tr>
-<tr><td>nit</td><td>Fragile threshold in a test</td><td>Fixed</td></tr>
-<tr><td>nit</td><td>Trailing whitespace in test data</td><td>Kept on purpose</td></tr>
-</table>
-<p><strong>The crash.</strong> The reviewer chased some silent fallbacks by cutting a QF_LIA log to ten lines. The
-native trimmer crashes whenever a step reasons about <code>div</code> and <code>mod</code> by a constant. The result
-stays correct, because the untrimmed log is replayed. But each crash prints a warning, which fails callers that treat
-warnings as errors. The fix needs C++, so the bug went into the plan with its reproducer.</p>
-<p><strong>The smaller ones.</strong> The README still said 1 MB and now says 4,096 characters. A warning that blamed
-"exit status 0" now says "reported an error". A test that could trim a longer second log by accident now switches
-trimming off with infinity. The benchmark's trailing spaces were kept, because it is copied verbatim.</p>
+<p>The reviewer approved the change with no blocker and no major finding.</p>
+<ul>
+  <li><strong>Minor: the trimmer crashes on integer division.</strong>
+  The reviewer fed the trimmer QF_LIA logs, which the lower threshold now sends there.
+  Any arithmetic step over integer division by a constant crashed it, even in a ten-line log.
+  The result stayed correct, because a crash falls back to the untrimmed replay.
+  But each crash wastes a run and raises a warning.
+  The fix belongs in C++, so the PR recorded the bug in the plan with its reproducer.</li>
+  <li><strong>Minor: stale documentation.</strong>
+  The exporter README still said trimming starts at 1 MB, which would mislead users. It now says 4,096 characters.</li>
+  <li><strong>Nit: a misleading warning.</strong>
+  When the trimmer exited normally but printed an error, the warning blamed &ldquo;exit status 0&rdquo;.
+  It now says &ldquo;reported an error&rdquo; in that case, and a test checks both wordings.</li>
+  <li><strong>Nit: a fragile test.</strong>
+  The comparison run could trim a slightly longer log by accident. It now disables trimming completely.</li>
+  <li><strong>Nit: trailing whitespace</strong> in the new benchmark. It was kept, because the file is copied verbatim from SMT-LIB.</li>
+</ul>
+<p>The reviewer also suggested treating a trimmer timeout like other trimmer failures. That was not done in this PR.</p>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li>More inputs now reach a trimmer with three known bugs. Each falls back safely, at the cost of a wasted run and a warning.</li>
-<li>One bug rejects a step as "not derivable by <a href="#g-unit-propagation">unit propagation</a>". Another makes the empty clause depend on itself.</li>
-<li>A trimmer timeout still fails the whole export instead of falling back.</li>
-<li>The 8 GB cap could fail a very large proof in CI. The largest proof in the suite peaks at about 4.5 GB.</li>
-<li>Only about 15 benchmark files were measured.</li>
+  <li>More inputs now reach a trimmer with three known bugs. They are the division crash, an empty clause that depends on itself, and a step it rejects as not derivable by <a href="#g-unit-propagation">unit propagation</a>. Each falls back soundly, but a caller that treats warnings as errors will fail.</li>
+  <li>A trimmer timeout still fails the whole export instead of falling back.</li>
+  <li>Trimming changes the certificate, and so the Lean text, for every log of 4 KB or more.</li>
+  <li>The 8 GB cap could fail a very large proof in CI. The largest proof in the suite peaks at about 4.5 GB.</li>
+  <li>Only about 15 SMT-LIB files were measured. The full effect on larger collections is unknown.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
-<p>C++ fixes for the three trimmer bugs, each with a regression test. A trimmer timeout that falls back like other
-failures. Then a full re-scan of the <code>smtlib-sample</code> benchmarks with the new threshold.</p>
+<ul>
+  <li>Fix the three trimmer bugs in the native trimmer, each with a C++ regression test.</li>
+  <li>Make a trimmer timeout fall back to the untrimmed log.</li>
+  <li>Rescan z3test's <code>smtlib-sample</code> end to end with the new threshold.</li>
+</ul>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
-<dt id="g-certificate">certificate</dt>
-<dd>A file that records a proof in a form another program can check, here the JSON that the Lean generator reads.</dd>
-<dt id="g-clause">clause</dt>
-<dd>An "or" of <a href="#g-literal">literals</a>, such as <code>p or not q</code>. It is true when at least one literal is true.</dd>
-<dt id="g-clause-log">clause log</dt>
-<dd>The list of clauses Z3 writes while it searches, each with the reason it was added.</dd>
-<dt id="g-empty-clause">empty clause</dt>
-<dd>A clause with no literals. It can never be true, so deriving it ends a refutation.</dd>
-<dt id="g-hint">hint</dt>
-<dd>Information from the solver that guides the checker but is not trusted. A wrong hint makes checking fail, never succeed.</dd>
-<dt id="g-literal">literal</dt>
-<dd>A Boolean atom or its negation, such as <code>(= (f a) x)</code> or <code>(not (= (f a) x))</code>.</dd>
-<dt id="g-logic">logic (SMT-LIB)</dt>
-<dd>A named fragment of SMT-LIB. QF_UF is quantifier-free formulas with uninterpreted functions. QF_LRA and QF_LIA are quantifier-free linear real and integer arithmetic.</dd>
-<dt id="g-proof-trimming">proof trimming</dt>
-<dd>Keeping only the proof steps the final conclusion depends on, and dropping the rest.</dd>
-<dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of assertions leads to a contradiction, that is, to <code>False</code>.</dd>
-<dt id="g-replay">replay</dt>
-<dd>Re-deriving each step of a log independently, instead of trusting that the solver got it right.</dd>
-<dt id="g-sort">sort</dt>
-<dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Bool</code>, or a declared sort like <code>U</code>.</dd>
-<dt id="g-tactic">tactic</dt>
-<dd>A Lean command that builds part of a proof automatically. <code>grind</code> is one.</dd>
-<dt id="g-theory-lemma">theory lemma</dt>
-<dd>A clause that is true because of a theory, such as equality or arithmetic, not because of Boolean logic alone. Z3 marks these steps <code>th-lemma</code>.</dd>
-<dt id="g-transitivity">transitivity</dt>
-<dd>The rule that if <code>s = t</code> and <code>t = u</code>, then <code>s = u</code>.</dd>
-<dt id="g-trust-boundary">trust boundary</dt>
-<dd>The line between the parts whose mistakes could make a wrong result pass, and the parts whose mistakes can only make checking fail.</dd>
-<dt id="g-uninterpreted-function">uninterpreted function</dt>
-<dd>A function symbol with no fixed meaning. The only rule is that equal arguments give equal results.</dd>
-<dt id="g-unit-propagation">unit propagation</dt>
-<dd>If all literals of a clause but one are false, the last one must be true. Z3 marks these steps <code>unit-resolution</code>.</dd>
+<dl class="glossary">
+  <dt id="g-certificate">certificate</dt>
+  <dd>The exported proof data that Lean checks. Here it is a JSON graph of proof nodes, such as asserted facts, lemmas, and resolution steps.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>p or not q or r</code>. At least one literal must be true.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A record of every clause the solver added, learned, or deleted during its search, with a hint for each inference.</dd>
+  <dt id="g-conflict">conflict</dt>
+  <dd>A point in the search where the current assignment makes some clause false. The final conflict proves the empty clause.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results. If <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+  <dt id="g-empty-clause">empty clause</dt>
+  <dd>A clause with no literals. It can never be true, so deriving it ends a refutation.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A fact a theorem assumes. In the generated theorem, each input assertion is one hypothesis.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>A Boolean atom or its negation, such as <code>x = y</code> or <code>not (x = y)</code>.</dd>
+  <dt id="g-logic">logic (QF_UF, QF_LIA, QF_LRA)</dt>
+  <dd>An SMT-LIB name for a class of formulas. QF means quantifier-free. UF is uninterpreted functions, LIA is linear integer arithmetic, and LRA is linear real arithmetic.</dd>
+  <dt id="g-pigeonhole">pigeonhole principle</dt>
+  <dd>If more items than boxes are placed in boxes, some box holds two items. Four distinct values cannot fit into three.</dd>
+  <dt id="g-trimming">proof trimming</dt>
+  <dd>Keeping only the steps that the final conclusion depends on and dropping the rest. Z3's trimmer works on clause logs.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions implies <code>False</code>, so they cannot all hold at once.</dd>
+  <dt id="g-replay">replay</dt>
+  <dd>Re-deriving each logged step from its premises instead of trusting the log.</dd>
+  <dt id="g-resolution">resolution</dt>
+  <dd>Combining two clauses that contain a literal and its negation. From <code>p or q</code> and <code>not p</code>, conclude <code>q</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Bool</code>, or a declared sort like <code>U</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>grind</code> is one example.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that holds because of a theory, such as equality, not because of Boolean logic alone. It appears as <code>th-lemma</code> in certificates.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The line between what must be trusted and what is checked. The solver and its trimmer sit outside it: their output is checked, not trusted.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only rule it obeys is congruence. Example: <code>f</code> in the input above.</dd>
+  <dt id="g-unit-propagation">unit propagation</dt>
+  <dd>When all literals of a clause but one are false, the last one must be true. Repeating this is unit propagation.</dd>
 </dl>
 
 <footer>
 Generated by the Lean certificate improvement loop on 2026-10-27.
 </footer>
+
+</main>
 </body>
 </html>
