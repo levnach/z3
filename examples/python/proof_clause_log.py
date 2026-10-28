@@ -716,6 +716,24 @@ def _conjuncts(expr, path=()):
             yield from _conjuncts(child, path + (child,))
 
 
+def _symbols(expr):
+    """Return the identifiers of the uninterpreted declarations occurring in expr.
+
+    One traversal of the DAG with its own visited set: nothing is kept per
+    subterm, so memory stays linear on deep terms such as ite chains.
+    """
+    symbols, seen, pending = set(), set(), [expr]
+    while pending:
+        node = pending.pop()
+        if node.get_id() in seen:
+            continue
+        seen.add(node.get_id())
+        if node.decl().kind() == z3.Z3_OP_UNINTERPRETED:
+            symbols.add(node.decl().get_id())
+        pending.extend(node.children())
+    return symbols
+
+
 class _Replay:
     def __init__(self, source, fragment, assertions, context):
         self.source, self.fragment, self.context = source, fragment, context
@@ -728,7 +746,6 @@ class _Replay:
                                    for conjunct, path in _conjuncts(assertion)]
         self.assumptions_by_key = None
         self.sources_by_symbol = None  # declaration id (None: no symbol) -> source positions
-        self.symbols = {}        # AST id -> (expression kept alive, declaration ids inside)
         self.clauses = {}        # entry id -> (proof node, literal expressions)
         self.clause_keys = {}    # entry id -> precomputed literal keys for propagation
         self.literal_keys = {}   # AST id -> (literal kept alive, key)
@@ -902,27 +919,6 @@ class _Replay:
             return self._cnf_lemma(sources, literals)
         raise ProofExportError("assumed clause does not match any original assertion: %s" % formula)
 
-    def _symbols(self, expr):
-        """Return the identifiers of the uninterpreted declarations occurring in expr."""
-        memo = self.symbols
-        pending = [expr]
-        while pending:
-            node = pending[-1]
-            if node.get_id() in memo:
-                pending.pop()
-                continue
-            children = node.children()
-            missing = [child for child in children if child.get_id() not in memo]
-            if missing:
-                pending.extend(missing)
-                continue
-            pending.pop()
-            symbols = frozenset().union(*(memo[child.get_id()][1] for child in children))
-            if node.decl().kind() == z3.Z3_OP_UNINTERPRETED:
-                symbols |= {node.decl().get_id()}
-            memo[node.get_id()] = node, symbols
-        return memo[expr.get_id()][1]
-
     def _candidate_sources(self, formula):
         """Return the assumption sources that can be equivalent to formula or imply it.
 
@@ -939,10 +935,20 @@ class _Replay:
             return self.assumption_sources
         if self.sources_by_symbol is None:
             self.sources_by_symbol = {}
-            for position, (_, conjunct, _) in enumerate(self.assumption_sources):
-                for symbol in self._symbols(conjunct) or (None,):
+            # Sources list an and before its conjuncts, so in reverse an and
+            # takes the union of its conjuncts' sets instead of a traversal.
+            # The sets are dropped once the index is built.
+            symbols_of = {}
+            for position in reversed(range(len(self.assumption_sources))):
+                conjunct = self.assumption_sources[position][1]
+                if conjunct.decl().kind() == z3.Z3_OP_AND:
+                    symbols = set().union(*(symbols_of[child.get_id()] for child in conjunct.children()))
+                else:
+                    symbols = _symbols(conjunct)
+                symbols_of[conjunct.get_id()] = symbols
+                for symbol in symbols or (None,):
                     self.sources_by_symbol.setdefault(symbol, []).append(position)
-        symbols = self._symbols(formula)
+        symbols = _symbols(formula)
         if not symbols:
             return self.assumption_sources
         positions = set(self.sources_by_symbol.get(None, ()))

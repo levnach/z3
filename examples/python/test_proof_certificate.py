@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import tracemalloc
 import unittest
 from unittest.mock import patch
 import warnings
@@ -2171,7 +2172,7 @@ class TestClauseLogReplay(unittest.TestCase):
         # The solver search for an equivalent or implying conjunct used to
         # check every conjunct of every assertion, one solver per check: on
         # z3test's QF_UF cambridge (1,876 assertions, 90 assumed clauses each
-        # implied by one of them) that was 274,092 checks and two minutes.
+        # implied by one of them) that was 274,092 checks and 90 s.
         # Only conjuncts sharing an uninterpreted symbol with the clause can
         # tie it, plus conjuncts without symbols; a clause without symbols,
         # or an input with few conjuncts, still searches everything.
@@ -2212,6 +2213,34 @@ class TestClauseLogReplay(unittest.TestCase):
         self.assertEqual(replay.dag.rule_counts["th-lemma"], 1)  # the cnf lemma from the assertion
         self.assertEqual(replay.dag.rule_counts["asserted"], 1)
         self.assertIsNotNone(node)
+
+    def test_assumption_search_index_is_linear_on_deep_terms(self):
+        # The index first kept the symbol set of every subterm, quadratic on
+        # a right-nested ite chain over distinct atoms (5.5 GB at depth
+        # 16,000). Sets are now computed per conjunct, by one traversal.
+        depth, count = 3000, proof_clause_log._SEARCH_ALL_SOURCES
+        chain = "q"
+        for i in range(depth):
+            chain = "(ite v%d p %s)" % (i, chain)
+        source = ("(declare-const p Bool)(declare-const q Bool)"
+                  + "".join("(declare-const v%d Bool)" % i for i in range(depth))
+                  + "".join("(declare-const x%d Bool)" % i for i in range(count))
+                  + "".join("(assert x%d)" % i for i in range(count))
+                  + "(assert %s)(assert (or p q))" % chain)
+        context = z3.Context()
+        assertions, fragment = proof_certificate.parse_assertions(source, context)
+        replay = proof_clause_log._Replay(source, fragment, assertions, context)
+        p, q = z3.Bools("p q", context)
+        tracemalloc.start()
+        try:
+            candidates = replay._candidate_sources(z3.Or(p, q))
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        self.assertEqual(len(candidates), 2)  # the chain and (or p q)
+        self.assertEqual(sum(len(positions) for positions in replay.sources_by_symbol.values()),
+                         count + (depth + 2) + 2)
+        self.assertLess(peak, 16 * 2 ** 20)
 
     def test_assumption_keys_are_interned_forms_over_child_keys(self):
         # A key names an interned canonical form; forms refer to their

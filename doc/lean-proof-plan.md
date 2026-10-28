@@ -1604,18 +1604,22 @@ compared with every conjunct of every assertion, one solver per check, for
 equivalence and then for implication; `QF_UF_cambridge.3.prop1_ab_reg_max`
 with its log trimmed (1,876 assertions, 90 assumed clauses each implied by
 one of them) ran 274,092 checks and spent 90 s building a 460-step
-certificate. The
-search now checks only the conjuncts that share an uninterpreted symbol with
-the clause, plus the symbol-free ones (`_candidate_sources`); a satisfiable
-conjunct and a non-valid clause without a shared symbol cannot be related,
-and anything the search misses still reaches the unsat-core fallback. Inputs
-with at most 64 conjuncts (`_SEARCH_ALL_SOURCES`) are still searched whole,
-since indexing traverses every assertion (a second on the BubbleSort
-circuit, whose 27 conjuncts all share symbols with its one clause). The
-cambridge build takes 1 s (941 checks) with the same certificate. Nothing is trusted
-either way: the replay checks each step and Lean each lemma. Tests:
-`test_proof_certificate.py` (`test_dependency_core_keeps_sort_declarations`,
-`test_assumption_search_checks_only_conjuncts_sharing_a_symbol`),
+certificate. The search now checks only the conjuncts that share an
+uninterpreted symbol with the clause, plus the symbol-free ones
+(`_candidate_sources`); a satisfiable conjunct and a non-valid clause without
+a shared symbol cannot be related, and anything the search misses still
+reaches the unsat-core fallback. Inputs with at most 64 conjuncts
+(`_SEARCH_ALL_SOURCES`) are still searched whole, since indexing traverses
+every assertion (a second on the BubbleSort circuit, whose 27 conjuncts all
+share symbols with its one clause). The index keeps one symbol set per
+conjunct, computed by one DAG traversal, not one per subterm: per-subterm
+sets are quadratic on a deep ite chain over distinct atoms (5.5 GB at depth
+16,000, now 194 MB). The cambridge build takes 1 s (941 checks) with the
+same certificate. Nothing is trusted either way: the replay checks each step
+and Lean each lemma. Tests: `test_proof_certificate.py`
+(`test_dependency_core_keeps_sort_declarations`,
+`test_assumption_search_checks_only_conjuncts_sharing_a_symbol`,
+`test_assumption_search_index_is_linear_on_deep_terms`),
 `test_proof_to_lean_uf.py` (`test_trimmed_logs_over_a_declared_sort_verify`:
 a trimmed diamond through Lean with warnings as errors).
 
