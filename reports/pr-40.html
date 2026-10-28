@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #40: Trim clause logs from 4 KB and cap Lean memory at 8 GB</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --code-bg: #f6f8fa; --link: #0969da; --accent: #8250df;
+  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+    --code-bg: #161b22; --link: #4493f8; --accent: #ab7df8;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin-bottom: .3rem; }
+h2 { font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+  background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: .8rem;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: .82rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .92rem; }
+th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.meta { color: var(--muted); }
+.badge { display: inline-block; font-weight: 600; border: 1px solid var(--accent); color: var(--accent);
+  border-radius: 999px; padding: 0 .6rem; font-size: .85rem; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.explain { margin-top: -.3rem; margin-bottom: 1.2rem; color: var(--muted); }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: .8rem; color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Trim clause logs from 4 KB and cap Lean memory at 8 GB</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/40">Pull request #40</a> in levnach/z3 ·
+state <span class="badge">OPEN</span> · 2026-10-28T04:17:47Z · loop iteration 40
+</p>
+<p>This pull request is <strong>not merged</strong>. The change it proposes ends at commit
+<a href="https://github.com/levnach/z3/commit/d324b2b29b86572922c3b0564fe970ca6956c064"><code>d324b2b29</code></a>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>The pipeline <a href="#g-replay">replays</a> Z3's <a href="#g-clause-log">clause log</a> to build a
+<a href="#g-refutation">refutation</a> for Lean. Until now, only logs of 1 MB or more went through Z3's native
+<a href="#g-proof-trimming">proof trimming</a> first. This PR lowers that threshold to 4,096 characters. Most real
+inputs now get a <a href="#g-certificate">certificate</a> with only the <a href="#g-clause">clauses</a> that the final
+<a href="#g-empty-clause">empty clause</a> depends on. On the measured inputs, certificates got 3 to 45 times smaller.
+The <a href="#g-trust-boundary">trust boundary</a> does not move. The trimmer's output is only a
+<a href="#g-hint">hint</a>, and Lean still checks every kept step. The PR also caps every Lean process at 8 GB, so
+a runaway proof fails instead of freezing the machine.</p>
+
+<h2 id="background">Background</h2>
+<p>The pipeline could already certify <a href="#g-logic">QF_UF</a>, QF_LRA and QF_LIA inputs through the clause
+log. But a log below 1 MB was replayed in full. Lean then re-checked Z3's whole search, dead ends included. One
+695 KB QF_UF log became 17.4 MB of Lean. PR #39 had made trimmed QF_UF logs usable over a declared
+<a href="#g-sort">sort</a>. This PR applies trimming to far more inputs. It serves milestone 3, "Equality and linear
+arithmetic". The memory cap answers an urgent backlog item: on 2026-10-27, four Lean processes at 24 to 41 GB each
+froze the development machine.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>Clause logs of 4,096 characters or more are now trimmed before replay, so a 32 KB QF_UF log yields about 120 KB of Lean instead of 711 KB.</li>
+<li>When trimming fails, the warning now says why: the trimmer "exited with status N" or "reported an error".</li>
+<li>Every Lean run started by <code>check_lean.sh</code> or by the library build now stops at 8 GB with "excessive memory consumption detected".</li>
+<li>A real SMT-LIB QF_UF benchmark now tests that a mid-sized log is trimmed and still verifies.</li>
+<li>The plan records three native trimmer bugs that now show up more often.</li>
+</ul>
+<p>Think of a detective's notebook and final report. The notebook holds every lead. The report keeps only the clues
+that prove the case. Lean now reads the report, and still checks each clue itself. No C++ code changed.</p>
+<table>
+<tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Python exporter</td><td class="num">8</td><td class="num">3</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Python exporter docs</td><td class="num">2</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/data/QF_UF_train-gate.6.prop1_ab_reg_max.smt2</code></td><td>Test data</td><td class="num">286</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests</td><td class="num">14</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Tests</td><td class="num">27</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Tests</td><td class="num">2</td><td class="num">1</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td>Lean tooling</td><td class="num">1</td><td class="num">1</td></tr>
+<tr><td><code>lean/lakefile.toml</code></td><td>Lean tooling</td><td class="num">1</td><td class="num">1</td></tr>
+<tr><td><code>lean/README.md</code></td><td>Lean tooling docs</td><td class="num">5</td><td class="num">2</td></tr>
+<tr><td><code>scripts/tests/test_check_lean.py</code></td><td>Tests</td><td class="num">6</td><td class="num">1</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">34</td><td class="num">0</td></tr>
+<tr><th>11 files</th><th></th><th class="num">386</th><th class="num">13</th></tr>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This PR makes no new input certifiable. It changes which certificate is produced. So "Before" shows the old,
+larger result, not a rejection. All output comes from real runs on the PR's base and final commit.</p>
+
+<h3>(a) The input</h3>
+<p>Four values <code>(f a)</code> to <code>(f d)</code> must differ, yet each equals one of three constants. This is
+the pigeonhole principle over an <a href="#g-uninterpreted-function">uninterpreted function</a>. Its clause log has
+7,537 characters, above the new threshold.</p>
+<pre><code>(set-logic QF_UF)
+(declare-sort U 0)
+(declare-fun f (U) U)
+(declare-const a U) (declare-const b U) (declare-const c U) (declare-const d U)
+(declare-const x U) (declare-const y U) (declare-const z U)
+(assert (distinct (f a) (f b) (f c) (f d)))
+(assert (or (= (f a) x) (= (f a) y) (= (f a) z)))
+(assert (or (= (f b) x) (= (f b) y) (= (f b) z)))
+(assert (or (= (f c) x) (= (f c) y) (= (f c) z)))
+(assert (or (= (f d) x) (= (f d) y) (= (f d) z)))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>With the base commit's scripts, export and Lean check both succeed, so there is no error to quote. The trimmer
+is never called. Directory names are removed below.</p>
+<pre><code>$ python3 old/proof_certificate.py example.smt2 &gt; old-example.json
+$ python3 proof_to_lean.py example.smt2 old-example.json -o old-example.lean
+Lean checked the refutation; wrote old-example.lean</code></pre>
+<p class="explain">The second command used the repository's copy of this script, which the PR does not change.</p>
+
+<h3>(c) After</h3>
+<p>With the PR's code, the log is trimmed, and <code>check_lean.sh</code> printed "Lean checks passed."</p>
+<table>
+<tr><th>Measure</th><th>Before</th><th>After</th></tr>
+<tr><td>Trimmer called</td><td>no</td><td>yes</td></tr>
+<tr><td>Certificate nodes</td><td class="num">314</td><td class="num">235</td></tr>
+<tr><td><code>th-lemma</code> steps</td><td class="num">35</td><td class="num">24</td></tr>
+<tr><td><code>unit-resolution</code> steps</td><td class="num">106</td><td class="num">71</td></tr>
+<tr><td>Lean file lines</td><td class="num">933</td><td class="num">666</td></tr>
+<tr><td>Lean file bytes</td><td class="num">101,150</td><td class="num">71,576</td></tr>
+<tr><td>Lean accepted</td><td class="ok">yes</td><td class="ok">yes</td></tr>
+</table>
+<pre><code>-- Element 0: "a"
+...
+-- Function 0: "f"
+-- Uninterpreted sort "U" is the type _U; functions and predicates take argument lists.
+...
+def term_5 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _funs 0 [(term_4 _atoms _U _elems _funs _preds _bool)]
+...
+def term_9 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : _U := _elems 4
+...
+def formula_20 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := ((term_5 _atoms _U _elems _funs _preds _bool) = (term_9 _atoms _U _elems _funs _preds _bool))
+...
+def formula_31 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U) : Prop := (Or (formula_28 _atoms _U _elems _funs _preds _bool) (Or (formula_29 _atoms _U _elems _funs _preds _bool) (formula_30 _atoms _U _elems _funs _preds _bool)))</code></pre>
+<p class="explain">The declarations name each term. <code>term_5</code> is <code>(f c)</code>, <code>term_9</code> is
+<code>x</code>, and <code>formula_20</code> is the equality <code>(f c) = x</code>.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    (_h0 : (formula_8 _atoms _U _elems _funs _preds _bool))
+    (_h1 : (formula_15 _atoms _U _elems _funs _preds _bool))
+    (_h2 : (formula_19 _atoms _U _elems _funs _preds _bool))
+    (_h3 : (formula_23 _atoms _U _elems _funs _preds _bool))
+    (_h4 : (formula_27 _atoms _U _elems _funs _preds _bool))
+    : False :=
+  ...
+  _step_234</code></pre>
+<p class="explain">The theorem says the five assertions, <code>_h0</code> to <code>_h4</code>, prove
+<code>False</code> for every sort and every meaning of <code>f</code>.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_32 (_atoms : Nat -&gt; Prop) (_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)
+    : (formula_31 _atoms _U _elems _funs _preds _bool) := by
+  unfold formula_31 formula_30 formula_29 formula_28 formula_24 formula_20 term_9 term_7 term_6 term_5 term_4
+  grind (splits := 64)</code></pre>
+<p class="explain">This <a href="#g-theory-lemma">theory lemma</a> is the clause "not (f d = x), or f c = f d, or not
+(f c = x)", true by <a href="#g-transitivity">transitivity</a>. The <a href="#g-tactic">tactic</a> <code>grind</code>
+proves it. Trimming dropped 11 of the 35 such lemmas.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>About 300 Lean tests passed, every Lean matrix input verified, and one unrelated old test still fails. These
+runs are the implementer's and integrator's, on the final commit. No local gate result was recorded.</p>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>Lean test suite, <code>test_proof_to_lean*.py</code></td><td class="ok">293 tests OK, 904 s</td></tr>
+<tr><td>Certificate tests, <code>test_proof_certificate.py</code></td><td class="ok">93 tests OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code>, library rebuilt with the cap</td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td class="ok">46 tests OK</td></tr>
+<tr><td>Boolean Lean matrix, legacy proof object</td><td class="ok">6/6 lean-verified</td></tr>
+<tr><td>QF_LRA Lean matrix, clause log</td><td class="ok">8/8 lean-verified</td></tr>
+<tr><td><code>scripts/tests</code></td><td class="warn">40 tests, 1 failure</td></tr>
+</table>
+<p>The failing <code>test_shell.test_log_extension_diagnostic</code> failed before this PR too. In the Lean suite,
+eight exports fell back to the untrimmed log and still passed.</p>
+<p>No CI status was recorded for this report. The jobs below are those the PR maps its checks to.</p>
+<table>
+<tr><th>CI job / step</th><th>Covers</th><th>Status</th></tr>
+<tr><td><code>ubuntu-cmake</code> (releaseClang) / Check native Boolean proofs in Lean</td><td>Lean test suite</td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
+<tr><td>releaseClang / Require Lean-certified Boolean matrix results</td><td>z3test tests, Boolean matrix</td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
+<tr><td>releaseClang / Require Lean-certified QF_LRA matrix results</td><td>QF_LRA matrix</td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
+<tr><td><code>manylinux-python-amd64</code> / Test Python wheel</td><td>Certificate tests</td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
+<tr><td><code>python-script-tests</code> / Run Python script unit tests</td><td><code>scripts/tests</code></td><td><a href="https://github.com/levnach/z3/pull/40/checks">unknown</a></td></tr>
+</table>
+<p>No CI fix rounds are recorded for this PR.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change, with no blocker or major findings.</p>
+<table>
+<tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr>
+<tr><td>minor</td><td>Trimmer crashes on <code>div</code>/<code>mod</code></td><td>Documented as a C++ follow-up</td></tr>
+<tr><td>minor</td><td>README still said 1 MB</td><td>Fixed</td></tr>
+<tr><td>nit</td><td>Misleading "exit status 0" warning</td><td>Fixed</td></tr>
+<tr><td>nit</td><td>Fragile threshold in a test</td><td>Fixed</td></tr>
+<tr><td>nit</td><td>Trailing whitespace in test data</td><td>Kept on purpose</td></tr>
+</table>
+<p><strong>The crash.</strong> The reviewer chased some silent fallbacks by cutting a QF_LIA log to ten lines. The
+native trimmer crashes whenever a step reasons about <code>div</code> and <code>mod</code> by a constant. The result
+stays correct, because the untrimmed log is replayed. But each crash prints a warning, which fails callers that treat
+warnings as errors. The fix needs C++, so the bug went into the plan with its reproducer.</p>
+<p><strong>The smaller ones.</strong> The README still said 1 MB and now says 4,096 characters. A warning that blamed
+"exit status 0" now says "reported an error". A test that could trim a longer second log by accident now switches
+trimming off with infinity. The benchmark's trailing spaces were kept, because it is copied verbatim.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>More inputs now reach a trimmer with three known bugs. Each falls back safely, at the cost of a wasted run and a warning.</li>
+<li>One bug rejects a step as "not derivable by <a href="#g-unit-propagation">unit propagation</a>". Another makes the empty clause depend on itself.</li>
+<li>A trimmer timeout still fails the whole export instead of falling back.</li>
+<li>The 8 GB cap could fail a very large proof in CI. The largest proof in the suite peaks at about 4.5 GB.</li>
+<li>Only about 15 benchmark files were measured.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<p>C++ fixes for the three trimmer bugs, each with a regression test. A trimmer timeout that falls back like other
+failures. Then a full re-scan of the <code>smtlib-sample</code> benchmarks with the new threshold.</p>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-certificate">certificate</dt>
+<dd>A file that records a proof in a form another program can check, here the JSON that the Lean generator reads.</dd>
+<dt id="g-clause">clause</dt>
+<dd>An "or" of <a href="#g-literal">literals</a>, such as <code>p or not q</code>. It is true when at least one literal is true.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>The list of clauses Z3 writes while it searches, each with the reason it was added.</dd>
+<dt id="g-empty-clause">empty clause</dt>
+<dd>A clause with no literals. It can never be true, so deriving it ends a refutation.</dd>
+<dt id="g-hint">hint</dt>
+<dd>Information from the solver that guides the checker but is not trusted. A wrong hint makes checking fail, never succeed.</dd>
+<dt id="g-literal">literal</dt>
+<dd>A Boolean atom or its negation, such as <code>(= (f a) x)</code> or <code>(not (= (f a) x))</code>.</dd>
+<dt id="g-logic">logic (SMT-LIB)</dt>
+<dd>A named fragment of SMT-LIB. QF_UF is quantifier-free formulas with uninterpreted functions. QF_LRA and QF_LIA are quantifier-free linear real and integer arithmetic.</dd>
+<dt id="g-proof-trimming">proof trimming</dt>
+<dd>Keeping only the proof steps the final conclusion depends on, and dropping the rest.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to a contradiction, that is, to <code>False</code>.</dd>
+<dt id="g-replay">replay</dt>
+<dd>Re-deriving each step of a log independently, instead of trusting that the solver got it right.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Bool</code>, or a declared sort like <code>U</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that builds part of a proof automatically. <code>grind</code> is one.</dd>
+<dt id="g-theory-lemma">theory lemma</dt>
+<dd>A clause that is true because of a theory, such as equality or arithmetic, not because of Boolean logic alone. Z3 marks these steps <code>th-lemma</code>.</dd>
+<dt id="g-transitivity">transitivity</dt>
+<dd>The rule that if <code>s = t</code> and <code>t = u</code>, then <code>s = u</code>.</dd>
+<dt id="g-trust-boundary">trust boundary</dt>
+<dd>The line between the parts whose mistakes could make a wrong result pass, and the parts whose mistakes can only make checking fail.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. The only rule is that equal arguments give equal results.</dd>
+<dt id="g-unit-propagation">unit propagation</dt>
+<dd>If all literals of a clause but one are false, the last one must be true. Z3 marks these steps <code>unit-resolution</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-27.
+</footer>
+</body>
+</html>
