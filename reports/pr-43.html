@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #43: Check euf and tseitin steps over Boolean constants natively</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --code-bg: #f6f8fa; --link: #0969da; --accent: #8250df;
+  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #30363d;
+    --code-bg: #161b22; --link: #4493f8; --accent: #ab7df8;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+html { background: var(--bg); color: var(--fg); }
+body {
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6;
+}
+a { color: var(--link); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--line); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; border: 1px solid var(--ok); color: var(--ok); font-weight: 600; font-size: 0.85rem; }
+.note { border-left: 4px solid var(--warn); padding: 0.3rem 0.8rem; background: var(--code-bg); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.05rem 0.25rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: 0.85rem; }
+table { border-collapse: collapse; margin: 0.8rem 0; width: 100%; font-size: 0.93rem; }
+th, td { border: 1px solid var(--line); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pass { color: var(--ok); font-weight: 600; }
+.unknown { color: var(--warn); font-weight: 600; }
+.fail { color: var(--bad); font-weight: 600; }
+dt { font-weight: 700; margin-top: 0.7rem; color: var(--accent); }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Check euf and tseitin steps over Boolean constants natively</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/43">levnach/z3 #43</a>
+&middot; State: <span class="badge">OPEN</span>
+&middot; Date: 2026-10-29T00:45:57Z
+&middot; Loop iteration 43
+</p>
+<p class="note">This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/64e6e8c3f19e4eb7d24bc1026753b04d52ea9184"><code>64e6e8c3f</code></a>
+on top of <code>master</code> at <code>c95b61cb0</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Z3 can write a <a href="#g-clause-log">clause log</a> and later <a href="#g-replay">replay</a> it with its own <a href="#g-native-checker">native checkers</a>.
+Two of those checkers gave up on common steps and passed them to the slower <a href="#g-smt-fallback">SMT fallback</a>.
+The <a href="#g-euf">euf</a> checker could not see <a href="#g-congruence">congruence</a> through a negated <a href="#g-boolean">Boolean</a> argument of an <a href="#g-uninterpreted-function">uninterpreted function</a>.
+The <a href="#g-tseitin">tseitin</a> checker did not know the values of the <a href="#g-constant">constants</a> <code>true</code> and <code>false</code> inside a <a href="#g-gate-clause">gate clause</a>.
+It also missed <a href="#g-clause">clauses</a> that are <a href="#g-tautology">tautologies</a>, and a trivial <a href="#g-ite">if-then-else term</a> whose two branches are the same.
+Now both checkers verify these steps themselves, and on 692 test logs these fallbacks drop to zero.
+Lean certificates do not change, because Lean already checked these steps.
+The gain is a more complete native <a href="#g-certificate">certificate</a> and a cleaner regression signal.</p>
+
+<h2 id="background">Background</h2>
+<p>Before this PR, Python export and Lean <a href="#g-reconstruction">reconstruction</a> already handled these inputs.
+Z3's native replay did not.
+It marked 28 euf steps and 700 tseitin steps, in 165 of 692 logs, as <code>verified-smt</code>.
+The regression matrix counts such steps as unverified fallbacks, so they hid real gaps among the noise.
+The euf gap was a backlog item from iteration 42.
+The work serves milestone 3, equality and <a href="#g-uninterpreted-function">uninterpreted functions</a>, and the regression methodology that gates it.
+It strengthens the C++ checker that the plan keeps for diagnostics.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li><strong>Euf checker:</strong> it now accepts <code>(pb (not q)) = (pb true)</code> when the hint fixes <code>q</code> to false, reading through any number of negations.</li>
+<li><strong>Tseitin checker, constants:</strong> it now treats <code>true</code>, <code>false</code> and <code>(not true)</code> as fixed values inside every gate rule, so a constant needs no <a href="#g-literal">literal</a> of its own.</li>
+<li><strong>Tseitin checker, tautologies:</strong> it now accepts any clause that holds a literal and its negation, or a literal that is always true.</li>
+<li><strong>Tseitin checker, if-then-else:</strong> it now accepts <code>(= (ite c a a) a)</code>, where both branches equal the right-hand side.</li>
+<li><strong>Tests and notes:</strong> new C++ and Python regression tests fail on the old build and pass on the new one, and the project plan has a dated note.</li>
+</ul>
+<p>An analogy for the constants rule: a gate with an input wired straight to power always sees "on".
+The old checker wanted a label on that wire before it would trust it.
+The new checker reads the wire directly.</p>
+
+<table>
+<thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>src/sat/smt/euf_proof_checker.cpp</code></td><td>euf native checker</td><td class="num">30</td><td class="num">3</td></tr>
+<tr><td><code>src/sat/smt/tseitin_theory_checker.h</code></td><td>tseitin native checker</td><td class="num">11</td><td class="num">2</td></tr>
+<tr><td><code>src/sat/smt/tseitin_theory_checker.cpp</code></td><td>tseitin native checker</td><td class="num">17</td><td class="num">0</td></tr>
+<tr><td><code>src/test/proof_replay.cpp</code></td><td>C++ unit tests</td><td class="num">93</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Python test</td><td class="num">39</td><td class="num">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Project plan</td><td class="num">23</td><td class="num">0</td></tr>
+<tr><th>Total, 6 files</th><th></th><th class="num">213</th><th class="num">5</th></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This PR changes native checkers, not Lean reconstruction.
+So the example shows a real clause log, replayed by the old and new Z3 builds.
+The input is the first case of the new Python test.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const q Bool)
+(declare-fun pb (Bool) Bool)
+(assert (not q))
+(assert (pb true))
+(assert (not (pb (not q))))
+(check-sat)</code></pre>
+<p>Since <code>q</code> is false, <code>(not q)</code> is true, so <code>(pb (not q))</code> and <code>(pb true)</code> must agree. The assertions say they do not.</p>
+
+<p>The new Z3 build wrote this euf step in the clause log, shown here unchanged:</p>
+<pre><code>(define-const $7 Bool (pb true))
+(define-const $6 Bool (not q))
+...
+(define-const $8 Bool (pb $6))
+...
+(define-const $11 Bool (= $7 $8))
+(define-const $12 Proof (cc $11))
+(define-const $9 Bool (not $8))
+(define-const $13 Proof (euf $7 $9 $6 $12))
+(infer (not $7) $8 (not $6) $13)</code></pre>
+<p>The step claims the clause "not <code>(pb true)</code>, or <code>(pb (not q))</code>, or <code>q</code>". Its <a href="#g-hint">hint</a> gives one congruence step, <code>(pb true) = (pb (not q))</code>.</p>
+
+<h3>(b) Before: replay with the base build</h3>
+<pre><code>(proofs +tseitin 1)
+(proofs +tseitin 1 -euf 1)
+(verified-smt
+(euf (pb true) (not (pb (not q))) (not q) (cc (= (pb true) (pb #23))))
+ (not (pb true))
+ (pb (not q))
+ (not (not q)))
+(proofs +tseitin 1 +rup 1 -euf 1)
+not congruent (cc (= (pb true) (pb (not q))))</code></pre>
+<p>The euf checker rejected the congruence step as "not congruent", so the step went to the SMT fallback and was counted as <code>-euf 1</code>.</p>
+
+<h3>(c) After: replay with this PR</h3>
+<pre><code>(proofs +tseitin 1)
+(proofs +tseitin 1 +euf 1)
+(proofs +tseitin 1 +euf 1 +rup 1)</code></pre>
+<p>Every step, including the euf step, now verifies natively, and there is no <code>verified-smt</code> line.</p>
+
+<p>The new C++ regression test replays a log of the same shape, with the negation on the other side:</p>
+<pre><code>"(assume s)(assume $2)(assume (not $3))"
+...
+"(infer $1 $3 (not $2) (euf $2 s (not $3) (cc (= $2 $3))))"
+...
+"(declare-fun rup () Proof)(infer rup)"), "euf 1");</code></pre>
+<p>Here <code>$2</code> is <code>(pb (not s))</code> and <code>$3</code> is <code>(pb false)</code>, and the test requires native verification.</p>
+
+<p>The Lean path is unchanged. For this input, the current reconstructor wrote a Lean file that <code>check_lean.sh</code> accepted: "Lean checks passed."
+I could not rerun the base-commit Python scripts here, but the PR does not touch them.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>In plain terms: every local test suite passed, including the full Lean suites.
+The new tests fail on the old build.
+A scan of 692 real logs found no euf or tseitin fallback left.
+About 10,000 random hints found no case where the new checker accepted something false.
+No local gate record exists yet. The results below come from the PR description, change summary and review.</p>
+
+<table>
+<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Rebuild of <code>z3</code> and <code>test-z3</code></td><td class="pass">OK</td></tr>
+<tr><td>C++ tests <code>proof_replay</code>, <code>proof_checker</code>, <code>sat_smt_proof_scope</code></td><td class="pass">3 passed, 0 failed</td></tr>
+<tr><td>Same C++ test with the checker change stashed</td><td>fails at the first new assertion, as intended</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td class="pass">98 tests OK</td></tr>
+<tr><td>New Python test against the base binary</td><td>4 of 4 subtests fail with <code>(verified-smt</code>, as intended</td></tr>
+<tr><td><code>check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+<tr><td><code>test_proof_to_lean*.py</code></td><td class="pass">294 tests OK</td></tr>
+<tr><td>z3test proof scripts, <code>test_proof*.py</code></td><td class="pass">46 tests OK</td></tr>
+<tr><td>Proof matrix with Lean, Boolean inputs, legacy proof object</td><td class="pass">6 of 6 lean-verified</td></tr>
+<tr><td>Proof matrix with Lean, <code>lra_*</code> inputs, clause log</td><td class="pass">8 of 8 lean-verified</td></tr>
+<tr><td>Proof canaries</td><td class="pass">exit 0, one known stale warning on <code>t8.smt2</code></td></tr>
+<tr><td>z3test SMT-LIB regressions</td><td class="pass">exit 0, 952 files</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Native replay scan, 692 unsat logs</th><th class="num">Base build</th><th class="num">This PR</th></tr></thead>
+<tbody>
+<tr><td>euf fallbacks</td><td class="num">28</td><td class="num">0</td></tr>
+<tr><td>tseitin fallbacks</td><td class="num">700</td><td class="num">0</td></tr>
+<tr><td>Logs with a euf or tseitin fallback</td><td class="num">165</td><td class="num">0</td></tr>
+<tr><td>Remaining <code>arith</code> fallbacks, in 15 logs</td><td class="num">not reported</td><td class="num">18</td></tr>
+<tr><td>Remaining <code>cut</code> fallbacks, in 8 logs</td><td class="num">not reported</td><td class="num">9</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Soundness fuzz, 10,000 random hints</th><th class="num">Base build</th><th class="num">This PR</th></tr></thead>
+<tbody>
+<tr><td>Hints accepted natively</td><td class="num">2,258</td><td class="num">4,280</td></tr>
+<tr><td>Accepted hints that were invalid</td><td class="num">0</td><td class="num">0</td></tr>
+<tr><td>Valid hints still left to the fallback</td><td class="num">not reported</td><td class="num">704 euf, 388 tseitin</td></tr>
+</tbody>
+</table>
+
+<h3>Continuous integration</h3>
+<p>No CI status files were recorded for this iteration.
+The table lists the jobs that the PR description says run the new tests.
+Their results are unknown here, and local success does not imply them.
+See the <a href="https://github.com/levnach/z3/pull/43/checks">PR checks page</a> for live status.
+There were no CI fix rounds.</p>
+<table>
+<thead><tr><th>Workflow job</th><th>What it runs</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu build - cmake, step "Run unit tests"</td><td><code>test-z3 -a</code>, including the new C++ tests</td><td class="unknown">not recorded</td></tr>
+<tr><td>Windows, macOS and OCaml jobs</td><td><code>test-z3 -a</code></td><td class="unknown">not recorded</td></tr>
+<tr><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td><code>test_proof_certificate.py</code>, skipped if the wheel's <code>z3</code> is not on PATH</td><td class="unknown">not recorded</td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved with no blocker, major, minor or nit findings.</p>
+<p>The reviewer's main worry was <a href="#g-soundness">soundness</a>.
+Giving constants a value changes two helper tests that every tseitin gate rule reads.
+So the reviewer walked through each rule for <code>and</code>, <code>or</code>, <code>=</code>, <code>ite</code>, <code>=&gt;</code> and <code>xor</code>.
+They checked that no term can look both true and false at once.
+The new first pass returns early in every such case, so the rules always see a consistent assignment.</p>
+<p>Next, the reviewer tried to fool the checker with 15 false look-alikes, such as <code>(= (ite p a b) b)</code>.
+The new build rejected all 15 and accepted 5 valid shapes.
+The new Python test failed on the base binary, as it should.</p>
+<p>Two suggestions left the code unchanged.
+The Python test runs only in one CI job, but the C++ tests run everywhere and were judged enough.
+An older debug print in the tseitin checker is noisy. It predates this PR and is a follow-up.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>The native checkers accept more steps. A wrong acceptance would be a soundness bug in Z3's certificates, but not in Lean's.</li>
+<li>The constant values apply to every tseitin gate rule at once.</li>
+<li>The Python test depends on how Z3 clausifies four inputs today. If that changes, the test fails loudly.</li>
+<li>Only UF-family generators were scanned. LRA and LIA <code>ite</code> generators and the SMT-LIB sample may show other tseitin shapes.</li>
+<li>CI results for this PR are not known to this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Investigate the remaining <code>arith</code> fallbacks over Real in 15 UFLRA logs, for example seed 106. The <a href="#g-cut">cut</a> fallbacks in UFLIA logs are by design.</li>
+<li>Scan the LRA and LIA <code>ite</code> generators and the SMT-LIB sample for other tseitin shapes.</li>
+<li>Rerun the stopped export-only rescan of the SMT-LIB sample.</li>
+<li>Remove the old tseitin debug print and the stale <code>t8.smt2</code> canary annotation.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-boolean">Boolean</dt>
+<dd>The <a href="#g-sort">sort</a> with exactly two values, true and false. In SMT-LIB it is written <code>Bool</code>.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>A record of a proof that a separate checker can verify step by step.</dd>
+<dt id="g-clause">clause</dt>
+<dd>An "or" of literals. It holds when at least one of its literals is true. Example: <code>q or not p</code>.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>A file in which Z3 writes each clause it learns, together with a hint saying why the clause holds.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that equal arguments give equal results. If <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+<dt id="g-constant">constant</dt>
+<dd>A fixed value such as <code>true</code>, <code>false</code> or <code>3</code>. A declared name like <code>q</code> is also called a constant in SMT-LIB, but here the word means a fixed value.</dd>
+<dt id="g-cut">cut</dt>
+<dd>A step in integer arithmetic that rounds a bound to the nearest integer, such as going from <code>2x &le; 3</code> to <code>x &le; 1</code>.</dd>
+<dt id="g-euf">euf</dt>
+<dd>Equality with uninterpreted functions. It is the theory, and the Z3 checker, that reasons about equalities and congruence.</dd>
+<dt id="g-gate-clause">gate clause</dt>
+<dd>A clause that ties a compound formula, such as <code>(or a b)</code>, to its parts. Example: "not a, or <code>(or a b)</code>".</dd>
+<dt id="g-hint">hint</dt>
+<dd>The justification attached to a step in a clause log. It tells the checker which rule and which facts to use.</dd>
+<dt id="g-ite">if-then-else term</dt>
+<dd>A term <code>(ite c a b)</code> that equals <code>a</code> when <code>c</code> is true and <code>b</code> otherwise.</dd>
+<dt id="g-literal">literal</dt>
+<dd>A Boolean atom or its negation, such as <code>q</code> or <code>(not q)</code>.</dd>
+<dt id="g-native-checker">native checker</dt>
+<dd>A checker written in C++ inside Z3 that verifies one kind of step, such as euf or tseitin steps, without calling the solver.</dd>
+<dt id="g-reconstruction">reconstruction</dt>
+<dd>Turning a Z3 proof into a Lean proof that Lean then checks on its own.</dd>
+<dt id="g-replay">replay</dt>
+<dd>Reading a clause log back and checking each step in order.</dd>
+<dt id="g-smt-fallback">SMT fallback</dt>
+<dd>When no native checker accepts a step, Z3 proves the step by running its solver again. Z3 marks such steps <code>verified-smt</code>. This works, but it trusts the solver.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as <code>Int</code>, <code>Real</code> or <code>Bool</code>.</dd>
+<dt id="g-soundness">soundness</dt>
+<dd>A checker is sound if it never accepts a false step.</dd>
+<dt id="g-tautology">tautology</dt>
+<dd>A formula that is true under every assignment. Example: <code>q or not q</code>.</dd>
+<dt id="g-tseitin">tseitin</dt>
+<dd>The Tseitin encoding turns a formula into clauses by naming each compound part and adding gate clauses for it. In Z3 it is also the name of the checker for those gate clauses.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. The solver only knows that it gives equal results for equal arguments. Example: <code>pb</code> in the worked example.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-28.
+Report for <a href="https://github.com/levnach/z3/pull/43">levnach/z3 #43</a>, iteration 43.
+</footer>
+
+</body>
+</html>
