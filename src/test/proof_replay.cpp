@@ -514,7 +514,7 @@ static void tst_replay_boolean_constants_and_arguments() {
         "(declare-fun rup () Proof)(infer rup)"), "tseitin 2");
 }
 
-// A bare arith hint (a theory axiom of the legacy core) lists the negated
+// A bare arith hint (an axiom of sat.smt's arith solver) lists the negated
 // clause literals; a leading true stands for a literal the log omits.
 static bool check_arith_axiom(ast_manager& m, char const* source, bool leading_true = false) {
     auto lits = parse_lits(m, source);
@@ -528,10 +528,10 @@ static bool check_arith_axiom(ast_manager& m, char const* source, bool leading_t
     return checker.check(hint);
 }
 
-// theory_lra's axioms for div, mod and / by a numeral and for abs went to the
-// SMT fallback (5,213 steps over the division generators of
-// test_proof_to_lean_lia.py, 18 over test_proof_to_lean_uflra.py). They are
-// checked against the defining identities and bounds now.
+// The arith solver's axioms (arith_axioms.cpp) for div, mod and / by a numeral
+// and for abs went to the SMT fallback (5,213 steps over the division
+// generators of test_proof_to_lean_lia.py, 18 over test_proof_to_lean_uflra.py).
+// They are checked against the defining identities and bounds now.
 static void tst_checker_arith_axioms() {
     ast_manager m;
     reg_decl_plugins(m);
@@ -575,7 +575,7 @@ static void tst_checker_arith_axioms() {
     ENSURE(!check("(assert (= 1 2))"));
 }
 
-// Z3's log for (> (mod x 3) 2) under the legacy core (shapes of liad1.log),
+// Z3's log for (> (mod x 3) 2) under sat.smt (shapes of liad1.log),
 // with abs and a numeral division: every axiom verifies natively, and the
 // trimmer keeps the axiom whose true argument the logged clause omits.
 static char const* arith_axioms_log =
