@@ -2683,6 +2683,45 @@ class TestClauseLogReplay(unittest.TestCase):
                 self.assertNotRegex(totals[-1], r" -\w", totals[-1])
                 self.replay(source, log)
 
+    def test_native_checker_verifies_arithmetic_axioms(self):
+        # Until 2026-10-29 Z3's own replay had no checker for the arithmetic
+        # solver's axioms, logged with a bare arith hint, and sent every one to
+        # its SMT fallback: the div and mod identity and bounds for a numeral
+        # divisor, the two abs cases, and q * (p / q) = p for a numeral q (its
+        # false q = 0 literal shows up as a leading true). The export below
+        # checks every step itself either way.
+        z3_executable = proof_certificate.default_z3_executable()
+        inputs = [
+            # random_division_instance seed 69 of test_proof_to_lean_lia.py
+            "(declare-const x0 Int)(declare-const x1 Int)(declare-const x2 Int)(declare-const x3 Int)"
+            "(assert (= (+ (* -3 x1) 0) 1))"
+            "(assert (not (and (> (+ (* -1 x3) (* -2 (div (+ x2 x0) 3)) 0) -1) (= (+ (* -2 x1) 0) -2))))"
+            "(assert (or (>= (+ (* 3 x0) (* -3 (div x1 -3)) 0) -2) (< (+ (* -2 x2) 0) 5)))"
+            "(assert (or (>= (+ (* -3 x3) (* 1 x0) (* -2 x1) 0) -1) (< (+ (* -2 x1) (* 1 x2) (* 3 x3) 0) 5)))"
+            "(assert (> (+ (* 1 x3) (* -3 x0) (* -2 (div x2 3)) 0) -2))"
+            "(assert (= (+ (* -1 (div x1 4)) (* -3 (div (+ x0 x1) 3)) 0) 3))"
+            "(assert (= (+ (* 1 x0) 0) -4))(assert (= (+ (* -2 x3) 0) 3))"
+            "(assert (>= (+ (* 1 (abs x0)) (* 1 (mod x1 -3)) 0) -4))(assert (>= (+ (* 3 x0) 0) -4))",
+            "(declare-const x Int)(declare-const y Int)"
+            "(assert (< (+ (* 2 (abs x)) y) 1))(assert (> y 0))(assert (> (mod x 3) 0))",
+            "(declare-fun f (Real) Real)(declare-const r Real)"
+            "(assert (= 2.0 (/ 3.0 2.0)))(assert (= (f (/ 1.0 2.0)) (+ r r)))",
+        ]
+        for source in inputs:
+            with self.subTest(source=source):
+                log = proof_clause_log.run_clause_log(z3_executable, source)
+                self.assertRegex(log, r"\(arith ")
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "proof.log"
+                    path.write_text(log, encoding="utf-8")
+                    replay = subprocess.run([z3_executable, "-smt2", str(path)], capture_output=True, text=True)
+                totals = [line for line in replay.stdout.splitlines() if line.startswith("(proofs")]
+                self.assertTrue(totals, replay.stdout)
+                self.assertNotIn("(verified-smt", replay.stdout)
+                self.assertRegex(totals[-1], r" \+arith \d+")
+                self.assertNotRegex(totals[-1], r" -\w", totals[-1])
+                self.replay(source, log)
+
     def test_one_argument_xor_is_built_with_its_gate_clauses(self):
         context = z3.Context()
         p = z3.Bool("p", ctx=context)
