@@ -1,0 +1,5 @@
+Command: timeout 120 fstar.exe --smt .../z3-4.13.3/bin/z3 --z3version 4.13.3 --z3rlimit 10 --cache_dir cache --odir out --include fstar Z3ArithAxiomAudit.fst
+F* 2026.09.27; Z3 4.13.3
+Verified module: Z3ArithAxiomAudit
+All verification conditions discharged successfully
+exit 0
