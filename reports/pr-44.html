@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #44: Check the arith solver's div, mod and abs axioms natively</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2129; --muted: #5a6270; --accent: #0b5cad;
+    --code-bg: #f3f5f8; --border: #d8dde4; --ok: #1a7f37; --warn: #9a6700; --bad: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --fg: #e3e7ed; --muted: #9aa3b1; --accent: #6cb4ff;
+      --code-bg: #1e232b; --border: #343b46; --ok: #4ac26b; --warn: #d4a72c; --bad: #ff7b72;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font: 16px/1.6 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 50rem; margin: 0 auto; padding: 1.5rem 1.2rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .state { display: inline-block; font-weight: 600; padding: 0.05rem 0.5rem; border-radius: 999px;
+           border: 1px solid var(--warn); color: var(--warn); }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .pending { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.93rem; }
+  dt { font-weight: 600; margin-top: 0.7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Check the arith solver's div, mod and abs axioms natively</h1>
+<p class="meta">
+  Pull request <a href="https://github.com/levnach/z3/pull/44">levnach/z3#44</a> ·
+  State: <span class="state">OPEN</span> · Opened 2026-10-29T18:02:32Z · Loop iteration 44
+</p>
+<p class="meta">
+  This pull request is <strong>not merged</strong>. The change described here is commit
+  <a href="https://github.com/levnach/z3/commit/3944722f08299104743721ef01b8da0cd3cbb670"><code>3944722f0</code></a>,
+  which sits on top of a second commit in the same pull request.
+</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+  Z3's arithmetic solver adds some <a href="#g-theory-axiom">theory axioms</a> about
+  <a href="#g-div-mod"><code>div</code> and <code>mod</code></a>, <a href="#g-abs"><code>abs</code></a>,
+  and division by a <a href="#g-numeral">numeral</a>. Each one is a <a href="#g-clause">clause</a>
+  written to the <a href="#g-clause-log">clause log</a> with a bare <code>arith</code>
+  <a href="#g-hint">hint</a>. Z3's own <a href="#g-native-checker">native checker</a> had no rule for that hint.
+  So every such step went to the <a href="#g-smt-fallback">SMT fallback</a>, which asks Z3 to re-solve the step.
+  This PR teaches the native checker to check these axioms directly with
+  <a href="#g-linear-arithmetic">linear arithmetic</a>. On the arithmetic test generators, all 5,213 fallback
+  steps of this kind are now checked natively. The Lean <a href="#g-certificate">certificates</a> do not change,
+  because Lean already re-proved these steps. The gain is that Z3's native certificates no longer lean on a
+  fallback for them.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+  Before this PR, the native checker handled <a href="#g-farkas">Farkas lemma</a> hints,
+  <a href="#g-congruence">congruence</a> hints from <code>euf</code>, and <a href="#g-rup">RUP</a> steps.
+  It had no checker plugin named <code>arith</code>. Every <code>arith</code>-hinted clause of a
+  <a href="#g-refutation">refutation</a> became a <code>verified-smt</code> step. The Python replay and Lean
+  were not affected. This work serves Milestone 3, "Equality and linear arithmetic", which asks for checked
+  side conditions and native evidence wherever replay needs it.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>The native checker now accepts the identity <code>u = k*(div u k) + (mod u k)</code> for any nonzero
+      integer numeral <code>k</code>, without the fallback.</li>
+  <li>It also accepts the <a href="#g-bound">bounds</a> <code>0 &lt;= (mod u k) &lt;= |k|-1</code>
+      and the real-division fact <code>q*(p/q) = p</code> for a nonzero numeral <code>q</code>.</li>
+  <li>It accepts the two <a href="#g-case-split">case splits</a> of <code>abs</code>,
+      such as "<code>x &lt; 0</code> or <code>(abs x) = x</code>".</li>
+  <li>Anything else under <code>arith</code> is still rejected and still falls back, for example a
+      zero or symbolic divisor, <code>to_int</code>, or a nested <code>mod</code>.</li>
+  <li>The <a href="#g-trimming">proof trimmer</a> keeps working on these steps, and its test for hints that
+      have no checker is still covered.</li>
+</ul>
+<p>
+  One detail needed care. A division axiom's hint can start with <code>true</code>. That
+  <code>true</code> stands for the literal <code>q = 0</code>, which is false and so is left out of the log.
+  The checker now drops it, so the clause it reports matches the logged clause.
+</p>
+<table>
+  <thead><tr><th>File</th><th>Component</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/sat/smt/arith_theory_checker.h</code></td><td>Native arithmetic checker</td><td class="num">160</td><td class="num">5</td></tr>
+    <tr><td><code>src/test/proof_replay.cpp</code></td><td>C++ unit tests</td><td class="num">93</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Python tests</td><td class="num">54</td><td class="num">2</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">26</td><td class="num">0</td></tr>
+    <tr><td><code>src/cmd_context/extra_cmds/proof_cmds.cpp</code></td><td>Proof trimmer (comment only)</td><td class="num">2</td><td class="num">3</td></tr>
+    <tr><th>Total, 2 commits</th><th></th><th class="num">335</th><th class="num">10</th></tr>
+  </tbody>
+</table>
+<p class="note">Counts come from the diff between the base <code>f87e9c80d</code> and <code>3944722f0</code>.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+  This PR changes the native C++ checker only. Lean reconstruction is unchanged, so no new Lean file is
+  produced. The example below therefore shows the real native hint and the checker's output before and after.
+  The input is the "small mod" input of the PR's new Python test, written as a file.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const x Int)
+(declare-const y Int)
+(assert (&lt; (+ (* 2 (abs x)) y) 1))
+(assert (&gt; y 0))
+(assert (&gt; (mod x 3) 0))
+(check-sat)</code></pre>
+<p>Since <code>y &gt; 0</code> and <code>2*|x| + y &lt; 1</code>, <code>x</code> must be 0, but then <code>mod x 3</code> is 0, so the formula is unsat.</p>
+
+<p>Running Z3 with clause logging on the current build produced three <code>arith</code> steps. Here they are, cut from the log:</p>
+<pre><code>(define-const $16 Int (mod x 3))
+(define-const $39 Int (div x 3))
+(define-const $40 Int (* 3 $39))
+(define-const $41 Int (+ $40 $16))
+(define-const $43 Bool (= $41 x))
+(declare-fun arith (Bool) Proof)
+(define-const $44 Bool (not $43))
+(define-const $45 Proof (arith $44))
+(infer $43 $45)
+(define-const $42 Bool (&gt;= $16 0))
+...
+(infer $42 $47)
+(define-const $48 Bool (&lt;= $16 2))
+...
+(infer $48 $50)
+...</code></pre>
+<p>Each <code>infer</code> line adds a one-literal clause. They say <code>3*(div x 3) + (mod x 3) = x</code>, <code>(mod x 3) &gt;= 0</code>, and <code>(mod x 3) &lt;= 2</code>.</p>
+
+<h3>(b) Before</h3>
+<p>
+  The same log was replayed by an older Z3 binary kept from loop iteration 43. It was built from commit
+  <code>c95b61cb0</code>, an ancestor of this PR's base. The arithmetic checker file is identical in the two commits.
+  The exact base binary could not be rebuilt in this session. The first fallback reads:
+</p>
+<pre><code>(proofs +tseitin 2 -arith 1)
+(verified-smt
+(arith (not (= (+ #54 #52) x)))
+ (= (+ (* 3 #53) (mod x 3)) x))
+...
+(proofs +tseitin 2 +farkas 3 +euf 4 +rup 5 -arith 3)</code></pre>
+<p>The <code>-arith 3</code> count means three steps had no native check and went to the SMT fallback.</p>
+
+<h3>(c) After</h3>
+<p>The current build replays the same input's log natively:</p>
+<pre><code>(proofs +tseitin 1)
+(proofs +tseitin 2)
+(proofs +tseitin 2 +arith 1)
+(proofs +tseitin 2 +arith 2)
+(proofs +tseitin 2 +arith 3)
+...
+(proofs +tseitin 2 +arith 3 +farkas 3 +euf 4 +rup 5)</code></pre>
+<p>All three axioms are now counted as <code>+arith</code>, with no <code>verified-smt</code> lines and no minus counts.</p>
+<p class="note">No Lean check was run for this example, because the PR does not change the Lean output.
+  The full Lean suite passed on this branch, as listed below.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+  Locally, every test suite that was run passed. The new checker was also attacked with thousands of
+  random "almost right" clauses. It accepted none of the wrong ones. Across 452 random arithmetic
+  problems, the only fallbacks left are <a href="#g-cut">cut</a> steps, which fall back by design.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th><th>Run by</th></tr></thead>
+  <tbody>
+    <tr><td>C++ proof tests (<code>proof_replay</code>, <code>proof_checker</code>, <code>sat_smt_proof_scope</code>)</td><td class="ok">3 passed, 0 failed</td><td>implementer, reviewer, integrator</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="ok">99 tests OK</td><td>implementer, reviewer, integrator</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code>, warnings as errors</td><td class="ok">294 tests OK</td><td>implementer, integrator</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td><td>implementer, integrator</td></tr>
+    <tr><td>z3test proof tests</td><td class="ok">46 OK</td><td>implementer</td></tr>
+    <tr><td>Proof matrix, Boolean files</td><td class="ok">6 / 6 lean-verified</td><td>implementer</td></tr>
+    <tr><td>Proof matrix, <code>lra_*</code> files</td><td class="ok">8 / 8 lean-verified</td><td>implementer</td></tr>
+    <tr><td>Proof canaries</td><td class="ok">exit 0</td><td>implementer</td></tr>
+    <tr><td>z3test regressions</td><td class="ok">953 files, exit 0</td><td>implementer</td></tr>
+    <tr><td>Scan of 452 unsat logs, base build</td><td>5,213 <code>arith</code> fallbacks in 164 logs, 31 <code>cut</code></td><td>implementer</td></tr>
+    <tr><td>Same scan, new build</td><td class="ok">0 <code>arith</code> fallbacks, 31 <code>cut</code></td><td>implementer</td></tr>
+    <tr><td>UF-family logs from iteration 43</td><td class="ok">18 <code>arith</code> now native, 9 <code>cut</code> left</td><td>implementer</td></tr>
+    <tr><td>Soundness fuzz, seed 7</td><td class="ok">3,000 cases, 0 invalid accepted</td><td>implementer</td></tr>
+    <tr><td>Soundness fuzz, seed 31</td><td class="ok">1,500 cases, 0 invalid accepted</td><td>reviewer</td></tr>
+    <tr><td>Hand-written adversarial probes</td><td class="ok">29 cases, 0 unsound</td><td>reviewer</td></tr>
+    <tr><td>Trim scan, division seeds 1 to 60</td><td class="ok">0 trimming warnings</td><td>reviewer</td></tr>
+    <tr><td>New Python test on the base binary</td><td class="ok">fails as expected, 3 of 3 inputs</td><td>implementer</td></tr>
+  </tbody>
+</table>
+<p>
+  No local gate record exists for this iteration, so the loop's final gate result is unknown.
+  No CI status was recorded either. The table lists the CI jobs where the PR says the new tests run.
+  Their results are unknown at the time of writing. There were no CI fix rounds.
+</p>
+<table>
+  <thead><tr><th>CI job</th><th>What it runs for this PR</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Ubuntu build - cmake</td><td>"Run unit tests" step, includes <code>tst_proof_replay</code></td><td class="pending">not recorded</td></tr>
+    <tr><td>Ubuntu with OCaml</td><td>same unit tests</td><td class="pending">not recorded</td></tr>
+    <tr><td>Ubuntu with OCaml on z3-static</td><td>same unit tests</td><td class="pending">not recorded</td></tr>
+    <tr><td>Python bindings (manylinux Centos AMD64) build</td><td>"Test Python wheel", runs <code>test_proof_certificate.py</code></td><td class="pending">not recorded</td></tr>
+  </tbody>
+</table>
+<p class="note">Live results: <a href="https://github.com/levnach/z3/pull/44/checks">checks of PR #44</a>.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change. There were no blockers and no major findings.</p>
+<ol>
+  <li><strong>Minor: a guard lost its test.</strong> An older test checked that the trimmer survives a hint with no
+    checker plugin. It used <code>arith</code> as that hint. The reviewer noticed that <code>arith</code> now has a
+    plugin, so the test no longer reached the guard. If someone later removed the guard, Z3 could crash again and no
+    test would notice. The fix renames the hint to <code>unchecked</code> in a copy of the log. The integrator removed
+    the guard on purpose, saw the test fail with a crash, then restored it.</li>
+  <li><strong>Nit: a stale comment in the trimmer.</strong> It still named <code>arith</code> as a hint without a plugin.
+    A reader could have drawn the wrong conclusion about which path these steps take. Fixed.</li>
+  <li><strong>Nit: wrong origin in test comments.</strong> Comments said the axioms came from the legacy solver core.
+    The reviewer ran the legacy core and found it logs them under a different hint. The comments now name the
+    sat.smt arithmetic solver. Fixed.</li>
+  <li><strong>Nit: hidden coverage gap.</strong> The Python input described as "mod/abs" logged no <code>abs</code>
+    axiom at all, as the example above also shows. Only one other input covered <code>abs</code>, and silently. The
+    integrator found that Z3 rewrites <code>abs</code> away in small inputs. The test now asserts that the remaining
+    input really logs an <code>abs</code> case. Fixed.</li>
+</ol>
+<p>One cosmetic suggestion was not taken: releasing some temporary terms earlier. They are released at the next reset anyway.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The native checker now accepts more steps. A wrong acceptance would be a <a href="#g-soundness">soundness</a> bug
+    in Z3's native certificates. It would not affect Lean certificates, because Lean re-proves every step.
+    The negative unit tests and the two fuzz runs are the main safeguards.</li>
+  <li>The trimmer now treats <code>arith</code> hints like Farkas and <code>euf</code> hints. When the hint's clause is
+    longer than the logged one, it uses the hint's clause. The <code>true</code> case is handled. The Lean
+    division suites passed with no trimming warning.</li>
+  <li>The PR was not run on Windows, according to the review.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Three large SMT-LIB samples fail Lean export with "maximum recursion depth exceeded". The PR names these as the
+    best next candidates.</li>
+  <li>Some <code>arith</code> shapes still fall back: <code>to_int</code>, <code>is_int</code>, powers, <code>rem</code>,
+    and symbolic divisors. None appeared in the generators.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-abs">abs</dt>
+  <dd>The absolute value of a number. <code>(abs -3)</code> is 3.</dd>
+  <dt id="g-bound">bound</dt>
+  <dd>An inequality that limits a term from above or below, such as <code>(mod x 3) &lt;= 2</code>.</dd>
+  <dt id="g-case-split">case split</dt>
+  <dd>A clause that covers two cases. For <code>abs</code>: either <code>x &lt; 0</code>, or <code>(abs x) = x</code>.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>A record of a proof that a separate checker can verify without trusting the solver.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals: at least one of them must be true. Example: <code>(not p) or q</code>.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A file where the solver writes each clause it learns or adds, in order, with a hint for each.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results: if <code>a = b</code> then <code>f(a) = f(b)</code>.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An integer step that rounds a bound, such as going from <code>2x &lt;= 5</code> to <code>x &lt;= 2</code>.</dd>
+  <dt id="g-div-mod">div and mod</dt>
+  <dd>Integer division and remainder. <code>(div 7 3)</code> is 2 and <code>(mod 7 3)</code> is 1.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A proof that some inequalities conflict: adding them with non-negative weights gives a false fact like <code>0 &lt; 0</code>.</dd>
+  <dt id="g-hint">hint</dt>
+  <dd>A label on a logged clause that says which rule justifies it, such as <code>farkas</code> or <code>arith</code>.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Arithmetic with sums of variables times constants, but no variable times variable.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>x &gt;= 0</code> or <code>(not (x &gt;= 0))</code>.</dd>
+  <dt id="g-native-checker">native checker</dt>
+  <dd>Z3's own C++ code that re-checks each step of a clause log.</dd>
+  <dt id="g-numeral">numeral</dt>
+  <dd>A constant number written in the formula, such as <code>3</code> or <code>2.0</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of formulas leads to a contradiction, so they cannot all be true.</dd>
+  <dt id="g-rup">RUP</dt>
+  <dd>Reverse unit propagation: a clause follows if assuming its negation lets simple propagation reach a conflict.</dd>
+  <dt id="g-smt-fallback">SMT fallback</dt>
+  <dd>When no native rule applies, the checker asks Z3 itself to confirm the step. It is reported as <code>verified-smt</code>.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>A checker is sound if it never accepts a wrong step.</dd>
+  <dt id="g-theory-axiom">theory axiom</dt>
+  <dd>A clause that is true by the meaning of the theory's operations alone, like <code>(mod x 3) &gt;= 0</code>.</dd>
+  <dt id="g-trimming">trimming</dt>
+  <dd>Removing steps from a proof log that the final contradiction does not need.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-29.
+</footer>
+</body>
+</html>
