@@ -3,268 +3,314 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
 <title>PR #48: Skip suffix conjunctions in clause-log assume's equivalence search</title>
 <style>
   :root {
-    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
-    --note-bg: #fff8c5;
+    --bg: #ffffff; --fg: #1d2127; --muted: #5b6470; --accent: #0b5cad;
+    --code-bg: #f3f5f8; --border: #d6dbe1; --ok: #1a7f37; --warn: #9a6700; --th-bg: #eef1f5;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
-      --note-bg: #2e2a1a;
+      --bg: #14171b; --fg: #e3e6ea; --muted: #9aa4b0; --accent: #6cb0f5;
+      --code-bg: #1e2329; --border: #343b44; --ok: #56d364; --warn: #e3b341; --th-bg: #1b2026;
     }
   }
   html { background: var(--bg); color: var(--fg); }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem;
-  }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
-  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         max-width: 50rem; margin: 0 auto; padding: 1.5rem 1.2rem 3rem; }
   a { color: var(--accent); }
-  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
-  code { background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; line-height: 1.45; }
-  pre code { background: none; padding: 0; }
-  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93em; }
-  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
-  th { background: var(--code-bg); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); margin: 0; }
+  .meta dt { font-weight: 600; display: inline; }
+  .meta dd { display: inline; margin: 0 1rem 0 .3rem; }
+  .state { color: var(--ok); font-weight: 700; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+         background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: .8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: .82rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--th-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .meta { color: var(--muted); margin: 0.2rem 0; }
-  .state { display: inline-block; font-weight: 600; color: var(--ok); border: 1px solid var(--ok); border-radius: 1rem; padding: 0 0.6rem; font-size: 0.9em; }
-  .note { background: var(--note-bg); border-left: 4px solid var(--warn); padding: 0.5rem 0.8rem; border-radius: 4px; }
   .pass { color: var(--ok); font-weight: 600; }
-  .fail { color: var(--bad); font-weight: 600; }
   .unknown { color: var(--warn); font-weight: 600; }
-  .explain { color: var(--muted); margin-top: -0.4rem; }
-  dl dt { font-weight: 600; margin-top: 0.7rem; }
-  dl dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; color: var(--muted); font-size: 0.9em; border-top: 1px solid var(--border); padding-top: 0.8rem; }
+  .note { color: var(--muted); font-size: .93rem; }
+  dl.glossary dt { font-weight: 700; margin-top: .7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--border); padding-top: .8rem; }
 </style>
 </head>
 <body>
 
 <header>
 <h1>Skip suffix conjunctions in clause-log assume's equivalence search</h1>
-<p class="meta"><a href="https://github.com/levnach/z3/pull/48">Pull request #48 on levnach/z3</a> &middot; targets <code>master</code></p>
-<p class="meta">State: <span class="state">OPEN</span> &middot; opened 2026-10-30T08:05:54Z &middot; loop iteration 48</p>
-<p class="note">This pull request is <strong>not merged</strong>. The change under review is commit
-<a href="https://github.com/levnach/z3/commit/a869d788a9291d84aa87f52ca38b50ee02d69cb0"><code>a869d788a</code></a>.
-The pull request holds two commits, and this report covers both.</p>
+<dl class="meta">
+  <dt>Pull request:</dt><dd><a href="https://github.com/levnach/z3/pull/48">levnach/z3#48</a></dd>
+  <dt>State:</dt><dd><span class="state">MERGED</span></dd>
+  <dt>Merged:</dt><dd>2026-10-30T15:07:40Z</dd><br>
+  <dt>Merge commit:</dt><dd><a href="https://github.com/levnach/z3/commit/b7d6c319c75428dc6fec97705ff3de3cb824c20e"><code>b7d6c319c</code></a></dd>
+  <dt>Loop iteration:</dt><dd>48</dd>
+</dl>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>When the exporter replays Z3's <a href="#g-clause-log">clause log</a>, it must tie every
-<a href="#g-assumed-clause">assumed clause</a> back to the input <a href="#g-assertion">assertions</a>.
-It first runs a <a href="#g-solver-check">solver check</a> for a <a href="#g-conjunct">conjunct</a> that is
-<a href="#g-equivalence">equivalent</a> to the <a href="#g-clause">clause</a>.
-Before this PR it tried every conjunct that shared a <a href="#g-symbol">symbol</a> with the clause.
-In a <a href="#g-nested-conjunction">nested conjunction</a>, that meant every <a href="#g-suffix">suffix</a> of a huge formula.
-Now it tries only conjuncts over exactly the clause's symbols, plus <a href="#g-leaf-conjunct">leaf conjuncts</a> that contain them.
-A <a href="#g-qf-idl">QF_IDL</a> benchmark now exports in seconds instead of minutes, and its <a href="#g-refutation">refutation</a> checks in Lean.
-Nothing new is trusted. Every <a href="#g-bridge">bridge</a> is still a Lean-proved
-<a href="#g-rewrite">rewrite</a> or <a href="#g-cnf-lemma">cnf lemma</a>.</p>
+<p>
+Before Z3's <a href="#g-certificate">certificate</a> can be checked in Lean, the exporter must tie every
+<a href="#g-assumed-clause">assumed clause</a> in the <a href="#g-clause-log">clause log</a> back to an input
+<a href="#g-assertion">assertion</a>. It does this with small <a href="#g-solver-check">solver checks</a>, first for
+<a href="#g-equivalence">equivalence</a> with a <a href="#g-conjunct">conjunct</a>, then for
+<a href="#g-implication">implication</a>. On a deeply <a href="#g-nested-conjunction">nested conjunction</a>, the
+equivalence pass tried every <a href="#g-suffix">suffix</a>, and none of those tries ever succeeded. This PR
+narrows that pass to conjuncts over exactly the clause's <a href="#g-symbol">symbols</a>, plus
+<a href="#g-leaf">leaf conjuncts</a> that contain them. The <a href="#g-qf-idl">QF_IDL</a> benchmark
+<code>FISCHER6-4-ninc</code> now exports in about two seconds instead of about eight minutes, and Lean accepts
+its <a href="#g-refutation">refutation</a>. Nothing new is trusted, since only the search order changed.
+</p>
 
 <h2 id="background">Background</h2>
-<p>Iteration 45 let the pipeline export and reconstruct three very deep inputs.
-One of them, <code>FISCHER6-4-ninc</code>, was still impractical.
-Its export spent nearly all its time in failed <a href="#g-equivalence">equivalence</a> checks in the replay step <code>assume</code>.
-PR #47 had already made <a href="#g-and-elim">and-elim</a> steps cheap on such inputs, and this PR removes the next bottleneck.
-It serves milestone 3, "Equality and linear arithmetic", and the plan's priority on regression tests.</p>
+<p>
+The exporter already picked candidate conjuncts that share a <a href="#g-symbol">symbol</a> with the
+<a href="#g-clause">clause</a>. But in a nested conjunction every <a href="#g-suffix">suffix</a> shares those
+symbols. So each clause met over a thousand candidates, and each failed check asserted a large formula. Then the
+<a href="#g-implication">implication</a> pass succeeded on its first candidate, the whole assertion. Such inputs were
+certifiable in principle, but not in practical time. Iteration 45 logged this as a backlog item. The work serves
+milestone 3, equality and linear arithmetic, and the plan's priority of adding real benchmark files.
+</p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-<li>The replay now checks an assumed clause for equivalence only against conjuncts whose symbol set, compared by <a href="#g-hash">hash</a>, is exactly the clause's.</li>
-<li>It also checks single leaf conjuncts that contain all the clause's symbols, so a conjunct where Z3 simplified a symbol away still gets a cheap rewrite.</li>
-<li>The second search, for a conjunct that <a href="#g-implication">implies</a> the clause, is unchanged, so a skipped candidate is still tied and still proved in Lean.</li>
-<li>The FISCHER input is now test data, and a test fails if its export needs more than a handful of solver checks or stops verifying in Lean.</li>
-<li>A new <a href="#g-qf-uflia">QF_UFLIA</a> test and new unit tests pin down which candidates get checked.</li>
+  <li>The equivalence pass now skips <code>and</code> conjuncts whose symbol set differs from the clause's, compared by a <a href="#g-hash">hash</a>, so a thousand-level nesting no longer costs a thousand solver checks per clause.</li>
+  <li>Leaf conjuncts that contain all of the clause's symbols are still checked, so a conjunct that Z3's <a href="#g-preprocessing">preprocessing</a> simplified (for example <code>(f (* 0 y))</code> to <code>(f 0)</code>) still gets a small <a href="#g-rewrite">rewrite</a> bridge.</li>
+  <li>The QF_IDL input <code>FISCHER6-4-ninc</code> is now test data that a new test exports and checks in Lean.</li>
+  <li>A new QF_UFLIA test with an <a href="#g-uf">uninterpreted function</a> guards the leaf case the reviewer found.</li>
 </ul>
-<p>An analogy: you look for one sentence in a long book.
-The old search compared it with "page 1 to the end", then "page 2 to the end", and so on.
-The new search compares it only with single sentences that use the same words.</p>
+<p>
+An analogy: to find a book's shelf, the old search emptied every bookcase holding it. The new search reads only
+shelf labels that match.
+</p>
 <table>
-<thead><tr><th>File</th><th>What it is</th><th>Added</th><th>Removed</th></tr></thead>
-<tbody>
-<tr><td><code>examples/python/proof_clause_log.py</code></td><td>The clause-log replay: the new candidate filter</td><td class="num">41</td><td class="num">2</td></tr>
-<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Unit tests that count solver checks</td><td class="num">54</td><td class="num">1</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>FISCHER export and Lean check test</td><td class="num">30</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Wide QF_UFLIA test from the review</td><td class="num">22</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/data/QF_IDL_FISCHER6-4-ninc.smt2</code></td><td>Benchmark copied unchanged from z3test (97 KB)</td><td class="num">374</td><td class="num">0</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note and corrected figures</td><td class="num">27</td><td class="num">4</td></tr>
-</tbody>
+  <thead><tr><th>File</th><th>Component</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>clause-log replay</td><td class="num">41</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/data/QF_IDL_FISCHER6-4-ninc.smt2</code></td><td>test data</td><td class="num">374</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>unit tests</td><td class="num">54</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Lean tests</td><td class="num">30</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Lean tests</td><td class="num">22</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>documentation</td><td class="num">27</td><td class="num">4</td></tr>
+  </tbody>
 </table>
-<p>There are no C++ changes and no changes to the Lean library.</p>
+<p class="note">Total: 6 files, 548 lines added, 7 removed. There are no C++ or Lean library changes.</p>
 
 <h2 id="example">Worked example</h2>
-<p>This PR adds no proof rule. It makes an existing input practical, so the example is the benchmark the PR adds as test data.</p>
+<p>
+This PR changes speed, not acceptance, so the old code rejected nothing. The example is the PR's own test input,
+run here with both the pre-PR and the merged scripts.
+</p>
 
 <h3>(a) The input</h3>
-<p><code>QF_IDL_FISCHER6-4-ninc.smt2</code> is too large to show whole. Its one assertion fills a single line. Cuts are marked "...".</p>
-<pre><code>(set-info :smt-lib-version 2.6)
-(set-logic QF_IDL)
-...
+<p>The file has 374 lines: 362 declarations and one long assertion. Here it is trimmed.</p>
+<pre><code>(set-logic QF_IDL)
 (declare-fun AT3_PROC5_X () Int)
 (declare-fun AT0_PROC3_CS () Bool)
-...
-(assert (let ((?v_0 (not AT0_PROC1_A)) (?v_1 (not AT0_PROC1_B)) ... (?v_598 (not AT4_ID6)))
-  (and (and (and (and (and ... (or (or ?v_406 ?v_585) AT4_ID0)) AT4_PROC1_C) ... AT4_PROC6_C))))
-(check-sat)
-(exit)</code></pre>
-<p class="explain">About 2,000 <code>and</code> operators nest inside each other, over <a href="#g-boolean">Boolean</a> and integer variables.</p>
+...                                  ; 362 declarations in total
+(assert (let ((?v_0 (not AT0_PROC1_A)) ... (?v_598 (not AT4_ID6)))
+  (and (and (and (and (and ...       ; about a thousand nested ands
+    ... AT4_PROC5_C) AT4_PROC6_C))))
+(check-sat)</code></pre>
+<p>One <a href="#g-assertion">assertion</a> holds a conjunction nested about a thousand levels deep.</p>
 
 <h3>(b) Before</h3>
-<p>The pre-PR exporter, from base commit <code>e4a446109</code>, does not reject this input. It is just very slow.</p>
-<pre><code>$ python3 old/proof_certificate.py example.smt2 &gt; old_example.json
-# exit code 0, no error output, about 8 minutes
-$ python3 count_calls.py old example.smt2
-module: old/proof_clause_log.py
-export seconds: 476.8
+<p>
+There was no error. The pre-PR exporter finished, but slowly. A small wrapper counted its solver checks.
+</p>
+<pre><code>module: old/proof_clause_log.py
+export seconds: 463.9
 solver calls: {'eq': 12200, 'implies': 7} total 12207</code></pre>
-<p class="explain">All 12,200 equivalence checks failed. Each of the 7 clauses was then tied by its first implication check.</p>
+<p>Almost all of those checks were failed equivalence checks against suffixes of the big conjunction.</p>
 
 <h3>(c) After</h3>
-<pre><code>$ python3 examples/python/proof_certificate.py example.smt2 &gt; example.json
-$ python3 examples/python/proof_to_lean.py example.smt2 example.json -o example.lean
-Lean checked the refutation; wrote example.lean
-$ ./scripts/check_lean.sh example.lean
-Lean checks passed.</code></pre>
-<p class="explain">The same call count reported 2.2 seconds of export, with 55 equivalence checks and 7 implication checks. Lean accepted the file.</p>
-<pre><code>-- Atom 0: "AT0_PROC1_A"
+<p>The merged exporter, on the same input:</p>
+<pre><code>module: examples/python/proof_clause_log.py
+export seconds: 2.2
+solver calls: {'eq': 55, 'implies': 7} total 62</code></pre>
+<p>
+The certificate matches, byte for byte, one an earlier pre-PR run wrote. So the Lean output is unchanged. Only
+the time to get it changed. Here are key pieces of the 35,566-line Lean file.
+</p>
+<pre><code>-- Atom 118: "AT4_PROC6_C"
+-- Atom 176: "AT0_PROC3_SW_C_CS_TAU"
 ...
--- Variable 34: "AT4_PROC6_X"
--- Int variables are encoded as Int; the integer lemmas are proved by omega, else grind.
-namespace Z3Proofs.NativeCertificate.p1d9c5677...
+def formula_585 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := _atoms 118
 ...
 def formula_5777 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (formula_5776 _atoms _vars) (formula_585 _atoms _vars))
 ...
+private def Inputs (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (formula_5777 _atoms _vars)</code></pre>
+<p>Each <code>formula_N</code> names one subformula. <code>formula_5777</code> is the whole assertion.</p>
+<pre><code>def formula_1111 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := _atoms 176
+def formula_1841 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_1111 _atoms _vars))
 def formula_7752 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_5777 _atoms _vars))
-def formula_7753 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_7752 _atoms _vars) (formula_1841 _atoms _vars))</code></pre>
-<p class="explain">Each input atom and integer variable gets a number. <code>formula_5777</code> is the whole assertion. <code>formula_7753</code> says "the assertion is false, or the assumed clause holds".</p>
-<pre><code>set_option maxHeartbeats 1000000 in
+def formula_7753 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_7752 _atoms _vars) (formula_1841 _atoms _vars))
+
+set_option maxHeartbeats 1000000 in
 private theorem th_lemma_7754 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_7753 _atoms _vars) := by
   first
     | (have _f1 : (Iff (formula_602 _atoms _vars) (formula_4492 _atoms _vars)) := by unfold formula_4492 formula_602 term_600 term_599; first | omega | grind (splits := 64)
        ...
        refine Classical.byContradiction ?_
-       refine (fun (_f55 : (Not (formula_7753 _atoms _vars))) =&gt; ?_)
        ...
-       have _f61 : (formula_5777 _atoms _vars) := (Classical.byContradiction (fun _g =&gt; _f56 _g))
-       have _f62 := (And.left _f61)
-       have _f63 := (And.right _f61)
-       ...
-       exact (False.elim (_f1064 (And.left _f1056))))
     | (unfold formula_7753 formula_7752 formula_5777 ...
        first | omega | grind (splits := 64))</code></pre>
-<p class="explain">One of the 7 cnf lemmas the implication search found. Lean proves it by taking the assertion apart, with <code>omega</code> or <code>grind</code> as fallback <a href="#g-tactic">tactics</a>.</p>
-<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+<p>
+This <a href="#g-cnf-lemma">cnf lemma</a> says "the assertion implies the clause <code>not AT0_PROC3_SW_C_CS_TAU</code>".
+It is the bridge the <a href="#g-implication">implication</a> pass found, one of seven in the file. Its proof
+first tries a structural argument, then falls back to the <a href="#g-tactic">tactics</a> <code>omega</code> and <code>grind</code>.
+</p>
+<pre><code>private theorem proof_step_7755 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_inputs : Inputs _atoms _vars)
+    : (formula_1841 _atoms _vars) :=
+  let _step_5778 := proof_step_5778 _atoms _vars _inputs
+  let _step_7754 : (formula_7753 _atoms _vars) :=
+    (th_lemma_7754 _atoms _vars)
+  let _step_7755 : (formula_1841 _atoms _vars) :=
+    (_step_7754.resolve_left (fun _literal =&gt; _literal _step_5778))
+  _step_7755
+...
+theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_5777 _atoms _vars))
     : False :=
   proof_step_10503 _atoms _vars _h0</code></pre>
-<p class="explain">The final theorem: for every value of the atoms and variables, the assertion leads to <code>False</code>.</p>
-<p>The old and new certificates for this input are byte-identical. So the PR changes how fast the bridges are found, not which bridges are found here.</p>
+<p>The step applies the lemma to the input. The final theorem states that the assertion leads to <code>False</code>.</p>
+<p><strong>Lean result:</strong> <code>./scripts/check_lean.sh</code> printed <span class="pass">Lean checks passed.</span> in about 6 seconds.</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>In plain terms: every affected test suite passed on the loop machine, with the Lean suite run in two parts.
-The loop's local gate failed once on its Lean step. GitHub CI results were not recorded in the loop's inputs.</p>
-<h3>Local runs reported in the PR</h3>
+<p>
+In plain terms: every Python test passed, and every small benchmark verified in Lean. The loop merged this PR on
+its local gate, since only Python, tests, and docs changed. GitHub CI runs on <code>master</code> after the merge.
+</p>
 <table>
-<thead><tr><th>Run</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td>Certificate unit tests, <code>test_proof_certificate</code></td><td class="pass">100 tests OK</td></tr>
-<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code>, 306 tests</td><td>First run: no failures in tests 1 to 279, then stopped at a 1-hour limit on a loaded machine. Rerun of the 3 unfinished modules: <span class="pass">49 tests OK</span></td></tr>
-<tr><td>New FISCHER test alone</td><td class="pass">OK, 27 s</td></tr>
-<tr><td>New QF_UFLIA leaf test alone</td><td class="pass">OK, 18 s</td></tr>
-<tr><td>New tests with the filter reverted to the pre-review version</td><td>FAIL, as intended. The tests detect the regression.</td></tr>
-<tr><td>Lean library check, <code>./scripts/check_lean.sh</code></td><td class="pass">passed</td></tr>
-<tr><td>z3test proof script tests</td><td class="pass">46 tests OK</td></tr>
-<tr><td>QF_LRA matrix, clause-log cell</td><td class="pass">8 of 8 Lean-verified</td></tr>
-<tr><td>Export sweep, 203 smtlib-sample inputs, 90 s each</td><td>99 ok, 87 export errors, 17 timeouts. The 5 extra timeouts against the reviewer's run were traced to machine load.</td></tr>
-</tbody>
+  <thead><tr><th>Local gate step (Darwin arm64)</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">957 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  </tbody>
 </table>
-<h3>Local gate</h3>
-<p>The gate repeats the CI steps that exercise this work. Its recorded result, from 2026-10-30, is a failure.</p>
+<p>The PR description records these further runs.</p>
 <table>
-<thead><tr><th>Gate step</th><th>Result</th><th>Time</th></tr></thead>
-<tbody>
-<tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">8 s</td></tr>
-<tr><td>Python example tests: Lean reconstruction</td><td class="fail">fail</td><td class="num">1800 s</td></tr>
-<tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">34 s</td></tr>
-<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="pass">pass</td><td class="num">9 s</td></tr>
-<tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="pass">pass</td><td class="num">12 s</td></tr>
-</tbody>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_proof_certificate</code> unit tests</td><td class="pass">100 tests, OK</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code> (implementer, unloaded machine)</td><td class="pass">305 tests in 984 s, OK</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code> (integrator, after the review fix)</td><td class="pass">306 tests, all passed across two runs</td></tr>
+    <tr><td>z3test <code>scripts/proofs</code> tests</td><td class="pass">46 tests, OK</td></tr>
+    <tr><td><code>proof_matrix.py</code>, legacy proof object, Boolean inputs</td><td class="pass">6/6 lean-verified</td></tr>
+    <tr><td><code>proof_matrix.py</code>, clause log, <code>lra_*.smt2</code></td><td class="pass">8/8 lean-verified</td></tr>
+    <tr><td>New tests with the filter patched back to the old behavior</td><td class="pass">fail, as intended</td></tr>
+    <tr><td>Export sweep, 203 smtlib-sample inputs, 90 s each (integrator)</td><td>99 ok, 87 ProofExportError, 17 timeout</td></tr>
+  </tbody>
 </table>
-<p>The record names no failing test. A new gate run started alongside this report, and its result is unknown here.</p>
-<h3>GitHub CI</h3>
+<p>
+The sweep had five more timeouts than the reviewer's earlier sweep. Two re-runs alone showed identical solver
+calls, so the integrator blamed machine load. No GitHub CI results were recorded for this report.
+</p>
 <table>
-<thead><tr><th>Workflow job</th><th>Step that runs this PR's tests</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td>CI / Ubuntu build - cmake - releaseClang</td><td>Check native Boolean proofs in Lean: both new Lean tests</td><td class="unknown">not recorded</td></tr>
-<tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel: the new unit tests</td><td class="unknown">not recorded</td></tr>
-</tbody>
+  <thead><tr><th>Workflow / job</th><th>What it runs for this PR</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>CI / Ubuntu build - cmake - releaseClang</td><td>step "Check native Boolean proofs in Lean": both new Lean tests</td><td class="unknown">not recorded</td></tr>
+    <tr><td>Python bindings (manylinux Centos AMD64) build</td><td>step "Test Python wheel": the unit tests</td><td class="unknown">not recorded</td></tr>
+  </tbody>
 </table>
-<p>See the <a href="https://github.com/levnach/z3/pull/48/checks">PR's checks page</a> for live status. No CI fix rounds were recorded.</p>
+<p class="note">See the <a href="https://github.com/levnach/z3/pull/48/checks">PR checks page</a> and the
+<a href="https://github.com/levnach/z3/commit/b7d6c319c75428dc6fec97705ff3de3cb824c20e">merge commit</a> for live
+status. No CI fix rounds were recorded.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved the change. There were no blocker or major findings.</p>
-<p><strong>Minor: a lost rewrite.</strong>
-The reviewer built a QF_UFLIA input with 1,000 nested conjuncts.
-The middle one was <code>(= (f (* 0 y)) 1)</code>, with <code>f</code> an <a href="#g-uninterpreted-function">uninterpreted function</a>.
-<a href="#g-preprocessing">Preprocessing</a> turns <code>(* 0 y)</code> into <code>0</code>, so the assumed clause loses the symbol <code>y</code>.
-The first commit's filter then skipped the matching conjunct, and a cnf lemma over the whole assertion tied the clause.
-Lean ran out of its <a href="#g-heartbeat">heartbeat</a> budget on that lemma, so the result no longer verified.
-The fix, suggested by the reviewer, also checks leaf conjuncts that contain the clause's symbols.
-That input is now a regression test.</p>
-<p><strong>Nits.</strong> The plan still said FISCHER did not verify, and comments quoted inconsistent call counts and times. Both were fixed.</p>
+<p>The reviewer approved. There were no blocker or major findings.</p>
+<ol>
+  <li><strong>Minor: a lost rewrite on wide conjunctions.</strong> The first version checked only conjuncts over
+  exactly the clause's symbols. The reviewer built a 1,000-wide QF_UFLIA conjunction whose middle conjunct was
+  <code>(= (f (* 0 y)) 1)</code>. Z3 simplified away <code>y</code>, so that conjunct was skipped. The clause got a
+  <a href="#g-cnf-lemma">cnf lemma</a> over the whole assertion, and Lean ran out of
+  <a href="#g-heartbeat">heartbeats</a>. A valid result could no longer be certified. That is a
+  <a href="#g-completeness">completeness</a> loss, not a <a href="#g-soundness">soundness</a> bug. The fix also
+  checks leaf conjuncts containing the clause's symbols. The repro is now a regression test that Lean accepts.</li>
+  <li><strong>Nit: a stale note.</strong> The plan still said FISCHER does not verify. Fixed.</li>
+  <li><strong>Nit: inconsistent figures.</strong> Comments quoted different call counts and times. All now use the
+  measured 12,207 calls and 459 seconds.</li>
+</ol>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li>An equivalent conjunct that is itself an <code>and</code> over extra symbols is still skipped. It gets a cnf lemma, not a rewrite. No known input hits this.</li>
-<li>The implication search takes the first implying conjunct, often the whole assertion. That makes cnf lemmas large.</li>
-<li>The FISCHER test adds roughly 15 to 27 seconds to the Lean CI job.</li></ul>
+  <li>An equivalent conjunct that is an <code>and</code> over extra symbols is still skipped. Its clause gets a larger cnf lemma. No test or swept input hits this.</li>
+  <li>A clause with no symbols, such as <code>False</code>, is still checked against every leaf, as before.</li>
+  <li>The FISCHER test adds up to half a minute to the Lean CI job.</li>
+  <li>GitHub CI results for the merge are unknown here.</li>
+</ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-<li>Descend from an implying <code>and</code> to its smallest implying conjunct, to shrink cnf lemmas.</li>
-<li>Fix the <code>tta_startup</code> input, which was diagnosed in this iteration but not fixed.</li>
+  <li>Descend from an implying <code>and</code> to its smallest implying conjunct, so cnf lemmas shrink. This is on the backlog.</li>
+  <li>The <code>tta_startup</code> inputs still fail in Lean. Arithmetic bridges between leaves are the proposed fix.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
-<dt id="g-and-elim">and-elim</dt><dd>A proof step that takes one conjunct out of a true conjunction. From <code>A and B</code> it gets <code>A</code>.</dd>
-<dt id="g-assertion">assertion</dt><dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
-<dt id="g-assumed-clause">assumed clause</dt><dd>A clause the clause log introduces as given, rather than derived. The checker must show it follows from the assertions.</dd>
-<dt id="g-boolean">Boolean</dt><dd>The <a href="#g-sort">sort</a> with exactly two values, true and false.</dd>
-<dt id="g-bridge">bridge</dt><dd>A proof step that connects an assumed clause to an input assertion, here a rewrite or a cnf lemma.</dd>
-<dt id="g-clause">clause</dt><dd>A disjunction of <a href="#g-literal">literals</a>, such as <code>(or p (not q))</code>.</dd>
-<dt id="g-clause-log">clause log</dt><dd>Z3's record of the clauses it assumed and derived while searching for a refutation.</dd>
-<dt id="g-cnf-lemma">cnf lemma</dt><dd>A lemma of the form "this formula is false, or this clause holds". It shows the formula implies the clause.</dd>
-<dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal function results. If <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
-<dt id="g-conjunct">conjunct</dt><dd>One operand of a conjunction. In <code>(and A B)</code>, both <code>A</code> and <code>B</code> are conjuncts.</dd>
-<dt id="g-equivalence">equivalence</dt><dd>Two formulas are equivalent when they are true in exactly the same situations.</dd>
-<dt id="g-hash">hash</dt><dd>A short number computed from data. Equal data gives equal hashes, so comparing hashes is a quick first test.</dd>
-<dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit for counting work. A proof that needs more heartbeats than allowed is stopped as a failure.</dd>
-<dt id="g-implication">implication</dt><dd>A implies B when B is true in every situation where A is true.</dd>
-<dt id="g-leaf-conjunct">leaf conjunct</dt><dd>A conjunct that is not itself an <code>and</code>, such as <code>(&lt;= x 5)</code>.</dd>
-<dt id="g-literal">literal</dt><dd>A Boolean atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
-<dt id="g-nested-conjunction">nested conjunction</dt><dd>A conjunction built from many two-operand <code>and</code>s inside each other, such as <code>(and A (and B (and C D)))</code>.</dd>
-<dt id="g-preprocessing">preprocessing</dt><dd>Simplification Z3 applies to the assertions before the main search, such as turning <code>(* 0 y)</code> into <code>0</code>.</dd>
-<dt id="g-qf-idl">QF_IDL</dt><dd>The SMT-LIB logic of integer difference constraints, such as <code>x - y &lt;= 3</code>, without quantifiers.</dd>
-<dt id="g-qf-uflia">QF_UFLIA</dt><dd>The SMT-LIB logic of uninterpreted functions and linear integer arithmetic, without quantifiers.</dd>
-<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
-<dt id="g-rewrite">rewrite</dt><dd>A proof step showing two formulas are equivalent, so one may replace the other.</dd>
-<dt id="g-solver-check">solver check</dt><dd>A call to Z3 that asks whether a formula can be false. If it cannot, the formula is valid.</dd>
-<dt id="g-sort">sort</dt><dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
-<dt id="g-suffix">suffix</dt><dd>In a nested conjunction, the inner <code>and</code> that holds everything from some point to the end.</dd>
-<dt id="g-symbol">symbol</dt><dd>A declared name in the input, such as a constant <code>x</code> or a function <code>f</code>.</dd>
-<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically. <code>omega</code> solves integer arithmetic, and <code>grind</code> is a general search.</dd>
-<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning. The only rule is <a href="#g-congruence">congruence</a>: equal arguments give equal results.</dd>
+<dl class="glossary">
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula given to the solver with <code>(assert ...)</code>. The input claims it is true.</dd>
+  <dt id="g-assumed-clause">assumed clause</dt>
+  <dd>A clause the clause log records as coming from the input, without a proof. The exporter must justify it from an assertion.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The exported record of a proof, which an independent checker can verify step by step.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of <a href="#g-literal">literals</a>, such as <code>p or not q</code>.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>Z3's record of the clauses it assumed and derived during solving, in order.</dd>
+  <dt id="g-cnf-lemma">cnf lemma</dt>
+  <dd>A proved fact of the form "this formula implies this clause". Here it bridges an assumed clause to an assertion.</dd>
+  <dt id="g-completeness">completeness</dt>
+  <dd>The ability to certify every correct result. Losing it means some valid results are left uncertified.</dd>
+  <dt id="g-conjunct">conjunct</dt>
+  <dd>One operand of an <code>and</code>. In <code>A and B</code>, both <code>A</code> and <code>B</code> are conjuncts.</dd>
+  <dt id="g-equivalence">equivalence</dt>
+  <dd>Two formulas are equivalent when each one is true exactly when the other is.</dd>
+  <dt id="g-hash">hash</dt>
+  <dd>A short number computed from data. Equal data gives an equal hash, so comparing hashes is a fast first test.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work for a proof. A proof that uses more than its limit fails with a timeout.</dd>
+  <dt id="g-implication">implication</dt>
+  <dd>A implies B when B is true in every case where A is true.</dd>
+  <dt id="g-leaf">leaf conjunct</dt>
+  <dd>A conjunct that is not itself an <code>and</code>, such as <code>(&lt;= x (+ y 1))</code>.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>p</code> or <code>not p</code>.</dd>
+  <dt id="g-nested-conjunction">nested conjunction</dt>
+  <dd>An <code>and</code> whose operand is another <code>and</code>, many levels deep: <code>(and a (and b (and c d)))</code>.</dd>
+  <dt id="g-preprocessing">preprocessing</dt>
+  <dd>Simplification Z3 applies to the input before the main search, such as turning <code>(* 0 y)</code> into <code>0</code>.</dd>
+  <dt id="g-qf-idl">QF_IDL</dt>
+  <dd>The SMT-LIB logic of quantifier-free integer difference logic. Constraints compare differences of integers, such as <code>x - y &lt;= 3</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that the assertions together lead to <code>False</code>.</dd>
+  <dt id="g-rewrite">rewrite</dt>
+  <dd>A proof step that replaces a formula by an equivalent one. Here it is the small bridge from a conjunct to an equivalent clause.</dd>
+  <dt id="g-solver-check">solver check</dt>
+  <dd>A call to a solver to test whether a claim always holds, by searching for a counterexample.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>The guarantee that a certified result is really true. A soundness bug would let a wrong result pass.</dd>
+  <dt id="g-suffix">suffix (of a nested conjunction)</dt>
+  <dd>The inner <code>and</code> that holds all conjuncts from some point onward. In <code>(and a (and b c))</code>, <code>(and b c)</code> is a suffix.</dd>
+  <dt id="g-symbol">symbol</dt>
+  <dd>A declared constant or function name, such as <code>x</code> or <code>f</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>omega</code> handles integer arithmetic and <code>grind</code> does general case reasoning.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only rule is that equal arguments give equal results. QF_UFLIA combines them with integer arithmetic.</dd>
 </dl>
 
 <footer>
