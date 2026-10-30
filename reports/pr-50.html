@@ -15,6 +15,7 @@
     --code-bg: #f6f8fa;
     --ok: #1a7f37;
     --warn: #9a6700;
+    --merged: #8250df;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -26,6 +27,7 @@
       --code-bg: #161b22;
       --ok: #3fb950;
       --warn: #d29922;
+      --merged: #ab7df8;
     }
   }
   body {
@@ -41,10 +43,10 @@
   h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
   h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-top: 2.2rem; }
   h3 { font-size: 1.05rem; margin-top: 1.5rem; }
-  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin: 0.3rem 0; }
   .meta dt { font-weight: 600; display: inline; }
   .meta dd { display: inline; margin: 0 1rem 0 0.3rem; }
-  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; border: 1px solid var(--ok); color: var(--ok); font-weight: 600; font-size: 0.85rem; }
+  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; border: 1px solid var(--merged); color: var(--merged); font-weight: 600; font-size: 0.85rem; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; }
   pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.45; }
   pre code { background: none; padding: 0; font-size: 0.85rem; }
@@ -53,7 +55,7 @@
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .pass { color: var(--ok); font-weight: 600; }
-  .pending { color: var(--warn); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
   .note { color: var(--muted); font-size: 0.95rem; }
   dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
   dl.glossary dd { margin-left: 1.2rem; }
@@ -66,69 +68,76 @@
   <h1>Bound the legacy solve and the clause-log replay by the export limits</h1>
   <dl class="meta">
     <dt>Pull request:</dt><dd><a href="https://github.com/levnach/z3/pull/50">levnach/z3#50</a></dd>
-    <dt>State:</dt><dd><span class="badge">OPEN</span></dd>
-    <dt>Date:</dt><dd>2026-10-30T17:33:30Z</dd>
+    <dt>State:</dt><dd><span class="badge">MERGED</span></dd>
+    <dt>Date:</dt><dd>2026-10-30T18:01:14Z</dd>
     <dt>Loop iteration:</dt><dd>50</dd>
   </dl>
-  <p>This pull request is open and <strong>not merged</strong>.
-  The change under review is commit
-  <a href="https://github.com/levnach/z3/commit/3ca6390f82a14ad2cdbfcae461972102d8883ab7"><code>3ca6390f8</code></a>,
-  the second of its two commits.</p>
+  <dl class="meta">
+    <dt>Merge commit:</dt><dd><a href="https://github.com/levnach/z3/commit/dcfeb885129ca225370e3e9b5461da4ebbafc9b5"><code>dcfeb8851</code></a></dd>
+    <dt>Merged:</dt><dd>2026-10-30T18:01:14Z</dd>
+    <dt>Base:</dt><dd><code>ea97d4ec3</code></dd>
+  </dl>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>The certificate exporter now stops on time in its two remaining in-process stages.
-The first stage is the <a href="#g-legacy-proof-object">legacy proof object</a> solve, which handles
+<p>
+The <a href="#g-certificate">certificate</a> exporter now stops on time in its last two unbounded stages.
+The first is the solve that builds a <a href="#g-proof-object">proof object</a> for
 <a href="#g-propositional">propositional</a> input.
 The second is the <a href="#g-replay">replay</a> of the <a href="#g-clause-log">clause log</a>.
-Both now obey the same <a href="#g-timeout">time limit</a> and memory limit as the z3 runs.
-When a limit is hit, the export fails with an error that names the limit.
-This matters for certifying <a href="#g-refutation">refutations</a> in Lean at scale.
-A batch run over many benchmarks no longer hangs on one hard input.
-Nothing about what Lean checks has changed.
-A <a href="#g-certificate">certificate</a> produced within the limits is the same as before.</p>
+Both now obey the exporter's time limit, and the first also obeys its memory limit.
+A hit ends the export with an error that names the limit.
+This matters for certifying <a href="#g-refutation">refutations</a> in Lean across large benchmark sweeps.
+One hard input can no longer stall a whole run.
+What Lean checks is unchanged.
+A certificate produced within the limits is the same as before.
+</p>
 
 <h2 id="background">Background</h2>
-<p>The previous pull request put limits on every run of the z3 executable during a
-<a href="#g-clause-log">clause-log</a> export.
-Two stages ran inside the Python process and were still unbounded.
-A hard <a href="#g-pigeonhole">pigeonhole formula</a> with eleven holes ran for ever under the
-<a href="#g-legacy-proof-object">legacy proof object</a> path, even with a one-second limit.
-A <a href="#g-difference-logic">difference logic</a> benchmark took 622 seconds to export under a 60-second limit, because the
-<a href="#g-replay">replay</a> had no deadline.
-This work serves the regression methodology that the project plan names as its current top priority.
-That methodology runs large benchmark sweeps, and every stage must end in bounded time.</p>
+<p>
+The previous pull request, #49, put limits on every run of the z3 executable in a clause-log export.
+Two stages ran inside the Python process and stayed unbounded.
+A <a href="#g-pigeonhole">pigeonhole formula</a> with eleven holes ran for ever on the proof-object path, even with a one-second limit.
+A <a href="#g-difference-logic">difference logic</a> benchmark took 622 seconds to export under a 60-second limit, because the replay had no deadline.
+This work serves the regression methodology, which the project plan calls its current top priority.
+That methodology runs a matrix of benchmarks, and every stage must finish in bounded time.
+</p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-  <li><strong>Legacy exporter:</strong> you can now pass <code>--timeout</code> to a propositional export and it stops at that limit instead of running for ever.</li>
-  <li><strong>Legacy exporter:</strong> you can now pass <code>--memory</code> to a propositional export, and z3 stops the search once its memory in the process passes that limit.</li>
-  <li><strong>Error messages:</strong> you can now tell a time limit, a memory limit, and an outside interrupt apart, because each produces its own message.</li>
+  <li><strong>Legacy exporter:</strong> you can now pass <code>--timeout</code> to a propositional export, and it stops at that limit instead of running for ever.</li>
+  <li><strong>Legacy exporter:</strong> you can now pass <code>--memory</code> to a propositional export, and z3 stops its search once its memory in the process passes that limit.</li>
+  <li><strong>Error messages:</strong> you can now tell a time limit, a memory limit, and an outside interrupt apart, because each gives its own message.</li>
   <li><strong>Clause-log replay:</strong> you can now rely on the replay to stop near its time limit, because it checks a deadline before each log command and each solver call.</li>
   <li><strong>Tests and docs:</strong> two new tests cover both limits, and the README and the plan describe them.</li>
 </ul>
-<p>The memory limit uses a z3 setting called the <a href="#g-watermark">memory high watermark</a>.
-It is a global setting, so the exporter sets it just for the check and restores it afterwards.
-Think of it as borrowing a shared thermostat: you change it for your meeting and set it back when you leave.</p>
+<p>
+The memory limit uses a z3 setting called the memory high watermark.
+It is a global setting, shared by everything in the process.
+So the exporter sets it just for the check and puts the old value back afterwards.
+Think of a shared office thermostat: you change it for your meeting and reset it when you leave.
+</p>
 <table>
-  <thead><tr><th>File</th><th>What it is</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
   <tbody>
     <tr><td><code>examples/python/proof_certificate.py</code></td><td>exporter and its command line</td><td class="num">39</td><td class="num">10</td></tr>
     <tr><td><code>examples/python/proof_clause_log.py</code></td><td>clause-log replay</td><td class="num">24</td><td class="num">4</td></tr>
     <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>tests</td><td class="num">84</td><td class="num">1</td></tr>
     <tr><td><code>examples/python/README</code></td><td>user documentation</td><td class="num">8</td><td class="num">3</td></tr>
     <tr><td><code>doc/lean-proof-plan.md</code></td><td>project plan note</td><td class="num">24</td><td class="num">0</td></tr>
-    <tr><th>Total, 5 files</th><td></td><td class="num">179</td><td class="num">18</td></tr>
+    <tr><td><strong>Total, 5 files</strong></td><td></td><td class="num"><strong>179</strong></td><td class="num"><strong>18</strong></td></tr>
   </tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
-<p>This pull request does not make any new input certifiable.
-Its effect is that a hard input now stops with a clear error, while easy inputs certify exactly as before.
-So the example has two parts, both from real runs made for this report.
-The hard input is the pigeonhole formula with 11 holes and 12 pigeons, built by the test helper <code>_pigeonhole(11)</code>.
-It has 132 <a href="#g-boolean">Boolean</a> variables and is too long to show.
-The small input below is the same family with 2 holes and 3 pigeons.</p>
+<p>
+This pull request makes no new input certifiable.
+Its effect is that a hard input now stops with a clear error, while easy inputs certify as before.
+So the example has two inputs from the same family, both run for this report on the merged code.
+The hard one is the pigeonhole formula with 11 holes and 12 pigeons, as built by the new test.
+It has 738 <a href="#g-clause">clauses</a>, too many to show.
+The small one below has 2 holes and 3 pigeons.
+</p>
 
 <h3>(a) The input</h3>
 <pre><code>(declare-const p0_0 Bool) (declare-const p0_1 Bool) (declare-const p1_0 Bool) (declare-const p1_1 Bool) (declare-const p2_0 Bool) (declare-const p2_1 Bool)
@@ -142,146 +151,163 @@ The small input below is the same family with 2 holes and 3 pigeons.</p>
 (assert (or (not p0_1) (not p2_1)))
 (assert (or (not p1_1) (not p2_1)))
 (check-sat)</code></pre>
-<p class="note">Variable <code>p1_0</code> means pigeon 1 sits in hole 0. Each <a href="#g-clause">clause</a> either puts a pigeon in some hole or keeps two pigeons out of the same hole.</p>
+<p class="note">The <a href="#g-boolean">Boolean</a> variable <code>p1_0</code> means pigeon 1 sits in hole 0.
+The first three clauses put each pigeon in some hole.
+The other six keep two pigeons out of the same hole.</p>
 
 <h3>(b) Before</h3>
-<p>On the 11-hole version, the old exporter ignored the one-second limit.
-It was still solving after 60 seconds, when this report's script killed it.</p>
-<pre><code>$ python3 examples/python/proof_certificate.py --timeout 1 php11.smt2
-(no output; still running after 60 s, killed)</code></pre>
-<p>On the small input above, the old exporter succeeded. Its certificate is byte-for-byte identical to the new one.</p>
+<p>On the 11-hole input, the old exporter ignored the one-second limit.
+It was still solving after 60 seconds, when the report's script killed it.</p>
+<pre><code>$ python3 proof_certificate.py --timeout 1 php11.smt2
+(no output, still running after 60 s, killed)</code></pre>
+<p>On the small input, the old exporter succeeded.
+Its certificate is byte-for-byte identical to the new one.</p>
 
 <h3>(c) After</h3>
-<p>On the 11-hole version, the new exporter stops after about one second with exit code 2.</p>
+<p>On the 11-hole input, the new exporter stops after 1.2 seconds with exit code 2.</p>
 <pre><code>$ python3 examples/python/proof_certificate.py --timeout 1 php11.smt2
 proof_certificate.py: error: the legacy solver run exceeded the time limit of 1 s</code></pre>
-<p>The error names the limit, so a batch run can record why this input was skipped.</p>
-<p>On the small input, the new exporter still produces a certificate, and the reconstructor turns it into this Lean file.</p>
+<p class="note">The error names the limit, so a batch run can record why it skipped this input.</p>
+
+<p>On the small input, the exporter still produces a certificate.
+The reconstructor turns it into the Lean file below.
+This pull request does not change any Lean lemma, so the excerpt shows the ordinary proof shape.</p>
 <pre><code>-- Atom 0: "p0_0"
 -- Atom 1: "p0_1"
 ...
 def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
 def formula_1 (_atoms : Nat -&gt; Prop) : Prop := _atoms 1
 def formula_2 (_atoms : Nat -&gt; Prop) : Prop := (Or (formula_0 _atoms) (formula_1 _atoms))
-...</code></pre>
-<p>Each SMT-LIB variable becomes a numbered atom, and each subformula becomes one Lean definition.</p>
+...
+def formula_34 (_atoms : Nat -&gt; Prop) : Prop := False</code></pre>
+<p class="note">Each SMT-LIB variable becomes a numbered <a href="#g-atom">atom</a>, and each subformula becomes one Lean definition.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
     (_h0 : (formula_2 _atoms))
     (_h1 : (formula_5 _atoms))
     ...
     (_h8 : (formula_20 _atoms))
     : False :=</code></pre>
-<p>The <a href="#g-theorem">theorem</a> says that the nine assertions together imply False.</p>
-<pre><code>  ...
-  let _step_41 : (formula_9 _atoms) :=
-    (Or.elim _step_40 (fun _literal =&gt; _literal) (fun _tail =&gt; (False.elim (_tail _step_37))))
-  let _step_42 : (formula_1 _atoms) :=
-    (_step_30.resolve_left _step_41)
+<p class="note">The <a href="#g-theorem">theorem</a> says that the nine assertions together imply False.</p>
+<pre><code>  let _step_27 (_hyp7 : (formula_7 _atoms)) : (formula_7 _atoms) :=
+    _hyp7
+  ...
+  let _step_36 : (formula_18 _atoms) :=
+    _step_35
+  ...
   let _step_43 : (formula_34 _atoms) :=
     (False.elim ((_step_21.resolve_left (fun _literal =&gt; _literal _step_42)) _step_39))
   _step_43</code></pre>
-<p>The last steps are <a href="#g-resolution">resolution</a> steps that remove one <a href="#g-literal">literal</a> at a time until False remains.</p>
-<p><span class="pass">Lean accepted this file.</span> The reconstructor reported "Lean checked the refutation", and <code>scripts/check_lean.sh</code> reported "Lean checks passed."</p>
+<p class="note">The proof assumes <code>p2_1</code> as a <a href="#g-hypothesis">hypothesis</a>, reaches False, concludes <code>not p2_1</code>, and then finishes with <a href="#g-resolution">resolution</a> steps on each clause.</p>
+<p><strong>Lean accepted this file.</strong> The check script reported "Lean checks passed."</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>All existing tests passed after the review fixes, including the slow Lean reconstruction suite.
-The two new tests pass on the new code and fail on the old code.
-On the real difference logic benchmark, the replay now gives up after about one minute instead of ten.
-Two benchmark sweeps through Lean also passed, but they ran on the first commit and were not repeated after the fixes.</p>
+<p>
+In plain terms, every local test suite passed, and 14 small benchmarks were certified in Lean end to end.
+The two new tests fail on the old code, so they really test the change.
+On the real difference logic benchmark, the replay now stops a few seconds after its limit instead of running ten times past it.
+</p>
+<p>
+The loop merged this pull request on its local gate, because it changes only Python and documentation.
+The gate mirrors the relevant steps of the Ubuntu CI job, run on the loop machine.
+</p>
 <table>
-  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
   <tbody>
-    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">105 tests OK</td></tr>
-    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">306 tests OK, about 936 s</td></tr>
-    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
-    <tr><td>z3test proof tests</td><td class="pass">46 tests OK</td></tr>
-    <tr><td>The two new tests, old exporter</td><td>fail, as expected</td></tr>
-    <tr><td>Matrix, legacy proof object on Boolean inputs, first commit only</td><td class="pass">6 of 6 lean-verified</td></tr>
-    <tr><td>Matrix, clause log on linear real arithmetic inputs, first commit only</td><td class="pass">8 of 8 lean-verified</td></tr>
-    <tr><td><code>qlock-4-10-8</code> with a 60 s limit, first commit only</td><td>rejected after 63.1 s, was 622 s</td></tr>
-    <tr><td><code>qlock-4-10-8</code> with a 15 s limit, by the reviewer</td><td>rejected after 18.0 s</td></tr>
+    <tr><td>Python example tests: certificate exporter (105 tests)</td><td class="pass">pass</td><td class="num">13 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction (306 tests)</td><td class="pass">pass</td><td class="num">941 s</td></tr>
+    <tr><td>z3test proof script tests (46 tests)</td><td class="pass">pass</td><td class="num">15 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, proof object (6 of 6)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log (8 of 8)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
   </tbody>
 </table>
-<p>The loop's local gate was still running when this page was written.
-Its first stage, the exporter tests, had passed with 105 tests.
-Its final result is not recorded here.</p>
-<p>No CI results were available to this report. They may still be pending.
-The new tests run in the Python wheel job of <code>.github/workflows/ci.yml</code>.
-There were no CI fix rounds.</p>
 <table>
-  <thead><tr><th>Workflow and check</th><th>Status</th></tr></thead>
+  <thead><tr><th>Input and limit</th><th>Before</th><th>After</th></tr></thead>
   <tbody>
-    <tr><td>CI, "Python bindings (manylinux Centos AMD64) build", step "Test Python wheel"</td><td class="pending">unknown at time of writing</td></tr>
-    <tr><td>All checks</td><td><a href="https://github.com/levnach/z3/pull/50/checks">see the PR's Checks tab</a></td></tr>
+    <tr><td>Pigeonhole, 11 holes, <code>--timeout 1</code> (this report)</td><td>still running at 60 s</td><td>error after 1.2 s</td></tr>
+    <tr><td>QF_IDL <code>qlock-4-10-8</code>, timeout 60 s (implementer)</td><td>finished after 622 s</td><td>error after 63.1 s</td></tr>
+    <tr><td>QF_IDL <code>qlock-4-10-8</code>, timeout 15 s (reviewer)</td><td>not run</td><td>error after 18.0 s</td></tr>
+  </tbody>
+</table>
+<p>
+GitHub CI was not a merge condition here.
+The inputs hold no CI status files for this pull request, and no CI fix rounds were recorded.
+The new tests run in the CI job named below, which runs on <code>master</code> after the merge.
+</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Job and step</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>.github/workflows/ci.yml</code></td><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td class="unknown">not recorded, see <a href="https://github.com/levnach/z3/commit/dcfeb885129ca225370e3e9b5461da4ebbafc9b5">the merge commit</a></td></tr>
   </tbody>
 </table>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved the change and found no blocker or major issues.</p>
-<p><strong>Minor: the memory message blamed the wrong thing.</strong>
-The reviewer exported the trivial input <code>(assert false)</code> with a 1 MB memory limit.
-It failed at once, saying the legacy solver run exceeded the limit.
-The watermark counts all of z3's memory in the process, not only this solve.
-A long-running harness that already holds large z3 contexts could see trivial inputs rejected with a misleading message.
-The fix reworded the error and the help text to say "z3's memory in this process".</p>
-<p><strong>Nit: an interrupt looked like a timeout.</strong>
-z3 reports both its own timer and an outside cancel as "canceled".
-The first version called every "canceled" a time-limit hit.
-The fix reports a time limit only when the check actually ran for the full limit.
-Otherwise the result stays "unknown: canceled". A new subtest covers this case.</p>
-<p><strong>Suggestions.</strong> The reviewer noticed that the memory subtest would wait 60 seconds if the watermark ever stopped working.
-It now uses a 5-second limit, so such a failure shows up quickly.
-A second suggestion, passing the z3test matrix limit through to the replay, lives in another repository and was left as a follow-up.</p>
+<p>The reviewer approved the change, with no blocker or major findings.</p>
+<ul>
+  <li><strong>Minor, fixed.</strong>
+    The reviewer exported the trivial input <code>(assert false)</code> with a 1 MB memory limit.
+    It failed at once, blaming "the legacy solver run".
+    The watermark compares all of z3's memory in the process, not just this solve.
+    So a long-running caller could see easy inputs rejected with a misleading message.
+    The message and the help text now say "z3's memory in this process".</li>
+  <li><strong>Nit, fixed.</strong>
+    z3 reports both its timer and an outside interrupt as "canceled".
+    The first version called every "canceled" a time-limit hit.
+    Now it says "time limit" only when the check really lasted that long.
+    An early cancel stays "unknown: canceled", and a new subtest covers it.</li>
+  <li><strong>Suggestion, adopted.</strong>
+    The memory subtest relied on z3 already using about 20 MB.
+    It now also has a 5-second time limit, so a future failure shows up fast.</li>
+  <li><strong>Suggestion, not adopted.</strong>
+    The z3test matrix could pass its own time limit to the replay.
+    That code lives outside this repository, so it is a follow-up.</li>
+</ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>The memory watermark is global to the process. A caller with other large z3 contexts reaches the limit sooner.</li>
-  <li>Another thread using z3 during the check would also see the watermark. The exporter itself is single-threaded.</li>
-  <li>A replay that truly needs more than its limit, 600 seconds by default, now fails where it used to finish.</li>
+  <li>The memory watermark is process-global. A caller holding other large z3 contexts reaches it sooner, and another thread would also see it.</li>
+  <li>A replay that truly needs more than its limit now fails, where it used to finish. The default is 600 seconds.</li>
   <li>The deadline is checked only between steps. One very slow step can still overrun it.</li>
-  <li>The Python work that builds the certificate after the legacy check is not bounded.</li>
+  <li>The Python work after the legacy solve, which builds the certificate, has no time limit.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-  <li>The z3test scripts <code>proof_lean.py</code> and <code>proof_matrix.py</code> should pass their own limits through to the exporter.</li>
-  <li>Lean runs out of memory on some large <a href="#g-qf-uf">QF_UF</a> certificates. Fewer and smaller declarations are the planned levers, with <code>NEQ004_size4</code> as a concrete target.</li>
+  <li>z3test's scripts should pass their own time and memory limits through to the exporter.</li>
+  <li>The same iteration logged a new backlog item: Lean memory on large QF_UF certificates. One benchmark ran out of kernel memory, and fewer declarations are the main lever.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
 <dl class="glossary">
+  <dt id="g-atom">atom</dt>
+  <dd>A formula with no Boolean connective inside, such as the variable <code>p0_0</code>.</dd>
   <dt id="g-boolean">Boolean</dt>
-  <dd>A value that is either true or false. In SMT-LIB its sort is <code>Bool</code>.</dd>
+  <dd>The sort with exactly two values, true and false. In SMT-LIB it is written <code>Bool</code>.</dd>
   <dt id="g-certificate">certificate</dt>
-  <dd>A file that records a proof in enough detail for an independent checker to verify it, here a JSON file read by the Lean reconstructor.</dd>
+  <dd>A file of proof steps that a separate checker can verify without trusting the solver.</dd>
   <dt id="g-clause">clause</dt>
-  <dd>An "or" of literals, such as <code>(or (not p0_0) (not p1_0))</code>.</dd>
+  <dd>A disjunction of literals, such as <code>(or (not p0_0) (not p1_0))</code>.</dd>
   <dt id="g-clause-log">clause log</dt>
-  <dd>A record that z3 writes while solving, listing each clause it learned and the input it used. The exporter rebuilds a proof from it.</dd>
+  <dd>A record of every clause the solver added or deleted during its search, with hints on why each one holds.</dd>
   <dt id="g-difference-logic">difference logic</dt>
-  <dd>Integer arithmetic limited to constraints of the form <code>x - y &lt;= c</code>. Its SMT-LIB name is QF_IDL.</dd>
-  <dt id="g-legacy-proof-object">legacy proof object</dt>
-  <dd>The proof term that z3's older proof mode builds in memory. The exporter uses it for propositional input.</dd>
+  <dd>Constraints of the form <code>x - y &lt;= c</code> over integers. Its SMT-LIB logic name is QF_IDL.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A formula assumed for part of a proof. The assumption is later discharged, often by proving its negation.</dd>
   <dt id="g-literal">literal</dt>
-  <dd>A Boolean variable or its negation, such as <code>p0_0</code> or <code>(not p0_0)</code>.</dd>
-  <dt id="g-watermark">memory high watermark</dt>
-  <dd>A z3 setting. When z3's total memory use passes it, the search stops and reports "memout".</dd>
+  <dd>An atom or its negation, such as <code>p1_0</code> or <code>(not p1_0)</code>.</dd>
   <dt id="g-pigeonhole">pigeonhole formula</dt>
-  <dd>The claim that n+1 pigeons fit in n holes with at most one pigeon per hole. It is false, and proving that by resolution takes very long as n grows.</dd>
+  <dd>The claim that n+1 pigeons fit in n holes, one per hole. It is unsatisfiable, and hard for clause-based solvers as n grows.</dd>
+  <dt id="g-proof-object">proof object</dt>
+  <dd>A tree of inference steps that z3 builds while solving with proofs enabled. The older solver core uses it.</dd>
   <dt id="g-propositional">propositional</dt>
-  <dd>Built only from Boolean variables and the connectives and, or, not, and implies, with no numbers or functions.</dd>
-  <dt id="g-qf-uf">QF_UF</dt>
-  <dd>The SMT-LIB logic of quantifier-free formulas with uninterpreted functions and equality.</dd>
+  <dd>Built only from Boolean variables and connectives such as and, or, and not, with no arithmetic or functions.</dd>
   <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of assertions leads to False, so they cannot all hold.</dd>
+  <dd>A proof that a set of assertions implies False, so they cannot all hold.</dd>
   <dt id="g-replay">replay</dt>
-  <dd>Reading a clause log step by step and rebuilding each step as an explicit proof step.</dd>
+  <dd>Reading a log step by step and rebuilding each step as an explicit proof step.</dd>
   <dt id="g-resolution">resolution</dt>
-  <dd>The rule that combines two clauses with opposite literals into one. From <code>a or b</code> and <code>not a</code> it derives <code>b</code>.</dd>
+  <dd>The rule that combines <code>(or A x)</code> and <code>(or B (not x))</code> into <code>(or A B)</code>.</dd>
   <dt id="g-theorem">theorem</dt>
-  <dd>A statement that Lean has checked to follow from its hypotheses.</dd>
-  <dt id="g-timeout">time limit</dt>
-  <dd>The longest a stage may run before it gives up. Here the default is 600 seconds.</dd>
+  <dd>A statement that Lean has proved. Here it states that the input's assertions imply False.</dd>
 </dl>
 
 <footer>
