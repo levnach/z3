@@ -515,6 +515,10 @@ class TestIntegerValidation(unittest.TestCase):
                 certificate = proof_certificate.export_clause_log_certificate(source)
             graph = proof_to_lean._validate_graph(source, certificate)
             text = proof_to_lean.reconstruct(source, certificate)
+            if name == "wide":
+                # Its wide Farkas lemmas have small coefficients and stay with
+                # omega, whose proofs keep it under Lean's memory cap.
+                self.assertNotIn("have _sum : ", text)
             generalized[name] = set()
             for node in _th_lemma_nodes(certificate):
                 parameters = _parameters(certificate, node)
@@ -1084,12 +1088,21 @@ class TestIntegerValidation(unittest.TestCase):
         self.assertIsNone(multipliers([({x: 1}, -1), ({x: -1}, 0)], [1, -1], [False, False]))
         self.assertIsNone(multipliers([({x: 1}, -1), ({y: -1}, 0)], [1, 1], [False, False]))
 
+    def test_wide_farkas_conflicts_with_large_coefficients_get_their_combination(self):
+        # At the shipped thresholds, the two 21-literal lemmas with seven- and
+        # eight-digit coefficients of QF_LIA cut_lemma_03_012 are proved by
+        # their combination first; its 3- and 4-literal lemmas are left to omega.
+        source = (_EXAMPLES / "data" / "QF_LIA_cut_lemma_03_012.smt2").read_text()
+        text = proof_to_lean.reconstruct(source, proof_certificate.export_clause_log_certificate(source))
+        self.assertEqual(text.count("have _sum : "), 2)
+
 
 @contextlib.contextmanager
 def _combination_only(test):
     """Prove every Int farkas or bound th-lemma with coefficients by its direct combination alone.
 
-    However few its bounds (_FARKAS_COMBINATION_BOUNDS is lowered), and with
+    However few its bounds and small its coefficients (_FARKAS_COMBINATION_BOUNDS
+    and _FARKAS_COMBINATION_COEFFICIENT are lowered), and with
     the omega and unfolded alternatives dropped, so a combination that does
     not elaborate fails the check instead of falling through to them.
     Yields the list of the th-lemma nodes so proved.
@@ -1106,7 +1119,8 @@ def _combination_only(test):
         return lines, term
 
     with patch.object(proof_to_lean, "_grind_lemma", grind_lemma), \
-            patch.object(proof_to_lean, "_FARKAS_COMBINATION_BOUNDS", 0):
+            patch.object(proof_to_lean, "_FARKAS_COMBINATION_BOUNDS", 0), \
+            patch.object(proof_to_lean, "_FARKAS_COMBINATION_COEFFICIENT", 0):
         yield proved
 
 

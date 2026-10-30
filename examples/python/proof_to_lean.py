@@ -113,6 +113,12 @@ _LATTICE_LEMMA_HEARTBEATS = 2000000
 # omega, and its 121 of ten bounds or more at 8.1 GB). The conflicts omega
 # could not finish had 21 (QF_LIA cut_lemmas).
 _FARKAS_COMBINATION_BOUNDS = 16
+# The magnitude one of those coefficients must reach as well: omega proved
+# the wide division seed's 59 lemmas of 16 to 26 bounds, coefficients at
+# most 780, quickly, and their combinations alone raised that certificate's
+# Lean peak by 0.2 GB, close to the 8 GB cap; the conflicts omega could
+# not finish had coefficients of seven and eight digits.
+_FARKAS_COMBINATION_COEFFICIENT = 10000
 # The formulas a normalized rewrite's propositional lemma states over its
 # atoms (Boolean = is checked separately: its arguments must be formulas).
 _NORMALIZED_CONNECTIVES = (z3.Z3_OP_AND, z3.Z3_OP_OR, z3.Z3_OP_NOT, z3.Z3_OP_IMPLIES, z3.Z3_OP_IFF,
@@ -1532,7 +1538,8 @@ def _farkas_combination(graph, node):
     smtlib-sample) ran for ten minutes without an answer. Inequality
     multipliers are the hint's coefficients; equality multipliers are solved
     for, as in linear_combination_refutes. A lemma of fewer than
-    _FARKAS_COMBINATION_BOUNDS bounds, a combination that needs the integer
+    _FARKAS_COMBINATION_BOUNDS bounds or with no coefficient of magnitude
+    _FARKAS_COMBINATION_COEFFICIENT, a combination that needs the integer
     rounding of a bound step (bound_combination_refutes), and any literal
     shape outside the cases below get no attempt: the caller's
     generalized and unfolded proofs remain. Lean checks the attempt like
@@ -1544,7 +1551,8 @@ def _farkas_combination(graph, node):
     conclusion = graph.conclusion(node)
     literals = graph.clause(conclusion)
     coefficients = [Fraction(parameter) for parameter in graph.decl(node).parameters[1:]]
-    if len(coefficients) != len(premises) + len(literals) or len(coefficients) < _FARKAS_COMBINATION_BOUNDS:
+    if (len(coefficients) != len(premises) + len(literals) or len(coefficients) < _FARKAS_COMBINATION_BOUNDS
+            or max((abs(coefficient) for coefficient in coefficients), default=0) < _FARKAS_COMBINATION_COEFFICIENT):
         return None
     # (atom, holds, evidence): evidence proves the atom, or its negation when it does not hold.
     evidence = [(premise, True, "_p%d" % position) for position, premise in enumerate(premises)]

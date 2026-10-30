@@ -1990,12 +1990,15 @@ hint's coefficients for inequalities, solved for equalities) and summed by
 `Int.add_nonneg`/`Int.mul_nonneg`, and `omega` checks only that the sum is a
 negative constant, before any hypothesis is in scope. The attempt comes
 first under `first`, ahead of the generalized and unfolded proofs, for
-lemmas of at least 16 bounds (`_FARKAS_COMBINATION_BOUNDS`): on smaller
-ones omega is quick and its proof cheaper (the combination cost Lean about
-3 MB per lemma against 1 MB, and the 800 mostly two-literal Farkas lemmas
-of the wide division seed would have pushed it past the 8 GB cap). A
-combination that needs a bound step's rounding gets no attempt. The input
-now verifies in 1.5 s. Every such lemma of the documented QF_LIA and
+lemmas of at least 16 bounds (`_FARKAS_COMBINATION_BOUNDS`) with a
+coefficient of magnitude at least 10000 (`_FARKAS_COMBINATION_COEFFICIENT`):
+on the others omega is quick and its proof cheaper (the combination cost
+Lean about 3 MB per lemma against 1 MB; the 800 mostly two-literal Farkas
+lemmas of the wide division seed would have pushed it past the 8 GB cap,
+and even its 59 lemmas of 16 to 26 bounds, coefficients at most 780,
+raised its peak by 0.2 GB to within 0.3 GB of the cap). A combination that
+needs a bound step's rounding gets no attempt. The input now verifies in
+1.4 s. Every such lemma of the documented QF_LIA and
 QF_UFLIA inputs through both cores is proved by the combination alone
 (`test_farkas_lemmas_are_proved_by_their_combination_alone`,
 `test_wide_farkas_conflicts_with_large_coefficients_verify` in
