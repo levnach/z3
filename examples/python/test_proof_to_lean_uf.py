@@ -1731,8 +1731,8 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         source = (_EXAMPLES / "data" / "QF_UF_train-gate.6.prop1_ab_reg_max.smt2").read_text()
         logs, original = [], proof_clause_log.trim_clause_log
 
-        def trim(z3_executable, text, timeout=None):
-            logs.append((text, original(z3_executable, text, timeout)))
+        def trim(z3_executable, text, timeout=None, memory=None):
+            logs.append((text, original(z3_executable, text, timeout, memory)))
             return logs[-1][1]
 
         with patch.object(proof_clause_log, "trim_clause_log", trim), warnings.catch_warnings():

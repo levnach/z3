@@ -124,6 +124,16 @@ class _FakeDecl:
         return self._parameters
 
 
+def _pigeonhole(holes):
+    """holes + 1 pigeons in holes holes: unsat, and hard for resolution."""
+    source = "".join("(declare-const p%d_%d Bool)" % (p, h) for p in range(holes + 1) for h in range(holes))
+    source += "".join("(assert (or %s))" % " ".join("p%d_%d" % (p, h) for h in range(holes))
+                      for p in range(holes + 1))
+    source += "".join("(assert (or (not p%d_%d) (not p%d_%d)))" % (p, h, q, h)
+                      for h in range(holes) for p in range(holes + 1) for q in range(p + 1, holes + 1))
+    return source
+
+
 def _z3_available():
     try:
         return subprocess.run([proof_certificate.default_z3_executable(), "--version"],
@@ -3145,6 +3155,114 @@ class TestClauseLogDependencies(unittest.TestCase):
                 with self.assertWarnsRegex(RuntimeWarning, "diagnostic"):
                     core = proof_clause_log.trim_clause_log("unused", _LRA_LOG)
             self.assertIn("(deps 5 3)", core)
+
+    def test_every_z3_run_of_the_export_is_bounded(self):
+        # On 2026-10-30 a sweep that exported without a timeout left eleven
+        # clause-log z3 processes running after its own deadlines killed the
+        # Python workers (220 GB in total). Every run now carries -T and
+        # -memory, by default too, and a wall-clock deadline as a backstop.
+        unsat = subprocess.CompletedProcess([], 0, "unsat\n", "")
+        limits = proof_clause_log._TIME_LIMIT, proof_clause_log._MEMORY_LIMIT
+        for timeout, memory, seconds, megabytes in [(None, None) + limits, (2.5, 100, 3, 100), (0.01, 1, 1, 1)]:
+            with self.subTest(timeout=timeout, memory=memory):
+                with patch.object(proof_clause_log.subprocess, "run", return_value=unsat) as run:
+                    with self.assertRaisesRegex(proof_certificate.ProofExportError, "did not write a clause log"):
+                        proof_clause_log.run_clause_log("z3", "(assert false)", timeout, memory)
+                    with patch.object(proof_clause_log, "_TRIM_THRESHOLD", 0), \
+                            self.assertWarnsRegex(RuntimeWarning, "unusable log"):
+                        proof_clause_log.trim_clause_log("z3", _LRA_LOG, timeout, memory)
+                self.assertEqual(run.call_count, 2)
+                for call in run.call_args_list:
+                    self.assertEqual(call.args[0][:3], ["z3", "-T:%d" % seconds, "-memory:%d" % megabytes])
+                    self.assertEqual(call.kwargs["timeout"], seconds + proof_clause_log._LIMIT_GRACE)
+        # Other real and integral numbers count; values beyond what
+        # subprocess.run and z3's parameters can hold do not.
+        largest = proof_clause_log._MAX_TIME_LIMIT, proof_clause_log._MAX_MEMORY_LIMIT
+        for timeout, memory, limits in [(Fraction(5, 2), None, (3, proof_clause_log._MEMORY_LIMIT)),
+                                        largest + (largest,)]:
+            with self.subTest(timeout=timeout, memory=memory):
+                with patch.object(proof_clause_log.subprocess, "run", return_value=unsat) as run:
+                    with self.assertRaisesRegex(proof_certificate.ProofExportError, "did not write a clause log"):
+                        proof_clause_log.run_clause_log("z3", "(assert false)", timeout, memory)
+                self.assertEqual(run.call_args.args[0][1:3], ["-T:%d" % limits[0], "-memory:%d" % limits[1]])
+        for timeout, memory in [(0, None), (-1, None), (True, None), ("10", None), (float("inf"), None),
+                                (float("nan"), None), (None, 0), (None, 1.5), (None, True),
+                                (proof_clause_log._MAX_TIME_LIMIT + 0.5, None), (1e20, None),
+                                (None, proof_clause_log._MAX_MEMORY_LIMIT + 1), (None, 2 ** 40)]:
+            with self.subTest(timeout=timeout, memory=memory):
+                with patch.object(proof_clause_log.subprocess, "run", side_effect=AssertionError("ran")):
+                    with self.assertRaises(ValueError):
+                        proof_clause_log.run_clause_log("z3", "(assert false)", timeout, memory)
+
+    def test_limit_hits_are_reported_by_name(self):
+        # Z3 prints "timeout" (status 0) at its -T limit and (error "out of
+        # memory") (status 101) at its -memory limit. A trimmer stopped at
+        # either used to read as an unusable log and send the export to the
+        # untrimmed replay; the solver's timeout read as "did not report unsat".
+        timeout = subprocess.CompletedProcess([], 0, "timeout\n", "")
+        memory = subprocess.CompletedProcess([], 101, "", '(error "out of memory")\n')
+        killed = subprocess.TimeoutExpired(["z3"], 7 + proof_clause_log._LIMIT_GRACE)
+        solver = "the clause-log solver run exceeded the %s limit of %s"
+        for outcome, message in [(timeout, solver % ("time", "7 s")), (memory, solver % ("memory", "64 MB")),
+                                 (killed, solver % ("time", "7 s"))]:
+            with self.subTest(outcome=outcome), self.assertRaisesRegex(proof_certificate.ProofExportError, message):
+                patched = {"side_effect": outcome} if isinstance(outcome, Exception) else {"return_value": outcome}
+                with patch.object(proof_clause_log.subprocess, "run", **patched):
+                    proof_clause_log.run_clause_log("z3", "(assert false)", 7, 64)
+        with patch.object(proof_clause_log, "_TRIM_THRESHOLD", 0), warnings.catch_warnings():
+            warnings.simplefilter("error")
+            for outcome in (timeout, killed):
+                with self.subTest(outcome=outcome), self.assertRaises(subprocess.TimeoutExpired) as raised:
+                    patched = {"side_effect": outcome} if isinstance(outcome, Exception) else {"return_value": outcome}
+                    with patch.object(proof_clause_log.subprocess, "run", **patched):
+                        proof_clause_log.trim_clause_log("z3", _LRA_LOG, 7, 64)
+                self.assertEqual(raised.exception.timeout, 7)
+            with patch.object(proof_clause_log.subprocess, "run", return_value=memory), \
+                    self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                           "native proof trimming exceeded the memory limit of 64 MB"):
+                proof_clause_log.trim_clause_log("z3", _LRA_LOG, 7, 64)
+        # The export names the trimmer's time limit too.
+        with patch.object(proof_clause_log, "run_clause_log", return_value=_LRA_LOG), \
+                patch.object(proof_clause_log, "_TRIM_THRESHOLD", 0), \
+                patch.object(proof_clause_log.subprocess, "run", return_value=timeout), \
+                self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                       "native proof trimming exceeded the time limit of 7 s"):
+            proof_certificate.export_clause_log_certificate(_LRA, timeout=7)
+
+    @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
+    def test_hard_inputs_stop_at_the_limits(self):
+        # Pigeonhole for eleven holes runs for minutes and keeps growing; under
+        # small limits the export ends promptly in an error naming the limit.
+        hard = _pigeonhole(11)
+        for limits, message in [({"timeout": 1}, "solver run exceeded the time limit of 1 s"),
+                                ({"timeout": 60, "memory": 20}, "solver run exceeded the memory limit of 20 MB")]:
+            with self.subTest(**limits), self.assertRaisesRegex(proof_certificate.ProofExportError, message):
+                proof_certificate.export_clause_log_certificate(hard, **limits)
+        result = subprocess.run(
+            [sys.executable, str(_EXAMPLES / "proof_certificate.py"), "--core", "clause-log", "--timeout", "1", "-"],
+            input=hard, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("solver run exceeded the time limit of 1 s", result.stderr)
+        for flag, value in [("--timeout", "0"), ("--timeout", "nan"), ("--timeout", "1e7"), ("--memory", "0"),
+                            ("--memory", "4294967296")]:
+            with self.subTest(flag=flag, value=value):
+                result = subprocess.run(
+                    [sys.executable, str(_EXAMPLES / "proof_certificate.py"), flag, value, "-"],
+                    input=_LRA, capture_output=True, text=True, timeout=60)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("must be a positive number", result.stderr)
+        # The trimmer: pigeonhole for nine holes solves in seconds into a
+        # 6.7 MB log that takes the trimmer longer than a second to reduce.
+        log = proof_clause_log.run_clause_log(proof_certificate.default_z3_executable(), _pigeonhole(9), 120)
+        with self.assertRaises(subprocess.TimeoutExpired) as raised:
+            proof_clause_log.trim_clause_log(proof_certificate.default_z3_executable(), log, 1)
+        self.assertEqual(raised.exception.timeout, 1)
+        with self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                    "native proof trimming exceeded the memory limit of 20 MB"):
+            proof_clause_log.trim_clause_log(proof_certificate.default_z3_executable(), log, 120, 20)
+        # Small inputs export under explicit limits.
+        certificate = proof_certificate.export_clause_log_certificate(_LRA, timeout=60, memory=1024)
+        self.assertEqual(certificate["fragment"], "qf_lra")
 
     @unittest.skipUnless(_z3_available(), "the z3 executable is required for proof trimming")
     def test_native_trimmed_certificate_replays(self):
