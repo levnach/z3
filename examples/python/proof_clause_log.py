@@ -804,6 +804,7 @@ class _Replay:
                                    for conjunct, path in _conjuncts(assertion)]
         self.assumptions_by_key = None
         self.sources_by_symbol = None  # declaration id (None: no symbol) -> source positions
+        self.symbol_signatures = None  # conjunct AST id -> hash of its symbol set, with the index
         self.clauses = {}        # entry id -> (proof node, literal expressions)
         self.clause_keys = {}    # entry id -> precomputed literal keys for propagation
         self.literal_keys = {}   # AST id -> (literal kept alive, key)
@@ -962,7 +963,7 @@ class _Replay:
             assertion, conjunct, path = source
             return self._derive_assumption(assertion, path, conjunct, formula)
         candidates = self._candidate_sources(formula)
-        for assertion, conjunct, path in candidates:
+        for assertion, conjunct, path in self._equivalence_candidates(formula, candidates):
             if self._valid(conjunct == formula):
                 return self._derive_assumption(assertion, path, conjunct, formula)
         for assertion, conjunct, path in candidates:
@@ -993,9 +994,11 @@ class _Replay:
             return self.assumption_sources
         if self.sources_by_symbol is None:
             self.sources_by_symbol = {}
+            self.symbol_signatures = {}
             # Sources list an and before its conjuncts, so in reverse an and
             # takes the union of its conjuncts' sets instead of a traversal.
-            # The sets are dropped once the index is built.
+            # The sets are dropped once the index is built; a hash of each
+            # stays for _equivalence_candidates.
             symbols_of = {}
             for position in reversed(range(len(self.assumption_sources))):
                 conjunct = self.assumption_sources[position][1]
@@ -1004,6 +1007,7 @@ class _Replay:
                 else:
                     symbols = _symbols(conjunct)
                 symbols_of[conjunct.get_id()] = symbols
+                self.symbol_signatures[conjunct.get_id()] = hash(frozenset(symbols))
                 for symbol in symbols or (None,):
                     self.sources_by_symbol.setdefault(symbol, []).append(position)
         symbols = _symbols(formula)
@@ -1013,6 +1017,41 @@ class _Replay:
         for symbol in symbols:
             positions.update(self.sources_by_symbol.get(symbol, ()))
         return [self.assumption_sources[position] for position in sorted(positions)]
+
+    def _equivalence_candidates(self, formula, candidates):
+        """Return the candidates worth a solver check for equivalence with formula.
+
+        Those are the conjuncts over exactly its symbols, and the leaf
+        conjuncts (not ands) over at least them: Z3's preprocessing may
+        simplify a symbol away, as (f (* 0 y)) to (f 0). The skipped ones
+        are the ands over more symbols, which were only ever refuted, one
+        solver call each over the whole conjunct: a QF_IDL model checking
+        input (FISCHER6-4-ninc) nesting a thousand ands checked seven
+        clauses against every suffix conjunction, 12,207 calls of a 459 s
+        export, before the first candidate, the whole assertion, implied
+        each. A leaf is checked at most once per clause, so the checks stay
+        linear in the size of the assertions. A conjunct equivalent to
+        formula also implies it, so the implication pass of assume still
+        ties a skipped one (through a cnf lemma rather than a rewrite);
+        nothing is trusted by skipping. Symbol sets are compared by hash
+        (_candidate_sources); a collision costs one check. A few sources are
+        not indexed and are all checked.
+        """
+        if self.symbol_signatures is None:
+            return candidates
+        symbols = _symbols(formula)
+        signature = hash(frozenset(symbols))
+        if symbols:
+            positions = set(self.sources_by_symbol.get(next(iter(symbols)), ()))
+            for symbol in symbols:
+                positions.intersection_update(self.sources_by_symbol.get(symbol, ()))
+            covering = {self.assumption_sources[position][1].get_id() for position in positions}
+        else:
+            covering = None  # every source covers no symbols
+        return [source for source in candidates
+                if self.symbol_signatures[source[1].get_id()] == signature
+                or (source[1].decl().kind() != z3.Z3_OP_AND
+                    and (covering is None or source[1].get_id() in covering))]
 
     def _implying_assertions(self, formula):
         """Return (asserted node, assertion) pairs for an unsat core of assertions implying formula, or None.
