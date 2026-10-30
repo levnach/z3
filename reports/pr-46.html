@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #46: Prove each normalized rewrite atom in its own Lean lemma</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1d1f23; --muted: #5a6170; --accent: #0b5cad;
+  --code-bg: #f3f4f6; --border: #d8dbe0; --ok: #1a7f37; --bad: #b42318; --warn: #8a6100;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171b; --fg: #e5e7eb; --muted: #a0a7b4; --accent: #6cb6ff;
+    --code-bg: #22252b; --border: #3a3f48; --ok: #57c26b; --bad: #ff7b72; --warn: #e3b341;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: .8rem; border: 1px solid var(--warn); color: var(--warn); font-weight: 600; font-size: .85rem; }
+code { background: var(--code-bg); padding: .05rem .25rem; border-radius: 3px; font-size: .92em; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .85rem; line-height: 1.45; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.unk { color: var(--warn); font-weight: 600; }
+.explain { color: var(--muted); margin-top: -.3rem; }
+dt { font-weight: 600; margin-top: .6rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--border); padding-top: .6rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove each normalized rewrite atom in its own Lean lemma</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/46">levnach/z3 #46</a> ·
+State: <span class="badge">OPEN</span> · Date: 2026-10-30T03:56:46Z · Loop iteration 46
+</p>
+<p>This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/7884a34412eb038e09a4fcb96bc1b61a0392dc20"><code>7884a34</code></a>.
+It has two commits on top of base <code>4f0b0a3</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>The Lean reconstructor turns one kind of <a href="#g-rewrite">rewrite step</a>, the
+<a href="#g-normalized-rewrite">normalized rewrite</a>, into Lean proofs.
+Before this PR, the <a href="#g-normalization">normalization</a> of every
+<a href="#g-atom">atom</a> was proved inside a single <a href="#g-theorem">theorem</a>.
+All those proofs shared one <a href="#g-heartbeat">heartbeat</a> budget.
+Each proof also saw every earlier atom in its context.
+A <a href="#g-conjunction">conjunction</a> of 1,100 <a href="#g-bound">bounds</a> ran out of budget,
+so Lean rejected its <a href="#g-certificate">certificate</a>.
+Now each atom gets a private <a href="#g-lemma">lemma</a> with its own budget.
+The rewrite theorem only applies these lemmas.
+The same <a href="#g-qf-lra">QF_LRA</a> <a href="#g-refutation">refutation</a> is now accepted by Lean in about 17 seconds.
+The <a href="#g-tactic">tactic</a> proofs are unchanged, so the <a href="#g-trust-boundary">trust boundary</a> is unchanged.</p>
+
+<h2 id="background">Background</h2>
+<p>PR #45 made the pipeline handle inputs nested over a thousand levels deep.
+The <a href="#g-clause-log">clause log</a> certificates of such inputs were checked by Lean.
+The <a href="#g-legacy-core">legacy core</a> certificate of a 1,100-bound nested conjunction was only reconstructed, because Lean timed out on it.
+The cause was the width of the normalized rewrite, not the nesting.
+It serves milestone 3 of the plan, "Equality and <a href="#g-linear-arithmetic">linear arithmetic</a>", which asks that each fragment work end to end.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>A wide normalized rewrite, over hundreds or thousands of atoms, can now be checked by Lean instead of timing out.</li>
+<li>Each atom's normalization is now a separate lemma, <code>normalized_atom_N_A</code>, with the full heartbeat limit the whole rewrite used to share.</li>
+<li>The deep test suite now runs Lean on the 1,100-bound legacy certificate, instead of only building it.</li>
+<li>The plan document has a dated note on the change, and the older "Deep nesting" note points to it.</li>
+</ul>
+<p>An analogy: before, 1,100 students sat one exam in one room with one shared clock, hearing every earlier answer.
+Around student 220 the clock ran out.
+Now each student has a separate room and clock.</p>
+
+<table>
+<thead><tr><th>File</th><th>What it is</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">20</td><td class="num">10</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_deep.py</code></td><td>Deep-input tests</td><td class="num">20</td><td class="num">12</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan and design notes</td><td class="num">14</td><td class="num">1</td></tr>
+<tr><th>Total (3 files)</th><th></th><th class="num">54</th><th class="num">23</th></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>The old code already handled small rewrites, so a tiny input shows no difference.
+The example is the PR's own test input, <code>deep_bounds_conjunction(1100)</code>, trimmed here.
+All output comes from real runs made for this report.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const x0 Real)
+...                                  ; x1 to x1098 cut
+(declare-const x1099 Real)
+(assert (and (&lt; x0 5.0) (and (&lt; x1 5.0) (and (&lt; x2 5.0) ...
+   ... (and (&lt; x1099 5.0) (and (&lt; x y) (&lt; y x))))))))))))   ; closing parentheses cut
+(check-sat)</code></pre>
+<p class="explain">It asserts 1,100 bounds of the form <code>xi &lt; 5</code>, nested in conjunctions, plus the contradictory pair <code>x &lt; y</code> and <code>y &lt; x</code>.</p>
+
+<h3>(b) Before: the base commit's scripts</h3>
+<p>The base exporter, with <code>--core legacy</code>, and the base reconstructor both finished. Lean then rejected the result:</p>
+<pre><code>example.lean:14147:4: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached</code></pre>
+<p class="explain">Line 14147 is inside the one big rewrite theorem, at the 222nd atom:</p>
+<pre><code>  let _atom221 : Prop := ((((-1 : Rat)) * _vars 221) + ((5 : Rat)) &lt;= ((0 : Rat)))
+  have _norm444 : (formula_444 _atoms _vars) &lt;-&gt; (Not _atom221) := by
+    change ((_vars 221) &lt; (((5 : Rat)))) &lt;-&gt; (Not ((((-1 : Rat)) * _vars 221) + ((5 : Rat)) &lt;= ((0 : Rat))))
+    grind</code></pre>
+<p class="explain">Every earlier <code>_atom</code> and <code>_norm</code> sits in this <code>grind</code> call's context, and all of them draw on one budget.</p>
+<p>The base reconstructor's command line expects to sit inside the repository, so this report called its <code>reconstruct</code> function directly and ran Lean on the output.</p>
+
+<h3>(c) After: the current code</h3>
+<p><strong>Lean accepted the generated file</strong> ("Lean checks passed."). It has one <code>normalized_atom_</code> lemma per atom.</p>
+<pre><code>-- Variable 1100: "x"
+-- Variable 1101: "y"
+-- Real variables are encoded as Rat; see the exporter documentation.
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((5 : Rat))
+def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &lt; (term_1 _atoms _vars))
+...</code></pre>
+<p class="explain">The declarations: <code>formula_2</code> is the first bound, <code>x0 &lt; 5</code>, over rationals.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_3305 _atoms _vars))
+    : False :=
+  proof_step_16549 _atoms _vars _h0</code></pre>
+<p class="explain">The theorem statement: the asserted formula implies <code>False</code> for every valuation of the variables.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem normalized_atom_3317_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_2 _atoms _vars) &lt;-&gt; (Not ((((-1 : Rat)) * _vars 0) + ((5 : Rat)) &lt;= ((0 : Rat)))) := by
+  change ((_vars 0) &lt; (((5 : Rat)))) &lt;-&gt; (Not ((((-1 : Rat)) * _vars 0) + ((5 : Rat)) &lt;= ((0 : Rat))))
+  grind
+...</code></pre>
+<p class="explain">The new feature: one atom's normalization, <code>x0 &lt; 5</code> into the <a href="#g-canonical-form">canonical form</a> <code>not (-x0 + 5 &lt;= 0)</code>, proved alone with its own budget.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+set_option linter.unnecessarySimpa false in
+private theorem rewrite_3317 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_3316 _atoms _vars) := by
+  let _atom0 : Prop := ((((-1 : Rat)) * _vars 0) + ((5 : Rat)) &lt;= ((0 : Rat)))
+  have _norm2 : (formula_2 _atoms _vars) &lt;-&gt; (Not _atom0) := normalized_atom_3317_2 _atoms _vars
+  let _atom1 : Prop := ((((-1 : Rat)) * _vars 1) + ((5 : Rat)) &lt;= ((0 : Rat)))
+  have _norm4 : (formula_4 _atoms _vars) &lt;-&gt; (Not _atom1) := normalized_atom_3317_4 _atoms _vars
+  ...
+  have _norm2204 : (formula_2204 _atoms _vars) &lt;-&gt; (Not _atom1101) := normalized_atom_3317_2204 _atoms _vars
+  simpa only [formula_3316, formula_3315, ...] using (normalized_rewrite_3317 ...)</code></pre>
+<p class="explain">The rewrite theorem now just cites each lemma, and Lean matches <code>_atom0</code> to the lemma's form by <a href="#g-defeq">definitional equality</a>.</p>
+
+<table>
+<thead><tr><th>Run on this input</th><th>Lean file size</th><th>Atom lemmas</th><th>Lean result</th><th>Wall time</th></tr></thead>
+<tbody>
+<tr><td>Base commit <code>4f0b0a3</code></td><td class="num">3,128,542 bytes</td><td class="num">0</td><td class="bad">Rejected: heartbeat timeout at 14147:4</td><td class="num">66 s</td></tr>
+<tr><td>PR head <code>7884a34</code></td><td class="num">3,416,762 bytes</td><td class="num">1,102</td><td class="ok">Accepted</td><td class="num">17 s</td></tr>
+</tbody>
+</table>
+
+<h2 id="verified">How it was verified</h2>
+<p>In plain terms: every local test suite the implementer ran passed, including about 300 reconstruction tests.
+The new deep test fails on the old code and passes on the new code.
+The loop's local gate has <strong>not been recorded</strong> for this PR yet.</p>
+<table>
+<thead><tr><th>Local check (implementer, final commit)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Deep tests, <code>test_proof_to_lean_deep.py</code></td><td class="ok">7 tests OK, 33.1 s</td></tr>
+<tr><td>All reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">301 tests OK, 949.5 s</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">99 tests OK</td></tr>
+<tr><td>Lean project build, <code>check_lean.sh</code></td><td class="ok">Passed</td></tr>
+<tr><td>z3test proof tests</td><td class="ok">46 tests OK</td></tr>
+<tr><td>Proof matrix, legacy core, Boolean files</td><td class="ok">6/6 Lean-verified</td></tr>
+<tr><td>Proof matrix, clause log, QF_LRA files</td><td class="ok">8/8 Lean-verified</td></tr>
+<tr><td>Old reconstructor on the 1,100-bound input</td><td class="bad">Fails as expected: timeout at 14147:4</td></tr>
+<tr><td>Not run</td><td><code>test-z3</code>, scripts/ unit tests, regression benchmarks. There is no C++ or scripts/ change.</td></tr>
+</tbody>
+</table>
+<p>No CI status was available to this report, so CI results are unknown and not inferred from local runs.
+No CI fix rounds were recorded.</p>
+<table>
+<thead><tr><th>CI job and step (from the PR description)</th><th>What it covers</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu build - cmake - releaseClang: "Check native Boolean proofs in Lean"</td><td>All <code>test_proof_to_lean*.py</code>, including the new deep Lean check</td><td class="unk">Unknown, <a href="https://github.com/levnach/z3/pull/46/checks">see PR checks</a></td></tr>
+<tr><td>Same job: "Require Lean-certified Boolean matrix results"</td><td>Boolean matrix cells</td><td class="unk">Unknown, <a href="https://github.com/levnach/z3/pull/46/checks">see PR checks</a></td></tr>
+<tr><td>Same job: "Require Lean-certified QF_LRA matrix results"</td><td>QF_LRA matrix cells</td><td class="unk">Unknown, <a href="https://github.com/levnach/z3/pull/46/checks">see PR checks</a></td></tr>
+<tr><td>manylinux wheel jobs</td><td>Only <code>test_proof_to_lean.py</code>, not the deep module</td><td class="unk">Unknown, <a href="https://github.com/levnach/z3/pull/46/checks">see PR checks</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blocker, major, or minor findings.
+They ran Lean on the old reconstructor's 1,100-bound output and saw the same timeout, so the new test really guards the fix.
+A diff of old and new output showed only the new lemmas and the <code>have</code> lines that use them.
+Neither file contains <code>sorry</code> or axioms.</p>
+<ul>
+<li><strong>Suggestion, heartbeat ceiling (adopted).</strong>
+The first version gave each lemma Lean's default limit, which is lower than the old shared one.
+So one hard atom could have newly failed, though none in the suites did.
+The second commit gives each lemma the old 1,000,000-heartbeat limit, so no atom gets a smaller ceiling.</li>
+<li><strong>Suggestion, repeated lemmas (deferred).</strong>
+Several wide rewrites over the same atoms each repeat their lemmas. Sharing them is left for later.</li>
+<li><strong>Nit, docstring.</strong> A rewrapped docstring left a short broken line. It was reflowed.</li>
+<li><strong>Nit, plan note.</strong> The older "Deep nesting" note still said the legacy rewrite was only reconstructed.
+It now adds that Lean checks it since the per-atom lemmas.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Each lemma repeats its atom's canonical form, so certificates grow. The PR reports about 8% for the example. This report measured about 9%.</li>
+<li>The deep test adds about 16 seconds of Lean to the CI Lean step.</li>
+<li>The rewrite theorem still holds one <code>let</code> per atom and one <code>simpa only</code> over all of them. That will be the next cost as width grows.</li>
+<li>CI results are unknown to this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Key the atom lemmas by atom, so several wide rewrites can share them.</li>
+<li>Still open from PR #45: legacy and-elim over a flat 1,200-operand conjunction, the <code>tta_startup</code> inputs that do not verify yet, and FISCHER's slow equivalence checks of <code>assume</code>.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-atom">atom</dt>
+<dd>A formula with no Boolean connective inside it, such as <code>x0 &lt; 5</code>.</dd>
+<dt id="g-bound">bound</dt>
+<dd>An atom that compares one variable with a constant, such as <code>x0 &lt; 5</code>.</dd>
+<dt id="g-canonical-form">canonical form</dt>
+<dd>One fixed way of writing equivalent formulas, so that equal things look equal. Here: a sum of coefficient-times-variable terms plus a constant, compared with 0.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>A file that records a proof so another program can check it step by step.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>A proof record that lists the clauses the solver learned, in order, with hints. It is one of the two exporter cores.</dd>
+<dt id="g-conjunction">conjunction</dt>
+<dd>A formula of the form "A and B". A nested conjunction is "A and (B and (C and ...))".</dd>
+<dt id="g-defeq">definitional equality</dt>
+<dd>Two Lean terms are definitionally equal when unfolding definitions makes them identical. Lean accepts this without a separate proof.</dd>
+<dt id="g-heartbeat">heartbeat</dt>
+<dd>Lean's unit of work. Each declaration has a heartbeat limit, and Lean stops with a timeout error when it is used up.</dd>
+<dt id="g-legacy-core">legacy core</dt>
+<dd>The exporter path that reads Z3's older proof object, as opposed to the clause log.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A small proved statement used as a step in a larger proof.</dd>
+<dt id="g-linear-arithmetic">linear arithmetic</dt>
+<dd>Arithmetic with only addition and multiplication by constants, such as <code>2x + 3y &lt;= 5</code>.</dd>
+<dt id="g-normalization">normalization</dt>
+<dd>Rewriting a formula into its canonical form, together with a proof that both are equivalent.</dd>
+<dt id="g-normalized-rewrite">normalized rewrite</dt>
+<dd>A rewrite step proved in two parts: first each atom is normalized, then the Boolean structure over the normalized atoms is proved.</dd>
+<dt id="g-qf-lra">QF_LRA</dt>
+<dd>The SMT-LIB logic of quantifier-free linear arithmetic over the reals.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+<dt id="g-rewrite">rewrite step</dt>
+<dd>A proof step that replaces a formula with an equivalent one and records that they are equivalent.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that builds part of a proof automatically. <code>grind</code> and <code>simpa</code> are tactics.</dd>
+<dt id="g-theorem">theorem</dt>
+<dd>A named, proved statement in Lean. A lemma is a theorem used as a helper.</dd>
+<dt id="g-trust-boundary">trust boundary</dt>
+<dd>The set of things one must trust for a checked result to be correct. Here it is Lean and the translation of the input into Lean, not Z3.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-29.
+Source pull request: <a href="https://github.com/levnach/z3/pull/46">levnach/z3 #46</a>.
+</footer>
+</body>
+</html>
