@@ -621,6 +621,8 @@ class _Normalizer:
 
     def __init__(self):
         self.cache = {}  # (AST identifier, polarity) -> (expression kept alive, key)
+        self.failed = {}  # (AST identifier, polarity) -> (expression kept alive, the error its form raised)
+        self.traces = {}  # identifier of a failed error -> its traceback where it was first caught
         self.ids = {}  # canonical form -> key
         self.forms = []  # key -> canonical form
 
@@ -628,11 +630,56 @@ class _Normalizer:
         return self._key(expr, True)
 
     def _key(self, expr, polarity):
+        """The key of expr under polarity, its subformulas' keys computed first without recursion.
+
+        A conjunction a thousand levels deep (QF_IDL FISCHER6-4-ninc, a
+        CVC Lite translation) exceeded Python's recursion limit when every
+        form computed its children's keys recursively. The children are
+        visited bottom up on an explicit stack instead (_requests names the
+        ones _compute_form asks for), so _compute_form finds them cached. A
+        child whose form raises is not raised at once: its error is kept
+        and raised when _compute_form asks for it, as when the keys were
+        computed on demand (a conjunction stops at a false conjunct and
+        never asks for the later ones).
+        """
         index = expr.get_id(), polarity
-        cached = self.cache.get(index)
-        if cached is None:
-            cached = self.cache[index] = (expr, self._intern(self._compute_form(expr, polarity)))
-        return cached[1]
+        if index not in self.cache and index not in self.failed:
+            pending = [(expr, polarity, False)]
+            while pending:
+                node, truth, expanded = pending.pop()
+                position = node.get_id(), truth
+                if position in self.cache or position in self.failed:
+                    continue
+                if not expanded:
+                    pending.append((node, truth, True))
+                    pending.extend((child, sign, False) for child, sign in reversed(self._requests(node, truth)))
+                    continue
+                try:
+                    self.cache[position] = (node, self._intern(self._compute_form(node, truth)))
+                except Exception as error:  # noqa: BLE001 - raised again when the form is asked for
+                    self.failed[position] = (node, error)
+                    self.traces.setdefault(id(error), error.__traceback__)
+        if index in self.failed:
+            # From the traceback where it was first caught: every failing
+            # ancestor raises the same error, which would gather all their frames.
+            error = self.failed[index][1]
+            raise error.with_traceback(self.traces[id(error)])
+        return self.cache[index][1]
+
+    def _requests(self, expr, polarity):
+        """The (subformula, polarity) pairs whose keys _compute_form asks for, in its order."""
+        kind = expr.decl().kind()
+        if kind == z3.Z3_OP_NOT:
+            return [(expr.arg(0), not polarity)]
+        if kind in (z3.Z3_OP_AND, z3.Z3_OP_OR):
+            return [(child, polarity) for child in expr.children()]
+        if kind == z3.Z3_OP_IMPLIES:
+            return [(z3.Or(z3.Not(expr.arg(0)), expr.arg(1)), polarity)]
+        if kind in (z3.Z3_OP_TRUE, z3.Z3_OP_FALSE) or kind in _ARITH_PREDICATES or (
+                kind == z3.Z3_OP_EQ and z3.is_arith(expr.arg(0))) or (
+                kind == z3.Z3_OP_DISTINCT and z3.is_arith(expr.arg(0)) and expr.num_args() == 2):
+            return []
+        return [(child, True) for child in expr.children()]
 
     def _intern(self, form):
         key = self.ids.get(form)
@@ -714,11 +761,17 @@ class _Normalizer:
 
 
 def _conjuncts(expr, path=()):
-    """Yield (formula, and-elim path) for every conjunct reachable through nested ands."""
-    yield expr, path
-    if expr.decl().kind() == z3.Z3_OP_AND:
-        for child in expr.children():
-            yield from _conjuncts(child, path + (child,))
+    """Yield (formula, and-elim path) for every conjunct reachable through nested ands.
+
+    Depth first, parents before their conjuncts, without recursion: a
+    QF_IDL model checking input (FISCHER6-4-ninc) nests a thousand ands.
+    """
+    pending = [(expr, path)]
+    while pending:
+        expr, path = pending.pop()
+        yield expr, path
+        if expr.decl().kind() == z3.Z3_OP_AND:
+            pending.extend((child, path + (child,)) for child in reversed(expr.children()))
 
 
 def _symbols(expr):
