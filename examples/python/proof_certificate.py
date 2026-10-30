@@ -25,6 +25,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 import z3
 
@@ -1138,19 +1139,23 @@ def export_certificate(source, query=None, timeout=None, memory=None):
     # of memory for the rest of the process.) It is restored afterwards.
     previous = z3.get_param("memory_high_watermark_mb")
     z3.set_param("memory_high_watermark_mb", megabytes)
+    start = time.monotonic()
     try:
         result = solver.check()
     finally:
+        elapsed = time.monotonic() - start
         z3.set_param("memory_high_watermark_mb", previous)
     if result == z3.sat:
         raise ProofExportError("sat: no unsat proof exists")
     if result == z3.unknown:
         reason = solver.reason_unknown()
-        # The smt core reports its timer as "canceled".
-        if reason in ("canceled", "timeout"):
+        # The smt core reports its timer as "canceled", as it does an
+        # external interrupt; only a check that lasted the limit hit the timer.
+        if reason in ("canceled", "timeout") and elapsed >= seconds:
             raise ProofExportError("the legacy solver run exceeded the time limit of %d s" % seconds)
         if reason == "memout":
-            raise ProofExportError("the legacy solver run exceeded the memory limit of %d MB" % megabytes)
+            raise ProofExportError("z3's memory in this process exceeded the limit of %d MB during the legacy "
+                                   "solver run" % megabytes)
         raise ProofExportError("unknown: %s" % reason)
     return _certificate_from_proof(source, assertions, solver.proof(), index)
 
@@ -1212,8 +1217,8 @@ def main():
                         help="seconds allowed for the legacy solver run, or for each stage of the clause log: "
                              "the solver run, the trimmer run, and the replay (default: 600)")
     parser.add_argument("--memory", type=int,
-                        help="megabytes allowed for the legacy solver run or for each z3 run of the clause log "
-                             "(default: 8192)")
+                        help="megabytes allowed for each z3 run of the clause log, or for z3's memory in this "
+                             "process during the legacy solver run (default: 8192)")
     parser.add_argument("--query", type=int,
                         help="zero-based index of the check-sat query to certify in an incremental script "
                              "(push, pop, reset, several queries); default: the script's only query")

@@ -1600,7 +1600,11 @@ core polls during the search, set for the check and restored after it
 (`memory_max_size` would throw from the allocator and leave z3 marked out of
 memory for the rest of the process). The smt core reports them as unknown
 with "canceled" and "memout", now raised as "the legacy solver run exceeded
-the time limit of N s" / "the memory limit of N MB". The clause-log replay
+the time limit of N s" (only when the check lasted the limit; an earlier
+"canceled" is an interrupt and stays "unknown: canceled") and "z3's memory in
+this process exceeded the limit of N MB during the legacy solver run" (the
+watermark compares all of z3's allocations in the process, not the solve's
+own). The clause-log replay
 (`build_certificate(..., timeout)`) has a wall-clock deadline of the time
 limit, checked before every log command and every bounded solver call of
 the assumption search: QF_IDL `qlock-4-10-8` exported in 622 s under a 60 s

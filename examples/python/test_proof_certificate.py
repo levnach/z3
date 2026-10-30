@@ -3311,7 +3311,8 @@ class TestClauseLogDependencies(unittest.TestCase):
         hard = _pigeonhole(11)
         watermark = z3.get_param("memory_high_watermark_mb")
         for limits, message in [({"timeout": 1}, "legacy solver run exceeded the time limit of 1 s"),
-                                ({"timeout": 60, "memory": 20}, "legacy solver run exceeded the memory limit of 20 MB")]:
+                                ({"timeout": 5, "memory": 20},
+                                 "memory in this process exceeded the limit of 20 MB during the legacy solver run")]:
             with self.subTest(**limits), self.assertRaisesRegex(proof_certificate.ProofExportError, message):
                 proof_certificate.export_certificate(hard, **limits)
             self.assertEqual(z3.get_param("memory_high_watermark_mb"), watermark)
@@ -3335,6 +3336,12 @@ class TestClauseLogDependencies(unittest.TestCase):
                 self.assertRaisesRegex(z3.Z3Exception, "check failed"):
             proof_certificate.export_certificate(small, memory=20)
         self.assertEqual(z3.get_param("memory_high_watermark_mb"), watermark)
+        # An interrupt is also "canceled"; before the limit has passed it is
+        # not blamed on the timer.
+        with patch.object(z3.Solver, "check", return_value=z3.unknown), \
+                patch.object(z3.Solver, "reason_unknown", return_value="canceled"), \
+                self.assertRaisesRegex(proof_certificate.ProofExportError, "^unknown: canceled$"):
+            proof_certificate.export_certificate(small, timeout=60)
         for limits in ({"timeout": 0}, {"timeout": float("inf")}, {"memory": 0}, {"memory": 1.5}):
             with self.subTest(**limits), patch.object(z3.Solver, "check", side_effect=AssertionError("solved")), \
                     self.assertRaises(ValueError):
