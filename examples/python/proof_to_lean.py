@@ -2617,8 +2617,9 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
     `normalized_atom_N_A`: as `have`s of one theorem, every grind call saw
     the atoms and rewrites before it in its context and all shared one
     heartbeat budget, which a conjunction of 1,100 bounds exhausted about
-    200 atoms in. The Boolean lemma over the
-    names, `normalized_rewrite_N`, is proved by _PropositionalProver in
+    200 atoms in; each lemma now has the budget the whole theorem had.
+    The Boolean lemma over the names, `normalized_rewrite_N`, is proved by
+    _PropositionalProver in
     classical mode (the names are leaves, a constant atom its truth value)
     with `grind` as the `first` fallback, and `simpa` closes the rewrite
     with it. The 74-way disjunction of the clock synchronization QF_LRA
@@ -2671,7 +2672,8 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         rewrite = "_norm%d" % atom
         rewrites.append(rewrite)
         atom_lemmas.extend([
-            "", "private theorem normalized_atom_%d_%d (_atoms : Nat -> Prop)%s" % (
+            "", "set_option maxHeartbeats 1000000 in",
+            "private theorem normalized_atom_%d_%d (_atoms : Nat -> Prop)%s" % (
                 node, atom, _valuation_binder(graph)),
             "    : %s <-> %s := by" % (_formula(graph, atom), expanded),
             "  change %s <-> %s" % (_inline(graph, atom, atom_indices, variable_indices), expanded),
