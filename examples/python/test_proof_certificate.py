@@ -4,6 +4,7 @@
 # Tests for native Boolean proof certificate export.
 ############################################
 from fractions import Fraction
+import itertools
 import json
 from pathlib import Path
 import re
@@ -12,7 +13,7 @@ import sys
 import tempfile
 import tracemalloc
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import warnings
 
 import z3
@@ -1966,6 +1967,43 @@ class TestClauseLogReplay(unittest.TestCase):
         assertions, fragment = proof_certificate.parse_assertions(source, context, integer=True)
         return proof_clause_log.build_certificate(source, fragment, assertions, log, context)
 
+    def test_replay_stops_at_its_time_limit(self):
+        # The replay is Python and in-process: QF_IDL qlock-4-10-8 replayed for
+        # ten minutes under a 60 s z3 timeout. It now has a deadline, checked
+        # before every log command and every bounded solver call.
+        def clock(*readings):
+            fake = Mock()
+            fake.monotonic.side_effect = itertools.chain(readings, itertools.repeat(readings[-1]))
+            return fake
+
+        context = z3.Context()
+        assertions, fragment = proof_certificate.parse_assertions(_LRA, context, integer=True)
+        for timeout, seconds in [(None, proof_clause_log._TIME_LIMIT), (2.5, 3)]:
+            with self.subTest(timeout=timeout), patch.object(proof_clause_log, "time", clock(0.0, seconds + 1.0)):
+                with self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                            "the clause-log replay exceeded the time limit of %d s" % seconds):
+                    proof_clause_log.build_certificate(_LRA, fragment, assertions, _LRA_LOG, context, timeout)
+        # Within the limit nothing changes.
+        with patch.object(proof_clause_log, "time", clock(0.0, 3.0)):
+            certificate = proof_clause_log.build_certificate(_LRA, fragment, assertions, _LRA_LOG, context, 3)
+        self.assertEqual(certificate, self.replay(_LRA, _LRA_LOG))
+        # The solver calls of the assumption search check it too.
+        replay = proof_clause_log._Replay(_LRA, fragment, assertions, context, 5)
+        replay.deadline -= 6
+        for call in (replay._valid, replay._implying_assertions):
+            with self.subTest(call=call.__name__), \
+                    self.assertRaisesRegex(proof_certificate.ProofExportError, "replay exceeded the time limit of 5 s"):
+                call(z3.BoolVal(True, context))
+        for timeout in (0, -1, float("nan"), True):
+            with self.subTest(timeout=timeout), self.assertRaises(ValueError):
+                proof_clause_log.build_certificate(_LRA, fragment, assertions, _LRA_LOG, context, timeout)
+        # The export passes its timeout to the replay.
+        with patch.object(proof_clause_log, "run_clause_log", return_value=_LRA_LOG), \
+                patch.object(proof_clause_log, "time", clock(0.0, 8.0)), \
+                self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                       "the clause-log replay exceeded the time limit of 7 s"):
+            proof_certificate.export_clause_log_certificate(_LRA, timeout=7)
+
     def test_recorded_log_becomes_a_well_formed_dag(self):
         certificate = self.replay(_LRA, _LRA_LOG)
         self.assertEqual(certificate["fragment"], "qf_lra")
@@ -3263,6 +3301,51 @@ class TestClauseLogDependencies(unittest.TestCase):
         # Small inputs export under explicit limits.
         certificate = proof_certificate.export_clause_log_certificate(_LRA, timeout=60, memory=1024)
         self.assertEqual(certificate["fragment"], "qf_lra")
+
+    def test_legacy_solve_stops_at_the_limits(self):
+        # The legacy core solves in this process: proof_certificate.py
+        # --timeout 1 on a hard propositional input (auto selects legacy) ran
+        # unbounded. Its smt core now gets the time limit as the solver's
+        # timeout and the memory limit as z3's high watermark, both by
+        # default too, and reports either by name.
+        hard = _pigeonhole(11)
+        watermark = z3.get_param("memory_high_watermark_mb")
+        for limits, message in [({"timeout": 1}, "legacy solver run exceeded the time limit of 1 s"),
+                                ({"timeout": 5, "memory": 20},
+                                 "memory in this process exceeded the limit of 20 MB during the legacy solver run")]:
+            with self.subTest(**limits), self.assertRaisesRegex(proof_certificate.ProofExportError, message):
+                proof_certificate.export_certificate(hard, **limits)
+            self.assertEqual(z3.get_param("memory_high_watermark_mb"), watermark)
+        result = subprocess.run([sys.executable, str(_EXAMPLES / "proof_certificate.py"), "--timeout", "1", "-"],
+                                input=hard, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("legacy solver run exceeded the time limit of 1 s", result.stderr)
+        # The limits reach the solver, the defaults included, and the
+        # watermark is restored even when the check raises.
+        small = _pigeonhole(3)
+        for limits, seconds, megabytes in [({}, proof_clause_log._TIME_LIMIT, proof_clause_log._MEMORY_LIMIT),
+                                           ({"timeout": 2.5, "memory": 1024}, 3, 1024)]:
+            with self.subTest(**limits), patch.object(z3.Solver, "set", autospec=True, side_effect=z3.Solver.set) \
+                    as solver_set, patch.object(z3, "set_param", side_effect=z3.set_param) as set_param:
+                certificate = proof_certificate.export_certificate(small, **limits)
+            self.assertEqual(certificate["fragment"], "propositional")
+            self.assertIn(("timeout", seconds * 1000), [call.args[1:] for call in solver_set.call_args_list])
+            self.assertEqual([call.args for call in set_param.call_args_list],
+                             [("memory_high_watermark_mb", megabytes), ("memory_high_watermark_mb", watermark)])
+        with patch.object(z3.Solver, "check", side_effect=z3.Z3Exception("check failed")), \
+                self.assertRaisesRegex(z3.Z3Exception, "check failed"):
+            proof_certificate.export_certificate(small, memory=20)
+        self.assertEqual(z3.get_param("memory_high_watermark_mb"), watermark)
+        # An interrupt is also "canceled"; before the limit has passed it is
+        # not blamed on the timer.
+        with patch.object(z3.Solver, "check", return_value=z3.unknown), \
+                patch.object(z3.Solver, "reason_unknown", return_value="canceled"), \
+                self.assertRaisesRegex(proof_certificate.ProofExportError, "^unknown: canceled$"):
+            proof_certificate.export_certificate(small, timeout=60)
+        for limits in ({"timeout": 0}, {"timeout": float("inf")}, {"memory": 0}, {"memory": 1.5}):
+            with self.subTest(**limits), patch.object(z3.Solver, "check", side_effect=AssertionError("solved")), \
+                    self.assertRaises(ValueError):
+                proof_certificate.export_certificate(small, **limits)
 
     @unittest.skipUnless(_z3_available(), "the z3 executable is required for proof trimming")
     def test_native_trimmed_certificate_replays(self):

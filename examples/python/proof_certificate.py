@@ -25,6 +25,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 import z3
 
@@ -1103,7 +1104,7 @@ def _certificate_from_proof(source, assertions, proof, query=0):
     return certificate
 
 
-def export_certificate(source, query=None):
+def export_certificate(source, query=None, timeout=None, memory=None):
     """Return a native proof bundle, not an independently verified verdict.
 
     The source is an SMT-LIB script; the certificate is about the assertion
@@ -1114,7 +1115,12 @@ def export_certificate(source, query=None):
     supports every fragment; theory_lra's th-lemma steps carry their Farkas
     coefficients as declaration parameters, except over Int, where cuts, the
     div/mod axioms, and lattice conflicts carry none and Lean proves them.
+    timeout (seconds) and memory (megabytes) bound the solver run, by default
+    as in export_clause_log_certificate; hitting either raises
+    ProofExportError naming it.
     """
+    import proof_clause_log
+    seconds, megabytes = proof_clause_log._limits(timeout, memory)
     context = z3.Context(proof=True)
     assertions, _ = parse_legacy_assertions(source, context, integer=True, query=query)
     _, index, _ = query_snapshot(source, query)
@@ -1124,12 +1130,33 @@ def export_certificate(source, query=None):
     # by intro-def steps over fresh k!N constants, which the certificate
     # rejects. Send the assertions to the smt core directly.
     solver.set("combined_solver.ignore_solver1", True)
+    solver.set("timeout", seconds * 1000)
     solver.add(assertions)
-    result = solver.check()
+    # The solve runs in this process, so the memory limit is z3's high
+    # watermark: a global parameter the smt core polls during the search,
+    # stopping with "memout" once z3's allocations in this process exceed it.
+    # (memory_max_size would throw from the allocator and leave z3 marked out
+    # of memory for the rest of the process.) It is restored afterwards.
+    previous = z3.get_param("memory_high_watermark_mb")
+    z3.set_param("memory_high_watermark_mb", megabytes)
+    start = time.monotonic()
+    try:
+        result = solver.check()
+    finally:
+        elapsed = time.monotonic() - start
+        z3.set_param("memory_high_watermark_mb", previous)
     if result == z3.sat:
         raise ProofExportError("sat: no unsat proof exists")
     if result == z3.unknown:
-        raise ProofExportError("unknown: %s" % solver.reason_unknown())
+        reason = solver.reason_unknown()
+        # The smt core reports its timer as "canceled", as it does an
+        # external interrupt; only a check that lasted the limit hit the timer.
+        if reason in ("canceled", "timeout") and elapsed >= seconds:
+            raise ProofExportError("the legacy solver run exceeded the time limit of %d s" % seconds)
+        if reason == "memout":
+            raise ProofExportError("z3's memory in this process exceeded the limit of %d MB during the legacy "
+                                   "solver run" % megabytes)
+        raise ProofExportError("unknown: %s" % reason)
     return _certificate_from_proof(source, assertions, solver.proof(), index)
 
 
@@ -1156,8 +1183,9 @@ def export_clause_log_certificate(source, z3_executable=None, timeout=None, quer
     reverse-unit-propagation steps become explicit resolution chains. The
     bundle is unverified; the Lean reconstructor must check it. timeout
     (seconds) and memory (megabytes) bound each z3 run, the solver's and the
-    trimmer's (default: 600 s and 8192 MB); a run that hits either limit
-    raises ProofExportError naming it.
+    trimmer's (default: 600 s and 8192 MB), and timeout also bounds the
+    replay of the log; a stage that hits either limit raises
+    ProofExportError naming it.
     """
     import proof_clause_log
     context = z3.Context()
@@ -1167,7 +1195,7 @@ def export_clause_log_certificate(source, z3_executable=None, timeout=None, quer
     try:
         text = proof_clause_log.run_clause_log(executable, commands, timeout, memory)
         text = proof_clause_log.trim_clause_log(executable, text, timeout, memory)
-        certificate = proof_clause_log.build_certificate(source, fragment, assertions, text, context)
+        certificate = proof_clause_log.build_certificate(source, fragment, assertions, text, context, timeout)
         certificate["query"] = index
         return certificate
     except subprocess.TimeoutExpired as error:
@@ -1186,10 +1214,11 @@ def main():
                              "propositional, clause log otherwise)")
     parser.add_argument("--z3", help="z3 executable for the clause log (default: $Z3_EXE, build/z3, or z3)")
     parser.add_argument("--timeout", type=float,
-                        help="seconds allowed for each z3 run of the clause log, the solver's and the "
-                             "trimmer's (default: 600)")
+                        help="seconds allowed for the legacy solver run, or for each stage of the clause log: "
+                             "the solver run, the trimmer run, and the replay (default: 600)")
     parser.add_argument("--memory", type=int,
-                        help="megabytes allowed for each z3 run of the clause log (default: 8192)")
+                        help="megabytes allowed for each z3 run of the clause log, or for z3's memory in this "
+                             "process during the legacy solver run (default: 8192)")
     parser.add_argument("--query", type=int,
                         help="zero-based index of the check-sat query to certify in an incremental script "
                              "(push, pop, reset, several queries); default: the script's only query")
@@ -1212,7 +1241,7 @@ def main():
             _, fragment = parse_assertions(source, z3.Context(), integer=True, query=args.query)
             core = "legacy" if fragment == "propositional" else "clause-log"
         if core == "legacy":
-            certificate = export_certificate(source, args.query)
+            certificate = export_certificate(source, args.query, args.timeout, args.memory)
         else:
             certificate = export_clause_log_certificate(source, args.z3, args.timeout, args.query, args.memory)
         json.dump(certificate, sys.stdout, indent=2, sort_keys=True)

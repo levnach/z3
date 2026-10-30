@@ -22,6 +22,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import warnings
 
 import z3
@@ -851,8 +852,10 @@ def _symbols(expr):
 
 
 class _Replay:
-    def __init__(self, source, fragment, assertions, context):
+    def __init__(self, source, fragment, assertions, context, timeout=None):
         self.source, self.fragment, self.context = source, fragment, context
+        self.time_limit, _ = _limits(timeout, None)
+        self.deadline = time.monotonic() + self.time_limit
         self.assertions = list(assertions)
         self.dag = DagBuilder()
         self.assertion_nodes = [self.dag.expression(expr) for expr in self.assertions]
@@ -1120,6 +1123,7 @@ class _Replay:
         assertions = list(dict.fromkeys(self.assertions, None))
         if not assertions:
             return None
+        self._check_deadline()
         solver = z3.Solver(ctx=self.context)
         solver.set("rlimit", _RLIMIT)
         tracking = [z3.FreshBool("cnf_source", self.context) for _ in assertions]
@@ -1149,7 +1153,18 @@ class _Replay:
         self.alive.extend(lemma_literals)
         return self._resolve(lemma, [node for node, _ in sources], lemma_literals, list(literals))
 
+    def _check_deadline(self):
+        """Stop the replay once it has run for its time limit.
+
+        Checked before every log command and every bounded solver call (the
+        assumption search makes thousands on a deeply nested assertion), so
+        the replay overruns its limit by at most one of either.
+        """
+        if time.monotonic() > self.deadline:
+            raise ProofExportError("the clause-log replay exceeded the time limit of %d s" % self.time_limit)
+
     def _valid(self, claim):
+        self._check_deadline()
         solver = z3.Solver(ctx=self.context)
         solver.set("rlimit", _RLIMIT)
         solver.add(z3.Not(claim))
@@ -1333,6 +1348,7 @@ class _Replay:
         # literal is rejected when it is built.
         phantoms = set()
         for command in _sexpressions(text):
+            self._check_deadline()
             if not command or not isinstance(command[0], str):
                 raise ProofExportError("malformed clause log command")
             head = command[0]
@@ -1415,6 +1431,10 @@ class _Replay:
                                     compact=self.trimmed)
 
 
-def build_certificate(source, fragment, assertions, text, context):
-    """Rebuild a clause log as an unverified z3-native-proof-dag bundle."""
-    return _Replay(source, fragment, assertions, context).run(text)
+def build_certificate(source, fragment, assertions, text, context, timeout=None):
+    """Rebuild a clause log as an unverified z3-native-proof-dag bundle.
+
+    timeout (seconds, default _TIME_LIMIT) bounds the replay's wall-clock
+    time; exceeding it raises ProofExportError.
+    """
+    return _Replay(source, fragment, assertions, context, timeout).run(text)

@@ -1589,6 +1589,30 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Limits on the legacy solve and the clause-log replay (2026-10-30)
+
+The two in-process stages the note below left unbounded now take the same
+limits. The legacy core (`export_certificate(..., timeout, memory)`, and
+`proof_certificate.py --timeout/--memory`, which `--core auto` uses for
+propositional input) sets the time limit as its solver's `timeout` and the
+memory limit as z3's `memory_high_watermark_mb`, a global parameter the smt
+core polls during the search, set for the check and restored after it
+(`memory_max_size` would throw from the allocator and leave z3 marked out of
+memory for the rest of the process). The smt core reports them as unknown
+with "canceled" and "memout", now raised as "the legacy solver run exceeded
+the time limit of N s" (only when the check lasted the limit; an earlier
+"canceled" is an interrupt and stays "unknown: canceled") and "z3's memory in
+this process exceeded the limit of N MB during the legacy solver run" (the
+watermark compares all of z3's allocations in the process, not the solve's
+own). The clause-log replay
+(`build_certificate(..., timeout)`) has a wall-clock deadline of the time
+limit, checked before every log command and every bounded solver call of
+the assumption search: QF_IDL `qlock-4-10-8` exported in 622 s under a 60 s
+z3 timeout and is now rejected with "the clause-log replay exceeded the time
+limit of 60 s". Nothing about what Lean certifies changes. Tests:
+`test_legacy_solve_stops_at_the_limits` and
+`test_replay_stops_at_its_time_limit` in `test_proof_certificate.py`.
+
 ### Time and memory limits on the exporter's z3 runs (2026-10-30)
 
 The clause-log export starts the z3 executable twice, to solve and to trim,
