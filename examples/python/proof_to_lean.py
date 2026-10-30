@@ -133,38 +133,56 @@ _NORMALIZED_CONNECTIVES = (z3.Z3_OP_AND, z3.Z3_OP_OR, z3.Z3_OP_NOT, z3.Z3_OP_IMP
 # heartbeat limit.
 _STRUCTURAL_REWRITE_STEPS = 20000
 _STRUCTURAL_REWRITE_CHARS = 1000000
+# Characters of Lean text above which the file is elaborated one declaration
+# at a time (Elab.async false, an elaboration schedule, not a trust setting).
+# Elaborating declarations in parallel tasks keeps far more memory alive:
+# z3test's NEQ004_size4 (21 MB) peaks above 10 GB in parallel and at 7.1 GB
+# serially, against the 8 GB `--memory` cap of check_lean.sh, at the price
+# of three times the wall time (about 100 s against 34 s). No other test
+# file exceeds 4 MB.
+_SERIAL_ELABORATION_CHARS = 8000000
 _RESERVED_SORTS = ("Bool", "Real", "Int", "Proof")
 # The uninterpreted sorts are one type variable; constants, functions, and
 # predicates are indexed families over argument lists, so one signature serves
 # every arity and every sort. Quantifying over all such interpretations covers
 # every model: a many-sorted model is one instance with the disjoint union of
-# its carriers as _U, since every ground term keeps its sort and equality is
+# its carriers as _m.U, since every ground term keeps its sort and equality is
 # only ever stated between terms of one sort (the certificate keeps the sort
 # names, and the proof graph is checked to be well-sorted before rendering).
-# A Boolean argument of a function or predicate is injected into _U by the
-# quantified map _bool, so Bool is treated as one more sort: a model's Bool
-# carrier joins the disjoint union and _bool picks its two values. Nothing
-# asserts that _bool True and _bool False differ, and nothing needs to: euf
-# lemmas only use the congruence p = q -> _bool p = _bool q.
-_UF_BINDERS = (" (_U : Type) (_elems : Nat -> _U) (_funs : Nat -> List _U -> _U) (_preds : Nat -> List _U -> Prop)"
-               " (_bool : Prop -> _U)")
-_UF_ARGUMENTS = " _U _elems _funs _preds _bool"
+# A Boolean argument of a function or predicate is injected into _m.U by the
+# quantified map _m.bool, so Bool is treated as one more sort: a model's Bool
+# carrier joins the disjoint union and _m.bool picks its two values. Nothing
+# asserts that _m.bool True and _m.bool False differ, and nothing needs to: euf
+# lemmas only use the congruence p = q -> _m.bool p = _m.bool q.
+# The carrier and the maps are the fields of one structure, Interpretation,
+# declared in each file and quantified as the one argument _m (the carrier
+# _m.U, the families _m.elems, _m.funs, _m.preds): every definition, lemma,
+# and proof step takes it and every reference applies it, and one argument in
+# place of five to seven cut z3test's NEQ004_size4 (13,700 declarations, elaborated
+# serially) from 9.6 GB of Lean memory to 7.1 GB.
+_UF_FIELDS = (("U", "Type"), ("elems", "Nat -> U"), ("funs", "Nat -> List U -> U"),
+              ("preds", "Nat -> List U -> Prop"), ("bool", "Prop -> U"))
+_UF_BINDERS = " (_m : Interpretation)"
+_UF_ARGUMENTS = " _m"
 # QF_UFLRA: the Rat valuation of the Real variables next to the carrier. A
-# Real argument of a function or predicate is injected into _U by _real, as a
-# Boolean one is by _bool (Real joins the disjoint union as one more carrier),
-# and a function with a Real result is one more indexed family _rfuns whose
+# Real argument of a function or predicate is injected into _m.U by _m.real, as a
+# Boolean one is by _m.bool (Real joins the disjoint union as one more carrier),
+# and a function with a Real result is one more indexed family _m.rfuns whose
 # applications are the opaque atoms of the linear forms, as in Z3's arithmetic
-# solver. Nothing states that _real is injective and nothing needs it: euf
-# lemmas only use the congruence x = y -> _real x = _real y. QF_UFLIA is the
-# same encoding over Int, with the injection _int and the family _ifuns.
-_UFLRA_BINDERS = " (_vars : Nat -> Rat)" + _UF_BINDERS + " (_real : Rat -> _U) (_rfuns : Nat -> List _U -> Rat)"
-_UFLRA_ARGUMENTS = " _vars" + _UF_ARGUMENTS + " _real _rfuns"
-_UFLIA_BINDERS = " (_vars : Nat -> Int)" + _UF_BINDERS + " (_int : Int -> _U) (_ifuns : Nat -> List _U -> Int)"
-_UFLIA_ARGUMENTS = " _vars" + _UF_ARGUMENTS + " _int _ifuns"
+# solver. Nothing states that _m.real is injective and nothing needs it: euf
+# lemmas only use the congruence x = y -> _m.real x = _m.real y. QF_UFLIA is the
+# same encoding over Int, with the injection _m.int and the family _m.ifuns. The
+# valuation stays a parameter of its own, as in QF_LRA and QF_LIA.
+_NUMERIC_FIELDS = {"Real": (("real", "Rat -> U"), ("rfuns", "Nat -> List U -> Rat")),
+                   "Int": (("int", "Int -> U"), ("ifuns", "Nat -> List U -> Int"))}
+_UFLRA_BINDERS = " (_vars : Nat -> Rat)" + _UF_BINDERS
+_UFLRA_ARGUMENTS = " _vars" + _UF_ARGUMENTS
+_UFLIA_BINDERS = " (_vars : Nat -> Int)" + _UF_BINDERS
+_UFLIA_ARGUMENTS = " _vars" + _UF_ARGUMENTS
 # The injection of a numeric argument into the carrier and the family of
 # functions with a numeric result, by arithmetic sort.
-_INJECTIONS = {"Real": "_real", "Int": "_int"}
-_NUMERIC_FUNCTIONS = {"Real": "_rfuns", "Int": "_ifuns"}
+_INJECTIONS = {"Real": "_m.real", "Int": "_m.int"}
+_NUMERIC_FUNCTIONS = {"Real": "_m.rfuns", "Int": "_m.ifuns"}
 _FIXED_PROOF_RULES = {
     z3.Z3_OP_PR_ASSERTED: ("asserted", 0),
     z3.Z3_OP_PR_HYPOTHESIS: ("hypothesis", 0),
@@ -586,7 +604,7 @@ def _bind_input(source, graph, fragment=None, query=0):
     (Z3 accepts overloading by sort; the frontend rejects it and this check is
     repeated here) and the certificate's declaration must carry that symbol's
     full signature. Interned terms also carry their sort, so terms of different
-    sorts never compare equal even though Lean renders every sort as _U.
+    sorts never compare equal even though Lean renders every sort as _m.U.
     """
     context = z3.Context(proof=False)
     original, original_fragment = parse_assertions(source, context, integer=True, query=query)
@@ -684,6 +702,14 @@ def _valuation_binder(graph):
             "qf_uflra": _UFLRA_BINDERS, "qf_uflia": _UFLIA_BINDERS}.get(graph.fragment, "")
 
 
+def _interpretation_structure(graph):
+    """Declare the structure whose one argument _m interprets the uninterpreted symbols (none outside the UF fragments)."""
+    if not graph.uninterpreted:
+        return []
+    fields = _UF_FIELDS + (_NUMERIC_FIELDS[graph.numeric] if graph.arithmetic else ())
+    return ["structure Interpretation where"] + ["  %s : %s" % field for field in fields] + [""]
+
+
 def _infix(operator, arguments):
     result = arguments[0]
     for argument in arguments[1:]:
@@ -694,12 +720,12 @@ def _infix(operator, arguments):
 def _application_arguments(graph, arguments, term, formula):
     """Render the argument list of a function or predicate over the uninterpreted sorts.
 
-    A Boolean argument is injected into the carrier by _bool (its formula is
-    rendered as a Prop) and a Real or Int one by _real or _int.
+    A Boolean argument is injected into the carrier by _m.bool (its formula is
+    rendered as a Prop) and a Real or Int one by _m.real or _m.int.
     """
     return "[%s]" % ", ".join("(%s %s)" % (graph.injection, term(arg)) if graph.is_arith(arg)
                               else term(arg) if graph.is_term(arg)
-                              else "(_bool %s)" % formula(arg) for arg in arguments)
+                              else "(_m.bool %s)" % formula(arg) for arg in arguments)
 
 
 def _numeral(graph, value):
@@ -725,15 +751,15 @@ def _term_body(graph, node, variable_indices, term=None, formula=None):
     if kind == z3.Z3_OP_UNINTERPRETED:
         index = variable_indices[graph.nodes[node].declaration]
         if not arguments:
-            return ("_vars %d" if graph.is_arith(node) else "_elems %d") % index
-        return "%s %d %s" % (graph.numeric_functions if graph.is_arith(node) else "_funs", index,
+            return ("_vars %d" if graph.is_arith(node) else "_m.elems %d") % index
+        return "%s %d %s" % (graph.numeric_functions if graph.is_arith(node) else "_m.funs", index,
                              _application_arguments(graph, arguments, term, formula))
     if kind == z3.Z3_OP_ANUM:
         return _numeral(graph, Fraction(graph.decl(node).name))
     if kind == z3.Z3_OP_ITE:
         # The instance's proposition is inferred from the condition.
         return "(@ite %s %s (Classical.propDecidable _) %s %s)" % (
-            graph.number_type if graph.is_arith(node) else "_U",
+            graph.number_type if graph.is_arith(node) else "_m.U",
             formula(arguments[0]), term(arguments[1]), term(arguments[2]))
     args = [term(arg) for arg in arguments]
     if kind == z3.Z3_OP_UMINUS:
@@ -756,8 +782,8 @@ def _formula_body(graph, node, atom_indices, term=None, formula=None):
     kind = graph.kind(node)
     arguments = graph.arguments(node)
     if kind == z3.Z3_OP_UNINTERPRETED and arguments:
-        return "_preds %d %s" % (atom_indices[graph.nodes[node].declaration],
-                                 _application_arguments(graph, arguments, term, formula))
+        return "_m.preds %d %s" % (atom_indices[graph.nodes[node].declaration],
+                                   _application_arguments(graph, arguments, term, formula))
     if arguments and graph.is_term(arguments[0]):
         args = [term(arg) for arg in arguments]
         if kind in _ARITH_PREDICATE_NAMES and graph.is_arith(arguments[0]):
@@ -1061,7 +1087,7 @@ def _monotonicity(graph, terms, node, atom_indices, variable_indices):
     functions and predicates go through the equality of their argument lists,
     equality and distinct over terms through congruence of Eq, and an ite term
     through ite_congr_classical. A Boolean argument of an application is
-    injected by _bool, so its equivalence becomes an equality by propext.
+    injected by _m.bool, so its equivalence becomes an equality by propext.
     Congruence through an arithmetic operator or comparison (the legacy core
     normalizes Real atoms inside their assertions) is a grind lemma taking the
     argument equalities as premises. Returns the Lean term, whether
@@ -1092,15 +1118,15 @@ def _monotonicity(graph, terms, node, atom_indices, variable_indices):
     if kind == z3.Z3_OP_UNINTERPRETED:
         # Function or predicate application: every element of the argument
         # list is a term of a sort or an injected Boolean or numeric argument.
-        elements = ["(congrArg _bool (propext %s))" % argument if not graph.is_term(first)
+        elements = ["(congrArg _m.bool (propext %s))" % argument if not graph.is_term(first)
                     else "(congrArg %s %s)" % (graph.injection, argument) if graph.is_arith(first) else argument
                     for first, argument in zip(left_args, arguments)]
         if graph.is_term(left):
-            return "(congrArg (%s %d) %s)" % (graph.numeric_functions if graph.is_arith(left) else "_funs",
+            return "(congrArg (%s %d) %s)" % (graph.numeric_functions if graph.is_arith(left) else "_m.funs",
                                               variable_indices[graph.nodes[left].declaration],
                                               _list_congruence(elements)), False, []
-        return "(Iff.of_eq (congrArg (_preds %d) %s))" % (atom_indices[graph.nodes[left].declaration],
-                                                           _list_congruence(elements)), False, []
+        return "(Iff.of_eq (congrArg (_m.preds %d) %s))" % (atom_indices[graph.nodes[left].declaration],
+                                                             _list_congruence(elements)), False, []
     if graph.is_term(left):
         if kind == z3.Z3_OP_ITE:
             return "(ite_congr_classical %s %s %s)" % tuple(arguments), True, []
@@ -1786,7 +1812,7 @@ def _boolean_argument_helpers(graph, reachable, atom_indices, variable_indices):
     argument that no premise mentions, for example when preprocessing
     combined several assertions. grind splits on disjunctions in context but
     not on arbitrary propositions, so each case split is offered explicitly;
-    from either case it derives _bool p = _bool True or _bool p = _bool False
+    from either case it derives _m.bool p = _m.bool True or _m.bool p = _m.bool False
     by congruence.
     """
     arguments = set()
@@ -3808,27 +3834,29 @@ def reconstruct(source, certificate):
     elif graph.arithmetic:
         lines.append("-- Real variables are encoded as Rat; see the exporter documentation.")
     if graph.arithmetic and graph.uninterpreted:
-        lines.append("-- %s arguments of functions and predicates are injected into _U by %s;"
+        lines.append("-- %s arguments of functions and predicates are injected into _m.U by %s;"
                      " functions with %s result are the family %s." % (
                          graph.numeric, graph.injection, {"Real": "a Real", "Int": "an Int"}[graph.numeric],
                          graph.numeric_functions))
     if len(graph.sorts) == 1:
-        lines.append("-- Uninterpreted sort %s is the type _U; functions and predicates take argument lists."
+        lines.append("-- Uninterpreted sort %s is the type _m.U; functions and predicates take argument lists."
                      % json.dumps(graph.sorts[0], ensure_ascii=True))
     elif graph.sorts:
         # One carrier for every sort is sound: a many-sorted model is an instance
         # of the theorem over the disjoint union of its carriers.
-        lines.append("-- Uninterpreted sorts %s are the one type _U; functions and predicates take argument lists."
+        lines.append("-- Uninterpreted sorts %s are the one type _m.U; functions and predicates take argument lists."
                      % ", ".join(json.dumps(sort, ensure_ascii=True) for sort in graph.sorts))
     elif graph.uninterpreted:
-        lines.append("-- No uninterpreted sort: the type _U carries only the Boolean arguments of the predicates.")
+        lines.append("-- No uninterpreted sort: the type _m.U carries only the Boolean arguments of the predicates.")
     if any(decl.kind == z3.Z3_OP_UNINTERPRETED and "Bool" in decl.domain for decl in graph.declarations):
-        lines.append("-- Boolean arguments of functions and predicates are injected into _U by _bool.")
+        lines.append("-- Boolean arguments of functions and predicates are injected into _m.U by _m.bool.")
     # Formulas over wide n-ary connectives render as right-nested And/Or chains
     # and long refutations nest hundreds of let-bound steps; every declaration
     # (definitions, lemmas, proof steps, the theorem) elaborates under a raised
     # recursion limit, scoped to this namespace. This is not a trust setting.
     lines.extend(["namespace " + namespace, "", "set_option maxRecDepth 100000", ""])
+    options = len(lines) - 1
+    lines.extend(_interpretation_structure(graph))
     signature = "(_atoms : Nat -> Prop)" + _valuation_binder(graph)
     classical = set()  # Term nodes containing an ite or abs: their classical instance is noncomputable.
     for node in range(len(graph.nodes)):
@@ -3837,7 +3865,7 @@ def reconstruct(source, certificate):
                 classical.add(node)
             lines.append("%sdef term_%d %s : %s := %s" % (
                 "noncomputable " if node in classical else "", node, signature,
-                graph.number_type if graph.is_arith(node) else "_U", _term_body(graph, node, variable_indices)))
+                graph.number_type if graph.is_arith(node) else "_m.U", _term_body(graph, node, variable_indices)))
         elif graph.decl(node).range == "Bool":
             lines.append("def formula_%d %s : Prop := %s" % (
                 node, signature, _formula_body(graph, node, atom_indices)))
@@ -3979,7 +4007,11 @@ def reconstruct(source, certificate):
             lines.extend(block + _tail_lets(node, needed.get(node, 0)))
         lines.append("  _step_%d" % graph.proof)
     lines.extend(["", "end " + namespace, ""])
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    if len(text) > _SERIAL_ELABORATION_CHARS:
+        lines.insert(options, "set_option Elab.async false")
+        text = "\n".join(lines)
+    return text
 
 
 def check_and_write(source, certificate, output):
