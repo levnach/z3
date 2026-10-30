@@ -695,6 +695,19 @@ unfolding and no ite splits. If that attempt fails,
 the unfolded proof above runs unchanged as the fallback under first. A
 lemma over a dozen such atoms by negative numerals used to exhaust its
 heartbeats in the unfolded proof.
+Ahead of both, a farkas or bound with at least 16 bounds (premises and
+literals) and a coefficient of magnitude 10000 or more is proved by the
+combination itself: each premise and negated literal becomes
+0 <= upper - lower (Int.sub_nonneg_of_le, strict bounds tightened by
+Int.lt_iff_add_one_le, equalities turned by the sign of their multiplier),
+the facts are scaled by the integer multipliers and summed (Int.mul_nonneg,
+Int.add_nonneg), and omega only checks, with no hypothesis in scope, that
+the sum is a negative constant. With all bounds in scope omega searched for
+the combination itself and did not finish on 21-literal lemmas with
+eight-digit coefficients (QF_LIA cut_lemmas). Smaller lemmas, and wide
+ones with small coefficients, stay with omega, which is quick on them and
+whose proofs cost Lean less memory; a
+bound whose refutation needs rounding gets no such attempt.
 A cut, an arith axiom, or a farkas or bound without coefficients (see the
 clause-log section), reaches Lean with its literal shapes checked only; a
 false one fails there and no proof is published. Coefficients that are present are
