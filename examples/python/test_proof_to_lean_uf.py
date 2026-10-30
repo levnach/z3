@@ -260,6 +260,22 @@ UF_SHARED_GATE_ARGUMENT = """\
 (check-sat)
 """
 
+# One wide conjunction holding a distinct, the shape of SMT-LIB QF_UF NEQ:
+# Z3 logs the distinct's pairs as assumed units and simplifies (= a b) out
+# of a later conjunct, so the exporter ties each to the assertion by a cnf
+# lemma whose literal (not (= a b)) is a conjunct of the distinct, and one
+# such lemma needs the conjunct after the forty predicate applications.
+UF_WIDE_DISTINCT_CONJUNCTION = """\
+(declare-sort U 0)
+(declare-const a U)
+(declare-const b U)
+(declare-const c U)
+(declare-fun p (U U) Bool)
+%s(assert (and (distinct a b c) %s (or (= a b) (p a c)) (or (= b c) (not (p a c)))))
+(check-sat)
+""" % ("".join("(declare-fun q%d (U) Bool)\n" % index for index in range(40)),
+       " ".join("(q%d a)" % index for index in range(40)))
+
 # A distinct of one argument is true; Z3 states so by a rewrite. The
 # reconstructor renders it as True without its argument, as a constant
 # and under a function application whose congruence the refutation needs.
@@ -972,6 +988,48 @@ class TestUninterpretedValidation(unittest.TestCase):
             self.assertEqual(rest[1:], proof_to_lean._definition_names(graph, reachable))
             self.assertIn("formula_%d" % leaf, rest)
             self.assertEqual(rest.count("formula_%d" % shared), 1)
+
+    def test_cnf_lemmas_read_a_distinct_over_terms_as_its_pairs(self):
+        # The literal (not (= a b)) of a cnf clause is a conjunct of the
+        # asserted (distinct a b c): with the distinct an opaque leaf the
+        # propagation proof found nothing, and every such lemma of SMT-LIB
+        # NEQ004 unfolded the whole 814-definition assertion into grind.
+        source = UF_WIDE_DISTINCT_CONJUNCTION
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        cnf = [node for node in _th_lemma_nodes(certificate) if graph.decl(node).parameters == ("cnf",)]
+        self.assertEqual(len(cnf), 4)
+        (distinct,) = [node for node in range(len(graph.nodes)) if graph.kind(node) == z3.Z3_OP_DISTINCT]
+        a, b, c = graph.arguments(distinct)
+        pairs = proof_to_lean._distinct_pair_equalities(graph, distinct)
+        self.assertEqual([graph.arguments(pair) for pair in pairs], [(a, b), (a, c), (b, c)])
+        self.assertTrue(all(graph.kind(pair) == z3.Z3_OP_EQ for pair in pairs))
+        leaves = {}
+        structure = proof_to_lean._boolean_structure(graph, distinct, {}, {}, leaves)
+        self.assertEqual(structure, ("and",) + tuple(("not", leaves[pair]) for pair in pairs))
+        text = proof_to_lean.reconstruct(source, certificate)
+        for node in cnf:
+            lemma = text.split("private theorem th_lemma_%d " % node, 1)[1].split("\n\n", 1)[0]
+            structural = lemma.partition("\n  first\n")[2].split("\n    | (")[0]
+            self.assertIn("refine Classical.byContradiction ?_\n", structural)
+        # The conjunct after the forty applications is projected from a
+        # tail bound once per _AND_ELIM_STRIDE conjuncts, not from the
+        # assertion's proof by forty-one projections.
+        self.assertEqual(proof_to_lean._AND_ELIM_STRIDE, 32)
+        (tail,) = re.findall(r"\n       have (_f\d+) := _f\d+%s\n" % (r"\.2" * 32), text)
+        self.assertRegex(text, r"\n       have _f\d+ := %s%s\.1\n" % (tail, r"\.2" * 9))  # conjunct 41 of 43
+        self.assertNotIn(".2" * 33, text)
+        # Kept as one leaf, the distinct leaves the prover nothing to propagate.
+        with patch.object(proof_to_lean, "_distinct_pair_equalities", lambda graph, node: None):
+            self.assertNotIn("Classical.byContradiction", proof_to_lean.reconstruct(source, certificate))
+        # A pair whose equality Z3 logged with the sides swapped reads otherwise
+        # than the distinct's conjunct (Not (a = b)), so the distinct stays a leaf.
+        tampered = copy.deepcopy(certificate)
+        tampered["nodes"][pairs[1]]["arguments"].reverse()
+        graph = proof_to_lean._validate_graph(source, tampered)
+        self.assertIsNone(proof_to_lean._distinct_pair_equalities(graph, distinct))
+        leaves = {}
+        self.assertEqual(proof_to_lean._boolean_structure(graph, distinct, {}, {}, leaves)[:2], ("leaf", distinct))
 
     def test_distinct_gate_clauses_are_def_axioms_proved_from_the_pairs(self):
         source = UF_INPUTS["uf_distinct_gates"]
@@ -1791,8 +1849,10 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         # parameters of every declaration and parallel elaboration, Lean ran
         # past the 8 GB --memory cap of check_lean.sh ("(kernel) excessive
         # memory consumption"; above 11 GB without it). One structure argument
-        # and serial elaboration bring it to about 7 GB. Lean runs once here
-        # (self.check would run it twice, about 100 s each).
+        # and serial elaboration brought it to about 7 GB, and propagation
+        # proofs for its twelve cnf lemmas, which each unfolded the whole
+        # assertion into grind, to about 5.5 GB in 80 s. Lean runs once here
+        # (self.check would run it twice).
         source = (_EXAMPLES / "data" / "QF_UF_NEQ004_size4.smt2").read_text()
         certificate = proof_certificate.export_clause_log_certificate(source)
         self.assertEqual(certificate["fragment"], "qf_uf")
@@ -1800,6 +1860,13 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         text = proof_to_lean.reconstruct(source, certificate)
         self.assertGreater(len(text), proof_to_lean._SERIAL_ELABORATION_CHARS)
         self.assertIn("\nset_option Elab.async false\n", text)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        cnf = [node for node in _th_lemma_nodes(certificate) if graph.decl(node).parameters == ("cnf",)]
+        self.assertEqual(len(cnf), 12)
+        for node in cnf:
+            lemma = text.split("private theorem th_lemma_%d " % node, 1)[1].split("\n\n", 1)[0]
+            structural = lemma.partition("\n  first\n")[2].split("\n    | (unfold ")[0]
+            self.assertIn("refine Classical.byContradiction ?_\n", structural)
         # The statement checks of self.check: one hypothesis per assertion.
         statement = text.split("theorem unsat", 1)[1].split(": False :=", 1)[0]
         self.assertEqual(statement.count("    (_h"), len(certificate["assertions"]))
@@ -1849,6 +1916,28 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
             text = proof_to_lean.reconstruct(source, certificate)
             self.assertIn("refine Classical.byContradiction ?_\n       refine (fun (_h : ", text)
             self.check(source)
+
+    def test_cnf_lemmas_over_a_distinct_verify_by_propagation_alone(self):
+        # The cnf lemmas whose literal is a pair of the asserted distinct,
+        # with the unfolded grind fallback dropped, so that Lean checks the
+        # propagation proofs themselves (the pairs as leaves, the conjuncts
+        # projected from tails) rather than taking the fallback.
+        source = UF_WIDE_DISTINCT_CONJUNCTION
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        blocks, dropped = [], 0
+        for block in proof_to_lean.reconstruct(source, certificate).split("\n\n"):
+            if "private theorem th_lemma_" in block:
+                block, count = re.subn(r"\n    \| \(unfold [^\n]*\n       grind \(splits := 64\)\)", "", block)
+                dropped += count
+            blocks.append(block)
+        self.assertEqual(dropped, 4)
+        namespace = "Z3Proofs.NativeCertificate.p" + hashlib.sha256(source.encode()).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "checked.lean"
+            output.write_text("\n\n".join(blocks) + "\n#print axioms %s.unsat\n" % namespace)
+            result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(output)], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout[-5000:] + result.stderr[-5000:])
+        self.assertIn(".unsat' depends on axioms: " + _STANDARD_AXIOMS, " ".join(result.stdout.split()))
 
     def test_one_argument_distinct_verifies(self):
         for name, source in UF_ONE_ARGUMENT_DISTINCT.items():
