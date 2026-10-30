@@ -1708,22 +1708,30 @@ def _boolean_structure(graph, node, atom_indices, memo=None, leaves=None):
     ("leaf", node, rendering), rendered by its definition name so that it is
     never unfolded, and is recorded in leaves by node; without, a theory
     atom is unsupported.
+
+    The nodes are read bottom up on an explicit stack, arguments left to
+    right, rather than recursively: a QF_UF input asserting a conjunction
+    nested a thousand levels deep exceeded Python's recursion limit.
     """
     memo = {} if memo is None else memo
-    if node in memo:
-        return memo[node]
-    kind, arguments = graph.kind(node), graph.arguments(node)
-    if kind == z3.Z3_OP_UNINTERPRETED and not arguments:
-        structure = ("atom", atom_indices[graph.nodes[node].declaration])
-    elif _trivial_distinct(graph, node):
-        structure = ("true",)  # over a term as well as over an atom
-    elif leaves is not None and arguments and (kind == z3.Z3_OP_UNINTERPRETED or graph.is_term(arguments[0])):
-        structure = leaves.setdefault(node, ("leaf", node, _formula(graph, node)))
-    else:
-        children = [_boolean_structure(graph, argument, atom_indices, memo, leaves) for argument in arguments]
-        structure = _boolean_connective(kind, children)
-    memo[node] = structure
-    return structure
+    pending = [(node, False)]
+    while pending:
+        current, expanded = pending.pop()
+        if current in memo:
+            continue
+        kind, arguments = graph.kind(current), graph.arguments(current)
+        if expanded:
+            memo[current] = _boolean_connective(kind, [memo[argument] for argument in arguments])
+        elif kind == z3.Z3_OP_UNINTERPRETED and not arguments:
+            memo[current] = ("atom", atom_indices[graph.nodes[current].declaration])
+        elif _trivial_distinct(graph, current):
+            memo[current] = ("true",)  # over a term as well as over an atom
+        elif leaves is not None and arguments and (kind == z3.Z3_OP_UNINTERPRETED or graph.is_term(arguments[0])):
+            memo[current] = leaves.setdefault(current, ("leaf", current, _formula(graph, current)))
+        else:
+            pending.append((current, True))
+            pending.extend((argument, False) for argument in reversed(arguments))
+    return memo[node]
 
 
 def _boolean_connective(kind, children):
@@ -1769,17 +1777,31 @@ def _structure_children(structure):
 
 
 def _render_structure(structure):
-    """Render a structure as the Lean proposition the unfolded definitions reduce to."""
-    kind = structure[0]
-    if kind == "atom":
-        return "(_atoms %d)" % structure[1]
-    if kind == "leaf":
-        return structure[2]
-    if kind == "true":
-        return "True"
-    if kind == "false":
-        return "False"
-    return _render_connective(kind, [_render_structure(child) for child in _structure_children(structure)])
+    """Render a structure as the Lean proposition the unfolded definitions reduce to.
+
+    Bottom up on an explicit stack (deep chains); a shared substructure is
+    rendered once, by object identity, as the structures are alive throughout.
+    """
+    rendered = {}
+    pending = [(structure, False)]
+    while pending:
+        current, expanded = pending.pop()
+        if id(current) in rendered:
+            continue
+        kind = current[0]
+        if kind == "atom":
+            rendered[id(current)] = "(_atoms %d)" % current[1]
+        elif kind == "leaf":
+            rendered[id(current)] = current[2]
+        elif kind in ("true", "false"):
+            rendered[id(current)] = kind.capitalize()
+        elif expanded:
+            rendered[id(current)] = _render_connective(
+                kind, [rendered[id(child)] for child in _structure_children(current)])
+        else:
+            pending.append((current, True))
+            pending.extend((child, False) for child in _structure_children(current))
+    return rendered[id(structure)]
 
 
 def _render_connective(kind, children):
@@ -1933,14 +1955,25 @@ class _PropositionalProver:
                            else "(fun _absurd => _absurd)")
                           for structure in (("true",), ("false",)) if structure in self.parents]
 
-    def _index(self, structure):
-        if structure in self.parents:
+    def _index(self, root):
+        """Index root's structures depth first, children before parents, on an explicit stack (deep chains)."""
+        if root in self.parents:
             return
-        self.parents[structure] = {}
-        for child in _structure_children(structure):
-            self._index(child)
-            self.parents[child][structure] = None
-        self.order.append(structure)
+        self.parents[root] = {}
+        stack = [(root, iter(_structure_children(root)))]
+        while stack:
+            structure, children = stack[-1]
+            child = next(children, None)
+            if child is None:
+                stack.pop()
+                self.order.append(structure)
+                if stack:
+                    self.parents[structure][stack[-1][0]] = None
+            elif child in self.parents:
+                self.parents[child][structure] = None
+            else:
+                self.parents[child] = {}
+                stack.append((child, iter(_structure_children(child))))
 
     def _render(self, structure):
         """Render a structure inside the proof: a named one by its name, the rest one level over the names."""
@@ -2022,6 +2055,41 @@ class _PropositionalProver:
         the term; 1,000 steps took nine minutes as a term and five seconds
         as tactics), and a cnf lemma over a 13,000-node assertion has
         ten thousand steps.
+
+        The case analyses nest on an explicit stack of open splits, each
+        branch proved in order and closed into its split's lines once its
+        last branch is, rather than by recursion: a search through a
+        thousand nested splits (the cnf lemma of a QF_LRA time-triggered
+        startup input, tta_startup simple_startup_11nodes) exceeded Python's
+        recursion limit. Lean checks a thousand nested bullets in a second.
+        """
+        splits = []  # open splits: (lines, branch facts, state, header, names, branches)
+        result = self._settle(state, target, facts)
+        while True:
+            if isinstance(result, tuple):  # a split: prove its first branch
+                splits.append(result)
+            elif result is None:
+                return None  # a branch not proved fails the whole proof
+            elif not splits:
+                return result
+            else:
+                splits[-1][5].append(result)
+            lines, branch_facts, state, header, names, branches = splits[-1]
+            if len(branches) == len(branch_facts):
+                splits.pop()
+                result = lines + [header(names)] + _bullets(branches)
+                continue
+            structure, truth = branch_facts[len(branches)]
+            names.append(self.name())
+            result = self._settle(dict(state), target, [(structure, truth, names[-1])])
+
+    def _settle(self, state, target, facts):
+        """Tactic lines closing the goal by propagation alone, None, or the split to prove it by.
+
+        A split is (lines, branch facts, state, header, names, branches): the
+        lines before it, one (structure, truth) per branch, the state the
+        branches extend, the function from the branches' hypothesis names to
+        the `refine` line, and the names and branch lines proved so far.
         """
         lines, pending = [], []
         conflict = None
@@ -2038,15 +2106,10 @@ class _PropositionalProver:
         disjunction = self._case_split(state)
         if disjunction is not None:
             structure, proof = disjunction
-            handlers, branches = [], []
-            for child in _structure_children(structure):
-                name = self.name()
-                branch = self._prove(dict(state), target, [(child, True, name)])
-                if branch is None:
-                    return None
-                handlers.append("(fun %s => ?_)" % name)
-                branches.append(branch)
-            return lines + ["refine " + _eliminate_or(proof, handlers)] + _bullets(branches)
+
+            def header(names):
+                return "refine " + _eliminate_or(proof, ["(fun %s => ?_)" % name for name in names])
+            return lines, [(child, True) for child in _structure_children(structure)], state, header, [], []
         atoms = sorted((-len(self.parents[atom]), atom[1], atom) for atom in self.parents
                        if atom[0] in self.decidable and atom not in state)
         if not atoms:
@@ -2057,16 +2120,10 @@ class _PropositionalProver:
         else:
             self.needed.add(atom[1])
             split = "(Decidable.em (_atoms %d))" % atom[1]
-        names, branches = [], []
-        for value in (True, False):
-            name = self.name()
-            branch = self._prove(dict(state), target, [(atom, value, name)])
-            if branch is None:
-                return None
-            names.append(name)
-            branches.append(branch)
-        refine = "refine (Or.elim %s (fun %s => ?_) (fun %s => ?_))" % (split, names[0], names[1])
-        return lines + [refine] + _bullets(branches)
+
+        def header(names):
+            return "refine (Or.elim %s (fun %s => ?_) (fun %s => ?_))" % (split, names[0], names[1])
+        return lines, [(atom, True), (atom, False)], state, header, [], []
 
     def _case_split(self, state):
         """A true disjunction with two or more undetermined disjuncts and no true one, with its proof, or None.
@@ -2165,8 +2222,12 @@ class _PropositionalProver:
                 add(structure, True, proof)
         elif kind == "and":
             if value is not None and value[0]:
+                # A conjunct already true would be dropped by _assign; skipping it
+                # here keeps a conjunction of n operands from building its n
+                # projections each time one of them is assigned (cubic in n).
                 for i, child in enumerate(children):
-                    add(child, True, _project(i, count, value[1]), typed=False)
+                    if truths[i] is not True:
+                        add(child, True, _project(i, count, value[1]), typed=False)
             if value is not None and not value[0] and truths.count(None) == 1 and False not in truths:
                 position = truths.index(None)
                 parts = ["_g" if i == position else proof for i, proof in enumerate(proofs)]
@@ -2181,7 +2242,8 @@ class _PropositionalProver:
         elif kind == "or":
             if value is not None and not value[0]:
                 for i, child in enumerate(children):
-                    add(child, False, _reject_disjunct(i, count, value[1]), typed=False)
+                    if truths[i] is not False:  # as for a true conjunction
+                        add(child, False, _reject_disjunct(i, count, value[1]), typed=False)
             if value is not None and value[0] and truths.count(None) == 1 and True not in truths:
                 position = truths.index(None)
                 handlers = ["(fun _g => _g)" if i == position else "(fun _g => absurd _g %s)" % proof
@@ -2614,24 +2676,33 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
     names = list(canonical.values())
     structures = {}
 
-    def structure(formula):
-        """The Boolean structure over the normalized atoms: a leaf per name, a constant for a constant atom."""
-        if formula in structures:
-            return structures[formula]
-        target = normalized_atoms.get(formula)
-        if target is not None:
-            negated = target.startswith("(Not ")
-            name = target[5:-1] if negated else target
-            # A leaf's identity is its atom index (an int, as the split order sorts it with the Boolean atoms).
-            leaf = (("true",) if name == "True" else ("false",) if name == "False"
-                    else ("leaf", int(name[len("_atom"):]), name))
-            result = ("not", leaf) if negated else leaf
-        elif graph.kind(formula) == z3.Z3_OP_UNINTERPRETED:
-            result = ("atom", atom_indices[graph.nodes[formula].declaration])
-        else:
-            result = _boolean_connective(graph.kind(formula), [structure(arg) for arg in graph.arguments(formula)])
-        structures[formula] = result
-        return result
+    def structure(root):
+        """The Boolean structure over the normalized atoms: a leaf per name, a constant for a constant atom.
+
+        Read bottom up on an explicit stack, as _boolean_structure does.
+        """
+        pending = [(root, False)]
+        while pending:
+            formula, expanded = pending.pop()
+            if formula in structures:
+                continue
+            target = normalized_atoms.get(formula)
+            if target is not None:
+                negated = target.startswith("(Not ")
+                name = target[5:-1] if negated else target
+                # A leaf's identity is its atom index (an int, as the split order sorts it with the Boolean atoms).
+                leaf = (("true",) if name == "True" else ("false",) if name == "False"
+                        else ("leaf", int(name[len("_atom"):]), name))
+                structures[formula] = ("not", leaf) if negated else leaf
+            elif graph.kind(formula) == z3.Z3_OP_UNINTERPRETED:
+                structures[formula] = ("atom", atom_indices[graph.nodes[formula].declaration])
+            elif expanded:
+                structures[formula] = _boolean_connective(
+                    graph.kind(formula), [structures[arg] for arg in graph.arguments(formula)])
+            else:
+                pending.append((formula, True))
+                pending.extend((arg, False) for arg in reversed(graph.arguments(formula)))
+        return structures[root]
 
     left, right = (structure(side) for side in graph.arguments(graph.conclusion(node)))
     prover = _PropositionalProver(left, right, classical=True)
