@@ -233,7 +233,8 @@ checkout, then z3 on PATH. --timeout (seconds, default 600) and --memory
 (megabytes, default 8192) bound each z3 run of the clause-log export, the
 solver's and the native trimmer's; z3 stops itself at either limit (-T and
 -memory), a run that outlives its time limit by 30 s is killed, and the export
-fails with an error naming the limit hit. The legacy core solves in process
+fails with an error naming the limit hit. Limits above 1000000 s or
+4194304 MB are rejected (z3 cannot hold them). The legacy core solves in process
 and takes neither option. The executable runs
 with sat.smt=true and with solve_eqs, propagate_values, elim_unconstrained, and
 bound_simplifier disabled, because the log starts after preprocessing and

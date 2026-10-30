@@ -1598,7 +1598,9 @@ z3 processes running after its own deadlines killed the Python workers
 (220 GB in total). Both runs now always carry `-T` and `-memory` (600 s and
 8192 MB unless the caller passes `timeout`/`memory`, CLI `--timeout` and
 `--memory`), so an orphaned run stops by itself, plus a wall-clock deadline
-30 s past the time limit. Hitting a limit is an error naming it ("the
+30 s past the time limit. Limits above 10^6 s or 2^22 MB are rejected:
+larger ones overflowed `subprocess.run` and z3's `-T`/`-memory` parameters
+(4294967295 MB makes z3 report out of memory at once). Hitting a limit is an error naming it ("the
 clause-log solver run exceeded the time limit of 1 s", "native proof
 trimming exceeded the memory limit of 20 MB"). Before, a trimmer stopped at
 either limit (`timeout` on stdout with status 0, `(error "out of memory")`

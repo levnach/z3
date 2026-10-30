@@ -3175,8 +3175,20 @@ class TestClauseLogDependencies(unittest.TestCase):
                 for call in run.call_args_list:
                     self.assertEqual(call.args[0][:3], ["z3", "-T:%d" % seconds, "-memory:%d" % megabytes])
                     self.assertEqual(call.kwargs["timeout"], seconds + proof_clause_log._LIMIT_GRACE)
+        # Other real and integral numbers count; values beyond what
+        # subprocess.run and z3's parameters can hold do not.
+        largest = proof_clause_log._MAX_TIME_LIMIT, proof_clause_log._MAX_MEMORY_LIMIT
+        for timeout, memory, limits in [(Fraction(5, 2), None, (3, proof_clause_log._MEMORY_LIMIT)),
+                                        largest + (largest,)]:
+            with self.subTest(timeout=timeout, memory=memory):
+                with patch.object(proof_clause_log.subprocess, "run", return_value=unsat) as run:
+                    with self.assertRaisesRegex(proof_certificate.ProofExportError, "did not write a clause log"):
+                        proof_clause_log.run_clause_log("z3", "(assert false)", timeout, memory)
+                self.assertEqual(run.call_args.args[0][1:3], ["-T:%d" % limits[0], "-memory:%d" % limits[1]])
         for timeout, memory in [(0, None), (-1, None), (True, None), ("10", None), (float("inf"), None),
-                                (float("nan"), None), (None, 0), (None, 1.5), (None, True)]:
+                                (float("nan"), None), (None, 0), (None, 1.5), (None, True),
+                                (proof_clause_log._MAX_TIME_LIMIT + 0.5, None), (1e20, None),
+                                (None, proof_clause_log._MAX_MEMORY_LIMIT + 1), (None, 2 ** 40)]:
             with self.subTest(timeout=timeout, memory=memory):
                 with patch.object(proof_clause_log.subprocess, "run", side_effect=AssertionError("ran")):
                     with self.assertRaises(ValueError):
@@ -3231,7 +3243,8 @@ class TestClauseLogDependencies(unittest.TestCase):
             input=hard, capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 2)
         self.assertIn("solver run exceeded the time limit of 1 s", result.stderr)
-        for flag, value in [("--timeout", "0"), ("--timeout", "nan"), ("--memory", "0")]:
+        for flag, value in [("--timeout", "0"), ("--timeout", "nan"), ("--timeout", "1e7"), ("--memory", "0"),
+                            ("--memory", "4294967296")]:
             with self.subTest(flag=flag, value=value):
                 result = subprocess.run(
                     [sys.executable, str(_EXAMPLES / "proof_certificate.py"), flag, value, "-"],

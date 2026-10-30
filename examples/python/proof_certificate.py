@@ -1194,10 +1194,13 @@ def main():
                         help="zero-based index of the check-sat query to certify in an incremental script "
                              "(push, pop, reset, several queries); default: the script's only query")
     args = parser.parse_args()
-    if args.timeout is not None and not 0 < args.timeout < math.inf:
-        parser.error("--timeout must be a positive number of seconds")
-    if args.memory is not None and args.memory <= 0:
-        parser.error("--memory must be a positive number of megabytes")
+    import proof_clause_log
+    if args.timeout is not None and not 0 < args.timeout <= proof_clause_log._MAX_TIME_LIMIT:
+        parser.error("--timeout must be a positive number of seconds, at most %d"
+                     % proof_clause_log._MAX_TIME_LIMIT)
+    if args.memory is not None and not 0 < args.memory <= proof_clause_log._MAX_MEMORY_LIMIT:
+        parser.error("--memory must be a positive number of megabytes, at most %d"
+                     % proof_clause_log._MAX_MEMORY_LIMIT)
     try:
         if args.file == "-":
             source = sys.stdin.read()

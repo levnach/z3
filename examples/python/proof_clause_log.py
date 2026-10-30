@@ -16,6 +16,7 @@ inferences; the Lean reconstructor does.
 
 from fractions import Fraction
 import math
+import numbers
 import os
 from pathlib import Path
 import re
@@ -51,22 +52,28 @@ _SEARCH_ALL_SOURCES = 64
 _TIME_LIMIT = 600
 _MEMORY_LIMIT = 8192
 _LIMIT_GRACE = 30
+# Largest limits accepted (about 11.6 days and 4 TB). Above them the deadline
+# overflows subprocess.run, -T overflows z3's 32-bit long on Windows, and
+# -memory overflows z3's unsigned parameter (4294967295 MB already makes z3
+# report out of memory at once).
+_MAX_TIME_LIMIT = 10 ** 6
+_MAX_MEMORY_LIMIT = 2 ** 22
 
 
 def _limits(timeout, memory):
     """Return the whole seconds and megabytes of a z3 run, defaults filled in."""
     if timeout is None:
         seconds = _TIME_LIMIT
-    elif type(timeout) in (int, float) and 0 < timeout < math.inf:
+    elif isinstance(timeout, numbers.Real) and not isinstance(timeout, bool) and 0 < timeout <= _MAX_TIME_LIMIT:
         seconds = math.ceil(timeout)
     else:
-        raise ValueError("timeout must be a positive number of seconds")
+        raise ValueError("timeout must be a positive number of seconds, at most %d" % _MAX_TIME_LIMIT)
     if memory is None:
         megabytes = _MEMORY_LIMIT
-    elif type(memory) is int and memory > 0:
-        megabytes = memory
+    elif isinstance(memory, numbers.Integral) and not isinstance(memory, bool) and 0 < memory <= _MAX_MEMORY_LIMIT:
+        megabytes = int(memory)
     else:
-        raise ValueError("memory must be a positive integer number of megabytes")
+        raise ValueError("memory must be a positive integer number of megabytes, at most %d" % _MAX_MEMORY_LIMIT)
     return seconds, megabytes
 
 
