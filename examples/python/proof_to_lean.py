@@ -91,6 +91,13 @@ _MIXED_FRAGMENTS = {"Real": "qf_uflra", "Int": "qf_uflia"}
 # budget between 1,000 and 2,000 steps.
 _OUTLINE_PROOF_STEPS = 500
 _OUTLINE_CHUNK_STEPS = 500
+# and-elim projects an operand by field notation, one `.2` per operand before
+# it, so eliminating every operand of a wide conjunction is quadratic: 250
+# projections out of a 600-operand conjunction (94,000 `.2`s in one outlined
+# lemma) exhausted its heartbeats. The rest of the conjunction is let-bound
+# once every _AND_ELIM_STRIDE operands (_tail_lets) and a projection starts
+# from the nearest such tail.
+_AND_ELIM_STRIDE = 32
 _NORMALIZED_REWRITE_ATOMS = 16
 # Heartbeats (Lean's unit, thousands of small allocations) of an Int lattice
 # lemma (a cut, or a farkas or bound without coefficients) over its atoms
@@ -1100,7 +1107,12 @@ def _monotonicity(graph, terms, node, atom_indices, variable_indices):
     return _congruence_term(kind, arguments), False, []
 
 
-def _and_elim(graph, terms, node):
+def _and_elim(graph, terms, node, shared):
+    """Return the projection and the tail (premise, operand) it starts from, if any.
+
+    With shared, the premise is a plain proof whose tails the caller binds
+    (_tail_lets); a premise taking hypotheses is projected from its start.
+    """
     premise, conclusion = graph.arguments(node)
     conjunction = graph.conclusion(premise)
     if graph.kind(conjunction) != z3.Z3_OP_AND:
@@ -1108,8 +1120,37 @@ def _and_elim(graph, terms, node):
     arguments = graph.arguments(conjunction)
     for position, argument in enumerate(arguments):
         if terms[argument] == terms[conclusion]:
-            return _select(position, len(arguments), "_step_%d" % premise)
+            base = position // _AND_ELIM_STRIDE * _AND_ELIM_STRIDE if shared else 0
+            if not base:
+                return _select(position, len(arguments), "_step_%d" % premise), None
+            return (_select(position - base, len(arguments) - base, "_tail_%d_%d" % (premise, base)),
+                    (premise, base))
     raise ReconstructionError("and-elim conclusion is not a conjunct at node %d" % node)
+
+
+def _tail_lets(premise, last):
+    """Bind the conjunction premise proves from every _AND_ELIM_STRIDE-th operand on, up to operand last.
+
+    Each tail projects from the one before, so the bindings take one `.2`
+    per operand however many and-elims start from them; their types are
+    inferred, the subterms of the premise's unfolded conjunction.
+    """
+    lines = []
+    for base in range(_AND_ELIM_STRIDE, last + 1, _AND_ELIM_STRIDE):
+        start = ("_step_%d" % premise if base == _AND_ELIM_STRIDE
+                 else "_tail_%d_%d" % (premise, base - _AND_ELIM_STRIDE))
+        lines.append("  let _tail_%d_%d := %s%s" % (premise, base, start, ".2" * _AND_ELIM_STRIDE))
+    return lines
+
+
+def _needed_tails(tails, nodes):
+    """Return the last tail of each premise that the and-elims among nodes start from."""
+    needed = {}
+    for node in nodes:
+        if node in tails:
+            premise, base = tails[node]
+            needed[premise] = max(needed.get(premise, 0), base)
+    return needed
 
 
 def _not_or_elim(graph, terms, node):
@@ -3473,14 +3514,16 @@ def _witness_formula(graph, name):
     return _formula(graph, int(name[3:])) if name.startswith("_df") else "(_atoms %d)" % int(name[2:])
 
 
-def _outline_steps(graph, steps, dependencies, signature):
+def _outline_steps(graph, steps, dependencies, signature, tails):
     """Check proof subgraphs separately instead of one enormous nested term.
 
     Returns the Lean lines and the decidability witnesses the root lemma takes
     as parameters. The arithmetic and uninterpreted slices already report the
     standard axioms, so their lemmas take classical witnesses locally; the
     propositional slice stays axiom-free by receiving every witness as a
-    parameter that the main theorem introduces constructively.
+    parameter that the main theorem introduces constructively. Each lemma
+    binds the conjunction tails its and-elims start from (tails, see
+    _and_elim) after the premise they project.
     """
     classical = bool(graph.arithmetic or graph.uninterpreted)
     boundaries = _outline_boundaries(graph)
@@ -3496,7 +3539,8 @@ def _outline_steps(graph, steps, dependencies, signature):
             elif node not in local:
                 local.add(node)
                 pending.extend(graph.arguments(node)[:-1])
-        body = [line for node in sorted(local) for line in steps[node]]
+        needed = _needed_tails(tails, local)
+        body = [line for node in sorted(local) for line in steps[node] + _tail_lets(node, needed.get(node, 0))]
         decidable = set(re.findall(r"\b_df?\d+\b", "\n".join(body)))
         if not classical:
             for node in external:
@@ -3523,6 +3567,7 @@ def _outline_steps(graph, steps, dependencies, signature):
             arguments = "" if classical else "".join(" " + name for name in witnesses[node])
             lines.append("  let _step_%d := proof_step_%d _atoms%s _inputs%s" % (
                 node, node, graph.valuation, arguments))
+            lines.extend(_tail_lets(node, needed.get(node, 0)))
         lines.extend(body)
         lines.append("  _step_%d" % root)
     return lines, ([] if classical else witnesses[graph.proof])
@@ -3620,6 +3665,7 @@ def reconstruct(source, certificate):
     outline = sum(graph.decl(n).range == "Proof" for n in range(len(graph.nodes))) > _OUTLINE_PROOF_STEPS
     steps = []
     step_blocks = {}
+    tails = {}  # and-elim node -> the (premise, operand) tail it projects from
     hypothesis_formulas, dependencies = {}, {}
     ite_congruence = False
     for node in range(len(graph.nodes)):
@@ -3669,7 +3715,9 @@ def reconstruct(source, certificate):
         elif graph.kind(node) == z3.Z3_OP_PR_COMMUTATIVITY:
             term = _commutativity(graph, terms, node)
         elif graph.kind(node) == z3.Z3_OP_PR_AND_ELIM:
-            term = _and_elim(graph, terms, node)
+            term, tail = _and_elim(graph, terms, node, not dependencies[premises[0]])
+            if tail is not None:
+                tails[node] = tail
         elif graph.kind(node) == z3.Z3_OP_PR_NOT_OR_ELIM:
             term, formula = _not_or_elim(graph, terms, node)
             if formula is not None:
@@ -3696,7 +3744,7 @@ def reconstruct(source, certificate):
         lines.extend(_ITE_CONGRUENCE)
     witnesses = []
     if outline:
-        outlined, witnesses = _outline_steps(graph, step_blocks, dependencies, signature)
+        outlined, witnesses = _outline_steps(graph, step_blocks, dependencies, signature, tails)
         lines.extend(outlined)
     if witnesses or (not outline and (decidable_atoms or decidable_formulas)):
         # A continuation ending in False can eliminate the temporary decidability
@@ -3722,7 +3770,9 @@ def reconstruct(source, certificate):
             lines.append("  refute_with_decidable (_atoms %d) fun _d%d =>" % (atom, atom))
         for formula in sorted(decidable_formulas):
             lines.append("  refute_with_decidable %s fun _df%d =>" % (_formula(graph, formula), formula))
-        lines.extend(steps)
+        needed = _needed_tails(tails, step_blocks)
+        for node, block in step_blocks.items():
+            lines.extend(block + _tail_lets(node, needed.get(node, 0)))
         lines.append("  _step_%d" % graph.proof)
     lines.extend(["", "end " + namespace, ""])
     return "\n".join(lines)
