@@ -1589,6 +1589,31 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Deep nesting: formula walks and the prover on explicit stacks (2026-10-29)
+
+Inputs nested deeper than Python's recursion limit (1000) failed with
+RecursionError instead of being certified or rejected. z3test's QF_IDL
+`FISCHER6-4-ninc` (a CVC Lite translation) asserts `(and a (and b ...))`
+nested a thousand levels, and the clause-log export crashed in the
+assumption sources (`_conjuncts`) and then in the canonical keys
+(`_Normalizer._key`); the QF_LRA `tta_startup/simple_startup_11nodes` and
+`_15nodes` certificates failed in `reconstruct`, where the propositional
+prover's search for a cnf lemma went through a thousand nested case splits.
+These walks, and `_boolean_structure`, the prover's structure index, the
+normalized rewrite's structure and `_render_structure`, now keep their own
+stacks; outputs are byte-identical on 322 generated certificates of both
+cores. Lean checks a thousand nested case splits (bullets) in a second, so
+the prover's search is not capped. The prover also no longer rebuilds the
+projections of a true conjunction's operands that are already true (cubic
+in the width: two minutes for a legacy rewrite over 1,200 operands, one
+second now). The three inputs now export and reconstruct; they do not
+verify yet: the tta cnf lemma is not propositional and its grind fallback
+times out, FISCHER's export spends 480 s in 12,000 solver equivalence
+checks of `assume`. Tests: `test_proof_to_lean_deep.py` (1,100 levels; the
+clause-log certificates of a Boolean and an LRA conjunction checked by
+Lean, a 1,100-split proof checked by Lean, the legacy normalized rewrite
+reconstructed).
+
 ### Native euf and tseitin checks over Boolean constants and arguments (2026-10-28)
 
 Z3's own replay (`z3 -smt2 log`, the `smt-clause-log` matrix cells) sent

@@ -942,6 +942,8 @@ the qf_lia slice, test_proof_to_lean_uf.py the qf_uf slice,
 test_proof_to_lean_uflra.py the qf_uflra slice, and
 test_proof_to_lean_uflia.py the qf_uflia slice end to end; all need the z3
 executable as well and are skipped when none is found.
+test_proof_to_lean_deep.py exports and checks inputs nested deeper than
+Python's recursion limit; its clause-log tests also need the z3 executable.
 
 These run in a Lean-enabled Ubuntu CMake CI configuration, not the dependency-free
 build-script job.
