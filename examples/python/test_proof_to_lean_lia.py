@@ -1212,6 +1212,32 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         self.assertLess(len(structural), proof_to_lean._STRUCTURAL_REWRITE_CHARS)
         self.assertTrue(fallback.startswith("unfold formula_"), fallback[:80])
 
+    def test_nested_conjunction_model_checking_input_exports_with_few_solver_checks(self):
+        # SMT-LIB QF_IDL mathsat/fischer/FISCHER6-4-ninc: one assertion
+        # nesting a thousand ands (a CVC Lite translation). Seven assumed
+        # clauses are tied to it by the solver search, and each was checked
+        # for equivalence against all 1,743 conjuncts sharing a symbol before
+        # the whole assertion was found to imply it: 12,207 solver calls,
+        # each asserting a suffix of the conjunction, and a 460 s export.
+        # Only conjuncts over exactly the clause's symbols are checked for
+        # equivalence now (_equivalence_candidates): seven calls, a few
+        # seconds of export, and the certificate verifies in Lean.
+        source = (_EXAMPLES / "data" / "QF_IDL_FISCHER6-4-ninc.smt2").read_text()
+        calls = []
+        original = proof_clause_log._Replay._valid
+
+        def valid(replay, claim):
+            calls.append(claim.decl().kind())
+            return original(replay, claim)
+
+        with patch.object(proof_clause_log._Replay, "_valid", valid):
+            certificate = proof_certificate.export_clause_log_certificate(source)
+        self.assertEqual(calls, [z3.Z3_OP_IMPLIES] * 7)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        cnf = [node for node in _th_lemma_nodes(certificate) if graph.decl(node).parameters == ("cnf",)]
+        self.assertEqual(len(cnf), 7)
+        self.checked_text(source, certificate)
+
     def test_arith_lemmas_over_real_atoms_verify(self):
         # The arith hint is accepted in Real certificates too, where grind
         # proves the clause; live Real division axioms have separate tests.

@@ -1589,6 +1589,23 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Equivalence search only over the clause's symbols (2026-10-29)
+
+`assume` ties an assumed clause the canonical keys do not match by a
+bounded solver check for an equivalent conjunct (a rewrite), then for an
+implying one (a cnf lemma). On a right-nested conjunction every suffix
+shares the clause's symbols: FISCHER6-4-ninc checked seven clauses for
+equivalence against all 1,743 such conjuncts, 12,200 solver calls each
+asserting a suffix of the conjunction (460 s of export), before the whole
+assertion, the first candidate, implied each. Only conjuncts over exactly
+the clause's symbols are checked for equivalence now (a hash of each
+source's symbol set is kept with the symbol index). An equivalent conjunct
+also implies the clause, so one with an extra, irrelevant symbol is still
+tied, by the implication pass. FISCHER's Lean file is byte-identical, its
+export takes 2 s and it verifies in about 6 s of Lean; it is test data now
+(`test_proof_to_lean_lia.py`), with a unit test in
+`test_proof_certificate.py`.
+
 ### and-elim from shared conjunction tails (2026-10-29)
 
 and-elim projected operand k of a right-nested conjunction by field
@@ -1641,7 +1658,7 @@ in the width: two minutes for a legacy rewrite over 1,200 operands, one
 second now). The three inputs now export and reconstruct; they do not
 verify yet: the tta cnf lemma is not propositional and its grind fallback
 times out, FISCHER's export spends 480 s in 12,000 solver equivalence
-checks of `assume`. Tests: `test_proof_to_lean_deep.py` (1,100 levels; the
+checks of `assume` (fixed, see the equivalence search note above). Tests: `test_proof_to_lean_deep.py` (1,100 levels; the
 clause-log certificates of a Boolean and an LRA conjunction checked by
 Lean, a 1,100-split proof checked by Lean, the legacy normalized rewrite
 reconstructed; checked by Lean since the per-atom lemmas above).
