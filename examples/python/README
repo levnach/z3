@@ -424,7 +424,7 @@ splits on an argument, and the clause log carries the same congruences as
 euf hints once the frontend's tactic preamble is bypassed (it Ackermannized
 such predicates with fresh symbols r!1, k!2, or decided the input before a
 clause was logged). The certificate is a qf_uf certificate without sort
-names; Lean uses the same encoding, with the carrier _U holding nothing but
+names; Lean uses the same encoding, with the carrier _m.U holding nothing but
 the injected Boolean arguments (see "Uninterpreted functions in Lean").
 
 Linear real arithmetic through the legacy proof object
@@ -737,7 +737,11 @@ Quot.sound, so arithmetic theorems necessarily report those three standard
 axioms (Int theorems do as well, through omega and the classical ite
 instance). The propositional slice remains axiom-free. Long refutations elaborate
 under set_option maxRecDepth 100000; this is an elaborator limit, not a trust
-setting.
+setting. A file of more than 8 MB of Lean text also sets Elab.async false, so
+Lean elaborates its declarations one at a time instead of in parallel tasks:
+that is a schedule, not a trust setting, and keeps a third less memory alive
+(z3test's QF_UF NEQ004_size4, 21 MB, peaks at about 7 GB under the 8 GB
+--memory cap of scripts/check_lean.sh, at the cost of three times the time).
 
 Refutations with more than 500 proof steps, in every fragment, are split into
 separately checked lemmas: one at each shared subproof, and one whenever a
@@ -756,62 +760,75 @@ Uninterpreted functions in Lean
 -------------------------------
 
 For qf_uf certificates every definition takes, instead of the Rat valuation,
-an interpretation of the uninterpreted sorts, all rendered as one type _U:
+an interpretation of the uninterpreted sorts, all rendered as one type: a
+structure the file declares, quantified as the one argument _m.
 
-    theorem unsat (_atoms : Nat -> Prop) (_U : Type) (_elems : Nat -> _U)
-        (_funs : Nat -> List _U -> _U) (_preds : Nat -> List _U -> Prop)
-        (_bool : Prop -> _U)
-        (_h0 : formula_k _atoms _U _elems _funs _preds _bool) ... : False
+    structure Interpretation where
+      U : Type
+      elems : Nat -> U
+      funs : Nat -> List U -> U
+      preds : Nat -> List U -> Prop
+      bool : Prop -> U
 
-Constants become _elems i, an application f(a, b) becomes _funs j [a, b], and
-a predicate application becomes _preds k [a, b]; equality and distinct are
-Lean's = on _U, and an ite over the sort is Lean's ite over _U with the
+    theorem unsat (_atoms : Nat -> Prop) (_m : Interpretation)
+        (_h0 : formula_k _atoms _m) ... : False
+
+Quantifying over the structure is quantifying over its fields; one argument
+rather than five keeps every declaration and every reference to it small,
+which a certificate of thousands of declarations needs to stay under Lean's
+memory cap.
+
+Constants become _m.elems i, an application f(a, b) becomes _m.funs j [a, b], and
+a predicate application becomes _m.preds k [a, b]; equality and distinct are
+Lean's = on _m.U, and an ite over the sort is Lean's ite over _m.U with the
 classical instance, as for Real (its gate clauses are proved the same way).
-A Boolean argument p of a function or predicate becomes _bool p, so f(a, p)
-is _funs j [a, _bool p]. The theorem quantifies over every type and every indexed
+A Boolean argument p of a function or predicate becomes _m.bool p, so f(a, p)
+is _m.funs j [a, _m.bool p]. The theorem quantifies over every type and every indexed
 family of functions, so a model of the SMT-LIB input (a nonempty domain with
 one function per symbol) is one instance of it: the encoding over-approximates
 the class of models and is therefore sound for unsatisfiability. Nothing
 relates different indices or different argument lengths, which is exactly the
 freedom uninterpreted symbols have. An input with several uninterpreted sorts
-is rendered over the same single _U, which is sound for the same reason: a
-many-sorted model is an instance of the theorem whose _U is the disjoint
+is rendered over the same single _m.U, which is sound for the same reason: a
+many-sorted model is an instance of the theorem whose _m.U is the disjoint
 union of the carriers, with each symbol interpreted as in the model on
 arguments of its own sorts (and arbitrarily elsewhere). Bool is one more
-such sort: its two values join the disjoint union and _bool maps a true
-proposition to one and a false one to the other (the instance picks _bool
+such sort: its two values join the disjoint union and _m.bool maps a true
+proposition to one and a false one to the other (the instance picks _m.bool
 classically). A qf_uflra certificate takes the Rat valuation and the
-interpretation together, plus two more binders:
+interpretation together, the structure with two more fields:
 
-    theorem unsat (_atoms : Nat -> Prop) (_vars : Nat -> Rat) (_U : Type)
-        (_elems : Nat -> _U) (_funs : Nat -> List _U -> _U)
-        (_preds : Nat -> List _U -> Prop) (_bool : Prop -> _U)
-        (_real : Rat -> _U) (_rfuns : Nat -> List _U -> Rat) ... : False
+    structure Interpretation where
+      ... (the five fields above)
+      real : Rat -> U
+      rfuns : Nat -> List U -> Rat
 
-A Real argument x becomes _real x, so Real joins the disjoint union as one
-more carrier, and a function with a Real result is the family _rfuns, so
-(f x) is _rfuns i [_real x], a Rat term that the arithmetic lemmas treat as
+    theorem unsat (_atoms : Nat -> Prop) (_vars : Nat -> Rat) (_m : Interpretation) ... : False
+
+A Real argument x becomes _m.real x, so Real joins the disjoint union as one
+more carrier, and a function with a Real result is the family _m.rfuns, so
+(f x) is _m.rfuns i [_m.real x], a Rat term that the arithmetic lemmas treat as
 an atom and that congruence closure relates to (f y) once x = y. A
-qf_uflia certificate takes the same shape over Int: (_vars : Nat -> Int),
-(_int : Int -> _U), and (_ifuns : Nat -> List _U -> Int), with every theory
+qf_uflia certificate takes the same shape over Int: (_vars : Nat -> Int)
+and the fields int : Int -> U and ifuns : Nat -> List U -> Int, with every theory
 lemma, rewrite, and argument-equality helper proved by first | omega | grind
 as for qf_lia (omega reads applications as atoms; grind proves the
 congruences). Nothing
-states that _real is injective and no inference needs it: euf lemmas use
-only the congruence x = y -> _real x = _real y, and a model of the input is
+states that _m.real is injective and no inference needs it: euf lemmas use
+only the congruence x = y -> _m.real x = _m.real y, and a model of the input is
 again one instance (its Real carrier is the Rat component). grind compares
 function arguments as terms, so each grind lemma states the equality of
 every pair of reachable Real arguments with the same normal form (for
 example (- x y) and (+ x (* (- 1.0) y)), which Z3 identifies, or an ite
 and the rewriter's form of it with the condition's complement and the
 branches swapped) as a helper it proves first. A certificate whose only uninterpreted symbols are predicates
-over Bool uses the same binders with no sort at all: _U carries the two
-Boolean values, _elems and _funs are never applied. Every ground term
+over Bool uses the same binders with no sort at all: _m.U carries the two
+Boolean values, _m.elems and _m.funs are never applied. Every ground term
 then denotes its value in the model, and since well-sorted inputs only
 compare terms of one sort, every assertion keeps its truth value. Nothing
-states that _bool True and _bool False differ, and no Z3 inference needs it:
+states that _m.bool True and _m.bool False differ, and no Z3 inference needs it:
 the euf lemmas over Boolean arguments use only the congruence
-p <-> q -> _bool p = _bool q, which grind proves through propext, together
+p <-> q -> _m.bool p = _m.bool q, which grind proves through propext, together
 with the two cases of each Boolean argument (Z3's egraph assigns every one
 true or false), which each grind lemma states as Classical.em first. This
 presumes that each symbol name denotes one many-sorted symbol of the input,
@@ -832,7 +849,7 @@ trans* between terms are Eq.refl, Eq.symm, and Eq.trans (between formulas
 they stay Iff); monotonicity through a function or predicate is congrArg on
 the equality of the argument lists, built from one List.cons congruence per
 argument, with a Boolean argument's equivalence turned into an equality of
-_bool applications by propext; monotonicity of equality and distinct over
+_m.bool applications by propext; monotonicity of equality and distinct over
 terms composes Eq.trans in both directions; monotonicity through an ite term
 uses a private lemma ite_congr_classical, stated once per file by cases on
 propext of the condition equivalence; commutativity of a term equality is
