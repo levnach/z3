@@ -50,12 +50,12 @@ footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8
 <h1>Pass the UF interpretation as one structure; serialize large Lean files</h1>
 <p class="meta">
 Pull request <a href="https://github.com/levnach/z3/pull/52">levnach/z3#52</a> into <code>master</code>
-&middot; <span class="state">OPEN</span>
-&middot; opened 2026-10-30T22:06:01Z &middot; loop iteration 52
+&middot; <span class="state">MERGED</span>
+&middot; 2026-10-30T22:25:57Z &middot; loop iteration 52
 </p>
-<p class="note">This pull request is open and <strong>not merged</strong>.
-The reviewed change is commit
-<a href="https://github.com/levnach/z3/commit/651458d83f59c61a06b1e434fc7dea7057500a01"><code>651458d</code></a>.</p>
+<p class="note">This pull request is <strong>merged</strong>.
+Merge commit <a href="https://github.com/levnach/z3/commit/b3d1035a90d76131320bb8aa5b282feb744a7cc3"><code>b3d1035</code></a>,
+merged on 2026-10-30T22:25:57Z.</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
@@ -109,7 +109,7 @@ Serial elaboration is like washing dishes one at a time instead of piling half-w
 <h2 id="example">Worked example</h2>
 <p>The newly certified input is <code>NEQ004_size4</code>, the new test file.
 Its one assertion is about 15 KB long, so it is trimmed below.
-All output comes from runs made for this report, on the PR's code and on the base commit's code.</p>
+All output comes from real runs made for this report: the "before" on the base commit's code, the "after" on the merge commit.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(set-logic QF_UF)
@@ -136,7 +136,7 @@ Every declaration in that file carried the binders
 <code>(_U : Type) (_elems : Nat -&gt; _U) (_funs : Nat -&gt; List _U -&gt; _U) (_preds : Nat -&gt; List _U -&gt; Prop) (_bool : Prop -&gt; _U)</code>.</p>
 
 <h3>(c) After: the PR's code</h3>
-<p>The reconstructor printed "Lean checked the refutation", and a separate <code>check_lean.sh</code> run printed "Lean checks passed."
+<p>On the merge commit, the reconstructor printed "Lean checked the refutation", and a separate <code>check_lean.sh</code> run printed "Lean checks passed."
 <strong>Lean accepted the file.</strong> It has 21,629,470 characters, above the 8 MB threshold.</p>
 <pre><code>namespace Z3Proofs.NativeCertificate.p4ae43fa49c882fa3a7d7fea249a881262db9d5c3c18439bc4d24c77f6a3dda10
 
@@ -206,12 +206,25 @@ The exporter tests, the z3test proof tests and two small benchmark sweeps also p
 <tr><td>One structure, this PR</td><td>Serial</td><td class="num">7.06 GB</td></tr>
 </tbody>
 </table>
-<p><strong>Local gate.</strong> The loop's local gate had started but had not recorded a result, so its outcome is unknown here.</p>
-<p><strong>CI.</strong> No CI status was available, so every check's state is unknown. The new tests run in one CI job:</p>
+<p><strong>Local gate.</strong> The change touched only Python examples, documentation and tests, so the loop merged it on its local gate.
+The gate repeats the parts of the <code>releaseClang</code> CI job that exercise this work, on the loop's macOS machine. Every step passed.</p>
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">14 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">1,150 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">16 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">4 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">7 s</td></tr>
+</tbody>
+</table>
+<p><strong>CI.</strong> GitHub CI runs on <code>master</code> after the merge.
+No CI results were recorded for this iteration, so their state is unknown here.
+The new tests run in one CI job:</p>
 <table>
 <thead><tr><th>Workflow / job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
 <tbody>
-<tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native Boolean proofs in Lean</td><td class="pending">Unknown; see the <a href="https://github.com/levnach/z3/pull/52/checks">PR checks page</a></td></tr>
+<tr><td>CI / Ubuntu build - cmake - releaseClang</td><td>Check native Boolean proofs in Lean</td><td class="pending">Unknown; see the checks of <a href="https://github.com/levnach/z3/commit/b3d1035a90d76131320bb8aa5b282feb744a7cc3">commit b3d1035</a></td></tr>
 </tbody>
 </table>
 <p>No CI fix rounds were recorded. No C++ changed, so the native Z3 tests and z3test benchmark runs were not repeated.</p>
@@ -237,7 +250,7 @@ A bug dropping a hypothesis on large files only would have gone unnoticed. The t
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li>NEQ004 leaves about 1 GB of headroom on macOS. CI uses Linux, whose allocator may differ, so the test could fail there.</li>
+<li>NEQ004 leaves about 1 GB of headroom on macOS. CI uses Linux, whose allocator may differ, so the test could fail there. No CI result on <code>master</code> was available for this report.</li>
 <li>The NEQ004 test adds about 110 s to the CI Lean step, and serial elaboration triples the time of any file above 8 MB.</li>
 <li>The UF theorem statement's text changed. A tool parsing the old binders would break, but the z3test scripts do not.</li>
 <li>The larger QF_UF <code>gensys_*</code> benchmarks, at 100 to 640 MB of Lean text, remain out of reach.</li>
