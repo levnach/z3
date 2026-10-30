@@ -622,6 +622,7 @@ class _Normalizer:
     def __init__(self):
         self.cache = {}  # (AST identifier, polarity) -> (expression kept alive, key)
         self.failed = {}  # (AST identifier, polarity) -> (expression kept alive, the error its form raised)
+        self.traces = {}  # identifier of a failed error -> its traceback where it was first caught
         self.ids = {}  # canonical form -> key
         self.forms = []  # key -> canonical form
 
@@ -657,8 +658,12 @@ class _Normalizer:
                     self.cache[position] = (node, self._intern(self._compute_form(node, truth)))
                 except Exception as error:  # noqa: BLE001 - raised again when the form is asked for
                     self.failed[position] = (node, error)
+                    self.traces.setdefault(id(error), error.__traceback__)
         if index in self.failed:
-            raise self.failed[index][1]
+            # From the traceback where it was first caught: every failing
+            # ancestor raises the same error, which would gather all their frames.
+            error = self.failed[index][1]
+            raise error.with_traceback(self.traces[id(error)])
         return self.cache[index][1]
 
     def _requests(self, expr, polarity):
