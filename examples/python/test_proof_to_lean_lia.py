@@ -1218,10 +1218,12 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         # clauses are tied to it by the solver search, and each was checked
         # for equivalence against all 1,743 conjuncts sharing a symbol before
         # the whole assertion was found to imply it: 12,207 solver calls,
-        # each asserting a suffix of the conjunction, and a 460 s export.
-        # Only conjuncts over exactly the clause's symbols are checked for
-        # equivalence now (_equivalence_candidates): seven calls, a few
-        # seconds of export, and the certificate verifies in Lean.
+        # each asserting a suffix of the conjunction, and a 459 s export.
+        # Only conjuncts over exactly the clause's symbols and leaf
+        # conjuncts over at least them are checked for equivalence now
+        # (_equivalence_candidates): 55 calls on single leaves, seven
+        # implications, a few seconds of export, and the certificate
+        # verifies in Lean.
         source = (_EXAMPLES / "data" / "QF_IDL_FISCHER6-4-ninc.smt2").read_text()
         calls = []
         original = proof_clause_log._Replay._valid
@@ -1232,7 +1234,9 @@ class TestIntegerLeanIntegration(unittest.TestCase):
 
         with patch.object(proof_clause_log._Replay, "_valid", valid):
             certificate = proof_certificate.export_clause_log_certificate(source)
-        self.assertEqual(calls, [z3.Z3_OP_IMPLIES] * 7)
+        self.assertEqual(calls.count(z3.Z3_OP_IMPLIES), 7)
+        self.assertLess(calls.count(z3.Z3_OP_EQ), 100)
+        self.assertEqual(len(calls), calls.count(z3.Z3_OP_IMPLIES) + calls.count(z3.Z3_OP_EQ))
         graph = proof_to_lean._validate_graph(source, certificate)
         cnf = [node for node in _th_lemma_nodes(certificate) if graph.decl(node).parameters == ("cnf",)]
         self.assertEqual(len(cnf), 7)

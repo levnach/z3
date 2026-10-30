@@ -2219,12 +2219,11 @@ class TestClauseLogReplay(unittest.TestCase):
     def test_equivalence_search_checks_only_conjuncts_over_the_clause_symbols(self):
         # A right-nested conjunction shares its symbols with every suffix:
         # QF_IDL FISCHER6-4-ninc checked seven clauses for equivalence
-        # against all 1,743 suffixes and conjuncts sharing a symbol, 12,200
-        # solver calls over the whole conjunction (450 s), before its first
+        # against all 1,743 suffixes and conjuncts sharing a symbol, 12,207
+        # solver calls over the whole conjunction (459 s), before its first
         # candidate implied each. Only conjuncts over exactly the clause's
-        # symbols are checked for equivalence now; an equivalent conjunct
-        # with an irrelevant extra symbol implies the clause and is tied by
-        # the implication pass instead.
+        # symbols, and leaf conjuncts (not ands) over at least its symbols,
+        # are checked for equivalence now; the suffixes are skipped.
         width = 300
         body = "(or p%d q)" % (width - 1)
         for i in reversed(range(width - 1)):
@@ -2261,10 +2260,12 @@ class TestClauseLogReplay(unittest.TestCase):
         counts = assume([p[5], q])
         self.assertEqual(checked, [z3.Z3_OP_EQ])
         self.assertEqual((counts["th-lemma"], counts["rewrite"], counts["and-elim"]), (0, 1, 6))
-        # Equivalent to the conjunct over p7, q and r: tied by implication.
+        # Equivalent to the leaf conjunct over p7, q and an irrelevant r:
+        # still a rewrite on that conjunct, not a cnf lemma over the whole
+        # assertion (which Lean may fail to prove for theory leaves).
         counts = assume([p[7], q])
-        self.assertEqual(checked, [z3.Z3_OP_IMPLIES])
-        self.assertEqual((counts["th-lemma"], counts["rewrite"]), (1, 0))
+        self.assertEqual(checked, [z3.Z3_OP_EQ])
+        self.assertEqual((counts["th-lemma"], counts["rewrite"], counts["and-elim"]), (0, 1, 8))
 
     def test_assumption_search_index_is_linear_on_deep_terms(self):
         # The index first kept the symbol set of every subterm, quadratic on

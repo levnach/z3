@@ -1019,25 +1019,39 @@ class _Replay:
         return [self.assumption_sources[position] for position in sorted(positions)]
 
     def _equivalence_candidates(self, formula, candidates):
-        """Return the candidates worth a solver check for equivalence with formula: those over its symbols.
+        """Return the candidates worth a solver check for equivalence with formula.
 
-        A conjunct equivalent to formula also implies it, so the implication
-        pass of assume still ties a skipped one (through a cnf lemma rather
-        than a rewrite); nothing is trusted by skipping. A conjunct Z3's
-        preprocessing rewrote into the clause normally keeps its symbols, and
-        the other candidates were only ever refuted, one solver call each
-        over the whole conjunct: a QF_IDL model checking input (FISCHER6-4-ninc)
-        nesting a thousand ands checked seven clauses against every suffix
-        conjunction, 12,200 calls and 450 s of a 460 s export, before the
-        first candidate, the whole assertion, implied each. The candidates
-        are compared by a hash of their symbol sets (_candidate_sources); a
-        collision costs one check. A few sources are not indexed and are all
-        checked.
+        Those are the conjuncts over exactly its symbols, and the leaf
+        conjuncts (not ands) over at least them: Z3's preprocessing may
+        simplify a symbol away, as (f (* 0 y)) to (f 0). The skipped ones
+        are the ands over more symbols, which were only ever refuted, one
+        solver call each over the whole conjunct: a QF_IDL model checking
+        input (FISCHER6-4-ninc) nesting a thousand ands checked seven
+        clauses against every suffix conjunction, 12,207 calls of a 459 s
+        export, before the first candidate, the whole assertion, implied
+        each. A leaf is checked at most once per clause, so the checks stay
+        linear in the size of the assertions. A conjunct equivalent to
+        formula also implies it, so the implication pass of assume still
+        ties a skipped one (through a cnf lemma rather than a rewrite);
+        nothing is trusted by skipping. Symbol sets are compared by hash
+        (_candidate_sources); a collision costs one check. A few sources are
+        not indexed and are all checked.
         """
         if self.symbol_signatures is None:
             return candidates
-        signature = hash(frozenset(_symbols(formula)))
-        return [source for source in candidates if self.symbol_signatures[source[1].get_id()] == signature]
+        symbols = _symbols(formula)
+        signature = hash(frozenset(symbols))
+        if symbols:
+            positions = set(self.sources_by_symbol.get(next(iter(symbols)), ()))
+            for symbol in symbols:
+                positions.intersection_update(self.sources_by_symbol.get(symbol, ()))
+            covering = {self.assumption_sources[position][1].get_id() for position in positions}
+        else:
+            covering = None  # every source covers no symbols
+        return [source for source in candidates
+                if self.symbol_signatures[source[1].get_id()] == signature
+                or (source[1].decl().kind() != z3.Z3_OP_AND
+                    and (covering is None or source[1].get_id() in covering))]
 
     def _implying_assertions(self, formula):
         """Return (asserted node, assertion) pairs for an unsat core of assertions implying formula, or None.
