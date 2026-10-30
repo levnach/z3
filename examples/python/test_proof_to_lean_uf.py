@@ -1852,7 +1852,11 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         # and serial elaboration brought it to about 7 GB, and propagation
         # proofs for its twelve cnf lemmas, which each unfolded the whole
         # assertion into grind, to about 5.5 GB in 80 s. Lean runs once here
-        # (self.check would run it twice).
+        # (self.check would run it twice), on the text with the grind
+        # fallbacks of those twelve lemmas dropped: a propagation proof Lean
+        # rejected would otherwise pass by the fallback and give the
+        # headroom back unnoticed. Lean never reaches a fallback whose
+        # attempt succeeds, so the check costs what the shipped text costs.
         source = (_EXAMPLES / "data" / "QF_UF_NEQ004_size4.smt2").read_text()
         certificate = proof_certificate.export_clause_log_certificate(source)
         self.assertEqual(certificate["fragment"], "qf_uf")
@@ -1867,6 +1871,15 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
             lemma = text.split("private theorem th_lemma_%d " % node, 1)[1].split("\n\n", 1)[0]
             structural = lemma.partition("\n  first\n")[2].split("\n    | (unfold ")[0]
             self.assertIn("refine Classical.byContradiction ?_\n", structural)
+        cnf_heads = tuple("private theorem th_lemma_%d " % node for node in cnf)
+        blocks, dropped = [], 0
+        for block in text.split("\n\n"):
+            if any(head in block for head in cnf_heads):
+                block, count = re.subn(r"\n    \| \(unfold [^\n]*\n       grind \(splits := 64\)\)", "", block)
+                dropped += count
+            blocks.append(block)
+        self.assertEqual(dropped, 12)
+        checked = "\n\n".join(blocks)
         # The statement checks of self.check: one hypothesis per assertion.
         statement = text.split("theorem unsat", 1)[1].split(": False :=", 1)[0]
         self.assertEqual(statement.count("    (_h"), len(certificate["assertions"]))
@@ -1875,7 +1888,7 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         namespace = "Z3Proofs.NativeCertificate.p" + hashlib.sha256(source.encode()).hexdigest()
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "checked.lean"
-            output.write_text(text + "\n#print axioms %s.unsat\n" % namespace)
+            output.write_text(checked + "\n#print axioms %s.unsat\n" % namespace)
             result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(output)], text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout[-5000:] + result.stderr[-5000:])
         self.assertIn(".unsat' depends on axioms: " + _STANDARD_AXIOMS, " ".join(result.stdout.split()))
