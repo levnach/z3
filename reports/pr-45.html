@@ -6,315 +6,282 @@
 <title>PR #45: Fix RecursionError on deeply nested inputs in proof export/reconstruct</title>
 <style>
   :root {
-    color-scheme: light dark;
-    --bg: #ffffff;
-    --fg: #1f2328;
-    --muted: #59636e;
-    --accent: #0969da;
-    --border: #d1d9e0;
-    --code-bg: #f6f8fa;
-    --ok: #1a7f37;
-    --warn: #9a6700;
-    --bad: #cf222e;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117;
-      --fg: #e6edf3;
-      --muted: #9198a1;
-      --accent: #4493f8;
-      --border: #3d444d;
-      --code-bg: #151b23;
-      --ok: #3fb950;
-      --warn: #d29922;
-      --bad: #f85149;
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
     }
   }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    line-height: 1.6;
-  }
-  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
-  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
-  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
   a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+  h3 { margin-top: 1.4rem; }
   .meta { color: var(--muted); font-size: 0.95rem; }
-  .meta p { margin: 0.2rem 0; }
-  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; font-size: 0.85rem; font-weight: 600; border: 1px solid var(--border); }
-  .open { color: var(--ok); border-color: var(--ok); }
-  .ok { color: var(--ok); font-weight: 600; }
-  .warn { color: var(--warn); font-weight: 600; }
-  .bad { color: var(--bad); font-weight: 600; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; line-height: 1.45; }
-  pre code { background: none; padding: 0; font-size: 0.82rem; }
-  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  .state { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; background: #8250df; color: #fff; font-weight: 600; }
+  code { background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; font-size: 0.82rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; margin: 0.8rem 0; width: 100%; font-size: 0.92rem; }
   th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .note { color: var(--muted); font-size: 0.93rem; }
-  dl dt { font-weight: 600; margin-top: 0.7rem; }
-  dl dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .fail { color: var(--bad); font-weight: 600; }
+  .explain { margin-top: -0.3rem; color: var(--muted); }
+  dt { font-weight: 600; margin-top: 0.6rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
-<main>
 
 <header>
   <h1>Fix RecursionError on deeply nested inputs in proof export/reconstruct</h1>
-  <div class="meta">
-    <p><a href="https://github.com/levnach/z3/pull/45">Pull request #45 on levnach/z3</a> · <span class="badge open">OPEN</span> · opened 2026-10-30T02:39:27Z · loop iteration 45</p>
-    <p>This pull request is open and <strong>not merged</strong>. The change it proposes is commit
-      <a href="https://github.com/levnach/z3/commit/81d6c245aad4dfd6464653c428f709c5feb7fc09"><code>81d6c245a</code></a>,
-      on top of base <code>1b859b6bc</code>.</p>
-  </div>
+  <p class="meta">
+    Pull request <a href="https://github.com/levnach/z3/pull/45">levnach/z3#45</a> ·
+    <span class="state">MERGED</span> · 2026-10-30T02:56:05Z · loop iteration 45<br>
+    Merge commit <a href="https://github.com/levnach/z3/commit/4f0b0a39d5fa6bcb75a5c654abf05a0eb642f33c"><code>4f0b0a39d</code></a>,
+    merged 2026-10-30T02:56:05Z, into <code>master</code>.
+  </p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>Some real benchmarks nest one <a href="#g-conjunction">conjunction</a> inside another about a thousand levels deep.
-On such inputs, the exporter and the reconstructor crashed with <code>RecursionError</code>, giving neither a <a href="#g-certificate">certificate</a> nor a clean rejection.
-This PR rewrites every affected <a href="#g-recursion">recursive</a> walk to use an <a href="#g-explicit-stack">explicit stack</a>.
-That includes the <a href="#g-case-split">case-split</a> search that builds propositional <a href="#g-refutation">refutations</a>.
-It also removes a cubic slowdown on very wide conjunctions.
-Output is byte for byte the same on every input that worked before.
-No Lean rule or check changed, so the <a href="#g-trust-boundary">trust boundary</a> is unchanged.
-Deep inputs can now reach the Lean <a href="#g-kernel">kernel</a> instead of stopping at a Python crash.</p>
+<p>
+Some benchmarks assert a <a href="#g-conjunction">conjunction</a> nested about a thousand levels deep.
+On such inputs, the exporter and the reconstructor crashed with a <a href="#g-recursion-limit">RecursionError</a> instead of producing a <a href="#g-certificate">certificate</a> or a clean rejection.
+This PR moves every <a href="#g-recursion">recursive</a> formula walk on those paths, and the <a href="#g-case-split">case-split</a> search of the <a href="#g-propositional">propositional</a> prover, onto an <a href="#g-explicit-stack">explicit stack</a>.
+Deeply nested <a href="#g-boolean">Boolean</a> and <a href="#g-qf-lra">QF_LRA</a> inputs can now become <a href="#g-refutation">refutations</a> that the Lean <a href="#g-kernel">kernel</a> checks.
+Output that worked before is byte-identical, and no Lean rule, check or axiom changed.
+</p>
 
 <h2 id="background">Background</h2>
-<p>Before this PR, the pipeline already handled propositional, QF_UF and <a href="#g-qf-lra">QF_LRA</a> inputs through the <a href="#g-clause-log">clause log</a> and the legacy proof object.
-But its formula walks used <a href="#g-recursion">recursion</a>, so deep inputs ran into Python's <a href="#g-recursion-limit">recursion limit</a>.
-The previous iteration scanned a sample of SMT-LIB benchmarks and found three inputs that hit this limit.
-One is <code>FISCHER6-4-ninc</code>, a QF_IDL model-checking benchmark that writes <code>(and a (and b ...))</code> about 1,000 levels deep.
-The other two are QF_LRA <code>tta_startup</code> inputs whose <a href="#g-cnf">CNF</a> lemma needed about 1,000 nested <a href="#g-case-split">case splits</a>.
-The work serves Milestones 2 and 3 of the plan, the Boolean and linear arithmetic slices.</p>
+<p>
+Before this PR, the pipeline handled wide inputs but not deep ones.
+The iteration 44 scan of the smtlib sample found three real inputs that hit Python's limit.
+The QF_IDL file <code>FISCHER6-4-ninc</code> crashed during export.
+Two QF_LRA <code>tta_startup</code> files crashed during reconstruction, about 1,000 <a href="#g-case-split">case splits</a> deep.
+This serves the plan's regression methodology, its top priority, and the Boolean and linear arithmetic slices of milestones 2 and 3.
+</p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-  <li>The clause-log exporter can now list the <a href="#g-conjunct">conjuncts</a> of an <a href="#g-assertion">assertion</a> nested any number of levels deep.</li>
-  <li>The exporter can now compute <a href="#g-canonical-key">canonical keys</a> for deep formulas, and an error in one subformula still surfaces only when a parent actually needs it.</li>
-  <li>The reconstructor can now read, render, and index deep Boolean structure, in both the clause-log core and the legacy core.</li>
-  <li>The propositional prover can now search through more than a thousand nested <a href="#g-case-split">case splits</a>, and Lean checks the deep proof it emits.</li>
-  <li>A legacy <a href="#g-rewrite">rewrite</a> over a 1,200-operand conjunction now reconstructs in about a second instead of about two minutes.</li>
-  <li>A new test module covers all of this at depth 1,100, and the plan document and README describe it.</li>
+  <li>The clause-log exporter can now list the <a href="#g-conjunct">conjuncts</a> of a thousand-level conjunction and give each subformula its canonical key.</li>
+  <li>The reconstructor can now read and print the Boolean structure of formulas of any depth.</li>
+  <li>The propositional prover can now follow more than 1,000 nested <a href="#g-case-split">case splits</a> and still emit a proof that Lean checks.</li>
+  <li>A rewrite over a very wide conjunction now reconstructs in about one second instead of about two minutes, because the prover stopped redoing work it had already done.</li>
+  <li>A new test module, <code>test_proof_to_lean_deep.py</code>, covers inputs nested 1,100 levels deep.</li>
 </ul>
-<p>Think of the old code as someone going down a staircase who leaves a bookmark on every step.
-Python hands out only about a thousand bookmarks.
-The new code keeps a single to-do list instead, which can grow as long as needed.</p>
-
+<p>
+An analogy helps here. Recursion is like stacking a plate for every level you go down, and Python's cupboard holds only about 1,000 plates.
+An explicit stack is a list the program keeps on its own, so the cupboard size no longer matters.
+</p>
 <table>
-  <thead><tr><th>File</th><th>What it is</th><th>Added</th><th>Removed</th></tr></thead>
-  <tbody>
-    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>clause-log exporter</td><td class="num">62</td><td class="num">9</td></tr>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor and propositional prover</td><td class="num">142</td><td class="num">71</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_deep.py</code></td><td>new tests, depth 1,100</td><td class="num">206</td><td class="num">0</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>dated note on deep nesting</td><td class="num">25</td><td class="num">0</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>test list</td><td class="num">2</td><td class="num">0</td></tr>
-    <tr><th colspan="2">Total, 5 files, 2 commits</th><th class="num">437</th><th class="num">80</th></tr>
-  </tbody>
+  <tr><th>File</th><th>What it is</th><th>Added</th><th>Removed</th></tr>
+  <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor and propositional prover</td><td class="num">+142</td><td class="num">−71</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_deep.py</code></td><td>New tests</td><td class="num">+206</td><td class="num">−0</td></tr>
+  <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log exporter</td><td class="num">+62</td><td class="num">−9</td></tr>
+  <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note on deep nesting</td><td class="num">+25</td><td class="num">−0</td></tr>
+  <tr><td><code>examples/python/README</code></td><td>Test list</td><td class="num">+2</td><td class="num">−0</td></tr>
+  <tr><th colspan="2">Total, 5 files</th><th class="num">+437</th><th class="num">−80</th></tr>
 </table>
 
 <h2 id="example">Worked example</h2>
-<p>This input follows the new test <code>deep_bounds_conjunction</code>.
-One conjunction, nested 1,102 levels deep, holds 1,100 upper <a href="#g-bound">bounds</a> on <code>x</code> and the contradictory pair <code>x &lt; y</code> and <code>y &lt; x</code>.
-All outputs below come from real runs.</p>
+<p>
+The input comes from the PR's own test generator, <code>deep_implication_chain(1100)</code>.
+It says p0 holds, each p<sub>i</sub> <a href="#g-implication">implies</a> p<sub>i+1</sub>, and p1100 is false.
+All of that sits inside one conjunction nested 1,100 levels deep.
+</p>
 
 <h3>(a) The input</h3>
-<pre><code>(set-logic QF_LRA)
-(declare-const x Real)
-(declare-const y Real)
-(assert (and (&lt; x 1.0) (and (&lt; x 2.0) (and (&lt; x 3.0) ...
-          ... (and (&lt; x 1100.0) (and (&lt; x y) (&lt; y x))) ... )))
+<p>The real file has 1,104 lines. The cut parts are marked "...".</p>
+<pre><code>(set-logic QF_UF)
+(declare-const p0 Bool)
+(declare-const p1 Bool)
+...
+(declare-const p1100 Bool)
+(assert (and p0 (and (=&gt; p0 p1) (and (=&gt; p1 p2) ... (and (=&gt; p1099 p1100) (not p1100)) ... )))
 (check-sat)</code></pre>
-<p class="note">The real <code>assert</code> line is about 19,800 characters long. The middle bounds and most closing parentheses were cut.</p>
+<p class="explain">One assertion, 1,100 nested <code>and</code>s, and no satisfying assignment.</p>
 
-<h3>(b) Before: the base commit's exporter</h3>
-<pre><code>$ python3 old/proof_certificate.py example.smt2
-Traceback (most recent call last):
+<h3>(b) Before</h3>
+<p>The pre-PR exporter, run with the clause-log core, crashed while listing the conjuncts. Trimmed traceback:</p>
+<pre><code>Traceback (most recent call last):
   ...
-  File "old/proof_clause_log.py", line 751, in __init__
+  File ".../old/proof_clause_log.py", line 751, in __init__
     for conjunct, path in _conjuncts(assertion)]
-  File "old/proof_clause_log.py", line 721, in _conjuncts
+  File ".../old/proof_clause_log.py", line 721, in _conjuncts
     yield from _conjuncts(child, path + (child,))
-  [Previous line repeated 984 more times]
+  File ".../old/proof_clause_log.py", line 721, in _conjuncts
+    yield from _conjuncts(child, path + (child,))
   ...
 ctypes.ArgumentError: argument 1: RecursionError: maximum recursion depth exceeded</code></pre>
-<p>The exporter crashed while listing the conjuncts, one Python call per nesting level. No certificate was written, so reconstruction never started.</p>
+<p class="explain">No certificate was written, so the old reconstructor had nothing to read.</p>
 
-<h3>(c) After: the generated Lean file</h3>
-<p>The export now succeeds, with 1,102 <a href="#g-and-elim">and-elimination</a> steps.
-The reconstructor wrote a 5,593-line file, and Lean <span class="ok">accepted it</span> in both the reconstructor's check and <code>scripts/check_lean.sh</code>.</p>
+<h3>(c) After</h3>
+<p>
+With the merged code, the clause-log exporter produced a propositional certificate.
+The reconstructor wrote a 7,737-line Lean file.
+<strong><code>scripts/check_lean.sh</code> reported "Lean checks passed."</strong>
+</p>
+<pre><code>import Init
 
-<pre><code>namespace Z3Proofs.NativeCertificate.p26ceace7...
+-- Original input SHA-256: 92e24dd03eeeb2fa123af01f98b97642f469c9729b29c6d38b2c337da5f60b60
+-- Atom 0: "p0"
+...
+-- Atom 1100: "p1100"
+namespace Z3Proofs.NativeCertificate.p92e24dd03eeeb2fa123af01f98b97642f469c9729b29c6d38b2c337da5f60b60
+
 set_option maxRecDepth 100000
 
-def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
-def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
-def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &lt; (term_1 _atoms _vars))
+def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
+def formula_1 (_atoms : Nat -&gt; Prop) : Prop := _atoms 1
+def formula_2 (_atoms : Nat -&gt; Prop) : Prop := ((formula_0 _atoms) -&gt; (formula_1 _atoms))
 ...
-def term_2201 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 1
-def formula_2202 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &lt; (term_2201 _atoms _vars))
-def formula_2203 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_2201 _atoms _vars) &lt; (term_0 _atoms _vars))
-def formula_2204 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (And (formula_2202 _atoms _vars) (formula_2203 _atoms _vars))
+def formula_2201 (_atoms : Nat -&gt; Prop) : Prop := (Not (formula_2199 _atoms))
+def formula_2202 (_atoms : Nat -&gt; Prop) : Prop := (And (formula_2200 _atoms) (formula_2201 _atoms))
 ...
-def formula_3304 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (And (formula_2 _atoms _vars) (formula_3303 _atoms _vars))</code></pre>
-<p>The declarations name each bound and each level of the conjunction, up to the whole assertion.</p>
+def formula_3302 (_atoms : Nat -&gt; Prop) : Prop := (And (formula_0 _atoms) (formula_3301 _atoms))
+def formula_3304 (_atoms : Nat -&gt; Prop) : Prop := False
+def formula_3305 (_atoms : Nat -&gt; Prop) : Prop := (Iff (formula_3302 _atoms) (formula_3304 _atoms))</code></pre>
+<p class="explain">Each <code>formula_k</code> names one subformula, so the 1,100 levels become 1,100 short definitions instead of one giant term.</p>
 
-<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
-    (_h0 : (formula_3304 _atoms _vars))
+<pre><code>private theorem rewrite_3306 (_atoms : Nat -&gt; Prop)
+    : (formula_3305 _atoms) := by
+  refine Iff.intro (fun (_f1 : (formula_3302 _atoms)) =&gt; ?_) (fun (_f3304 : False) =&gt; ?_)
+  · have _f2 : (Not False) := (fun _absurd =&gt; _absurd)
+    have _f3 := (And.left _f1)
+    have _f4 := (And.right _f1)
+    have _f5 := (And.left _f4)
+    have _f6 := (And.right _f4)
+    ...
+    have _f2203 := (And.left _f2202)
+    have _f2204 := (And.right _f2202)
+    have _f2205 : (Not (_atoms 1099)) := (fun _g =&gt; _f2204 (_f2203 _g))
+    have _f2206 : (Not (_atoms 1098)) := (fun _g =&gt; _f2205 (_f2201 _g))
+    ...
+    have _f3303 : (Not (_atoms 1)) := (fun _g =&gt; _f3302 (_f7 _g))
+    exact (False.elim (_f3303 (_f5 _f3)))
+  · have _f3305 : (Not False) := (fun _absurd =&gt; _absurd)
+    exact (False.elim (_f3305 _f3304))</code></pre>
+<p class="explain">This lemma peels the conjunction one level at a time by <a href="#g-and-elim">and-elimination</a>, then walks the implications backward until p1 is false while p0 is true.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
+    (_h0 : (formula_3302 _atoms))
     : False :=
-  proof_step_4422 _atoms _vars _h0</code></pre>
-<p>The theorem says that the assertion implies <code>False</code>, which is the refutation.</p>
-
-<pre><code>private theorem proof_step_3804 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
-    (_inputs : Inputs _atoms _vars)
-    : (formula_2805 _atoms _vars) :=
-  let _step_3305 : (formula_3304 _atoms _vars) :=
-    _inputs
-  let _step_3306 : (formula_3303 _atoms _vars) :=
-    _step_3305.2
-  let _step_3307 : (formula_3302 _atoms _vars) :=
-    _step_3306.2
-  ...</code></pre>
-<p>Each <code>.2</code> step peels off one level of the conjunction, which is exactly the path the old exporter could not compute.</p>
-
-<pre><code>private theorem proof_step_4422 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
-    (_inputs : Inputs _atoms _vars)
-    : (formula_4420 _atoms _vars) :=
-  let _step_4405 := proof_step_4405 _atoms _vars _inputs
-  let _step_4406 : (formula_2202 _atoms _vars) :=
-    _step_4405.1
-  ...
-  let _step_4415 : (formula_2203 _atoms _vars) :=
-    _step_4405.2
-  ...
-  let _step_4421 : (formula_4420 _atoms _vars) :=
-    (False.elim (_step_4411 (_step_4414.resolve_left _step_4419)))
-  ...</code></pre>
-<p>At the bottom of the chain, the proof takes <code>x &lt; y</code> and <code>y &lt; x</code> and combines them with a <a href="#g-theory-lemma">theory lemma</a> to reach <code>False</code>.</p>
+  let _step_3303 : (formula_3302 _atoms) :=
+    _h0
+  let _step_3306 : (formula_3305 _atoms) :=
+    (@rewrite_3306 _atoms)
+  let _step_3307 : (formula_3304 _atoms) :=
+    (Iff.mp _step_3306 _step_3303)
+  let _step_3308 : (formula_3304 _atoms) :=
+    (False.elim _step_3307)
+  _step_3308</code></pre>
+<p class="explain">The final theorem states that the assertion implies <code>False</code>, using the rewrite lemma above.</p>
+<p>
+A caveat: for a propositional file, the exporter picks the legacy proof object by default.
+On this input, Lean rejected the legacy output with heartbeat timeouts.
+So the example uses the clause-log core, like the PR's Lean-checked test.
+</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>In plain terms, every existing test still passes, and earlier outputs did not change by a single byte.
-The new tests crash on the old code and pass on the new code.
-Thousands of random old-versus-new comparisons found no difference.
-The three real benchmarks now export and reconstruct, but none passes Lean yet.
-The loop's local gate had not recorded a result when this page was written.</p>
-
+<p>
+In plain terms, every existing test still passed, and the new deep tests failed on the old code but pass now.
+Hundreds of generated certificates came out byte-for-byte the same as before.
+The loop merged the PR on its local gate, which mirrors the Lean steps of the Ubuntu <code>releaseClang</code> CI job.
+</p>
 <table>
-  <thead><tr><th>Check</th><th>Who ran it</th><th>Result</th></tr></thead>
-  <tbody>
-    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>PR author, final commit</td><td class="ok">301 tests OK, 960.7 s</td></tr>
-    <tr><td>Same suite</td><td>reviewer</td><td class="ok">301 tests OK, 963.7 s</td></tr>
-    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td>PR author</td><td class="ok">99 tests OK</td></tr>
-    <tr><td><code>scripts/check_lean.sh</code></td><td>PR author</td><td class="ok">passed</td></tr>
-    <tr><td>z3test proof tests</td><td>PR author</td><td class="ok">46 tests OK</td></tr>
-    <tr><td>Regression matrix, clause log, <code>lra_*.smt2</code></td><td>PR author</td><td class="ok">8/8 Lean-verified</td></tr>
-    <tr><td>Regression matrix, legacy core, Boolean files</td><td>PR author</td><td class="ok">6/6 Lean-verified</td></tr>
-    <tr><td>New tests against the base code</td><td>PR author and reviewer</td><td class="ok">7/7 fail with RecursionError, as intended</td></tr>
-    <tr><td>Traceback assertion without the review fix</td><td>PR author</td><td class="ok">fails with 3,303 frames, passes with the fix</td></tr>
-    <tr><td>Byte-identical output, both cores</td><td>PR author</td><td class="ok">322 certificates identical</td></tr>
-    <tr><td>Differential fuzz, base against new</td><td>reviewer</td><td class="ok">3,000 normalizer seeds and 3,000 prover pairs, 0 mismatches</td></tr>
-    <tr><td><code>tta_startup</code> 11 nodes, export and reconstruct</td><td>PR author</td><td>4.3 s and 1.3 s, <span class="warn">not Lean-verified</span></td></tr>
-    <tr><td><code>tta_startup</code> 15 nodes, export and reconstruct</td><td>PR author</td><td>7.6 s and 1.9 s, <span class="warn">not Lean-verified</span></td></tr>
-    <tr><td><code>FISCHER6-4-ninc</code>, export and reconstruct</td><td>PR author</td><td>482 s and 1.7 s, <span class="warn">not Lean-verified</span></td></tr>
-    <tr><td>Worked example above, depth 1,102</td><td>this report</td><td class="ok">exported, reconstructed, Lean accepted</td></tr>
-  </tbody>
+  <tr><th>Local gate step</th><th>Result</th><th>Time</th></tr>
+  <tr><td>Python example tests: certificate exporter (99 tests)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+  <tr><td>Python example tests: Lean reconstruction (301 tests)</td><td class="pass">pass</td><td class="num">960 s</td></tr>
+  <tr><td>z3test proof script tests (46 tests)</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+  <tr><td>Lean-certified Boolean matrix, legacy proof object (6/6)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+  <tr><td>Lean-certified QF_LRA matrix, clause log (8/8)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
 </table>
-
-<h3>Continuous integration</h3>
-<p>No CI results were available when this page was written, so CI status is unknown. No CI fix rounds were recorded.</p>
 <table>
-  <thead><tr><th>Workflow job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>releaseClang</code></td><td>Check native Boolean proofs in Lean, about 18 s more</td><td class="warn">unknown, see <a href="https://github.com/levnach/z3/pull/45/checks">PR checks</a></td></tr>
-    <tr><td>manylinux</td><td>not affected, it runs only <code>test_proof_to_lean.py</code></td><td class="warn">unknown, see <a href="https://github.com/levnach/z3/pull/45/checks">PR checks</a></td></tr>
-  </tbody>
+  <tr><th>Other checks reported by the implementer and reviewer</th><th>Result</th></tr>
+  <tr><td>New deep tests run against the pre-PR modules</td><td>7 of 7 fail with RecursionError</td></tr>
+  <tr><td>Byte-identical output, old vs new, 40 seeds of 11 generators and more</td><td class="pass">322 certificates identical</td></tr>
+  <tr><td>Differential fuzz: normalizer seeds / prover structure pairs</td><td class="pass">3,000 / 3,000, 0 mismatches</td></tr>
+  <tr><td>tta_startup 11 nodes, export + reconstruct</td><td>4.3 s + 1.3 s</td></tr>
+  <tr><td>tta_startup 15 nodes, export + reconstruct</td><td>7.6 s + 1.9 s</td></tr>
+  <tr><td>FISCHER6-4-ninc, export + reconstruct</td><td>482 s + 1.7 s</td></tr>
+  <tr><td>Legacy rewrite over 1,200 operands, reconstruct</td><td>121 s before, 1.0 s after</td></tr>
+</table>
+<p>
+Python-only changes like this one are not gated on GitHub CI. No CI results were recorded, and there were no CI fix rounds.
+CI runs on <code>master</code> after the merge. Its result is unknown here.
+</p>
+<table>
+  <tr><th>CI workflow / check</th><th>Step that runs the new tests</th><th>State</th><th>Link</th></tr>
+  <tr><td>CI / Ubuntu build - cmake - releaseClang</td><td>Check native Boolean proofs in Lean</td><td class="unknown">not recorded</td><td><a href="https://github.com/levnach/z3/commit/4f0b0a39d5fa6bcb75a5c654abf05a0eb642f33c">merge commit</a></td></tr>
 </table>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved the PR. There were no blocker, major, or minor findings.</p>
-<ul>
-  <li><strong>Nit, fixed.</strong> The reviewer put a nonlinear atom at the bottom of a 1,100-level conjunction.
-    The exporter correctly rejected it.
-    But every parent formula raised the same stored error again and added its frames to the <a href="#g-traceback">traceback</a>, which grew past three thousand frames.
-    A printout or a debugging session would drown in that noise.
-    The fix reuses the traceback from the first failure, and a new test checks that it stays short.</li>
-  <li><strong>Suggestion, accepted as is.</strong> The new code also computes keys for conjuncts after a <code>false</code> one.
-    The fuzz found no visible difference, and no slowdown was observed.</li>
-  <li><strong>Suggestion, done.</strong> The README test list now names the new module.</li>
-</ul>
+<p>The reviewer approved the PR with no blocker, major or minor findings.</p>
+<p>
+<strong>Nit: a traceback that grew with the input.</strong>
+The reviewer imagined a nonlinear atom at the bottom of a 1,100-level conjunction.
+The exporter correctly rejects that atom.
+But the new code re-raised the stored error at every parent level, and each raise added its own frames.
+The final error carried thousands of frames.
+The message was right, but anyone debugging would drown in noise.
+The fix reuses the traceback from the first failure, and a new test checks that it stays short.
+</p>
+<p>
+<strong>Suggestion: extra work after a false conjunct.</strong>
+The new code also keys conjuncts the old code skipped. The fuzz showed no visible difference, so this was accepted as is.
+</p>
+<p>
+<strong>Suggestion: list the new test module in the README.</strong> Done.
+</p>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>None of the three real benchmarks passes Lean yet. In <code>tta_startup</code>, the <code>grind</code> <a href="#g-tactic">tactic</a> runs out of <a href="#g-heartbeat">heartbeats</a> and some lemmas exhaust kernel memory. <code>FISCHER6-4-ninc</code> is too slow to export.</li>
-  <li>The deep legacy test only reconstructs. Its <a href="#g-rewrite">rewrite</a> lemma exceeds the heartbeat limit in Lean, a width problem rather than a nesting problem.</li>
-  <li>The key code now catches every exception and raises it later. A real bug in a subformula the old code never visited could go unnoticed.</li>
+  <li>None of the three real inputs verifies in Lean yet. They now export and reconstruct, but each hits a separate limit.</li>
+  <li>In <code>tta_startup</code>, the <a href="#g-grind">grind</a> fallback for one <a href="#g-cnf">CNF</a> lemma runs out of <a href="#g-heartbeat">heartbeats</a>, and other lemmas exhaust kernel memory.</li>
+  <li><code>FISCHER6-4-ninc</code> spends most of its long export in repeated equivalence checks. That is too slow for CI.</li>
+  <li>Deep legacy certificates only reconstruct. Their rewrite lemma is too wide for the heartbeat limit, as the worked example also showed.</li>
+  <li>The key computation now catches every exception and raises it later. An unrelated bug in a subformula the old code never visited would stay silent.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-  <li>Speed up the equivalence checks that make <code>FISCHER6-4-ninc</code> slow to export.</li>
-  <li>Make <code>tta_startup</code> pass Lean.</li>
-  <li>Split the legacy rewrite's normalizations into separate lemmas.</li>
-  <li>Re-run the SMT-LIB sample scan now that the recursion fixes are in.</li>
+  <li>Re-run the smtlib-sample export scan now that the recursion fixes are in.</li>
+  <li>Make <code>FISCHER</code>'s export faster and <code>tta_startup</code> verify in Lean.</li>
+  <li>Split the normalized rewrite into separate lemmas so wide rewrites fit in the heartbeat budget.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
 <dl>
-  <dt id="g-and-elim">and-elimination</dt>
-  <dd>The proof step that goes from <code>A ∧ B</code> to <code>A</code> or to <code>B</code>. In Lean it is written <code>.1</code> or <code>.2</code>.</dd>
-  <dt id="g-assertion">assertion</dt>
-  <dd>A formula stated as true in the input with <code>(assert ...)</code>.</dd>
-  <dt id="g-bound">bound</dt>
-  <dd>An atom that limits a variable from one side, such as <code>x &lt; 5</code>.</dd>
-  <dt id="g-canonical-key">canonical key</dt>
-  <dd>A label given to a formula so that formulas with the same meaning up to simple rewriting get the same label.</dd>
-  <dt id="g-case-split">case split</dt>
-  <dd>Proving a goal by considering each possibility in turn. For <code>a ∨ b</code>, prove the goal once assuming <code>a</code> and once assuming <code>b</code>.</dd>
-  <dt id="g-certificate">certificate</dt>
-  <dd>A file holding the solver's proof evidence for one input, which a separate checker can verify.</dd>
-  <dt id="g-clause-log">clause log</dt>
-  <dd>A record of the clauses the solver assumed, derived, and deleted while solving, used here as proof evidence.</dd>
-  <dt id="g-cnf">CNF (conjunctive normal form)</dt>
-  <dd>A formula written as a conjunction of clauses, where each clause is a disjunction of literals. A CNF lemma links a formula to its clauses.</dd>
-  <dt id="g-conjunct">conjunct</dt>
-  <dd>One of the parts joined by a conjunction. In <code>(and a b)</code>, both <code>a</code> and <code>b</code> are conjuncts.</dd>
-  <dt id="g-conjunction">conjunction</dt>
-  <dd>A formula built with "and", written <code>(and a b)</code> in SMT-LIB. It is true when all its parts are true.</dd>
-  <dt id="g-explicit-stack">explicit stack</dt>
-  <dd>A list the program keeps itself to remember work still to do, used instead of nested function calls.</dd>
-  <dt id="g-heartbeat">heartbeat</dt>
-  <dd>Lean's unit of work. Each proof gets a heartbeat budget and fails if it runs over.</dd>
-  <dt id="g-kernel">kernel</dt>
-  <dd>The small core of Lean that checks every proof step. A proof is trusted only once the kernel accepts it.</dd>
-  <dt id="g-qf-lra">QF_LRA</dt>
-  <dd>The SMT-LIB logic of quantifier-free linear real arithmetic, such as <code>2*x + y &lt; 3</code> over real numbers.</dd>
-  <dt id="g-recursion">recursion</dt>
-  <dd>A function solving a problem by calling itself on a smaller part, such as one level deeper in a formula.</dd>
-  <dt id="g-recursion-limit">recursion limit</dt>
-  <dd>The most nested calls Python allows at once, 1,000 by default. Going past it raises <code>RecursionError</code>.</dd>
-  <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold together.</dd>
-  <dt id="g-rewrite">rewrite</dt>
-  <dd>A proof step that replaces a formula with an equivalent one, such as turning <code>x &lt; y</code> into <code>not (y &lt;= x)</code>.</dd>
-  <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that searches for a proof automatically. <code>grind</code> is one such tactic.</dd>
-  <dt id="g-theory-lemma">theory lemma</dt>
-  <dd>A fact that holds because of the theory, here arithmetic, not because of Boolean logic. For example, <code>x &lt;= y</code> or <code>y &lt;= x</code>.</dd>
-  <dt id="g-traceback">traceback</dt>
-  <dd>The list of function calls Python prints when an error happens, showing where it came from.</dd>
-  <dt id="g-trust-boundary">trust boundary</dt>
-  <dd>The set of components that must be correct for a verified result to be believed. Here that is the Lean kernel and the Lean rules, not the Python scripts.</dd>
+  <dt id="g-and-elim">and-elimination</dt><dd>The rule that gets <i>A</i> from <i>A</i> and <i>B</i>. In Lean, <code>And.left</code> and <code>And.right</code>.</dd>
+  <dt id="g-boolean">Boolean</dt><dd>The sort with exactly two values, true and false. <code>Bool</code> in SMT-LIB.</dd>
+  <dt id="g-case-split">case split</dt><dd>Proving a goal by trying each possibility in turn, for example first assuming <i>a</i> is true, then that it is false.</dd>
+  <dt id="g-certificate">certificate</dt><dd>A file that records the solver's proof steps so another tool can check them.</dd>
+  <dt id="g-cnf">CNF (conjunctive normal form)</dt><dd>A formula written as an <code>and</code> of clauses, where each clause is an <code>or</code> of literals.</dd>
+  <dt id="g-conjunct">conjunct</dt><dd>One of the parts joined by <code>and</code>. In <code>(and a b)</code>, both <code>a</code> and <code>b</code> are conjuncts.</dd>
+  <dt id="g-conjunction">conjunction</dt><dd>A formula built with <code>and</code>. It is true only when all its parts are true.</dd>
+  <dt id="g-explicit-stack">explicit stack</dt><dd>A list the program manages itself to remember pending work, used instead of having a function call itself.</dd>
+  <dt id="g-grind">grind</dt><dd>A Lean tactic that searches for a proof automatically. It can run out of time on large goals.</dd>
+  <dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit of work. Each proof gets a budget of heartbeats and fails if it uses more.</dd>
+  <dt id="g-implication">implication</dt><dd>"If <i>A</i> then <i>B</i>", written <code>(=&gt; A B)</code> in SMT-LIB and <code>A -&gt; B</code> in Lean.</dd>
+  <dt id="g-kernel">kernel</dt><dd>The small core of Lean that checks every proof. It is the part that must be trusted.</dd>
+  <dt id="g-propositional">propositional</dt><dd>Using only Boolean variables and connectives such as <code>and</code>, <code>or</code>, <code>not</code> and <code>=&gt;</code>, with no arithmetic or functions.</dd>
+  <dt id="g-qf-lra">QF_LRA</dt><dd>The SMT-LIB logic of quantifier-free linear real arithmetic, for example <code>(&lt; x 5.0)</code>.</dd>
+  <dt id="g-recursion">recursion</dt><dd>A function solving a problem by calling itself on a smaller part, such as one nesting level down.</dd>
+  <dt id="g-recursion-limit">recursion limit (RecursionError)</dt><dd>Python's cap of about 1,000 nested calls. Going deeper raises <code>RecursionError</code>.</dd>
+  <dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to <code>False</code>, so no assignment satisfies them.</dd>
 </dl>
 
 <footer>
   Generated by the Lean certificate improvement loop on 2026-10-29.
 </footer>
 
-</main>
 </body>
 </html>
