@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #49: Bound every z3 run of the clause-log export by time and memory</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+         max-width: 50rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+  .meta { color: var(--muted); margin: 0.2rem 0; }
+  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; border: 1px solid var(--ok);
+           color: var(--ok); font-weight: 600; font-size: 0.9rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
+        overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.95rem; }
+  dt { font-weight: 600; margin-top: 0.7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Bound every z3 run of the clause-log export by time and memory</h1>
+  <p class="meta"><a href="https://github.com/levnach/z3/pull/49">Pull request #49</a> in levnach/z3, targeting <code>master</code></p>
+  <p class="meta">State: <span class="badge">OPEN</span> &middot; created 2026-10-30T16:18:17Z &middot; loop iteration 49</p>
+  <p class="meta">This pull request is not merged. Its change commit is
+    <a href="https://github.com/levnach/z3/commit/920265f88af972b7aa72b1f699104ab6566fc70d"><code>920265f88</code></a>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+To build a <a href="#g-certificate">certificate</a> for a <a href="#g-qf-lra">linear real arithmetic</a> or
+<a href="#g-euf">EUF</a> problem, the exporter starts the z3 executable twice.
+One run writes a <a href="#g-clause-log">clause log</a>, and the other performs <a href="#g-trimming">proof trimming</a> on it.
+Before, neither run had a memory limit, and the solver had a time limit only on request.
+Now both runs always carry both limits, by default 600 seconds and 8192 MB.
+When a run hits a limit, the export stops with an error that names the limit.
+A limit can only end an export early, so the set of <a href="#g-refutation">refutations</a> Lean accepts is unchanged.
+What it buys is safety: benchmark sweeps can no longer leave runaway solver processes behind.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+On 2026-10-30 a sweep exported certificates without a timeout.
+Its own deadlines killed the Python workers, but eleven z3 processes kept running.
+Together they used 220 GB of memory, and the machine crashed.
+Also, a trimmer stopped at a limit looked like an unusable <a href="#g-clause-log">clause log</a>, so the exporter silently fell back to the untrimmed log.
+The PR serves the <a href="#g-regression-matrix">regression matrix</a>, which the plan names as the current top priority.
+That matrix runs the exporter over many benchmarks, so every run must be bounded.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>Every z3 run of the clause-log export now stops by itself after 600 seconds or 8192 MB, unless the caller sets other limits.</li>
+  <li>A caller can now set a memory limit with the new <code>--memory</code> option.</li>
+  <li>Hitting a limit now gives an error that names the run and the limit.</li>
+  <li>A trimmer that hits a limit no longer silently falls back to the untrimmed replay.</li>
+  <li>Limits too large for z3 or Python to hold now get a clear usage error instead of a crash.</li>
+</ul>
+<p>
+Think of circuit breakers: each run now has its own, and its label tells you which one tripped.
+As a backstop, Python kills a run that outlives its time limit by 30 seconds.
+The PR has two commits: the first adds the limits, and the second rejects limits z3 cannot hold.
+</p>
+<table>
+  <thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>runs z3 under limits, names limit hits</td><td class="num">73</td><td class="num">15</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>passes limits to both runs, new <code>--memory</code> option</td><td class="num">23</td><td class="num">8</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>three new tests</td><td class="num">118</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>test wrapper forwards <code>memory</code></td><td class="num">2</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>documents the options</td><td class="num">7</td><td class="num">1</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>dated note</td><td class="num">22</td><td class="num">0</td></tr>
+    <tr><th colspan="2">Total (6 files)</th><th class="num">245</th><th class="num">26</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+This PR makes no new input certifiable, so the example has two parts, both from real runs.
+Part 1 shows a hard input hitting a limit. Part 2 shows a small input certified exactly as before.
+Paths in the outputs are shortened to file names.
+</p>
+
+<h3>Part 1: a hard input hits the limits</h3>
+<p>(a) The <a href="#g-pigeonhole">pigeonhole formula</a> for 11 holes, generated by the PR's test helper. Only a few of its 870 lines are shown.</p>
+<pre><code>(declare-const p0_0 Bool)
+(declare-const p0_1 Bool)
+...
+(assert (or p0_0 p0_1 p0_2 p0_3 p0_4 p0_5 p0_6 p0_7 p0_8 p0_9 p0_10))
+...
+(assert (or (not p0_0) (not p1_0)))
+...
+(assert (or (not p10_10) (not p11_10)))</code></pre>
+<p>Each <a href="#g-boolean">Boolean</a> variable <code>pP_H</code> means "pigeon P sits in hole H". The first kind of <a href="#g-clause">clause</a> puts every pigeon in some hole. The second kind forbids two pigeons from sharing a hole.</p>
+
+<p>(b) Before, with the base commit's exporter and <code>--core clause-log --timeout 1</code>:</p>
+<pre><code>proof_certificate.py: error: the solver did not report unsat: timeout</code></pre>
+<p>The run stopped, but the message does not name the limit. A memory limit could not be requested at all:</p>
+<pre><code>proof_certificate.py: error: unrecognized arguments: --memory hard.smt2</code></pre>
+
+<p>(c) After, with the same timeout, and then with <code>--timeout 60 --memory 20</code>:</p>
+<pre><code>proof_certificate.py: error: the clause-log solver run exceeded the time limit of 1 s
+proof_certificate.py: error: the clause-log solver run exceeded the memory limit of 20 MB</code></pre>
+<p>Each run ended in about one second. A limit that is too large is now refused before z3 starts:</p>
+<pre><code>proof_certificate.py: error: --timeout must be a positive number of seconds, at most 1000000</code></pre>
+
+<h3>Part 2: certification is unchanged</h3>
+<p>(a) A small <a href="#g-qf-lra">linear real arithmetic</a> input, taken from the PR's existing tests:</p>
+<pre><code>(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const z Real)
+(assert (&gt;= (+ (* 2.0 x) y) 5.0))
+(assert (&lt;= (+ x (* 3.0 z)) 1.0))
+(assert (&lt;= (- y (* 6.0 z)) 2.0))
+(assert (&lt;= x 0.0))
+(check-sat)</code></pre>
+<p>(b) Before: the old exporter accepted this input too, and wrote a byte-for-byte identical certificate.</p>
+<p>(c) After: the generated Lean file, trimmed. The Lean check accepted it and printed "Lean checks passed."</p>
+<pre><code>def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+...
+def formula_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_4 _atoms _vars) &gt;= (term_5 _atoms _vars))
+...</code></pre>
+<p>Each input term becomes a small definition. Here <code>formula_6</code> is the first assertion, 2x + y &ge; 5.</p>
+<pre><code>private theorem th_lemma_46 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_45 _atoms _vars) := by
+  unfold formula_45 formula_44 formula_43 ...
+  grind (splits := 64)</code></pre>
+<p>This <a href="#g-theory-lemma">theory lemma</a> says three of the bounds cannot all hold, and the <a href="#g-tactic">tactic</a> <code>grind</code> proves it.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_6 _atoms _vars))
+    (_h1 : (formula_12 _atoms _vars))
+    (_h2 : (formula_16 _atoms _vars))
+    (_h3 : (formula_18 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p>The main <a href="#g-theorem">theorem</a> takes the four assertions as <a href="#g-hypothesis">hypotheses</a> and derives <code>False</code>.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+All existing exporter and Lean tests passed, and so did the three new tests.
+The new tests fail on the old exporter, so they really detect the change.
+The QF_LRA matrix cell that CI requires verified all its benchmarks in Lean.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">103 tests OK</td></tr>
+    <tr><td>The three new tests alone</td><td class="pass">3 tests OK</td></tr>
+    <tr><td>The three new tests on the old exporter</td><td>2 failures, 3 errors, as expected</td></tr>
+    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">306 tests OK</td></tr>
+    <tr><td>Lean project check, <code>check_lean.sh</code></td><td class="pass">passed</td></tr>
+    <tr><td>z3test proof tests</td><td class="pass">46 tests OK</td></tr>
+    <tr><td>QF_LRA Lean matrix cell, timeout 30 s</td><td class="pass">8 of 8 lean-verified</td></tr>
+    <tr><td>Export at the maximum limits</td><td class="pass">succeeds</td></tr>
+    <tr><td>This page's worked example, Lean check</td><td class="pass">passed</td></tr>
+  </tbody>
+</table>
+<p>
+The C++ build and tests were not run, because the PR touches no C++ code.
+The loop's own local gate was still running when this page was written, so its result is not recorded here.
+No GitHub CI status was recorded either, and there were no CI fix rounds.
+</p>
+<table>
+  <thead><tr><th>CI workflow or check</th><th>Status</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td>All checks on this PR</td><td class="unknown">not recorded</td><td><a href="https://github.com/levnach/z3/pull/49/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+<p class="note">According to the reviewer, the new tests run in CI in the <code>manylinux-python-amd64</code> job, step "Test Python wheel".</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blockers or major findings. All three smaller findings were fixed in the second commit.</p>
+<ol>
+  <li><strong>Minor: huge timeouts crashed.</strong>
+    The reviewer passed a timeout of 10<sup>7</sup> seconds, and Python crashed with an <code>OverflowError</code>.
+    Before the PR, a huge timeout was the usual way to say "no limit", so this mattered.
+    The timeout is now capped at 10<sup>6</sup> seconds, and larger values get a usage error.</li>
+  <li><strong>Nit: huge memory values confused z3.</strong>
+    A memory limit of 2<sup>40</sup> MB gave a confusing z3 parameter error.
+    The fix uncovered a worse case: 4294967295 MB makes z3 report "out of memory" at once, which looks like a real limit hit.
+    Memory is now capped at 2<sup>22</sup> MB, about 4 TB.</li>
+  <li><strong>Nit: some number types were refused.</strong>
+    The first commit refused values such as a <code>Fraction</code>, which the old code took.
+    Validation now accepts any real timeout and any integer memory value, except <code>True</code> and <code>False</code>.</li>
+</ol>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>An export that truly needs more than 600 seconds or 8 GB per run now fails, unless the caller raises the limits.</li>
+  <li>Detecting a limit hit relies on how z3 reports it. Those messages were checked on this build only.</li>
+  <li>In z3test, a trimmer that runs out of memory is now reported as "unsupported", not as a separate memory-out status.</li>
+  <li>CI results and the local gate result were unknown when this page was written.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<p>
+The legacy Boolean core still solves inside Python with no limit, and the Python replay has no time budget.
+The PR lists bounding both as follow-ups, along with letting z3test pass its own memory limit.
+</p>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>A value that is either true or false. In SMT-LIB its <a href="#g-sort">sort</a> is <code>Bool</code>.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>A file that records the steps of a proof, so that an independent checker can confirm it without trusting the solver.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of <a href="#g-literal">literals</a>, true when at least one literal is true. Example: <code>(or (not p0_0) (not p1_0))</code>.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A file in which the solver writes every clause it assumes, derives, or deletes while it searches, with hints for theory steps.</dd>
+  <dt id="g-euf">EUF</dt>
+  <dd>The theory of equality with uninterpreted functions: functions whose only known property is that equal inputs give equal outputs.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A statement a theorem assumes. Here, each input assertion becomes one hypothesis of the final theorem.</dd>
+  <dt id="g-qf-lra">linear real arithmetic</dt>
+  <dd>Constraints that add and compare real-valued variables and multiply them only by constants, such as 2x + y &ge; 5. In SMT-LIB the logic is called QF_LRA.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>p0_0</code> or <code>(not p0_0)</code>.</dd>
+  <dt id="g-pigeonhole">pigeonhole formula</dt>
+  <dd>A classic unsatisfiable set of clauses saying n + 1 pigeons fit into n holes, one pigeon per hole. It is famously hard for resolution, so it makes a good stress test.</dd>
+  <dt id="g-trimming">proof trimming</dt>
+  <dd>Removing the steps of a clause log that the final contradiction does not depend on, so the checker has less to replay.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions cannot all be true, ending in False.</dd>
+  <dt id="g-regression-matrix">regression matrix</dt>
+  <dd>The project's table of benchmark inputs and export settings, run regularly to catch any input that stops being certified.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A command in a Lean proof that builds part of the proof automatically. <code>grind</code> is one such tactic.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that Lean has checked.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that holds because of a background theory such as arithmetic, not because of Boolean logic alone. Example: x &le; 0 and x &ge; 1 cannot both hold.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-30.
+</footer>
+
+</body>
+</html>
