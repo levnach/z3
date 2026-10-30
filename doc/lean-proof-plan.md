@@ -1589,6 +1589,23 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### and-elim from shared conjunction tails (2026-10-29)
+
+and-elim projected operand k of a right-nested conjunction by field
+notation with k `.2`s, so a refutation that eliminates every operand of a
+wide conjunction held a quadratic number of projections. Legacy certificates
+of conjunctions of 600 operands or more failed in Lean: one outlined lemma
+eliminated 250 operands through 94,000 projections and exhausted its
+heartbeats (the 1,200-operand case from the deep-nesting scan below failed the same
+way). The reconstructor now binds the rest of such a conjunction once every
+32 operands (`let _tail_P_K := ...`, each tail projected from the one before
+with an inferred type) in every lemma and theorem that eliminates from it,
+and each and-elim projects at most 32 levels from the nearest tail. Premises
+that take hypotheses still project from the start. The 600-operand
+implication chain checks in 6 s and the 1,200-operand one from the scan in
+28 s. Tests: `test_proof_to_lean_wide.py`, outlined (600 operands) and
+inline (150).
+
 ### Normalized rewrites: one lemma per atom normalization (2026-10-29)
 
 `_normalized_rewrite` proved each atom's normalization to its canonical

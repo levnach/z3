@@ -37,6 +37,9 @@ CLAUSE_LOG_CONJUNCTION_WIDTH = 200
 # at this many assertions a right-nested conjunction exhausts maxHeartbeats
 # (isDefEq on the chain of 600 projections), a balanced one checks in 20 s.
 OUTLINED_WIDTH = 600
+# Below _OUTLINE_PROOF_STEPS proof steps when every operand is eliminated
+# (three per operand), so the steps are checked in the theorem itself.
+INLINE_CHAIN_WIDTH = 150
 
 
 def wide_conjunction(width):
@@ -44,6 +47,14 @@ def wide_conjunction(width):
     source = "".join("(declare-const p%d Bool)\n" % index for index in range(width))
     source += "(assert (and %s))\n" % " ".join("p%d" % index for index in range(width))
     source += "(assert (not p%d))\n(check-sat)\n" % (width // 2)
+    return source
+
+
+def implication_chain_conjunction(width):
+    """(and p0 (=> p0 p1) ... (not p(n-2))): the refutation eliminates every operand."""
+    source = "".join("(declare-const p%d Bool)\n" % index for index in range(width - 1))
+    operands = ["p0"] + ["(=> p%d p%d)" % (index, index + 1) for index in range(width - 2)]
+    source += "(assert (and %s (not p%d)))\n(check-sat)\n" % (" ".join(operands), width - 2)
     return source
 
 
@@ -136,6 +147,31 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
         paths = re.findall(r"_inputs((?:\.[12])+)", text)
         self.assertEqual(len(set(paths)), OUTLINED_WIDTH + 1)
         self.assertEqual(max(path.count(".") for path in paths), OUTLINED_WIDTH.bit_length())
+
+    def check_every_operand_eliminated(self, width, outlined):
+        source = implication_chain_conjunction(width)
+        certificate, axioms = self.check(source, "legacy", "propositional", width)
+        self.assertEqual(certificate["rule_counts"]["and-elim"], width)
+        self.assertEqual(axioms, set())
+        text = proof_to_lean.reconstruct(source, certificate)
+        self.assertEqual("private def Inputs" in text, outlined)
+        # No projection starts more than a stride of operands before its own.
+        projections = re.findall(r"_(?:step|tail)_\d+((?:\.2)*)(?:\.1)?\n", text)
+        self.assertEqual(max(path.count(".") for path in projections), proof_to_lean._AND_ELIM_STRIDE)
+        return text
+
+    def test_outlined_conjunction_with_every_operand_eliminated_is_checked(self):
+        # Each operand was projected from the start of the conjunction, one
+        # `.2` per operand before it: an outlined lemma eliminating 250 of
+        # 600 operands held 94,000 projections and exhausted maxHeartbeats.
+        # Now every lemma binds the rest of the conjunction once per 32
+        # operands and projects from the nearest of those tails.
+        text = self.check_every_operand_eliminated(OUTLINED_WIDTH, outlined=True)
+        self.assertGreater(text.count("let _tail_"), OUTLINED_WIDTH // proof_to_lean._AND_ELIM_STRIDE)
+
+    def test_inline_conjunction_with_every_operand_eliminated_is_checked(self):
+        text = self.check_every_operand_eliminated(INLINE_CHAIN_WIDTH, outlined=False)
+        self.assertEqual(text.count("let _tail_"), (INLINE_CHAIN_WIDTH - 1) // proof_to_lean._AND_ELIM_STRIDE)
 
 
 @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
