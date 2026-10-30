@@ -1145,7 +1145,7 @@ def default_z3_executable():
     return "z3"
 
 
-def export_clause_log_certificate(source, z3_executable=None, timeout=None, query=None):
+def export_clause_log_certificate(source, z3_executable=None, timeout=None, query=None, memory=None):
     """Return a native-style proof bundle built from a sat.smt clause log.
 
     The z3 executable solves the assertions of the selected query (see
@@ -1154,20 +1154,24 @@ def export_clause_log_certificate(source, z3_executable=None, timeout=None, quer
     logging every assumed, inferred, and deleted clause. The log is rebuilt
     into the proof DAG format: theory hints become th-lemma nodes and
     reverse-unit-propagation steps become explicit resolution chains. The
-    bundle is unverified; the Lean reconstructor must check it.
+    bundle is unverified; the Lean reconstructor must check it. timeout
+    (seconds) and memory (megabytes) bound each z3 run, the solver's and the
+    trimmer's (default: 600 s and 8192 MB); a run that hits either limit
+    raises ProofExportError naming it.
     """
     import proof_clause_log
     context = z3.Context()
     assertions, fragment = parse_assertions(source, context, integer=True, query=query)
     commands, index, _ = query_snapshot(source, query)
+    executable = z3_executable or default_z3_executable()
     try:
-        text = proof_clause_log.run_clause_log(z3_executable or default_z3_executable(), commands, timeout)
-        text = proof_clause_log.trim_clause_log(z3_executable or default_z3_executable(), text, timeout)
+        text = proof_clause_log.run_clause_log(executable, commands, timeout, memory)
+        text = proof_clause_log.trim_clause_log(executable, text, timeout, memory)
         certificate = proof_clause_log.build_certificate(source, fragment, assertions, text, context)
         certificate["query"] = index
         return certificate
-    except subprocess.TimeoutExpired:
-        raise ProofExportError("native proof trimming timed out") from None
+    except subprocess.TimeoutExpired as error:
+        raise ProofExportError("native proof trimming exceeded the time limit of %d s" % error.timeout) from None
     except proof_clause_log.ProofExportError as error:
         # Running this file as a script imports it twice; unify the error class.
         raise ProofExportError(str(error)) from None
@@ -1181,11 +1185,19 @@ def main():
                              "input) or the sat.smt clause log via the z3 executable (default: legacy when "
                              "propositional, clause log otherwise)")
     parser.add_argument("--z3", help="z3 executable for the clause log (default: $Z3_EXE, build/z3, or z3)")
-    parser.add_argument("--timeout", type=float, help="seconds allowed for the clause-log solver run")
+    parser.add_argument("--timeout", type=float,
+                        help="seconds allowed for each z3 run of the clause log, the solver's and the "
+                             "trimmer's (default: 600)")
+    parser.add_argument("--memory", type=int,
+                        help="megabytes allowed for each z3 run of the clause log (default: 8192)")
     parser.add_argument("--query", type=int,
                         help="zero-based index of the check-sat query to certify in an incremental script "
                              "(push, pop, reset, several queries); default: the script's only query")
     args = parser.parse_args()
+    if args.timeout is not None and not 0 < args.timeout < math.inf:
+        parser.error("--timeout must be a positive number of seconds")
+    if args.memory is not None and args.memory <= 0:
+        parser.error("--memory must be a positive number of megabytes")
     try:
         if args.file == "-":
             source = sys.stdin.read()
@@ -1199,7 +1211,7 @@ def main():
         if core == "legacy":
             certificate = export_certificate(source, args.query)
         else:
-            certificate = export_clause_log_certificate(source, args.z3, args.timeout, args.query)
+            certificate = export_clause_log_certificate(source, args.z3, args.timeout, args.query, args.memory)
         json.dump(certificate, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
     except (ProofExportError, z3.Z3Exception, OSError, UnicodeError) as error:

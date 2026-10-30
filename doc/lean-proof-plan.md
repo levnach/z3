@@ -1589,6 +1589,26 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Time and memory limits on the exporter's z3 runs (2026-10-30)
+
+The clause-log export starts the z3 executable twice, to solve and to trim,
+and before this change bounded neither by memory and the solver only when
+the caller passed a timeout. A sweep that exported without one left eleven
+z3 processes running after its own deadlines killed the Python workers
+(220 GB in total). Both runs now always carry `-T` and `-memory` (600 s and
+8192 MB unless the caller passes `timeout`/`memory`, CLI `--timeout` and
+`--memory`), so an orphaned run stops by itself, plus a wall-clock deadline
+30 s past the time limit. Hitting a limit is an error naming it ("the
+clause-log solver run exceeded the time limit of 1 s", "native proof
+trimming exceeded the memory limit of 20 MB"). Before, a trimmer stopped at
+either limit (`timeout` on stdout with status 0, `(error "out of memory")`
+with status 101) read as an unusable log and the export silently went on
+with the untrimmed replay. `trim_clause_log` itself still raises
+`subprocess.TimeoutExpired` at the time limit, as z3test's `proof_lean.py`
+expects. Not bounded: the legacy core and the replay's own solver calls run
+in process (the latter under `_RLIMIT`). Tests: three in
+`test_proof_certificate.py`, the live one on pigeonhole inputs.
+
 ### Equivalence search only over the clause's symbols (2026-10-29)
 
 `assume` ties an assumed clause the canonical keys do not match by a
