@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #47: Project and-elim operands from shared tails of wide conjunctions</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --pass: #1a7f37; --warn: #9a6700; --fail: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --pass: #3fb950; --warn: #d29922; --fail: #f85149;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .state { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem;
+           border: 1px solid var(--pass); color: var(--pass); font-weight: 600; font-size: 0.85rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+         background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--pass); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .fail { color: var(--fail); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.93rem; }
+  dl dt { font-weight: 600; margin-top: 0.7rem; }
+  dl dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Project and-elim operands from shared tails of wide conjunctions</h1>
+<p class="meta">
+  Pull request <a href="https://github.com/levnach/z3/pull/47">levnach/z3#47</a> into <code>master</code>
+  &middot; State: <span class="state">OPEN</span>
+  &middot; Date: 2026-10-30T05:22:45Z
+  &middot; Loop iteration 47
+</p>
+<p class="meta">
+  This pull request is open and <strong>not merged</strong>.
+  The change commit is
+  <a href="https://github.com/levnach/z3/commit/ff890813c7f2a4fc58cddf35cbb4b8149f85866a"><code>ff890813c</code></a>.
+  The PR holds two commits on top of base <code>3b7a24739</code>.
+</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+  A <a href="#g-refutation">refutation</a> from the <a href="#g-legacy-proof-object">legacy proof object</a>
+  often uses <a href="#g-and-elim">and-elimination</a> to pull single
+  <a href="#g-operand">operands</a> out of a <a href="#g-conjunction">conjunction</a>.
+  The Lean reconstructor wrote each such step as a <a href="#g-projection">projection</a>
+  that walked from the very start of the <a href="#g-right-nested">right-nested</a> conjunction.
+  When a refutation eliminates every operand of a wide conjunction, the total work grows
+  <a href="#g-quadratic">quadratically</a> with its width.
+  Lean then ran out of <a href="#g-heartbeat">heartbeats</a> and rejected the
+  <a href="#g-certificate">certificate</a>, even though the proof was correct.
+  This PR adds a <a href="#g-let">let binding</a> for the rest of the conjunction every 32 operands.
+  Each and-elimination now starts from the nearest of these shared tails.
+  A 600-operand <a href="#g-implication">implication</a> chain that timed out now checks in about 6 seconds.
+  The fix adds no <a href="#g-axiom">axiom</a> and no <a href="#g-sorry">sorry</a>.
+  Lean still checks every step.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+  Before this PR, small and medium <a href="#g-boolean">Boolean</a> refutations already reconstructed and checked.
+  Earlier iterations taught the reconstructor to split big proofs into
+  <a href="#g-outlined-lemma">outlined lemmas</a>, and to handle wide and deeply nested formulas.
+  One gap was left open in the backlog from iteration 45.
+  Refutations that eliminate most operands of a conjunction with 600 or more operands still failed in Lean.
+  Iteration 45's 1,200-operand Real and Boolean chain, called <code>mixed1200</code>, failed the same way.
+  This work serves milestone 2 of the plan, the <a href="#g-kernel">kernel</a>-checked Boolean slice.
+  It also removes a scaling limit that the mixed Real and Boolean inputs of milestone 3 ran into.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>Lean can now check refutations that eliminate hundreds of operands from one wide conjunction, because no projection walks more than 32 levels from its starting point.</li>
+  <li>The reconstructor now emits one shared tail binding per 32 operands, so a conjunction's prefix is walked once per lemma instead of once per operand.</li>
+  <li>Outlined lemmas and the single main theorem both place the tails right after the step that proves the conjunction, whether that step lives inside the lemma or comes from another lemma.</li>
+  <li>Three new Lean-checked tests guard the 600-operand outlined case, a 150-operand inline case, and an 80-operand case where the conjunction's proof sits inside the eliminating lemma.</li>
+  <li>The plan document gained a dated note that records the problem, the fix, and the new tests.</li>
+</ul>
+<p>
+  An analogy helps. Before, finding page 500 of a book meant counting from page 1 every time.
+  Now there is a bookmark every 32 pages, and each lookup starts from the closest bookmark.
+  A <a href="#g-premise">premise</a> that depends on a <a href="#g-hypothesis">hypothesis</a> still uses the old direct projection.
+  Its tails would need those hypotheses too, and no input has needed this yet.
+</p>
+<table>
+  <thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">58</td><td class="num">8</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_wide.py</code></td><td>Tests for wide formulas</td><td class="num">62</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan and dated notes</td><td class="num">19</td><td class="num">0</td></tr>
+    <tr><th>Total, 3 files</th><th></th><th class="num">139</th><th class="num">8</th></tr>
+  </tbody>
+</table>
+<p class="note">No C++ file, Lean library file, or CI workflow changed.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+  This input is the same shape as the PR's 600-operand test.
+  It asserts <code>p0</code>, then <code>p0 =&gt; p1</code> up to <code>p597 =&gt; p598</code>, then <code>not p598</code>.
+  The real file has four lines, but lines 2 and 3 are very long.
+  They are cut with "..." below.
+  The refutation eliminates every one of the 600 operands.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>; 600-operand implication chain: p0, p0 =&gt; p1, ..., p597 =&gt; p598, not p598
+(declare-const p0 Bool) (declare-const p1 Bool) ... (declare-const p598 Bool)
+(assert (and p0 (=&gt; p0 p1) (=&gt; p1 p2) ... (=&gt; p597 p598) (not p598)))
+(check-sat)</code></pre>
+
+<h3>(b) Before: base commit <code>3b7a24739</code></h3>
+<p>
+  The old exporter produced a certificate without complaint.
+  The old reconstructor then wrote a Lean file, and the Lean check rejected it.
+  It ran out of heartbeats inside an <a href="#g-isdefeq">isDefEq</a> check.
+  The local file path is removed below.
+</p>
+<pre><code>z3_proof_erjgmpjn.lean:18476:0: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
+...
+Lean checking failed; no proof was published.</code></pre>
+<p class="note">A second error followed, an unknown constant for the lemma that had timed out.</p>
+
+<h3>(c) After: change commit <code>ff890813c</code></h3>
+<p>The reconstructor wrote a 21,733-line Lean file. <strong>Lean accepted it:</strong> <code>check_lean.sh</code> printed "Lean checks passed." in about 7 seconds wall time.</p>
+<pre><code>def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
+def formula_1 (_atoms : Nat -&gt; Prop) : Prop := _atoms 1
+def formula_2 (_atoms : Nat -&gt; Prop) : Prop := ((formula_0 _atoms) -&gt; (formula_1 _atoms))
+...
+def formula_1198 (_atoms : Nat -&gt; Prop) : Prop := (And (formula_0 _atoms) (And (formula_2 _atoms) (And (formula_4 _atoms) ...</code></pre>
+<p>Each Boolean variable becomes an atom, each implication a Lean arrow, and the whole assertion a right-nested <code>And</code>.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
+    (_h0 : (formula_1198 _atoms))
+    : False :=
+  refute_with_decidable (_atoms 0) fun _d0 =&gt;
+  ...
+  proof_step_4795 _atoms _h0 _d0 _d1 ...</code></pre>
+<p>The theorem says that the assertion implies False, and it hands the work to an outlined lemma.</p>
+
+<pre><code>private theorem proof_step_4795 (_atoms : Nat -&gt; Prop)
+    (_inputs : Inputs _atoms)
+    ...
+    : (formula_4794 _atoms) :=
+  let _step_3595 := proof_step_3595 _atoms _inputs _d0 _d1 ...
+  let _tail_3595_32 := _step_3595.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+  let _tail_3595_64 := _tail_3595_32.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+  ...
+  let _tail_3595_576 := _tail_3595_544.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
+  ...</code></pre>
+<p>This is the new feature: <code>_step_3595</code> proves the whole conjunction, and each tail skips exactly 32 more operands than the one before.</p>
+
+<pre><code>  let _step_3617 : (formula_3505 _atoms) :=
+    _tail_3595_576.2.1
+  let _step_3618 : (formula_3501 _atoms) :=
+    _tail_3595_576.1
+  let _step_3619 : (formula_3497 _atoms) :=
+    _tail_3595_544.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
+  ...</code></pre>
+<p>Each and-elimination step now starts from the nearest tail, so its projection is at most 31 <code>.2</code>s plus a final <code>.1</code>.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+  In plain terms, the whole Lean reconstruction suite passed on the final branch.
+  The two hard cases that used to time out now check in seconds.
+  The reviewer reproduced the timeout on the base commit and the success on the new code.
+  The new outlined test fails on the base reconstructor, so it really guards the fix.
+  The commands below were run by the implementer and the integrator, as reported in the PR body.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Wide-formula tests, including the three new ones</td><td class="pass">10 tests, OK, 66 s</td></tr>
+    <tr><td>All <code>test_proof_to_lean*.py</code> tests</td><td class="pass">304 tests, OK, 970.6 s</td></tr>
+    <tr><td>Certificate exporter tests</td><td class="pass">99 tests, OK</td></tr>
+    <tr><td><code>./scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>z3test proof tests</td><td class="pass">46 tests, OK</td></tr>
+    <tr><td>600-operand implication chain</td><td>Base: <span class="fail">timeout at isDefEq</span>. New: <span class="pass">passed, 6.2 s</span></td></tr>
+    <tr><td><code>mixed1200</code>, legacy core</td><td>Base: <span class="fail">timeouts</span>. New: <span class="pass">passed, 28 s</span></td></tr>
+    <tr><td>Proof matrix, legacy proof object, Boolean inputs</td><td class="pass">6/6 Lean-verified</td></tr>
+    <tr><td>Proof matrix, clause log, LRA inputs</td><td class="pass">8/8 Lean-verified</td></tr>
+    <tr><td>This report's example, rerun on the change commit</td><td class="pass">Lean checks passed, about 7 s</td></tr>
+  </tbody>
+</table>
+<p>
+  Not run: <code>test-z3</code>, the regression benchmarks, and the <code>scripts/</code> tests.
+  The PR touches no C++ and no file under <code>scripts/</code>.
+</p>
+<p>
+  <strong>Local gate.</strong> The loop's local gate was still running when this page was written.
+  No result has been recorded for it, so this report makes no claim about its outcome.
+</p>
+<p><strong>CI.</strong> No CI status had been recorded for this PR when the page was written.</p>
+<table>
+  <thead><tr><th>Workflow job</th><th>Step that covers this PR</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Ubuntu build - cmake - releaseClang</td>
+      <td>Check native Boolean proofs in Lean, which runs the <code>test_proof_to_lean*.py</code> tests</td>
+      <td class="warn">Unknown. See the <a href="https://github.com/levnach/z3/pull/47/checks">PR checks page</a>.</td>
+    </tr>
+  </tbody>
+</table>
+<p class="note">There were no CI fix rounds. No failures were judged unrelated.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change. There were no blockers and no major findings.</p>
+<ul>
+  <li><strong>Minor: an untested code path.</strong>
+    The reviewer looked for a test where the conjunction's proof sits inside the same outlined lemma that eliminates from it.
+    None existed. The tails go after that local proof step, in a separate branch of the code.
+    A future edit could place them too early, and Lean would then fail with an unknown identifier while CI stayed green.
+    The reviewer checked the branch by hand and found it correct today.
+    <em>Fixed:</em> a new 80-operand test forces outlining and checks the result in Lean.
+    It also checks that the first tail comes after the local proof step.</li>
+  <li><strong>Nit: a test pattern that matched too little.</strong>
+    The test's regular expression was meant to bound every projection's length.
+    It never matched a projection that starts from a tail, because of how tail names are spelled.
+    So a projection that ran too long from a tail would have slipped through.
+    <em>Fixed:</em> tails and projections are now matched separately.
+    Each tail must skip exactly 32 operands, and each projection at most 31.</li>
+  <li><strong>Nit: an overstated doc note.</strong>
+    The note said every conjunction of 600 or more operands failed.
+    In fact only refutations that eliminate most of the operands failed.
+    It also pointed to a case that the cited section does not name.
+    <em>Fixed:</em> the note was reworded and now names <code>mixed1200</code>.</li>
+  <li><strong>Suggestion: skip tails when there is only one and-elimination.</strong>
+    <em>Not done.</em> The total number of projections is the same either way, so it costs nothing measurable.</li>
+</ul>
+<p>
+  The reviewer also tried tampering with the output.
+  Changing one tail to skip 31 operands instead of 32 made Lean report a type mismatch.
+  The tails are therefore checked by Lean, not trusted.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The generated Lean text changes for every and-elimination at operand position 32 or later. This includes older wide tests and <a href="#g-clause-log">clause log</a> certificates. The full suite passes.</li>
+  <li>Each outlined lemma rebinds the tails it needs. That adds about one binding per 32 operands per lemma.</li>
+  <li>Many let bindings in one declaration cost Lean more than linear time. A synthetic test with 1,200 bindings took far longer than one with 500. Lemma chunks stay at 500 steps, so the pipeline avoids this, but it limits how large chunks can grow.</li>
+  <li>Premises that depend on hypotheses still project from the start. Whether real inputs hit this is unknown.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Other helpers in the reconstructor build long <code>And.left</code> and <code>And.right</code> chains in the same quadratic way. These include the prover, the <a href="#g-def-axiom">def-axiom</a> lemmas, and the <a href="#g-euf">EUF</a> terms.</li>
+  <li>That pattern may be related to the kernel memory blowup on the <code>tta_startup</code> def-axiom case, which still does not verify.</li>
+  <li>The quadratic <code>assume</code> equivalence checks on the FISCHER inputs remain open from iteration 45.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-and-elim">and-elimination (and-elim)</dt>
+  <dd>A proof rule. From a proof of <code>A and B and C</code>, it concludes one operand, such as <code>B</code>.</dd>
+
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. A trustworthy certificate should add no new ones.</dd>
+
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort of truth values, true and false. In SMT-LIB it is written <code>Bool</code>.</dd>
+
+  <dt id="g-certificate">certificate</dt>
+  <dd>The proof data Z3 exports so that another tool can check the result on its own.</dd>
+
+  <dt id="g-clause-log">clause log</dt>
+  <dd>The newer of Z3's two proof sources, a list of clauses the solver derived, each with a hint for checking it.</dd>
+
+  <dt id="g-conjunction">conjunction</dt>
+  <dd>An "and" of several formulas. <code>(and p q r)</code> is true only when all three are true.</dd>
+
+  <dt id="g-def-axiom">def-axiom</dt>
+  <dd>A proof rule that states a basic fact about a Boolean connective, such as "if <code>A and B</code> holds, then <code>A</code> holds".</dd>
+
+  <dt id="g-euf">EUF</dt>
+  <dd>Equality with uninterpreted functions, the theory that reasons about <code>=</code> and congruence.</dd>
+
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work. A declaration that uses more than its budget, here 200,000, is rejected with a timeout.</dd>
+
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A temporary assumption inside a proof, later discharged. A step that depends on one is valid only under it.</dd>
+
+  <dt id="g-implication">implication</dt>
+  <dd>"If A then B", written <code>(=&gt; A B)</code> in SMT-LIB and <code>A -&gt; B</code> in Lean.</dd>
+
+  <dt id="g-isdefeq">isDefEq</dt>
+  <dd>Lean's check that two expressions mean the same thing after unfolding definitions. Long projection chains make it slow.</dd>
+
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small core of Lean that checks every finished proof term. It is the part one has to trust.</dd>
+
+  <dt id="g-legacy-proof-object">legacy proof object</dt>
+  <dd>The older of Z3's two proof sources, a tree of named proof rules. The other source is the clause log.</dd>
+
+  <dt id="g-lemma">lemma</dt>
+  <dd>A smaller theorem proved on its own and then used inside a bigger proof.</dd>
+
+  <dt id="g-let">let binding</dt>
+  <dd>Giving an expression a name so later lines can reuse it. <code>let t := x.2.2</code> lets you write <code>t.1</code> later.</dd>
+
+  <dt id="g-operand">operand</dt>
+  <dd>One of the parts a connective joins. In <code>(and p q r)</code>, the operands are <code>p</code>, <code>q</code> and <code>r</code>.</dd>
+
+  <dt id="g-outlined-lemma">outlined lemma</dt>
+  <dd>A slice of a large proof that the reconstructor moves into its own lemma, so Lean checks it separately.</dd>
+
+  <dt id="g-premise">premise</dt>
+  <dd>A fact that a proof step takes as input. The premise of an and-elimination is the conjunction.</dd>
+
+  <dt id="g-projection">projection</dt>
+  <dd>Taking one part of a pair. In Lean, <code>h.1</code> is the left part of a proof of <code>A ∧ B</code>, and <code>h.2</code> is the right part.</dd>
+
+  <dt id="g-quadratic">quadratic</dt>
+  <dd>Growing with the square of the size. Doubling the width roughly quadruples the work.</dd>
+
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of formulas leads to false, so they cannot all hold at once.</dd>
+
+  <dt id="g-right-nested">right-nested</dt>
+  <dd>A shape where each "and" holds one operand on the left and the rest on the right: <code>A ∧ (B ∧ (C ∧ D))</code>. Reaching <code>D</code> takes three steps to the right.</dd>
+
+  <dt id="g-sorry">sorry</dt>
+  <dd>A Lean placeholder that skips a proof. A finished certificate must not contain it.</dd>
+
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-29.
+  Source: <a href="https://github.com/levnach/z3/pull/47">levnach/z3#47</a>.
+</footer>
+
+</body>
+</html>
