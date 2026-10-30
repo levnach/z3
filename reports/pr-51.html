@@ -5,137 +5,144 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PR #51: Prove wide large-coefficient Int Farkas lemmas by their combination</title>
 <style>
-:root{color-scheme:light dark;--bg:#ffffff;--fg:#1d2128;--muted:#5b6370;--accent:#0b5cad;--code:#f3f5f8;--border:#d6dbe2;--ok:#1a7f37;--wait:#9a6700;--bad:#cf222e}
-@media (prefers-color-scheme: dark){:root{--bg:#0f1217;--fg:#e4e8ee;--muted:#9aa4b2;--accent:#6cb6ff;--code:#1a1f27;--border:#2e3642;--ok:#3fb950;--wait:#d29922;--bad:#f85149}}
-body{background:var(--bg);color:var(--fg);font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.6}
-a{color:var(--accent)}
-h1{font-size:1.6rem;line-height:1.3;margin-bottom:.4rem}
-h2{font-size:1.25rem;margin-top:2.2rem;border-bottom:1px solid var(--border);padding-bottom:.2rem}
-h3{font-size:1.05rem;margin-top:1.4rem}
-.meta{color:var(--muted);font-size:.95rem}
-.badge{display:inline-block;padding:.05rem .5rem;border-radius:1rem;border:1px solid var(--wait);color:var(--wait);font-weight:600;font-size:.85rem}
-code{background:var(--code);padding:.05rem .3rem;border-radius:3px;font-size:.9em}
-pre{background:var(--code);border:1px solid var(--border);border-radius:6px;padding:.8rem;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem;line-height:1.45}
-pre code{background:none;padding:0}
-table{border-collapse:collapse;width:100%;margin:.8rem 0;font-size:.92rem}
-th,td{border:1px solid var(--border);padding:.35rem .55rem;text-align:left;vertical-align:top}
-th{background:var(--code)}
-td.num{text-align:right;font-variant-numeric:tabular-nums}
-.pass{color:var(--ok);font-weight:600}
-.pending{color:var(--wait);font-weight:600}
-.fail{color:var(--bad);font-weight:600}
-.note{color:var(--muted);font-size:.92rem}
-dt{font-weight:600;margin-top:.7rem}
-dd{margin-left:1.2rem}
-footer{margin-top:3rem;border-top:1px solid var(--border);padding-top:.6rem;color:var(--muted);font-size:.88rem}
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --pass: #1a7f37; --pend: #9a6700; --fail: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --pass: #3fb950; --pend: #d29922; --fail: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+       max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+a { color: var(--link); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: .95rem; }
+.meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+.meta dd { margin: 0 0 .15rem 9rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+       background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+      overflow-x: auto; font-size: .82rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pass { color: var(--pass); font-weight: 600; }
+.pend { color: var(--pend); font-weight: 600; }
+.fail { color: var(--fail); font-weight: 600; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 999px; font-weight: 600;
+         border: 1px solid var(--pass); color: var(--pass); }
+.explain { margin-top: -.4rem; color: var(--muted); }
+dl.glossary dt { font-weight: 700; margin-top: .7rem; }
+dl.glossary dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--border); padding-top: .8rem; }
 </style>
 </head>
 <body>
 
 <header>
 <h1>Prove wide large-coefficient Int Farkas lemmas by their combination</h1>
-<p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/51">levnach/z3 #51</a> into <code>master</code>
-· State: <span class="badge">OPEN</span>
-· Opened 2026-10-30T20:20:58Z
-· Loop iteration 51
-</p>
-<p class="meta">This pull request is open and <strong>not merged</strong>.
-The change under review is commit
-<a href="https://github.com/levnach/z3/commit/590ec57965b9f70eb98a07fa9b293babe9d89e0d"><code>590ec5796</code></a>,
-which sits on top of an earlier commit of the same PR.</p>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/51">levnach/z3 #51</a></dd>
+  <dt>State</dt><dd><span class="badge">MERGED</span></dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/b736e2a9e016893cbb1cc2c2bb78e59b3ac1515b"><code>b736e2a9e</code></a></dd>
+  <dt>Merged on</dt><dd>2026-10-30T20:38:22Z</dd>
+  <dt>Loop iteration</dt><dd>51</dd>
+</dl>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>This PR changes how the reconstructor proves large <a href="#g-farkas-lemma">Farkas lemmas</a> over the
-<a href="#g-sort">sort</a> <code>Int</code>.
-Before, the <a href="#g-omega">omega</a> <a href="#g-tactic">tactic</a> searched again for a
-<a href="#g-linear-combination">linear combination</a> of the <a href="#g-bound">bounds</a> that the reconstructor had already found.
-Now, when a <a href="#g-theory-lemma">theory lemma</a> has at least 16 bounds and a
-<a href="#g-coefficient">coefficient</a> of 10000 or more, the reconstructor writes the combination into the proof itself.
-Omega then only confirms that a weighted sum equals a negative constant.
-On one crafted <a href="#g-qf-lia">QF_LIA</a> benchmark, the Lean check went from a 600-second timeout to 1.4 seconds.
-The old proofs stay behind the new one as a <a href="#g-fallback">fallback</a>.
-No new <a href="#g-axiom">axiom</a> is added, so the trusted base is unchanged.</p>
+<p>Some <a href="#g-farkas-lemma">Farkas lemmas</a> over the Int <a href="#g-sort">sort</a> are wide and have huge
+<a href="#g-coefficient">coefficients</a>. The reconstructor already knew the
+<a href="#g-linear-combination">linear combination</a> that refutes each of them, yet the Lean proof asked the
+<a href="#g-omega">omega</a> <a href="#g-tactic">tactic</a> to find that combination again. On such lemmas omega could search for
+minutes. This PR writes the combination into the Lean proof directly. Each <a href="#g-bound">bound</a> becomes a fact
+that a difference is at least zero. The facts are scaled by their <a href="#g-multiplier">multipliers</a> and added up.
+Omega only checks that the sum is a negative constant. A <a href="#g-qf-lia">QF_LIA</a> <a href="#g-refutation">refutation</a> that used to time
+out in Lean after ten minutes now checks in under two seconds. The <a href="#g-kernel">kernel</a> still checks every step,
+and no new <a href="#g-axiom">axiom</a> is added.</p>
 
 <h2 id="background">Background</h2>
-<p>Before this PR, the pipeline already produced <a href="#g-certificate">certificates</a> for QF_LIA problems
-and turned them into Lean <a href="#g-refutation">refutations</a>.
-Every Int Farkas lemma with coefficients was proved by <code>first | omega | grind</code>, with every bound in scope.
-That works well for small lemmas.
-It broke down on <code>cut_lemma_03_012</code>, a crafted benchmark from the SMT-LIB sample.
-Two of its lemmas are <a href="#g-clause">clauses</a> of 21 <a href="#g-literal">literals</a> over twenty variables,
-with seven- and eight-digit coefficients.
-Each ran past 150 seconds on its own, so the whole certificate never checked.
-This work serves milestone 3 of the plan, "Equality and linear arithmetic".</p>
+<p>Before this PR, every Int <a href="#g-theory-lemma">theory lemma</a> with coefficients was proved by
+<code>first | omega | grind</code>, with all its <a href="#g-literal">literals</a> and <a href="#g-premise">premises</a> in scope.
+It failed on QF_LIA inputs from the <code>cut_lemmas</code> family, where one <a href="#g-clause">clause</a> held
+21 bounds with eight-digit coefficients. Lemmas without coefficients, such as a <a href="#g-cut">cut</a>, remain out of
+reach. The work serves milestone 3 of the
+plan, "Equality and linear arithmetic", which asks for checked <a href="#g-certificate">certificates</a> for integer linear
+arithmetic.</p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-<li>A wide Int Farkas lemma with large coefficients now gets a direct proof, so Lean checks arithmetic instead of searching for it.</li>
-<li>Each bound becomes a fact of the form <code>0 &lt;= upper - lower</code>, and the facts are scaled by integer <a href="#g-multiplier">multipliers</a> and summed in one <a href="#g-proof-term">proof term</a>.</li>
-<li>Equalities inside such a lemma also work, because their multipliers are now solved by <a href="#g-gaussian-elimination">Gaussian elimination</a>.</li>
-<li>The direct proof is tried first, and only on lemmas with at least 16 bounds and a coefficient of at least 10000, so small lemmas keep the cheaper omega proof.</li>
-<li>The benchmark <code>cut_lemma_03_012</code> now checks in Lean, and it ships as test data with tests that pin both thresholds.</li>
+  <li>A wide Int Farkas lemma with large coefficients is now proved by its own combination, the way you check a
+      receipt by adding the listed items instead of guessing what was bought.</li>
+  <li>Equalities in such a lemma get their multipliers from <a href="#g-gaussian-elimination">Gaussian elimination</a>,
+      so they can join the sum too.</li>
+  <li>The new proof is tried only for lemmas with at least 16 bounds and one coefficient of 10000 or more, so small
+      lemmas keep the cheaper omega proof.</li>
+  <li>If the new proof fails, the old proofs still run behind it as fallbacks under <code>first</code>.</li>
+  <li>New tests check that the shipped thresholds reach the two hard lemmas and that every Int Farkas lemma of the
+      documented inputs can be proved by its combination alone.</li>
 </ul>
-<p>An analogy: before, Lean was a teacher who threw away the student's worked solution and solved the problem again.
-Now the teacher only checks the arithmetic in it.
-The main new function is <code>_farkas_combination</code>. No C++ code changed.</p>
-
 <table>
-<thead><tr><th>File</th><th>What it is</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
-<tbody>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor: the new combination proof and its gates</td><td class="num">207</td><td class="num">3</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Integer arithmetic tests</td><td class="num">105</td><td class="num">2</td></tr>
-<tr><td><code>examples/python/data/QF_LIA_cut_lemma_03_012.smt2</code></td><td>New test input, a copy of the benchmark</td><td class="num">31</td><td class="num">0</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document: dated note</td><td class="num">32</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/README</code></td><td>One paragraph on the new proof</td><td class="num">13</td><td class="num">0</td></tr>
-<tr><th colspan="2">Total, 5 files, 2 commits</th><th class="num">388</th><th class="num">5</th></tr>
-</tbody>
+  <thead><tr><th>File</th><th>What it holds</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>The reconstructor: new combination proof and multiplier solver</td><td class="num">207</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>New and updated tests</td><td class="num">105</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/data/QF_LIA_cut_lemma_03_012.smt2</code></td><td>New test input, copied from z3test</td><td class="num">31</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td class="num">32</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>One paragraph on the new proof</td><td class="num">13</td><td class="num">0</td></tr>
+  </tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
-<p>The input is the PR's new test file, with its metadata removed and its declarations packed five to a line.</p>
 
 <h3>(a) The input</h3>
+<p>This is the PR's new test file <code>QF_LIA_cut_lemma_03_012.smt2</code>, compacted. Its one long assertion is cut with "...".</p>
 <pre><code>(set-logic QF_LIA)
 (declare-fun x0 () Int) (declare-fun x1 () Int) (declare-fun x2 () Int) (declare-fun x3 () Int) (declare-fun x4 () Int)
 (declare-fun x5 () Int) (declare-fun x6 () Int) (declare-fun x7 () Int) (declare-fun x8 () Int) (declare-fun x9 () Int)
 (declare-fun x10 () Int) (declare-fun x11 () Int) (declare-fun x12 () Int) (declare-fun x13 () Int) (declare-fun x14 () Int)
 (declare-fun x15 () Int) (declare-fun x16 () Int) (declare-fun x17 () Int) (declare-fun x18 () Int) (declare-fun x19 () Int)
-(assert (let ((?v_1 (- x10)) (?v_3 (- x18)) (?v_17 (- x11)) (?v_9 (* x19 2)) (?v_16 (- x15)) (?v_15 (- x2)) (?v_14 (+ (+ (- x19) x5) x18)) (?v_0 (- x14)) (?v_13 (- x12)) (?v_6 (- x4)) (?v_8 (* x13 2)) (?v_12 (- x13)) (?v_11 (- x8)) (?v_10 (- x7)) (?v_4 (- x16)) (?v_5 (- x9)) (?v_7 (- x17)) (?v_2 (- x0))) (and (not (&gt;= (+ (* x8 66760014) (+ (* x17 (- 93597837)) (+ (* x0 66760014) (+ (* x16 133520028) (+ (* x13 (- 66760014)) (+ (* x6 (- 66760014)) (+ (* x3 52436596) (+ (* x19 (- 136568091)) (+ (* x10 (- 78035369)) (+ (* x12 (- 66760014)) (+ (* x11 (- 66760014)) (+ (* x18 119196610) (+ (* x2 (- 81083432)) (+ (* x5 (- 66760014)) (* x9 81083432))))))))))))))) 133520028)) (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (&lt;= (+ (+ (+ (+ (+ (+ (+ (+ (+ (- x3) x19) x10) x2) x15) (* x9 (- 2))) x1) x7) x4) x12) (- 1)) (&lt;= 0 (+ (+ (+ (+ (+ (+ x11 x5) x18) x2) x15) (* x7 (- 3))) ?v_0))) (&lt;= 1 (+ (+ (+ (+ (+ (+ x3 x11) ?v_8) ?v_1) ?v_7) x7) ?v_2))) (&lt;= (+ (+ (+ (+ (+ x13 x11) x17) x15) ?v_10) ?v_0) (- 1))) (&lt;= (+ (+ (+ (+ (+ (+ (+ ?v_3 x5) (* x3 (- 2))) ?v_4) ?v_1) x6) ?v_6) ?v_13) 0)) (&lt;= (- 1) (+ (+ (+ (+ (+ (+ (+ ?v_17 x19) x18) (* x2 (- 2))) x9) x1) x12) x0))) (&lt;= (+ (+ (+ (+ (+ (+ ?v_15 ?v_9) ?v_16) x6) x4) ?v_0) ?v_2) 0)) (&lt;= (+ (+ (+ (+ (+ x18 x19) x3) (* x17 (- 2))) x2) ?v_5) 0)) (&lt;= (+ (+ (+ (+ (+ ?v_3 x11) ?v_4) x9) x7) x8) 0)) (&lt;= (+ (+ (+ (+ (+ (+ (+ ?v_4 x5) ?v_12) x6) x1) x4) x12) x14) 0)) (&lt;= (+ (+ (+ (+ (+ (+ (+ (+ (+ x18 x11) ?v_4) x13) (* x10 2)) ?v_5) x6) ?v_6) x12) ?v_11) (- 1))) (&lt;= 1 (+ (+ (+ (+ (+ (+ (+ (* x18 2) x5) ?v_7) x2) ?v_5) (* x6 2)) ?v_6) x8))) (&lt;= (+ (+ (+ (+ (+ ?v_14 x16) ?v_8) x15) x1) x12) 1)) (&lt;= (+ (+ (+ (+ (+ (+ (+ (+ (+ (* x18 (- 2)) ?v_9) x3) ?v_4) x17) x2) ?v_10) ?v_6) x12) ?v_11) 0)) (&lt;= (- 1) (+ (+ (+ (+ (+ (+ (+ (+ x16 x11) ?v_12) ?v_1) x9) (- x1)) ?v_6) ?v_13) (* x0 2)))) (&lt;= (+ (+ (+ (+ x13 x16) x10) x9) ?v_6) 0)) (&lt;= (- 1) (+ (+ (+ (+ (+ (+ ?v_8 x16) x1) x7) ?v_6) ?v_13) ?v_0))) (&lt;= (+ (+ (+ (+ ?v_14 x13) ?v_1) ?v_15) ?v_16) (- 1))) (&lt;= (+ (+ (+ (+ (+ (+ ?v_9 x5) ?v_17) ?v_3) x3) x13) x2) (- 1))) (&lt;= (+ (+ ?v_1 x19) x17) 0)))))
+(assert (let (...) (and (not (&gt;= (+ (* x8 66760014) (+ (* x17 (- 93597837)) ... ))) 133520028))
+                        (and ... (&lt;= (+ (+ ?v_1 x19) x17) 0)))))
 (check-sat)</code></pre>
+<p class="explain">Twenty Int variables, one negated inequality with eight-digit coefficients, and twenty small inequalities.</p>
 
-<h3>(b) Before: the pre-PR scripts</h3>
-<p>The pre-PR exporter and reconstructor both accepted this input.
-Lean then gave no answer within this report's 300-second limit. The PR reports a timeout at 600 seconds.
-The extracted pre-PR tool cannot find the Lean script from outside the repository, so its <code>reconstruct</code> function was called directly.</p>
+<h3>(b) Before</h3>
+<p>The pre-PR scripts exported and reconstructed the input without error. Lean itself never finished.</p>
 <pre><code>$ python3 old/proof_certificate.py example.smt2 &gt; old/example.json
 (exit 0: the pre-PR exporter accepted the input)
 
-# pre-PR reconstruct() wrote old/example.lean (80616 bytes); the wide lemma:
+# The pre-PR reconstruct() wrote old/example.lean. Its wide lemma:
+set_option maxHeartbeats 1000000 in
 private theorem th_lemma_391 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_390 _atoms _vars) := by
-  unfold formula_390 formula_389 formula_388 term_387 term_386 ... term_0
+  unfold formula_390 formula_389 formula_388 term_387 term_386 ...
   first | omega | grind (splits := 64)
 
 $ timeout -k 10 300 ./scripts/check_lean.sh old/example.lean
 Build completed successfully (4 jobs).
 Checking old/example.lean
-(no further output; the time limit killed the check after 300 s)</code></pre>
+[exited with code 124: killed by the 300 s time limit, no verdict]</code></pre>
+<p class="explain">Omega had to find the 21 multipliers by itself and did not finish in five minutes. The PR reports a
+timeout at 600 s too. The pre-PR reconstructor was called as a library here, and Lean was run separately.</p>
 
-<h3>(c) After: the Lean file the reconstructor now writes</h3>
-<p>The current scripts wrote a Lean file with two direct combinations, one per wide lemma.
-<strong>Lean accepted it</strong> in about 1.4 seconds. Long lines are broken for reading, and "..." marks cut text.</p>
-
+<h3>(c) After</h3>
+<p>The current scripts ran without error, and the Lean check printed "Lean checks passed." in about 1.3 seconds.</p>
 <pre><code>-- Variable 0: "x8"
 ...
 def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
 def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((66760014 : Int))
 def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) * (term_1 _atoms _vars))
-...
-def formula_390 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_267 _atoms _vars) (Or (formula_272 _atoms _vars) ...))</code></pre>
-<p class="note">Every variable and subterm of the input becomes a numbered definition, and <code>formula_390</code> is the 21-literal clause that one Farkas lemma proves.</p>
-
+...</code></pre>
+<p class="explain">Each subterm of the input becomes a small Lean definition over the variables.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_265 _atoms _vars))
     : False :=
@@ -143,8 +150,7 @@ def formula_390 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or 
   let _step_391 : (formula_390 _atoms _vars) :=
     (th_lemma_391 _atoms _vars)
   ...</code></pre>
-<p class="note">The main theorem says the assertion leads to <code>False</code>, and it uses the lemma <code>th_lemma_391</code> as one step.</p>
-
+<p class="explain">The theorem says the input assertion implies False, and it uses the wide lemma as one step.</p>
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem th_lemma_391 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_390 _atoms _vars) := by
@@ -153,140 +159,168 @@ private theorem th_lemma_391 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
                     + (((1691432 : Int)) * ((term_270 _atoms _vars) - (term_79 _atoms _vars))
                     + ...
                     + ((25553563 : Int)) * ((term_76 _atoms _vars) - (term_387 _atoms _vars)) ...)
-                  = ((-1056 : Int)) := by delta term_387 term_386 ... term_65; omega</code></pre>
-<p class="note">This is the new part: 21 bound facts, each multiplied by a number from the hint, add up to exactly −1056, and omega only checks that identity.</p>
-
-<pre><code>       exact Classical.byContradiction fun _hn =&gt; absurd (Int.le_trans
-         ((Int.add_nonneg
-            (Int.mul_nonneg (by decide)
-              (Int.sub_nonneg_of_le (Classical.byContradiction (fun _h =&gt; _hn (Or.inl _h)))))
-            (Int.add_nonneg ... ))
-          : ((0 : Int)) &lt;= (((289 : Int)) * ... ))
+                  = ((-1056 : Int)) := by delta term_387 term_386 ... term_65; omega
+       exact Classical.byContradiction fun _hn =&gt; absurd (Int.le_trans ((Int.add_nonneg (Int.mul_nonneg (by decide)
+         (Int.sub_nonneg_of_le (Classical.byContradiction (fun _h =&gt; _hn (Or.inl _h))))) ...)
          (Int.le_of_eq _sum)) (by decide))
-    | (unfold formula_390 formula_389 ... term_0
+    | (unfold formula_390 formula_389 formula_388 term_387 ...
        first | omega | grind (splits := 64))</code></pre>
-<p class="note">Each scaled fact is at least zero, so their sum is at least zero, which contradicts the sum being −1056. The old proof follows as the fallback.</p>
+<p class="explain">First, omega proves that the 21 scaled differences add up to &minus;1056, with no hypothesis in scope.
+Then one term adds the 21 facts "difference &ge; 0" and reaches the contradiction 0 &le; &minus;1056. The old proof stays
+as the second branch.</p>
+<p>The second wide lemma gets the same shape. Lean accepted the whole file.</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>In plain terms: after the review fix, all of about 460 local tests passed, and the benchmark that used to time out checked in under two seconds.
-The reviewer saw the same suites pass before the fix.</p>
+<p>The loop merged this PR on its local gate, because it touched only Python examples and documentation. Every gate step
+passed, including all Lean reconstruction tests. At the time of writing, every finished GitHub check had passed, and
+many were still running. One of those is <code>Ubuntu build - cmake - releaseClang</code>, which runs the new Lean tests.
+Its outcome is unknown here. There were no CI fix rounds.</p>
+
+<h3>Local gate (Darwin arm64, Release build)</h3>
 <table>
-<thead><tr><th>Check (developer's machine, after the review fix)</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">310 tests OK (1007 s)</td></tr>
-<tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">105 tests OK</td></tr>
-<tr><td>Lean project build, <code>check_lean.sh</code></td><td class="pass">"Lean checks passed."</td></tr>
-<tr><td>z3test proof scripts</td><td class="pass">46 tests OK</td></tr>
-<tr><td><code>cut_lemma_03_012</code> end to end</td><td class="pass">Lean 1.4 s, exit 0, axioms <code>propext</code>, <code>Classical.choice</code>, <code>Quot.sound</code></td></tr>
-<tr><td>Wide division seed (memory-bound test)</td><td class="pass">0 combination attempts, Lean text byte-identical to the pre-PR text</td></tr>
-<tr><td>Regression matrix, Boolean inputs (before the review fix)</td><td class="pass">6/6 lean-verified</td></tr>
-<tr><td>Regression matrix, LRA inputs (before the review fix)</td><td class="pass">8/8 lean-verified</td></tr>
-<tr><td>This report's worked example</td><td class="pass">Lean accepted it in about 1.4 s</td></tr>
-</tbody>
+  <thead><tr><th>Step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">13 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">998 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
+  </tbody>
 </table>
-<p>The loop's local gate had not recorded a result yet, and there were no CI fix rounds.
-The CI table is a snapshot from when this page was written: nothing had failed, but most builds were still pending.
-The new Lean tests run in "Ubuntu build - cmake - releaseClang", which was pending, so their CI result is unknown.</p>
+
+<h3>Author's checks after the review fix</h3>
 <table>
-<thead><tr><th>CI check</th><th>State</th></tr></thead>
-<tbody>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932505">CMake package - latest CMake</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932657">CMake package - minimum builder and consumer</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458566/job/124291932100">Check</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932584">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932482">MacOS build with CMake</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932484">Python bindings (manylinux Centos AMD64) build</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932629">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932842">Ubuntu build - cmake - debugClang</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932725">Ubuntu build - cmake - debugGcc</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932255">Ubuntu build - cmake - releaseClang</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932923">Ubuntu build - cmake - releaseSTGcc</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932404">Ubuntu with OCaml</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932433">Ubuntu with OCaml on z3-static</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458496/job/124291932511">build (amd64_arm64)</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458496/job/124291931818">build (x64)</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458496/job/124291932496">build (x86)</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458496/job/124291932904">mingw-build</a></td><td class="pending">pending</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124294497497">Compare exact traces</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458819/job/124291932064">Determinism linter (base)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458819/job/124291932689">Determinism linter (head)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291931895">Python build-script unit tests</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940033">Trace (apple-clang)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291941377">Trace (clang)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940351">Trace (gcc)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940427">Trace (gcc-unsigned-char)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940522">Trace (libcxx)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940360">Trace (libcxx-random)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940420">Trace (msvc)</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458819/job/124292772545">compare</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459014/job/124291936613">dispatch</a></td><td class="pass">pass</td></tr>
-<tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458906/job/124291932154">mark-ready</a></td><td class="pass">pass</td></tr>
-</tbody>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Lean reconstruction unit tests</td><td>310 tests, OK</td></tr>
+    <tr><td>Certificate exporter unit tests</td><td>105 tests, OK</td></tr>
+    <tr><td><code>./scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+    <tr><td>z3test proof script tests</td><td>46 tests, OK</td></tr>
+    <tr><td><code>cut_lemma_03_012</code> end to end</td><td>Lean 1.4 s, was a 600 s timeout</td></tr>
+    <tr><td>Wide division seed</td><td>0 combination attempts, Lean text byte-identical to before</td></tr>
+    <tr><td>Strict mode, combination only, before the fix</td><td>all 793 lemmas of the wide seed and 37 QF_UFLIA lemmas checked</td></tr>
+  </tbody>
+</table>
+
+<h3>GitHub CI checks on the PR (snapshot on 2026-10-30)</h3>
+<table>
+  <thead><tr><th>Check</th><th>State</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458566/job/124291932100">Check</a></td><td class="pass">pass</td><td class="num">18m21s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458819/job/124292772545">compare</a></td><td class="pass">pass</td><td class="num">15s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124294497497">Compare exact traces</a></td><td class="pass">pass</td><td class="num">17s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458819/job/124291932064">Determinism linter (base)</a></td><td class="pass">pass</td><td class="num">1m29s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458819/job/124291932689">Determinism linter (head)</a></td><td class="pass">pass</td><td class="num">1m17s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932584">MacOS JNI cross-compile (ARM64 -&gt; x64) architecture validation</a></td><td class="pass">pass</td><td class="num">11m37s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458906/job/124291932154">mark-ready</a></td><td class="pass">pass</td><td class="num">5s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291931895">Python build-script unit tests</a></td><td class="pass">pass</td><td class="num">11s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940033">Trace (apple-clang)</a></td><td class="pass">pass</td><td class="num">1m22s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291941377">Trace (clang)</a></td><td class="pass">pass</td><td class="num">1m17s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940351">Trace (gcc)</a></td><td class="pass">pass</td><td class="num">52s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940427">Trace (gcc-unsigned-char)</a></td><td class="pass">pass</td><td class="num">1m0s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940522">Trace (libcxx)</a></td><td class="pass">pass</td><td class="num">41s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940360">Trace (libcxx-random)</a></td><td class="pass">pass</td><td class="num">52s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122459998/job/124291940420">Trace (msvc)</a></td><td class="pass">pass</td><td class="num">2m22s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932842">Ubuntu build - cmake - debugClang</a></td><td class="pass">pass</td><td class="num">16m36s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932923">Ubuntu build - cmake - releaseSTGcc</a></td><td class="pass">pass</td><td class="num">14m26s</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458496/job/124291932511">build (amd64_arm64)</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458496/job/124291931818">build (x64)</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458496/job/124291932496">build (x86)</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932505">CMake package - latest CMake</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932657">CMake package - minimum builder and consumer</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41124810844/job/124300338930">dispatch</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932482">MacOS build with CMake</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458496/job/124291932904">mingw-build</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932484">Python bindings (manylinux Centos AMD64) build</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932629">Python bindings (manylinux Centos ARM64 cross) build</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932725">Ubuntu build - cmake - debugGcc</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932255">Ubuntu build - cmake - releaseClang</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932404">Ubuntu with OCaml</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+    <tr><td><a href="https://github.com/levnach/z3/actions/runs/41122458722/job/124291932433">Ubuntu with OCaml on z3-static</a></td><td class="pend">pending</td><td class="num">&ndash;</td></tr>
+  </tbody>
 </table>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved with no blockers and no major findings.
-The hint's numbers only shape a proof that Lean's <a href="#g-kernel">kernel</a> checks.
-So a wrong multiplier can make the attempt fail, but never succeed falsely.
-All three findings were fixed in the second commit.</p>
-<h3>Minor: the new proof also hit lemmas that did not need it</h3>
-<p>The reviewer measured Lean's peak memory on an existing stress test.
-With only the 16-bound gate, 59 of its small-coefficient lemmas took the new, more memory-hungry path.
-Its headroom under the 8 GB cap shrank from about 0.47 GiB to 0.27 GiB.
-A slightly different CI machine could then fail with "excessive memory consumption".
-The fix added the second gate, a coefficient of at least 10000.
-The stress test now gets no combinations, and its Lean text is identical to before.</p>
-<h3>Minor: no test pinned the shipped thresholds</h3>
-<p>Both new Lean tests lower the thresholds to zero.
-Raising a threshold above 21 would have kept every test green while the benchmark timed out again.
-A new quick test now asserts that the benchmark gets exactly two direct combinations at the defaults.</p>
-<h3>Nit: wording</h3>
-<p>A README line was too long, and the plan said 1.5 s instead of 1.4 s. Both were corrected.</p>
+<p>The reviewer approved the PR with no blocker and no major finding. Three smaller findings were all fixed before merge.</p>
+<ul>
+  <li><strong>Minor: memory margin on the wide division seed.</strong> The reviewer measured Lean's peak memory on an
+      existing test with many wide lemmas. The new proof hit 59 of them, though omega already proved them fast. The
+      peak rose from 8.10e9 to 8.31e9 bytes, close to the 8 GB cap. A small change on the CI machine could then fail
+      that test. The fix added a second gate, a coefficient of at least 10000. Those 59 lemmas have coefficients of
+      at most 780, so they keep omega, and their Lean text is unchanged from before the PR.</li>
+  <li><strong>Minor: no test of the shipped thresholds.</strong> Both new Lean tests lowered the threshold to zero. A
+      raised threshold would let the hard input time out again with every test green. A new test now asserts that
+      the default reconstruction holds exactly two combination proofs.</li>
+  <li><strong>Nit: text details.</strong> A README line was too long, and the plan said 1.5 s instead of 1.4 s.
+      Both were corrected.</li>
+</ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li>Both thresholds come from one slow case and one memory-bound case. A wide lemma with moderate coefficients that omega cannot finish would still go to omega. None has been seen.</li>
-<li>The new proof costs about 3 MB of Lean memory per lemma, against about 1 MB for omega. Nobody yet knows why.</li>
-<li>A combination that fails to <a href="#g-elaboration">elaborate</a> falls through to the old proofs. One that ran out of <a href="#g-heartbeats">heartbeats</a> would not, but this was never observed.</li>
-<li>CI had not finished when this page was written.</li>
+  <li>The two thresholds come from one slow case and one memory-heavy case. A wide lemma with moderate coefficients
+      that omega cannot finish would still go to omega. None has been seen.</li>
+  <li>The new proof costs Lean about 3 MB per lemma, against about 1 MB for omega. The reason is not understood.</li>
+  <li>A new proof that fails falls through to the old branch. One that runs out of
+      <a href="#g-heartbeat">heartbeats</a> would not fall through. This was never observed.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-<li>The sibling benchmark <code>cut_lemma_02_002</code> still exhausts Lean's memory on its 186 <a href="#g-cut">cut</a> lemmas, which carry no coefficients. Fixing it needs cut derivations in the hint, which is a C++ change.</li>
-<li><a href="#g-farkas-lemma">Farkas lemmas</a> over <code>Real</code> still use <a href="#g-grind">grind</a>. A Real version of the direct proof needs order lemmas for rationals.</li>
-<li>Making the direct proof cheaper in memory would allow lower thresholds.</li>
+  <li><code>cut_lemma_02_002</code>, from the same family, still exhausts Lean memory on 186 cut lemmas without
+      coefficients. Fixing it needs cut derivations in the hint, which is a C++ change.</li>
+  <li>Farkas lemmas over Real still use <a href="#g-grind">grind</a>. A Real version needs order lemmas for rationals.</li>
+  <li>Making the combination cheaper in memory would allow lower thresholds.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
-<dt id="g-axiom">axiom</dt><dd>A statement Lean accepts without proof. Every axiom is something the reader must trust.</dd>
-<dt id="g-bound">bound</dt><dd>An inequality or equality between two linear expressions, such as <code>x + 2y &lt;= 5</code>.</dd>
-<dt id="g-certificate">certificate</dt><dd>The file Z3 exports with the evidence for an unsat answer, which the reconstructor turns into Lean.</dd>
-<dt id="g-clause">clause</dt><dd>A disjunction of literals, read as "at least one of these holds", such as <code>a ∨ ¬b ∨ (x &gt; 3)</code>.</dd>
-<dt id="g-coefficient">coefficient</dt><dd>A number that multiplies something. In a Farkas hint, each bound gets one, such as 25553563.</dd>
-<dt id="g-cut">cut</dt><dd>An integer reasoning step that rounds a bound to the nearest integer value, such as turning <code>2x &lt;= 3</code> into <code>x &lt;= 1</code>.</dd>
-<dt id="g-elaboration">elaboration</dt><dd>Lean's step that turns the written proof into a fully explicit term before the kernel checks it.</dd>
-<dt id="g-fallback">fallback</dt><dd>A proof that runs only if the one before it fails. Lean's <code>first | A | B</code> tries A, then B.</dd>
-<dt id="g-farkas-lemma">Farkas lemma</dt><dd>A theory lemma saying some linear bounds cannot all hold. Its proof multiplies each bound by a nonnegative number and adds them up to get something false, such as <code>0 &lt;= -1</code>.</dd>
-<dt id="g-gaussian-elimination">Gaussian elimination</dt><dd>The school method for solving linear equations by cancelling one variable at a time.</dd>
-<dt id="g-grind">grind</dt><dd>A general Lean tactic that combines equality reasoning, case splits, and arithmetic.</dd>
-<dt id="g-heartbeats">heartbeats</dt><dd>Lean's work counter. A proof that uses more than its heartbeat budget stops with an error.</dd>
-<dt id="g-kernel">kernel</dt><dd>The small core of Lean that checks every finished proof. It is the part that must be trusted.</dd>
-<dt id="g-linear-combination">linear combination</dt><dd>A sum of things each multiplied by a number, such as <code>3·A + 5·B</code>.</dd>
-<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>x &lt;= 4</code> or <code>¬(x &lt;= 4)</code>.</dd>
-<dt id="g-multiplier">multiplier</dt><dd>The number a bound is scaled by in a linear combination. For inequalities it must be nonnegative.</dd>
-<dt id="g-omega">omega</dt><dd>A Lean tactic that decides linear arithmetic over integers and natural numbers.</dd>
-<dt id="g-proof-term">proof term</dt><dd>A proof written as one expression, like a function call, instead of a sequence of tactic steps.</dd>
-<dt id="g-qf-lia">QF_LIA</dt><dd>The SMT-LIB logic of quantifier-free linear integer arithmetic: integer variables, addition, multiplication by constants, and comparisons.</dd>
-<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to <code>False</code>.</dd>
-<dt id="g-sort">sort</dt><dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
-<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically, such as <code>omega</code>.</dd>
-<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that is true because of a theory such as arithmetic, not because of Boolean logic alone. Z3 records it as a <code>th-lemma</code> with a hint.</dd>
+<dl class="glossary">
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement Lean accepts without proof. Adding one widens what must be trusted.</dd>
+  <dt id="g-bound">bound</dt>
+  <dd>An inequality that limits a linear expression, such as <code>x + 2y &le; 7</code>.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The proof data Z3 exports, which an independent checker replays step by step.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals: at least one of them must be true. Example: <code>x &le; 3 &or; y &gt; 5</code>.</dd>
+  <dt id="g-coefficient">coefficient</dt>
+  <dd>The constant number that multiplies a variable, such as 66760014 in <code>66760014 * x8</code>.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>A new inequality derived by rounding, which is valid for integers but not for reals.</dd>
+  <dt id="g-farkas-lemma">Farkas lemma</dt>
+  <dd>A theory lemma saying some bounds cannot all hold, because a linear combination of them gives
+      <code>0 &le; negative number</code>. Example: <code>x &ge; 1</code> and <code>x &le; 0</code> add up to <code>0 &le; &minus;1</code>.</dd>
+  <dt id="g-gaussian-elimination">Gaussian elimination</dt>
+  <dd>The school method for solving linear equations by eliminating one variable at a time.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A general Lean tactic that combines case splits, congruence, and arithmetic.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work. A proof that uses more heartbeats than allowed stops with an error.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small trusted core of Lean that checks every finished proof term.</dd>
+  <dt id="g-linear-combination">linear combination</dt>
+  <dd>A sum of facts, each multiplied by a constant. Example: 2 &middot; (first fact) + 3 &middot; (second fact).</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>x &le; 3</code> or <code>&not;(x &le; 3)</code>.</dd>
+  <dt id="g-multiplier">multiplier</dt>
+  <dd>The constant by which a fact is scaled in a linear combination. It is positive for an inequality and may be
+      negative for an equality.</dd>
+  <dt id="g-omega">omega</dt>
+  <dd>A Lean tactic that decides linear arithmetic over Int and Nat. It searches for a contradiction by itself.</dd>
+  <dt id="g-premise">premise</dt>
+  <dd>A fact a proof step takes as input, as opposed to the conclusion it derives.</dd>
+  <dt id="g-qf-lia">QF_LIA</dt>
+  <dd>The SMT-LIB logic of quantifier-free linear integer arithmetic: Int variables, constants, sums, and comparisons.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of formulas leads to False, so they cannot all be true together.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value in SMT-LIB, such as Int, Real, or Bool.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> or <code>decide</code>.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that holds by the rules of a theory, here integer arithmetic, rather than by Boolean logic alone.
+      Z3 records it as a <code>th-lemma</code>.</dd>
 </dl>
 
-<footer>
-Generated by the Lean certificate improvement loop on 2026-10-30.
-</footer>
+<footer>Generated by the Lean certificate improvement loop on 2026-10-30.</footer>
 </body>
 </html>
