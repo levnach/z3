@@ -2611,9 +2611,13 @@ def _normalized_atom(graph, atom, order):
 def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_indices):
     """Separate linear atom normalization from propositional rewrite search.
 
-    Each atom is rewritten (`have`, by the theory tactic) to a canonical
-    linear form bound as a Prop, `_atomN`, the same name for atoms of one
-    key and `(Not _atomN)` for the complement; the Boolean lemma over the
+    Each atom is rewritten to a canonical linear form bound as a Prop,
+    `_atomN`, the same name for atoms of one key and `(Not _atomN)` for the
+    complement. The theory tactic proves each rewrite in a lemma of its own,
+    `normalized_atom_N_A`: as `have`s of one theorem, every grind call saw
+    the atoms and rewrites before it in its context and all shared one
+    heartbeat budget, which a conjunction of 1,100 bounds exhausted about
+    200 atoms in. The Boolean lemma over the
     names, `normalized_rewrite_N`, is proved by _PropositionalProver in
     classical mode (the names are leaves, a constant atom its truth value)
     with `grind` as the `first` fallback, and `simpa` closes the rewrite
@@ -2637,7 +2641,7 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
             return "_vars %d" % index
         return "(%s)" % _inline(graph, index, atom_indices, variable_indices)
 
-    canonical, normalized_atoms, rewrites, lines = {}, {}, [], [
+    canonical, normalized_atoms, rewrites, atom_lemmas, lines = {}, {}, [], [], [
         "", "set_option maxHeartbeats 1000000 in",
         "set_option linter.unnecessarySimpa false in",
         "private theorem rewrite_%d (_atoms : Nat -> Prop)%s" % (node, _valuation_binder(graph)),
@@ -2666,11 +2670,15 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         expanded = "(Not %s)" % expression if negated else expression
         rewrite = "_norm%d" % atom
         rewrites.append(rewrite)
-        lines.extend([
-            "  have %s : %s <-> %s := by" % (rewrite, _formula(graph, atom), target),
-            "    change %s <-> %s" % (_inline(graph, atom, atom_indices, variable_indices), expanded),
-            "    grind",
+        atom_lemmas.extend([
+            "", "private theorem normalized_atom_%d_%d (_atoms : Nat -> Prop)%s" % (
+                node, atom, _valuation_binder(graph)),
+            "    : %s <-> %s := by" % (_formula(graph, atom), expanded),
+            "  change %s <-> %s" % (_inline(graph, atom, atom_indices, variable_indices), expanded),
+            "  grind",
         ])
+        lines.append("  have %s : %s <-> %s := normalized_atom_%d_%d _atoms%s" % (
+            rewrite, _formula(graph, atom), target, node, atom, graph.valuation))
     definitions = ["formula_%d" % formula for formula in sorted(reachable, reverse=True)
                    if not graph.is_arith(formula) and formula not in atoms]
     names = list(canonical.values())
@@ -2720,7 +2728,7 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         boolean_lemma.append("  by grind (splits := 64)")
     lines.append("  simpa only [%s] using (normalized_rewrite_%d _atoms %s)" % (
         ", ".join(definitions + rewrites), node, " ".join(names)))
-    return boolean_lemma + lines, "(rewrite_%d _atoms%s)" % (node, graph.valuation)
+    return atom_lemmas + boolean_lemma + lines, "(rewrite_%d _atoms%s)" % (node, graph.valuation)
 
 
 def _gate_contradiction(graph, formula, truth, proof, fact):
