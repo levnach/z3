@@ -152,11 +152,9 @@ class TestDeepCaseSplits(unittest.TestCase):
         self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-3000:])
 
 
-@unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
-class TestDeepClauseLog(unittest.TestCase):
-    def check(self, source, fragment):
-        certificate = proof_certificate.export_clause_log_certificate(source)
-        self.assertEqual(certificate["fragment"], fragment)
+class _LeanChecked(unittest.TestCase):
+    def check_lean(self, source, certificate):
+        """Check the certificate with Lean and return the Lean text."""
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "checked.lean"
             try:
@@ -167,6 +165,15 @@ class TestDeepClauseLog(unittest.TestCase):
             text = output.read_text()
         namespace = "Z3Proofs.NativeCertificate.p" + hashlib.sha256(source.encode()).hexdigest()
         self.assertIn("namespace " + namespace, text)
+        return text
+
+
+@unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
+class TestDeepClauseLog(_LeanChecked):
+    def check(self, source, fragment):
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        self.assertEqual(certificate["fragment"], fragment)
+        self.check_lean(source, certificate)
         return certificate
 
     def test_deep_conjunction_is_checked(self):
@@ -184,22 +191,23 @@ class TestDeepClauseLog(unittest.TestCase):
         self.assertEqual(certificate["rule_counts"]["and-elim"], DEPTH + 2)
 
 
-class TestDeepLegacyCore(unittest.TestCase):
-    def test_deep_arithmetic_rewrite_is_reconstructed(self):
+class TestDeepLegacyCore(_LeanChecked):
+    def test_deep_arithmetic_rewrite_is_checked(self):
         # The legacy core rewrites the nested conjunction into one flat
         # conjunction over the normalized arithmetic atoms (_normalized_rewrite);
         # the rewrite's Boolean structure is read and rendered without
         # recursion, and the prover settles the flat conjunction without
         # rebuilding every projection whenever one operand is assigned (two
-        # minutes before at 1,200 operands, a second now). Lean is not run:
-        # the rewrite lemma proves its 1,100 atom normalizations by grind in
-        # one theorem, which exhausts maxHeartbeats, a width limit of the
-        # normalized rewrite, not of the nesting.
+        # minutes before at 1,200 operands, a second now). Each atom is
+        # normalized by grind in a lemma of its own: as haves of the rewrite
+        # lemma, every grind saw the atoms and normalizations before it, and
+        # the rewrite ran out of heartbeats about 200 atoms in.
         source = deep_bounds_conjunction(DEPTH)
         certificate = proof_certificate.export_certificate(source)
         self.assertEqual(certificate["fragment"], "qf_lra")
-        text = proof_to_lean.reconstruct(source, certificate)
+        text = self.check_lean(source, certificate)
         self.assertEqual(text.count("private theorem normalized_rewrite_"), 1)
+        self.assertEqual(text.count("private theorem normalized_atom_"), DEPTH + 2)
 
 
 if __name__ == "__main__":

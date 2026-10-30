@@ -1589,6 +1589,19 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Normalized rewrites: one lemma per atom normalization (2026-10-29)
+
+`_normalized_rewrite` proved each atom's normalization to its canonical
+linear form by `grind` in a `have` of the rewrite theorem, so every call saw
+the atoms and normalizations before it and all shared the theorem's
+1,000,000 heartbeats; the legacy rewrite of a nested conjunction of 1,100
+bounds ran out of heartbeats about 200 atoms in. Each normalization is now a
+private lemma `normalized_atom_N_A` with its own 1,000,000 heartbeats,
+applied by the rewrite's `have`s. That certificate now verifies in 16 s of
+Lean, and a 200-atom one drops from 38 s to 15 s. Test: the legacy case of
+`test_proof_to_lean_deep.py`, now checked by Lean (it was reconstructed
+only).
+
 ### Deep nesting: formula walks and the prover on explicit stacks (2026-10-29)
 
 Inputs nested deeper than Python's recursion limit (1000) failed with
@@ -1612,7 +1625,7 @@ times out, FISCHER's export spends 480 s in 12,000 solver equivalence
 checks of `assume`. Tests: `test_proof_to_lean_deep.py` (1,100 levels; the
 clause-log certificates of a Boolean and an LRA conjunction checked by
 Lean, a 1,100-split proof checked by Lean, the legacy normalized rewrite
-reconstructed).
+reconstructed; checked by Lean since the per-atom lemmas above).
 
 ### Native euf and tseitin checks over Boolean constants and arguments (2026-10-28)
 
