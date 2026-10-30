@@ -698,6 +698,14 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertNotIn("have _s", text)
         self.assertNotIn("have _g", text)
         self.assertNotIn("sorry", text)
+        self.assertNotIn("axiom ", text)
+        graph = proof_to_lean._validate_graph(self.source, self.certificate)
+        self.assertEqual(graph.sorts, ("U",))
+        self.assertFalse(graph.arithmetic)
+        for node in _th_lemma_nodes(self.certificate):
+            self.assertEqual(graph.decl(node).parameters, ("euf",))
+            proof_to_lean._check_th_lemma(graph, node)
+            self.assertTrue(proof_to_lean._reachable(graph, graph.conclusion(node))[1])
 
     def test_interpretation_is_one_structure_argument(self):
         # The carrier and the maps are the fields of one structure declared
@@ -735,14 +743,6 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertEqual(serial.replace("set_option Elab.async false\n", ""), text)
         with patch.object(proof_to_lean, "_SERIAL_ELABORATION_CHARS", len(text)):
             self.assertEqual(proof_to_lean.reconstruct(self.source, self.certificate), text)
-        self.assertNotIn("axiom ", text)
-        graph = proof_to_lean._validate_graph(self.source, self.certificate)
-        self.assertEqual(graph.sorts, ("U",))
-        self.assertFalse(graph.arithmetic)
-        for node in _th_lemma_nodes(self.certificate):
-            self.assertEqual(graph.decl(node).parameters, ("euf",))
-            proof_to_lean._check_th_lemma(graph, node)
-            self.assertTrue(proof_to_lean._reachable(graph, graph.conclusion(node))[1])
 
     def test_fragment_and_sort_consistency(self):
         for fragment in ("propositional", "qf_lra"):
@@ -1800,6 +1800,11 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         text = proof_to_lean.reconstruct(source, certificate)
         self.assertGreater(len(text), proof_to_lean._SERIAL_ELABORATION_CHARS)
         self.assertIn("\nset_option Elab.async false\n", text)
+        # The statement checks of self.check: one hypothesis per assertion.
+        statement = text.split("theorem unsat", 1)[1].split(": False :=", 1)[0]
+        self.assertEqual(statement.count("    (_h"), len(certificate["assertions"]))
+        self.assertNotIn("_hyp", statement)
+        self.assertIn(proof_to_lean._UF_BINDERS, statement)
         namespace = "Z3Proofs.NativeCertificate.p" + hashlib.sha256(source.encode()).hexdigest()
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "checked.lean"

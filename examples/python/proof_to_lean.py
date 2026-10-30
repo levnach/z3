@@ -146,32 +146,32 @@ _RESERVED_SORTS = ("Bool", "Real", "Int", "Proof")
 # predicates are indexed families over argument lists, so one signature serves
 # every arity and every sort. Quantifying over all such interpretations covers
 # every model: a many-sorted model is one instance with the disjoint union of
-# its carriers as _U, since every ground term keeps its sort and equality is
+# its carriers as _m.U, since every ground term keeps its sort and equality is
 # only ever stated between terms of one sort (the certificate keeps the sort
 # names, and the proof graph is checked to be well-sorted before rendering).
-# A Boolean argument of a function or predicate is injected into _U by the
-# quantified map _bool, so Bool is treated as one more sort: a model's Bool
-# carrier joins the disjoint union and _bool picks its two values. Nothing
-# asserts that _bool True and _bool False differ, and nothing needs to: euf
-# lemmas only use the congruence p = q -> _bool p = _bool q.
+# A Boolean argument of a function or predicate is injected into _m.U by the
+# quantified map _m.bool, so Bool is treated as one more sort: a model's Bool
+# carrier joins the disjoint union and _m.bool picks its two values. Nothing
+# asserts that _m.bool True and _m.bool False differ, and nothing needs to: euf
+# lemmas only use the congruence p = q -> _m.bool p = _m.bool q.
 # The carrier and the maps are the fields of one structure, Interpretation,
-# declared in each file and quantified as the one argument _m (so _U is
-# _m.U, _elems is _m.elems, and so on): every definition, lemma, and proof
-# step takes it and every reference applies it, and one argument in place of
-# five to seven cut z3test's NEQ004_size4 (13,700 declarations, elaborated
+# declared in each file and quantified as the one argument _m (the carrier
+# _m.U, the families _m.elems, _m.funs, _m.preds): every definition, lemma,
+# and proof step takes it and every reference applies it, and one argument in
+# place of five to seven cut z3test's NEQ004_size4 (13,700 declarations, elaborated
 # serially) from 9.6 GB of Lean memory to 7.1 GB.
 _UF_FIELDS = (("U", "Type"), ("elems", "Nat -> U"), ("funs", "Nat -> List U -> U"),
               ("preds", "Nat -> List U -> Prop"), ("bool", "Prop -> U"))
 _UF_BINDERS = " (_m : Interpretation)"
 _UF_ARGUMENTS = " _m"
 # QF_UFLRA: the Rat valuation of the Real variables next to the carrier. A
-# Real argument of a function or predicate is injected into _U by _real, as a
-# Boolean one is by _bool (Real joins the disjoint union as one more carrier),
-# and a function with a Real result is one more indexed family _rfuns whose
+# Real argument of a function or predicate is injected into _m.U by _m.real, as a
+# Boolean one is by _m.bool (Real joins the disjoint union as one more carrier),
+# and a function with a Real result is one more indexed family _m.rfuns whose
 # applications are the opaque atoms of the linear forms, as in Z3's arithmetic
-# solver. Nothing states that _real is injective and nothing needs it: euf
-# lemmas only use the congruence x = y -> _real x = _real y. QF_UFLIA is the
-# same encoding over Int, with the injection _int and the family _ifuns. The
+# solver. Nothing states that _m.real is injective and nothing needs it: euf
+# lemmas only use the congruence x = y -> _m.real x = _m.real y. QF_UFLIA is the
+# same encoding over Int, with the injection _m.int and the family _m.ifuns. The
 # valuation stays a parameter of its own, as in QF_LRA and QF_LIA.
 _NUMERIC_FIELDS = {"Real": (("real", "Rat -> U"), ("rfuns", "Nat -> List U -> Rat")),
                    "Int": (("int", "Int -> U"), ("ifuns", "Nat -> List U -> Int"))}
@@ -604,7 +604,7 @@ def _bind_input(source, graph, fragment=None, query=0):
     (Z3 accepts overloading by sort; the frontend rejects it and this check is
     repeated here) and the certificate's declaration must carry that symbol's
     full signature. Interned terms also carry their sort, so terms of different
-    sorts never compare equal even though Lean renders every sort as _U.
+    sorts never compare equal even though Lean renders every sort as _m.U.
     """
     context = z3.Context(proof=False)
     original, original_fragment = parse_assertions(source, context, integer=True, query=query)
@@ -1087,7 +1087,7 @@ def _monotonicity(graph, terms, node, atom_indices, variable_indices):
     functions and predicates go through the equality of their argument lists,
     equality and distinct over terms through congruence of Eq, and an ite term
     through ite_congr_classical. A Boolean argument of an application is
-    injected by _bool, so its equivalence becomes an equality by propext.
+    injected by _m.bool, so its equivalence becomes an equality by propext.
     Congruence through an arithmetic operator or comparison (the legacy core
     normalizes Real atoms inside their assertions) is a grind lemma taking the
     argument equalities as premises. Returns the Lean term, whether
@@ -1812,7 +1812,7 @@ def _boolean_argument_helpers(graph, reachable, atom_indices, variable_indices):
     argument that no premise mentions, for example when preprocessing
     combined several assertions. grind splits on disjunctions in context but
     not on arbitrary propositions, so each case split is offered explicitly;
-    from either case it derives _bool p = _bool True or _bool p = _bool False
+    from either case it derives _m.bool p = _m.bool True or _m.bool p = _m.bool False
     by congruence.
     """
     arguments = set()
