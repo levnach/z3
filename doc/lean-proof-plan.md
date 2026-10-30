@@ -1589,6 +1589,28 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Equivalence search only over the clause's symbols (2026-10-29)
+
+`assume` ties an assumed clause the canonical keys do not match by a
+bounded solver check for an equivalent conjunct (a rewrite), then for an
+implying one (a cnf lemma). On a right-nested conjunction every suffix
+shares the clause's symbols: FISCHER6-4-ninc checked seven clauses for
+equivalence against all 1,743 such conjuncts, 12,207 solver calls each
+asserting a suffix of the conjunction (459 s of export), before the whole
+assertion, the first candidate, implied each. Only conjuncts over exactly
+the clause's symbols (a hash of each source's symbol set is kept with the
+symbol index), and leaf conjuncts (not ands) over at least them, are
+checked for equivalence now. The leaves matter: Z3 may simplify a symbol
+away (`(f (* 0 y))` to `(f 0)`), and without them such a clause was tied
+by the implication pass through a cnf lemma over the whole assertion,
+which Lean failed to prove within its heartbeats on a thousand-wide QF_UFLIA
+conjunction (review of this change). Each leaf is checked at most once per
+clause, so the cost stays linear in the assertions. FISCHER exports in
+about 3 s (55 equivalence checks on leaves, 7 implications) and verifies
+in Lean; it is test data now (`test_proof_to_lean_lia.py`), with unit
+tests in `test_proof_certificate.py` and the QF_UFLIA case in
+`test_proof_to_lean_uflia.py`.
+
 ### and-elim from shared conjunction tails (2026-10-29)
 
 and-elim projected operand k of a right-nested conjunction by field
@@ -1638,10 +1660,11 @@ cores. Lean checks a thousand nested case splits (bullets) in a second, so
 the prover's search is not capped. The prover also no longer rebuilds the
 projections of a true conjunction's operands that are already true (cubic
 in the width: two minutes for a legacy rewrite over 1,200 operands, one
-second now). The three inputs now export and reconstruct; they do not
-verify yet: the tta cnf lemma is not propositional and its grind fallback
-times out, FISCHER's export spends 480 s in 12,000 solver equivalence
-checks of `assume`. Tests: `test_proof_to_lean_deep.py` (1,100 levels; the
+second now). The three inputs now export and reconstruct; the tta inputs
+do not verify yet: their cnf lemma is not propositional and its grind
+fallback times out. FISCHER's export then took 459 s for 12,207
+solver equivalence checks of `assume`; it verifies since the equivalence
+search note above. Tests: `test_proof_to_lean_deep.py` (1,100 levels; the
 clause-log certificates of a Boolean and an LRA conjunction checked by
 Lean, a 1,100-split proof checked by Lean, the legacy normalized rewrite
 reconstructed; checked by Lean since the per-atom lemmas above).
