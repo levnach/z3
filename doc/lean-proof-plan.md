@@ -1974,6 +1974,35 @@ binary successfully with the remaining checks unrun.
 
 ## Arithmetic proof infrastructure
 
+### Int Farkas lemmas proved by their combination (2026-10-30)
+
+An Int `farkas` or `bound` th-lemma with coefficients was proved by `omega`
+(or `grind`) with every bound in scope, so `omega` searched for the
+combination the reconstructor had already re-derived. On QF_LIA
+`cut_lemmas/20-vars/cut_lemma_03_012` (z3test smtlib-sample, 2.8 KB) two
+21-literal lemmas over twenty variables with coefficients of seven and eight
+digits ran for ten minutes each without an answer, so the 80 KB certificate
+never checked. `_farkas_combination` now writes the proof directly: each
+premise and each negated clause literal becomes `0 <= upper - lower` by a
+core `Int` lemma (strict bounds tightened by one, equalities oriented by the
+sign of their multiplier), the facts are scaled by integer multipliers (the
+hint's coefficients for inequalities, solved for equalities) and summed by
+`Int.add_nonneg`/`Int.mul_nonneg`, and `omega` checks only that the sum is a
+negative constant, before any hypothesis is in scope. The attempt comes
+first under `first`, ahead of the generalized and unfolded proofs, for
+lemmas of at least 16 bounds (`_FARKAS_COMBINATION_BOUNDS`): on smaller
+ones omega is quick and its proof cheaper (the combination cost Lean about
+3 MB per lemma against 1 MB, and the 800 mostly two-literal Farkas lemmas
+of the wide division seed would have pushed it past the 8 GB cap). A
+combination that needs a bound step's rounding gets no attempt. The input
+now verifies in 1.5 s. Every such lemma of the documented QF_LIA and
+QF_UFLIA inputs through both cores is proved by the combination alone
+(`test_farkas_lemmas_are_proved_by_their_combination_alone`,
+`test_wide_farkas_conflicts_with_large_coefficients_verify` in
+`test_proof_to_lean_lia.py`). Still open: Real Farkas lemmas keep `grind`,
+and `cut_lemma_02_002` of the same family still exhausts Lean's memory on its
+186 coefficient-free `cut` lemmas.
+
 ### Native checks of the arithmetic solver's axioms (2026-10-29)
 
 Clauses the sat.smt arithmetic solver adds without a hint of their own

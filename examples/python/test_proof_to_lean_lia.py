@@ -5,7 +5,9 @@
 # arithmetic through the clause log): validation without Lean, and
 # end-to-end checks that need the z3 executable and the pinned Lean toolchain.
 ############################################
+import contextlib
 import copy
+from fractions import Fraction
 import hashlib
 from pathlib import Path
 import random
@@ -524,10 +526,15 @@ class TestIntegerValidation(unittest.TestCase):
                         self.assertEqual(tactic, "omega" if len(parameters) > 1 else "grind (splits := 64)")
                     else:
                         self.assertIsNone(tactic)
+                    combination = proof_to_lean._farkas_combination(graph, node)
+                    if combination is not None:
+                        # A lemma of many bounds tries its combination first (_farkas_combination).
+                        self.assertIn("  first\n    | (have _sum : ", block)
                     if not (tactic and atoms):
                         self.assertNotIn("generalize", block)
-                        self.assertNotIn("first\n", block)
-                        self.assertTrue(block.endswith("first | omega | grind (splits := 64)"), block[-200:])
+                        self.assertEqual("first\n" in block, combination is not None)
+                        self.assertTrue(block.endswith("first | omega | grind (splits := 64)"
+                                                       + (")" if combination else "")), block[-200:])
                         continue
                     generalized[name].add(parameters[0])
                     self.assertIn("  first\n    | (", block)
@@ -1054,6 +1061,54 @@ class TestIntegerValidation(unittest.TestCase):
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "cut hint without literals"):
             proof_clause_log.check_linear_hint("cut", [])
 
+    def test_farkas_multipliers_cancel_the_variables(self):
+        # Facts 0 <= form, form = (terms, constant); equalities hold both ways.
+        multipliers = proof_to_lean._farkas_multipliers
+        x, y = 1, 2
+        # x >= 1 and x <= 0: the hint's coefficients as they are.
+        self.assertEqual(multipliers([({x: 1}, -1), ({x: -1}, 0)], [1, 1], [False, False]), [1, 1])
+        # x <= -1 and 2x = 0: the equality's multiplier is solved for (its
+        # hint coefficient, 7, is ignored), here positive...
+        self.assertEqual(multipliers([({x: -1}, -1), ({x: 2}, 0)], [1, 7], [False, True]),
+                         [1, Fraction(1, 2)])
+        # ...and here negative (x >= 1 and x = 0): the caller turns it around.
+        self.assertEqual(multipliers([({x: 1}, -1), ({x: 1}, 0)], [1, 1], [False, True]), [1, -1])
+        # Through two equalities: x >= y + 1, x = 2y (0 <= 2y - x), y = 0 (0 <= y).
+        self.assertEqual(multipliers([({x: 1, y: -1}, -1), ({x: -1, y: 2}, 0), ({y: 1}, 0)], [3, 1, 1],
+                                     [False, True, True]), [3, 3, -3])
+        # Equalities inconsistent on their own (x = 0, x = 1) refute alone,
+        # whatever the inequalities: the combination's constant is -1.
+        self.assertEqual(multipliers([({y: 1}, 0), ({x: 1}, 0), ({x: 1}, -1)], [5, 1, 1], [False, True, True]),
+                         [0, -1, 1])
+        # A negative inequality coefficient, or variables that do not cancel, give nothing.
+        self.assertIsNone(multipliers([({x: 1}, -1), ({x: -1}, 0)], [1, -1], [False, False]))
+        self.assertIsNone(multipliers([({x: 1}, -1), ({y: -1}, 0)], [1, 1], [False, False]))
+
+
+@contextlib.contextmanager
+def _combination_only(test):
+    """Prove every Int farkas or bound th-lemma with coefficients by its direct combination alone.
+
+    However few its bounds (_FARKAS_COMBINATION_BOUNDS is lowered), and with
+    the omega and unfolded alternatives dropped, so a combination that does
+    not elaborate fails the check instead of falling through to them.
+    Yields the list of the th-lemma nodes so proved.
+    """
+    original = proof_to_lean._grind_lemma
+    proved = []
+
+    def grind_lemma(graph, node, prefix, *arguments, structural=None, **options):
+        lines, term = original(graph, node, prefix, *arguments, structural=structural, **options)
+        if prefix == "th_lemma" and proof_to_lean._combination_certified(graph, node):
+            test.assertIsNotNone(structural, "th-lemma %d has no direct combination" % node)
+            lines = lines[:lines.index("  first")] + ["  " + line for line in structural]
+            proved.append(node)
+        return lines, term
+
+    with patch.object(proof_to_lean, "_grind_lemma", grind_lemma), \
+            patch.object(proof_to_lean, "_FARKAS_COMBINATION_BOUNDS", 0):
+        yield proved
+
 
 class TestIntegerLeanIntegration(unittest.TestCase):
     """End-to-end: z3 clause log, certificate, Lean reconstruction, kernel check."""
@@ -1241,6 +1296,40 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         cnf = [node for node in _th_lemma_nodes(certificate) if graph.decl(node).parameters == ("cnf",)]
         self.assertEqual(len(cnf), 7)
         self.checked_text(source, certificate)
+
+    def test_wide_farkas_conflicts_with_large_coefficients_verify(self):
+        # SMT-LIB QF_LIA cut_lemmas/20-vars/cut_lemma_03_012 (2.8 KB): two
+        # farkas lemmas of 21 literals over twenty variables with coefficients
+        # of seven and eight digits. omega, searching for the combination with all
+        # 21 bounds in scope, ran for ten minutes on each; the coefficients
+        # the reconstructor re-derived prove them in under a second.
+        source = (_EXAMPLES / "data" / "QF_LIA_cut_lemma_03_012.smt2").read_text()
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        wide = [node for node in _th_lemma_nodes(certificate) if _parameters(certificate, node)[0] == "farkas"
+                and len(graph.clause(graph.conclusion(node))) > 20
+                and max(Fraction(value) for value in _parameters(certificate, node)[1:]) > 10 ** 6]
+        self.assertEqual(len(wide), 2)
+        with _combination_only(self) as proved:
+            text = self.checked_text(source, certificate)
+        self.assertTrue(set(wide) <= set(proved), (wide, proved))
+        self.assertEqual(text.count("have _sum : "), len(proved))
+
+    def test_farkas_lemmas_are_proved_by_their_combination_alone(self):
+        # Every Int farkas and bound th-lemma with coefficients of the
+        # documented inputs, through both cores (the legacy core states its
+        # premises as hypotheses, the clause log only a clause), and of a
+        # conflict among equalities alone (seed 26), is proved by the
+        # combination with no fallback behind it.
+        inputs = [(name, source, core) for name, source in LIA_INPUTS.items() for core in ("clause-log", "legacy")]
+        inputs.append(("random26", random_instance(26), "clause-log"))
+        proved_by_core = {"clause-log": 0, "legacy": 0}
+        for name, source, core in inputs:
+            with self.subTest(name=name, core=core), _combination_only(self) as proved:
+                self.check(source, core)
+                proved_by_core[core] += len(proved)
+        self.assertGreater(proved_by_core["clause-log"], 10)
+        self.assertGreater(proved_by_core["legacy"], 10)
 
     def test_arith_lemmas_over_real_atoms_verify(self):
         # The arith hint is accepted in Real certificates too, where grind
