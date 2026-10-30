@@ -1589,6 +1589,31 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### One interpretation argument; serial elaboration of large files (2026-10-30)
+
+z3test's QF_UF `NEQ/NEQ004_size4` (16 KB of SMT-LIB) exported in 3 s but
+failed in Lean with "(kernel) excessive memory consumption" since the
+2026-10-27 `--memory=8192` cap: 20,634 proof steps become 13,700
+declarations and 21 MB of text, and Lean's memory grew past 11 GB within
+30 s. Two changes bring it to 7.06 GB (103 s). The carrier and maps of the
+UF fragments (`_U _elems _funs _preds _bool`, plus `_real _rfuns` or
+`_int _ifuns`) are now the fields of one structure `Interpretation`
+declared in each file, and every declaration takes the one argument
+`(_m : Interpretation)` next to `_atoms` (and `_vars`), so every reference
+`formula_k _atoms _m` is two arguments instead of six to eight; quantifying
+over the structure is quantifying over its fields, so the theorem states
+the same thing. A file of more than 8 MB of Lean text also sets
+`Elab.async false`: parallel elaboration keeps far more memory alive. Measured on
+NEQ004 (11 GB cap, to see the peaks): six parameters in parallel above 11 GB, one
+structure in parallel 10.1 GB, six parameters serially 9.6 GB, one structure
+(with `_atoms` folded in too) serially 6.5 GB; four threads instead of all
+cores did not help (10.0 GB). Serial elaboration costs about three times the
+wall time, so smaller files keep the parallel default (no other test file
+exceeds 3.9 MB). Tests: `test_interpretation_is_one_structure_argument`,
+`test_large_files_are_elaborated_serially`, and
+`test_large_certificates_verify_under_the_memory_cap` (NEQ004, about 110 s)
+in `test_proof_to_lean_uf.py`.
+
 ### Limits on the legacy solve and the clause-log replay (2026-10-30)
 
 The two in-process stages the note below left unbounded now take the same

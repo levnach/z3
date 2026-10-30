@@ -294,7 +294,7 @@ LEGACY_UF_INPUTS = {
 # Uninterpreted predicates over Bool without any uninterpreted sort. Both
 # cores certify them (the clause log since the exporters bypass the frontend's
 # tactic preamble, which Ackermannized them); Lean uses the qf_uf encoding
-# with the carrier _U holding nothing but the injected Boolean arguments.
+# with the carrier _m.U holding nothing but the injected Boolean arguments.
 BOOLEAN_PREDICATE_INPUTS = {
     # One congruence step through a Boolean equality.
     "bp_congruence": """\
@@ -685,11 +685,11 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertIn('-- Function 0: "f"', text)
         self.assertIn('-- Function 1: "g"', text)
         self.assertIn('-- Predicate 0: "p"', text)
-        self.assertIn('-- Uninterpreted sort "U" is the type _U', text)
-        self.assertIn(" : _U := _elems 0", text)
-        self.assertIn(" : _U := _funs 0 [(term_", text)
-        self.assertIn(" : _U := _funs 1 [(term_", text)
-        self.assertIn(" : Prop := _preds 0 [(term_", text)
+        self.assertIn('-- Uninterpreted sort "U" is the type _m.U', text)
+        self.assertIn(" : _m.U := _m.elems 0", text)
+        self.assertIn(" : _m.U := _m.funs 0 [(term_", text)
+        self.assertIn(" : _m.U := _m.funs 1 [(term_", text)
+        self.assertIn(" : Prop := _m.preds 0 [(term_", text)
         self.assertIn("private theorem th_lemma_", text)
         self.assertIn("  grind", text)
         # No arithmetic: no Rat valuation and none of the arithmetic grind helpers.
@@ -706,6 +706,43 @@ class TestUninterpretedValidation(unittest.TestCase):
             self.assertEqual(graph.decl(node).parameters, ("euf",))
             proof_to_lean._check_th_lemma(graph, node)
             self.assertTrue(proof_to_lean._reachable(graph, graph.conclusion(node))[1])
+
+    def test_interpretation_is_one_structure_argument(self):
+        # The carrier and the maps are the fields of one structure declared
+        # once per file; every declaration takes it as the one argument _m
+        # next to _atoms, and the theorem quantifies over it.
+        text = proof_to_lean.reconstruct(self.source, self.certificate)
+        self.assertEqual(proof_to_lean._UF_BINDERS, " (_m : Interpretation)")
+        self.assertEqual(text.count("structure Interpretation where"), 1)
+        self.assertIn("structure Interpretation where\n  U : Type\n  elems : Nat -> U\n  funs : Nat -> List U -> U\n"
+                      "  preds : Nat -> List U -> Prop\n  bool : Prop -> U\n\ndef ", text)
+        signature = "(_atoms : Nat -> Prop) (_m : Interpretation)"
+        declarations = re.findall(r"^(?:private |noncomputable )?(?:def|theorem) (?!refute_with_decidable )\w+ (.*)$",
+                                  text, re.MULTILINE)
+        self.assertTrue(declarations)
+        self.assertTrue(all(line.startswith(signature) for line in declarations), declarations)
+        self.assertIn("theorem unsat " + signature + "\n", text)
+        self.assertNotRegex(text, r"\(_(U|elems|funs|preds|bool) :")
+        # The proposition-only fragments keep their parameters and declare no structure.
+        source = "(declare-const p Bool)(declare-const q Bool)(assert (and p q))(assert (not p))"
+        propositional = proof_to_lean.reconstruct(source, proof_certificate.export_clause_log_certificate(source))
+        self.assertNotIn("Interpretation", propositional)
+        self.assertIn("theorem unsat (_atoms : Nat -> Prop)\n", propositional)
+
+    def test_large_files_are_elaborated_serially(self):
+        # Above _SERIAL_ELABORATION_CHARS the file turns off parallel
+        # elaboration (it peaks at a third less memory); below it nothing changes.
+        option = "set_option maxRecDepth 100000\nset_option Elab.async false\n"
+        text = proof_to_lean.reconstruct(self.source, self.certificate)
+        self.assertLess(len(text), proof_to_lean._SERIAL_ELABORATION_CHARS)
+        self.assertNotIn("Elab.async", text)
+        with patch.object(proof_to_lean, "_SERIAL_ELABORATION_CHARS", len(text) - 1):
+            serial = proof_to_lean.reconstruct(self.source, self.certificate)
+        self.assertEqual(serial.count("Elab.async"), 1)
+        self.assertIn("\n\n" + option + "\n", serial)
+        self.assertEqual(serial.replace("set_option Elab.async false\n", ""), text)
+        with patch.object(proof_to_lean, "_SERIAL_ELABORATION_CHARS", len(text)):
+            self.assertEqual(proof_to_lean.reconstruct(self.source, self.certificate), text)
 
     def test_fragment_and_sort_consistency(self):
         for fragment in ("propositional", "qf_lra"):
@@ -812,11 +849,11 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertEqual(len(ites), 3)
         self.assertEqual({graph.decl(node).domain for node in ites}, {("Bool", "U", "U")})
         text = proof_to_lean.reconstruct(source, certificate)
-        # Every ite term is Lean's ite over _U with the classical instance, so its
+        # Every ite term is Lean's ite over _m.U with the classical instance, so its
         # definition and the definitions containing it are noncomputable.
         for node in ites:
             self.assertIn("noncomputable def term_%d " % node, text)
-            self.assertIn(": _U := (@ite _U (formula_%d _atoms%s) (Classical.propDecidable _) " % (
+            self.assertIn(": _m.U := (@ite _m.U (formula_%d _atoms%s) (Classical.propDecidable _) " % (
                 graph.arguments(node)[0], proof_to_lean._UF_ARGUMENTS), text)
         containing = [node for node in range(len(graph.nodes))
                       if graph.is_term(node) and graph.kind(node) != z3.Z3_OP_ITE
@@ -1032,10 +1069,10 @@ class TestUninterpretedValidation(unittest.TestCase):
         graph = proof_to_lean._validate_graph(source, certificate)
         self.assertEqual(graph.sorts, ("U",))
         text = proof_to_lean.reconstruct(source, certificate)
-        self.assertIn("(_bool : Prop -> _U)", proof_to_lean._UF_BINDERS)
+        self.assertIn("\n  bool : Prop -> U\n", text)
         self.assertIn("theorem unsat (_atoms : Nat -> Prop)" + proof_to_lean._UF_BINDERS, text)
-        self.assertIn("-- Boolean arguments of functions and predicates are injected into _U by _bool.", text)
-        # Every Boolean argument is rendered as _bool applied to its formula, in
+        self.assertIn("-- Boolean arguments of functions and predicates are injected into _m.U by _m.bool.", text)
+        # Every Boolean argument is rendered as _m.bool applied to its formula, in
         # the argument position its declaration gives it.
         applications = [node for node in range(len(graph.nodes))
                         if graph.kind(node) == z3.Z3_OP_UNINTERPRETED and "Bool" in graph.decl(node).domain]
@@ -1043,13 +1080,13 @@ class TestUninterpretedValidation(unittest.TestCase):
         for node in applications:
             decl = graph.decl(node)
             expected = ", ".join(
-                "(_bool (formula_%d _atoms%s))" % (arg, proof_to_lean._UF_ARGUMENTS) if sort == "Bool"
+                "(_m.bool (formula_%d _atoms%s))" % (arg, proof_to_lean._UF_ARGUMENTS) if sort == "Bool"
                 else "(term_%d _atoms%s)" % (arg, proof_to_lean._UF_ARGUMENTS)
                 for arg, sort in zip(graph.arguments(node), decl.domain))
-            family = "_funs" if decl.range == "U" else "_preds"
+            family = "_m.funs" if decl.range == "U" else "_m.preds"
             self.assertRegex(text, r"%s \d+ \[%s\]" % (family, re.escape(expected)))
-        self.assertNotIn("_bool True", text)   # true and false are formulas like any other
-        self.assertIn("(_bool (formula_", text)
+        self.assertNotIn("_m.bool True", text)   # true and false are formulas like any other
+        self.assertIn("(_m.bool (formula_", text)
         self.assertNotIn("Rat", text)
         # Every grind lemma offers the two cases of each Boolean argument it
         # reaches, since Z3's egraph assigns every such argument true or false.
@@ -1101,9 +1138,9 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertTrue(graph.uninterpreted)
         text = proof_to_lean.reconstruct(source, certificate)
         self.assertIn("theorem unsat (_atoms : Nat -> Prop)" + proof_to_lean._UF_BINDERS, text)
-        self.assertIn("-- No uninterpreted sort: the type _U carries only the Boolean arguments of the predicates.",
+        self.assertIn("-- No uninterpreted sort: the type _m.U carries only the Boolean arguments of the predicates.",
                       text)
-        self.assertIn("-- Boolean arguments of functions and predicates are injected into _U by _bool.", text)
+        self.assertIn("-- Boolean arguments of functions and predicates are injected into _m.U by _m.bool.", text)
         self.assertNotIn("-- Uninterpreted sort", text)
         # Every application is a predicate over injected Boolean arguments; the
         # element and function families are never applied, and nothing is a term.
@@ -1111,15 +1148,15 @@ class TestUninterpretedValidation(unittest.TestCase):
                         if graph.kind(node) == z3.Z3_OP_UNINTERPRETED and graph.decl(node).domain]
         self.assertTrue(applications)
         for node in applications:
-            expected = ", ".join("(_bool (formula_%d _atoms%s))" % (arg, proof_to_lean._UF_ARGUMENTS)
+            expected = ", ".join("(_m.bool (formula_%d _atoms%s))" % (arg, proof_to_lean._UF_ARGUMENTS)
                                  for arg in graph.arguments(node))
-            self.assertRegex(text, r"_preds \d+ \[%s\]" % re.escape(expected))
-        self.assertNotRegex(text, r"_elems \d|_funs \d|\bterm_\d")
+            self.assertRegex(text, r"_m\.preds \d+ \[%s\]" % re.escape(expected))
+        self.assertNotRegex(text, r"_m\.elems \d|_m\.funs \d|\bterm_\d")
         self.assertNotIn("Rat", text)
-        # Congruence through a Boolean argument is congrArg over _bool via propext.
+        # Congruence through a Boolean argument is congrArg over _m.bool via propext.
         self.assertGreaterEqual(certificate["rule_counts"]["monotonicity"], 3)
-        self.assertIn("(Iff.of_eq (congrArg (_preds ", text)
-        self.assertIn("(congrArg _bool (propext ", text)
+        self.assertIn("(Iff.of_eq (congrArg (_m.preds ", text)
+        self.assertIn("(congrArg _m.bool (propext ", text)
         # The fragment must be qf_uf and nothing else: relabeling is rejected both
         # ways, and the input must declare the predicates with these signatures.
         for fragment in ("propositional", "qf_lra"):
@@ -1169,7 +1206,7 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertEqual(set(hints), {("euf",)})
         self.assertNotIn("k!", json.dumps(certificate))
         text = proof_to_lean.reconstruct(source, certificate)
-        self.assertIn("(_bool (formula_", text)
+        self.assertIn("(_m.bool (formula_", text)
 
     def test_quoted_sort_names_are_kept(self):
         source = ("(declare-sort |my sort| 0)(declare-fun a () |my sort|)(declare-fun b () |my sort|)"
@@ -1178,12 +1215,12 @@ class TestUninterpretedValidation(unittest.TestCase):
         self.assertEqual(certificate["fragment"], "qf_uf")
         self.assertIn("my sort", {d["range"] for d in certificate["declarations"]})
         text = proof_to_lean.reconstruct(source, certificate)
-        self.assertIn('-- Uninterpreted sort "my sort" is the type _U', text)
+        self.assertIn('-- Uninterpreted sort "my sort" is the type _m.U', text)
         self.assertNotIn("|", text)
 
     def test_several_sorts_share_one_lean_carrier(self):
         # The certificate keeps every sort name, so the proof graph is checked
-        # to be well-sorted in Python; Lean sees one type _U for all of them.
+        # to be well-sorted in Python; Lean sees one type _m.U for all of them.
         source = UF_INPUTS["uf_two_sorts"]
         certificate = proof_certificate.export_clause_log_certificate(source)
         self.assertEqual(certificate["fragment"], "qf_uf")
@@ -1196,10 +1233,10 @@ class TestUninterpretedValidation(unittest.TestCase):
         graph = proof_to_lean._validate_graph(source, certificate)
         self.assertEqual(graph.sorts, ("A", "B"))
         text = proof_to_lean.reconstruct(source, certificate)
-        self.assertIn('-- Uninterpreted sorts "A", "B" are the one type _U', text)
+        self.assertIn('-- Uninterpreted sorts "A", "B" are the one type _m.U', text)
         self.assertIn("theorem unsat (_atoms : Nat -> Prop)" + proof_to_lean._UF_BINDERS, text)
-        # Every element, application, and equality is over _U, whatever its sort.
-        self.assertEqual(text.count(" : _U := "), sum(graph.is_term(node) for node in range(len(graph.nodes))))
+        # Every element, application, and equality is over _m.U, whatever its sort.
+        self.assertEqual(text.count(" : _m.U := "), sum(graph.is_term(node) for node in range(len(graph.nodes))))
         self.assertNotIn("Rat", text)
 
         def mutate(predicate, **changes):
@@ -1377,8 +1414,8 @@ class TestLegacyProofObjectValidation(unittest.TestCase):
         self.assertIn("theorem unsat (_atoms : Nat -> Prop)" + proof_to_lean._UF_BINDERS, text)
         # Congruence through a function goes through the equality of its
         # argument list, through a predicate it yields an Iff.
-        self.assertRegex(text, r"\(congrArg \(_funs \d+\) \(congr \(congrArg List\.cons ")
-        self.assertRegex(text, r"\(Iff\.of_eq \(congrArg \(_preds \d+\) \(congr \(congrArg List\.cons ")
+        self.assertRegex(text, r"\(congrArg \(_m\.funs \d+\) \(congr \(congrArg List\.cons ")
+        self.assertRegex(text, r"\(Iff\.of_eq \(congrArg \(_m\.preds \d+\) \(congr \(congrArg List\.cons ")
         self.assertIn("(Eq.refl (term_", text)  # an unchanged argument
         self.assertNotIn("ite_congr_classical", text)  # stated only when an ite term is rewritten
         # The identity rewrite the legacy core records for each assertion is
@@ -1606,12 +1643,12 @@ class TestLegacyUninterpretedLeanIntegration(unittest.TestCase):
                 certificate, report = self.check(source)
                 self.assertGreaterEqual(certificate["rule_counts"]["monotonicity"], 10)
                 self.assert_standard_axioms(report)
-        for seed in (98,):  # random_bool_argument_instance: _bool arguments under congruence
+        for seed in (98,):  # random_bool_argument_instance: _m.bool arguments under congruence
             source = random_bool_argument_instance(seed)
             with self.subTest(seed=seed):
                 self.assertGreaterEqual(_unsat_core_size(source), 3, "re-pick seed %d" % seed)
                 certificate, report = self.check(source)
-                self.assertIn("(congrArg _bool (propext ", proof_to_lean.reconstruct(source, certificate))
+                self.assertIn("(congrArg _m.bool (propext ", proof_to_lean.reconstruct(source, certificate))
                 self.assert_standard_axioms(report)
 
     # Seeds of random_boolean_predicate_instance(seed) whose unsat core has at
@@ -1625,7 +1662,7 @@ class TestLegacyUninterpretedLeanIntegration(unittest.TestCase):
                 certificate, report = self.check(source)
                 self.assertNotIn("declare-sort", source)
                 self.assertIn("monotonicity", certificate["rule_counts"])
-                self.assertIn("(congrArg _bool (propext ", proof_to_lean.reconstruct(source, certificate))
+                self.assertIn("(congrArg _m.bool (propext ", proof_to_lean.reconstruct(source, certificate))
                 self.assert_standard_axioms(report)
         for seed in self.BOOLEAN_PREDICATE_SEEDS:
             source = random_boolean_predicate_instance(seed)
@@ -1748,6 +1785,34 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         self.assertLess(3 * len(certificate["nodes"]), len(untrimmed["nodes"]))
         self.assertLess(certificate["rule_counts"]["th-lemma"], untrimmed["rule_counts"]["th-lemma"])
 
+    def test_large_certificates_verify_under_the_memory_cap(self):
+        # SMT-LIB QF_UF NEQ/NEQ004_size4 (16 KB): 20,634 proof steps, 13,700
+        # declarations, 21 MB of Lean. With the interpretation as five
+        # parameters of every declaration and parallel elaboration, Lean ran
+        # past the 8 GB --memory cap of check_lean.sh ("(kernel) excessive
+        # memory consumption"; above 11 GB without it). One structure argument
+        # and serial elaboration bring it to about 7 GB. Lean runs once here
+        # (self.check would run it twice, about 100 s each).
+        source = (_EXAMPLES / "data" / "QF_UF_NEQ004_size4.smt2").read_text()
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        self.assertEqual(certificate["fragment"], "qf_uf")
+        self.assertGreater(_proof_steps(certificate), 20000)
+        text = proof_to_lean.reconstruct(source, certificate)
+        self.assertGreater(len(text), proof_to_lean._SERIAL_ELABORATION_CHARS)
+        self.assertIn("\nset_option Elab.async false\n", text)
+        # The statement checks of self.check: one hypothesis per assertion.
+        statement = text.split("theorem unsat", 1)[1].split(": False :=", 1)[0]
+        self.assertEqual(statement.count("    (_h"), len(certificate["assertions"]))
+        self.assertNotIn("_hyp", statement)
+        self.assertIn(proof_to_lean._UF_BINDERS, statement)
+        namespace = "Z3Proofs.NativeCertificate.p" + hashlib.sha256(source.encode()).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "checked.lean"
+            output.write_text(text + "\n#print axioms %s.unsat\n" % namespace)
+            result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(output)], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout[-5000:] + result.stderr[-5000:])
+        self.assertIn(".unsat' depends on axioms: " + _STANDARD_AXIOMS, " ".join(result.stdout.split()))
+
     def test_documented_uf_inputs_verify_under_the_standard_axioms(self):
         for name, source in UF_INPUTS.items():
             with self.subTest(name=name):
@@ -1803,7 +1868,7 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
                 self.assertNotIn("declare-sort", source)
                 self.assertIn("th-lemma", certificate["rule_counts"])
                 self.assertNotIn("!", json.dumps(certificate["declarations"]))
-                self.assertIn("-- No uninterpreted sort: the type _U carries only the Boolean arguments",
+                self.assertIn("-- No uninterpreted sort: the type _m.U carries only the Boolean arguments",
                               proof_to_lean.reconstruct(source, certificate))
                 self.assertIn(".unsat' depends on axioms: " + _STANDARD_AXIOMS, report)
         for seed in TestLegacyUninterpretedLeanIntegration.BOOLEAN_PREDICATE_SEEDS:
@@ -1843,7 +1908,7 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
                 self.assertGreaterEqual(_unsat_core_size(source), 6, "re-pick seed %d" % seed)
                 certificate, _ = self.check(source)
                 self.assertIn("def-axiom", certificate["rule_counts"])  # ite gate clauses
-                self.assertIn("@ite _U", proof_to_lean.reconstruct(source, certificate))
+                self.assertIn("@ite _m.U", proof_to_lean.reconstruct(source, certificate))
 
     # Seeds of random_sorted_instance(seed) (three sorts, ite terms) whose unsat
     # core has at least four assertions; pinned like LEARNED_CLAUSE_SEEDS.
@@ -1857,7 +1922,7 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
                 certificate, _ = self.check(source)
                 self.assertIn("th-lemma", certificate["rule_counts"])
                 text = proof_to_lean.reconstruct(source, certificate)
-                self.assertIn('-- Uninterpreted sorts "S0", "S1", "S2" are the one type _U', text)
+                self.assertIn('-- Uninterpreted sorts "S0", "S1", "S2" are the one type _m.U', text)
 
     # Seeds of random_bool_argument_instance(seed) whose unsat core has at
     # least four assertions; pinned like LEARNED_CLAUSE_SEEDS (the generator
@@ -1877,7 +1942,7 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
                 self.assertGreaterEqual(_unsat_core_size(source), 4, "re-pick seed %d" % seed)
                 certificate, _ = self.check(source)
                 self.assertIn("th-lemma", certificate["rule_counts"])
-                self.assertIn("(_bool (formula_", proof_to_lean.reconstruct(source, certificate))
+                self.assertIn("(_m.bool (formula_", proof_to_lean.reconstruct(source, certificate))
 
     # Every seed in 1..2500 of random_bool_argument_instance and 1..300 of
     # random_boolean_predicate_instance whose log the trimmer rejected
@@ -1972,7 +2037,7 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
                 proof_to_lean.check_and_write(source, tampered, output)
             diagnostics = context.exception.stdout + context.exception.stderr
             self.assertIn("`grind` failed", diagnostics)
-            self.assertIn("_elems 0 = _elems 1", diagnostics)  # the false lemma's only hypothesis
+            self.assertIn("_m.elems 0 = _m.elems 1", diagnostics)  # the false lemma's only hypothesis
             self.assertFalse(output.exists())
         # Swapping two distinct constants in an assertion breaks the binding before Lean.
         tampered = copy.deepcopy(certificate)
