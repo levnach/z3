@@ -15,6 +15,8 @@ inferences; the Lean reconstructor does.
 """
 
 from fractions import Fraction
+import math
+import numbers
 import os
 from pathlib import Path
 import re
@@ -32,6 +34,8 @@ from proof_certificate import (
 
 _NUMERAL = re.compile(r"^[0-9]+(\.[0-9]+)?$")
 _RESULTS = ("sat", "unsat", "unknown")
+# What z3 prints when it stops at its -memory limit.
+_OUT_OF_MEMORY = '(error "out of memory")'
 # Logs of at least this many characters are trimmed before the replay. Trimming
 # shrinks every real log measured (a 32 KB QF_UF log from 2,254 nodes to 389, a
 # 695 KB one from 204,582 to 6,625) and costs one process launch; below it the
@@ -42,23 +46,77 @@ _RLIMIT = 200000
 # Up to this many assertion conjuncts, an assumed clause is checked against all
 # of them; above it, only against those sharing a symbol (_candidate_sources).
 _SEARCH_ALL_SOURCES = 64
+# Limits of every z3 run below unless the caller passes its own: seconds (-T)
+# and megabytes (-memory). Z3 stops itself at either; a run that outlives its
+# time limit by _LIMIT_GRACE seconds anyway is killed.
+_TIME_LIMIT = 600
+_MEMORY_LIMIT = 8192
+_LIMIT_GRACE = 30
+# Largest limits accepted (about 11.6 days and 4 TB). Above them the deadline
+# overflows subprocess.run, -T overflows z3's 32-bit long on Windows, and
+# -memory overflows z3's unsigned parameter (4294967295 MB already makes z3
+# report out of memory at once).
+_MAX_TIME_LIMIT = 10 ** 6
+_MAX_MEMORY_LIMIT = 2 ** 22
 
 
-def run_clause_log(z3_executable, assertion_text, timeout=None):
-    """Solve with the sat.smt core and return the clause log text."""
+def _limits(timeout, memory):
+    """Return the whole seconds and megabytes of a z3 run, defaults filled in."""
+    if timeout is None:
+        seconds = _TIME_LIMIT
+    elif isinstance(timeout, numbers.Real) and not isinstance(timeout, bool) and 0 < timeout <= _MAX_TIME_LIMIT:
+        seconds = math.ceil(timeout)
+    else:
+        raise ValueError("timeout must be a positive number of seconds, at most %d" % _MAX_TIME_LIMIT)
+    if memory is None:
+        megabytes = _MEMORY_LIMIT
+    elif isinstance(memory, numbers.Integral) and not isinstance(memory, bool) and 0 < memory <= _MAX_MEMORY_LIMIT:
+        megabytes = int(memory)
+    else:
+        raise ValueError("memory must be a positive integer number of megabytes, at most %d" % _MAX_MEMORY_LIMIT)
+    return seconds, megabytes
+
+
+def _run_limited(z3_executable, arguments, timeout, memory, task):
+    """Run z3 with arguments under time and memory limits.
+
+    Raises subprocess.TimeoutExpired, carrying the time limit, when Z3 stops
+    at it (it prints "timeout") or outlives it and is killed, and
+    ProofExportError naming the limit when Z3 runs out of memory.
+    """
+    seconds, megabytes = _limits(timeout, memory)
+    command = [str(z3_executable), "-T:%d" % seconds, "-memory:%d" % megabytes] + arguments
+    try:
+        run = subprocess.run(command, capture_output=True, text=True, timeout=seconds + _LIMIT_GRACE)
+    except subprocess.TimeoutExpired:
+        raise subprocess.TimeoutExpired(command, seconds) from None
+    except OSError as error:
+        raise ProofExportError("cannot run %s with %s: %s" % (task, z3_executable, error)) from error
+    lines = [line.strip() for line in run.stdout.splitlines() if line.strip()]
+    if lines and lines[-1] == "timeout":
+        raise subprocess.TimeoutExpired(command, seconds)
+    if _OUT_OF_MEMORY in run.stderr or _OUT_OF_MEMORY in lines:
+        raise ProofExportError("%s exceeded the memory limit of %d MB" % (task, megabytes))
+    return run
+
+
+def run_clause_log(z3_executable, assertion_text, timeout=None, memory=None):
+    """Solve with the sat.smt core and return the clause log text.
+
+    timeout (seconds) and memory (megabytes) bound the z3 run, by default
+    _TIME_LIMIT and _MEMORY_LIMIT; hitting either raises ProofExportError.
+    """
     with tempfile.TemporaryDirectory(prefix="z3_clause_log_") as directory:
         log = os.path.join(directory, "proof.log")
         problem = os.path.join(directory, "input.smt2")
         Path(problem).write_text(
             '(set-option :sat.smt true)\n(set-option :solver.proof.log "%s")\n' % log
             + _NO_PREPROCESSING + assertion_text + "\n(check-sat)\n", encoding="utf-8")
-        command = [z3_executable, problem]
-        if timeout is not None:
-            command.insert(1, "-T:%d" % max(1, int(timeout)))
+        task = "the clause-log solver run"
         try:
-            run = subprocess.run(command, capture_output=True, text=True)
-        except OSError as error:
-            raise ProofExportError("cannot run the z3 executable %s: %s" % (z3_executable, error))
+            run = _run_limited(z3_executable, [problem], timeout, memory, task)
+        except subprocess.TimeoutExpired as error:
+            raise ProofExportError("%s exceeded the time limit of %d s" % (task, error.timeout)) from None
         lines = [line.strip() for line in run.stdout.splitlines() if line.strip()]
         result = lines[-1] if lines else ""
         if result == "sat":
@@ -167,24 +225,24 @@ def _dependency_core(text):
     return "\n".join(result) + "\n"
 
 
-def trim_clause_log(z3_executable, text, timeout=None):
+def trim_clause_log(z3_executable, text, timeout=None, memory=None):
     """Reduce large logs with untrusted native dependencies; replay checks every retained step.
 
     Trimming only shortens the replay. When the trimmer reports an error (it
     rejects an inference it cannot derive by unit propagation) or writes a
     dependency graph the replay cannot use, the untrimmed log is returned
-    with a warning, and the replay checks every step of it instead.
+    with a warning, and the replay checks every step of it instead. timeout
+    (seconds) and memory (megabytes) bound the trimmer, by default
+    _TIME_LIMIT and _MEMORY_LIMIT; it stopping at the time limit raises
+    subprocess.TimeoutExpired, at the memory limit ProofExportError.
     """
     if len(text) < _TRIM_THRESHOLD:
         return text
     with tempfile.TemporaryDirectory(prefix="z3_clause_trim_") as directory:
         source = Path(directory) / "proof.smt2"
         source.write_text(text, encoding="utf-8")
-        try:
-            run = subprocess.run([str(z3_executable), "-smt2", "solver.proof.trim=true", str(source)],
-                                 capture_output=True, text=True, timeout=timeout)
-        except OSError as error:
-            raise ProofExportError("cannot run native proof trimming: %s" % error) from error
+        run = _run_limited(z3_executable, ["-smt2", "solver.proof.trim=true", str(source)], timeout, memory,
+                           "native proof trimming")
         if run.returncode or "(error" in run.stdout:
             failure = "exited with status %d" % run.returncode if run.returncode else "reported an error"
             warnings.warn("native proof trimming %s, replaying the untrimmed log: %s"
