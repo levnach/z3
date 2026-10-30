@@ -40,6 +40,8 @@ OUTLINED_WIDTH = 600
 # Below _OUTLINE_PROOF_STEPS proof steps when every operand is eliminated
 # (three per operand), so the steps are checked in the theorem itself.
 INLINE_CHAIN_WIDTH = 150
+# Its middle operand, the one refuted, lies past the first tail.
+LOCAL_TAIL_WIDTH = 80
 
 
 def wide_conjunction(width):
@@ -155,9 +157,15 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
         self.assertEqual(axioms, set())
         text = proof_to_lean.reconstruct(source, certificate)
         self.assertEqual("private def Inputs" in text, outlined)
-        # No projection starts more than a stride of operands before its own.
-        projections = re.findall(r"_(?:step|tail)_\d+((?:\.2)*)(?:\.1)?\n", text)
-        self.assertEqual(max(path.count(".") for path in projections), proof_to_lean._AND_ELIM_STRIDE)
+        # No projection starts more than a stride of operands before its own:
+        # a tail is a stride past the one before, and an operand at most a
+        # stride minus one past its tail.
+        stride = proof_to_lean._AND_ELIM_STRIDE
+        tails = re.findall(r"let _tail_\d+_\d+ := _(?:step_\d+|tail_\d+_\d+)((?:\.2)*)\n", text)
+        self.assertEqual({path.count(".") for path in tails}, {stride})
+        projections = re.findall(r"\n    _(?:step_\d+|tail_\d+_\d+)((?:\.2)*)\.1\n", text)
+        self.assertEqual(len(projections), width - 1)
+        self.assertEqual(max(path.count(".") for path in projections), stride - 1)
         return text
 
     def test_outlined_conjunction_with_every_operand_eliminated_is_checked(self):
@@ -172,6 +180,24 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
     def test_inline_conjunction_with_every_operand_eliminated_is_checked(self):
         text = self.check_every_operand_eliminated(INLINE_CHAIN_WIDTH, outlined=False)
         self.assertEqual(text.count("let _tail_"), (INLINE_CHAIN_WIDTH - 1) // proof_to_lean._AND_ELIM_STRIDE)
+
+    def test_outlined_lemma_binds_tails_after_a_local_premise(self):
+        # A conjunction eliminated once is used once, so its proof is a step
+        # of the lemma that eliminates from it rather than a lemma of its
+        # own: the tails follow that step inside the lemma.
+        source = wide_conjunction(LOCAL_TAIL_WIDTH)
+        with patch.object(proof_to_lean, "_OUTLINE_PROOF_STEPS", 0):
+            certificate, axioms = self.check(source, "legacy", "propositional", LOCAL_TAIL_WIDTH)
+            text = proof_to_lean.reconstruct(source, certificate)
+        self.assertEqual(certificate["rule_counts"]["and-elim"], 1)
+        self.assertEqual(axioms, set())
+        self.assertIn("private def Inputs", text)
+        tail = re.search(r"\n  let _tail_(\d+)_32 := _step_\1(?:\.2){32}\n", text)
+        self.assertIsNotNone(tail)
+        premise = tail.group(1)
+        self.assertNotIn("proof_step_%s " % premise, text)
+        self.assertLess(text.index("\n  let _step_%s : " % premise), tail.start())
+        self.assertIn("\n    _tail_%s_32%s.1\n" % (premise, ".2" * (LOCAL_TAIL_WIDTH // 2 - 32)), text)
 
 
 @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
