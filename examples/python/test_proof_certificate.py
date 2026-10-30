@@ -2209,10 +2209,63 @@ class TestClauseLogReplay(unittest.TestCase):
         with patch.object(proof_clause_log._Replay, "_valid", valid):
             node = replay.assume([p, q, r])
         self.assertTrue(checked and not any("x" in claim for claim in checked), checked)
-        self.assertEqual(len(checked), 6)  # five equivalences, then the whole assertion implies the clause
+        # One equivalence (the only candidate over exactly p, q, r), then the
+        # whole assertion implies the clause.
+        self.assertEqual(len(checked), 2)
         self.assertEqual(replay.dag.rule_counts["th-lemma"], 1)  # the cnf lemma from the assertion
         self.assertEqual(replay.dag.rule_counts["asserted"], 1)
         self.assertIsNotNone(node)
+
+    def test_equivalence_search_checks_only_conjuncts_over_the_clause_symbols(self):
+        # A right-nested conjunction shares its symbols with every suffix:
+        # QF_IDL FISCHER6-4-ninc checked seven clauses for equivalence
+        # against all 1,743 suffixes and conjuncts sharing a symbol, 12,207
+        # solver calls over the whole conjunction (459 s), before its first
+        # candidate implied each. Only conjuncts over exactly the clause's
+        # symbols, and leaf conjuncts (not ands) over at least its symbols,
+        # are checked for equivalence now; the suffixes are skipped.
+        width = 300
+        body = "(or p%d q)" % (width - 1)
+        for i in reversed(range(width - 1)):
+            operand = {5: "(not (and (not p5) (not q) (or p5 (not p5))))",
+                       7: "(not (and (not p7) (not q) (or r (not r))))"}.get(i, "(or p%d q)" % i)
+            body = "(and %s %s)" % (operand, body)
+        source = ("(declare-const q Bool)(declare-const r Bool)"
+                  + "".join("(declare-const p%d Bool)" % i for i in range(width)) + "(assert %s)" % body)
+        context = z3.Context()
+        q = z3.Bool("q", context)
+        p = [z3.Bool("p%d" % i, context) for i in range(width)]
+        checked = []
+        original = proof_clause_log._Replay._valid
+
+        def valid(replay, claim):
+            checked.append(claim.decl().kind())
+            return original(replay, claim)
+
+        def assume(literals):
+            assertions, fragment = proof_certificate.parse_assertions(source, context)
+            replay = proof_clause_log._Replay(source, fragment, assertions, context)
+            self.assertGreater(len(replay.assumption_sources), 2 * width - 2)
+            checked.clear()
+            with patch.object(proof_clause_log._Replay, "_valid", valid):
+                self.assertIsNotNone(replay.assume(literals))
+            return replay.dag.rule_counts
+
+        # Implied by the assertion, equivalent to no conjunct: one check.
+        counts = assume([p[0], q, p[1]])
+        self.assertEqual(checked, [z3.Z3_OP_IMPLIES])
+        self.assertEqual((counts["th-lemma"], counts["and-elim"]), (1, 0))
+        # Equivalent to the conjunct over p5 and q, which the keys do not
+        # see: found by the one equivalence check over the same symbols.
+        counts = assume([p[5], q])
+        self.assertEqual(checked, [z3.Z3_OP_EQ])
+        self.assertEqual((counts["th-lemma"], counts["rewrite"], counts["and-elim"]), (0, 1, 6))
+        # Equivalent to the leaf conjunct over p7, q and an irrelevant r:
+        # still a rewrite on that conjunct, not a cnf lemma over the whole
+        # assertion (which Lean may fail to prove for theory leaves).
+        counts = assume([p[7], q])
+        self.assertEqual(checked, [z3.Z3_OP_EQ])
+        self.assertEqual((counts["th-lemma"], counts["rewrite"], counts["and-elim"]), (0, 1, 8))
 
     def test_assumption_search_index_is_linear_on_deep_terms(self):
         # The index first kept the symbol set of every subterm, quadratic on

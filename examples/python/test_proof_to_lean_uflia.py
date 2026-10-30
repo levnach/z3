@@ -852,6 +852,28 @@ class TestIntegerMixedLeanIntegration(unittest.TestCase):
         self.assertEqual(len(atoms), 18)
         self.assertTrue(all("(_ifuns 0 [(_int (_vars " in line for line in atoms), atoms[0])
 
+    def test_equivalent_leaf_of_a_wide_conjunction_is_bridged_by_a_rewrite(self):
+        # Z3 simplifies (f (* 0 y)) to (f 0) in the middle conjunct of a
+        # thousand nested ands, so the assumed clause has one symbol fewer
+        # than its source. Checking for equivalence only the conjuncts over
+        # exactly the clause's symbols tied it by a cnf lemma over the whole
+        # assertion, which no Lean tactic proved within its heartbeats (the
+        # two applications share no linear leaf key); the leaf is still
+        # checked for equivalence, so it is a rewrite on that conjunct.
+        width = 1000
+        body = "(<= x%d (+ x%d 1))" % (width - 1, width)
+        for i in reversed(range(width - 1)):
+            operand = "(= (f (* 0 y)) 1)" if i == width // 2 else "(<= x%d (+ x%d 1))" % (i, i + 1)
+            body = "(and %s %s)" % (operand, body)
+        source = ("(set-logic QF_UFLIA)(declare-fun f (Int) Int)(declare-const y Int)"
+                  + "".join("(declare-const x%d Int)" % i for i in range(width + 1))
+                  + "(assert %s)(assert (= (f 0) 2))" % body)
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        self.assertEqual(_cnf_nodes(graph), [])
+        self.assertTrue(any(graph.decl(node).name == "rewrite" for node in range(len(graph.nodes))))
+        self.check(source)
+
     def test_rewrites_inside_application_arguments_stay_with_grind(self):
         # The normalized path keys an application by its node, so a rewrite
         # that simplifies inside the argument, f(x + 0) <= 5 to f(x) <= 5,
