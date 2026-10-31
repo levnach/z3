@@ -2633,6 +2633,7 @@ class _PropositionalProver:
                 self.chars += len(line)
             else:
                 lines.append("have %s : %s := by" % (name, self._render(link)))
+                self.chars += len(lines[-1])
                 lines.extend("  " + line for line in proof_lines)
             proofs[link] = name
             facts.append((link, True, name))
@@ -3239,8 +3240,11 @@ def _normalizable_rewrite(graph, node, reachable, atoms):
     ite term is opaque as a whole, keyed by its value table
     (_ite_representatives), since the rewriter reshapes ite terms, (ite
     (not c) a b) to (ite c b a), merging nested conditions and normalizing
-    the atoms in them; an ite without a table is excluded (abs is logged
-    as an ite). reachable holds the formulas outside the ite terms. Every
+    the atoms in them; an ite without a table is excluded. An abs, logged
+    as (ite (>= t 0) t (- t)), has a table, but its rewrite still goes to
+    grind: one side keys the opaque (abs t) and the other the ite, so the
+    two sides' atom keys differ. reachable holds the formulas outside the
+    ite terms. Every
     other formula must be a connective or a Boolean variable, as the
     propositional lemma binds the atoms alone. Anything else goes to grind
     as before.
@@ -3501,14 +3505,18 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         expanded = "(Not %s)" % expression if negated else expression
         rewrite = "_norm%d" % atom
         rewrites.append(rewrite)
+        # Over an ite term, grind alone fails to prove two ites equal whose
+        # conditions are an iff or xor of an atom and a Boolean variable;
+        # splitting every ite of the goal first leaves linear goals.
+        tactic = (["  grind"] if not _arith_ites(graph, _reachable(graph, atom)[0])
+                  else ["  first", "    | grind", "    | ((repeat' split) <;> grind)"])
         atom_lemmas.extend([
             "", "set_option maxHeartbeats 1000000 in",
             "private theorem normalized_atom_%d_%d (_atoms : Nat -> Prop)%s" % (
                 node, atom, _valuation_binder(graph)),
             "    : %s <-> %s := by" % (_formula(graph, atom), expanded),
             "  change %s <-> %s" % (_inline(graph, atom, atom_indices, variable_indices), expanded),
-            "  grind",
-        ])
+        ] + tactic)
         lines.append("  have %s : %s <-> %s := normalized_atom_%d_%d _atoms%s" % (
             rewrite, _formula(graph, atom), target, node, atom, graph.valuation))
     definitions = ["formula_%d" % formula for formula in sorted(reachable, reverse=True)

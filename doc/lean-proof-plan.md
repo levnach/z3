@@ -1736,7 +1736,8 @@ ran out of heartbeats; ites kept these rewrites off the normalized path. An
 ite is now one opaque term keyed by its value table (its linear-form value
 under every assignment of at most eight condition leaves, Boolean variables
 and normalized atoms), and the atom lemma over the other side's ite proves
-the two equal by grind. In `clocksynchro_8clocks.main_invar` the
+the two equal by grind, or, when grind fails (an iff or xor condition), by
+`repeat' split` and grind on each case. In `clocksynchro_8clocks.main_invar` the
 propositional lemma of a 250-way disjunction (left-nested on one side,
 flattened on the other) exhausted the prover's character budget, and grind
 failed. The prover of a normalized rewrite now first links the structures
@@ -1749,6 +1750,7 @@ current_frame in 8 s, clocksynchro_8clocks in 60 s. Still open:
 `sal/carpark/Carpark2-ausgabe-6`, whose rewriter evaluates `(= (ite ...) 4)`
 conditions inside other ites, which a table over independent leaves does
 not see. Tests: `test_rewrite_reshaping_ite_terms_verifies` (both cores),
+`test_rewrite_reshaping_ites_with_iff_and_xor_conditions_verifies`,
 `test_ite_value_tables_key_reshaped_ites_alike`, and
 `test_wide_clock_shaped_flattening_rewrite_verifies` (16 clocks; grind
 failed on it before) in `test_proof_to_lean_arith.py`.

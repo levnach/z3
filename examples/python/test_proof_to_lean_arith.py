@@ -613,7 +613,7 @@ def clock_shaped_rewrite_instance(clocks=3):
     return "\n".join(lines) + "\n"
 
 
-def ite_reshaping_instance(groups=5):
+def ite_reshaping_instance(groups=5, condition="and"):
     """A disjunction of conjunctions over Real ite terms that Z3's rewriter reshapes, refuted by unit bounds.
 
     The shape of the spider QF_LRA benchmarks (mode_cntrl, current_frame):
@@ -622,16 +622,17 @@ def ite_reshaping_instance(groups=5):
     (+ 1 x)), and w is (ite (not (< z 3)) 3 z), rewritten to (ite (<= 3 z)
     3 z), next to atoms the rewriter flattens and normalizes; with five
     groups the rewrite has 50 atoms. Each disjunct requires (not (< z 3))
-    against the unit (< z 3).
+    against the unit (< z 3). condition is the connective of the inner
+    ite's condition (and, =, or xor).
     """
     names, disjuncts = [], []
     for group in range(groups):
         b, c, x, y, z, w = ("%s%d" % (name, group) for name in "bcxyzw")
         names += [(b, "Bool"), (c, "Bool"), (x, "Real"), (y, "Real"), (z, "Real"), (w, "Real")]
         disjuncts.append(
-            "(and (and (and (= %s (ite (not %s) (ite (and (< %s 3) %s) (+ %s 1) %s) %s))"
+            "(and (and (and (= %s (ite (not %s) (ite (%s (< %s 3) %s) (+ %s 1) %s) %s))"
             " (not (< %s 3))) (= %s (ite (not (< %s 3)) 3 %s))) (or (or %s (= %s 3)) (= %s 0)))"
-            % (y, b, x, c, x, x, x, z, w, z, z, c, y, w))
+            % (y, b, condition, x, c, x, x, x, z, w, z, z, c, y, w))
     assertion = disjuncts[0]
     for disjunct in disjuncts[1:]:
         assertion = "(or %s %s)" % (assertion, disjunct)
@@ -939,6 +940,23 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 atom_lemmas = text.split("private theorem normalized_atom_")[1:]
                 self.assertTrue(any("(@ite Rat" in lemma.split(":= by", 1)[0] for lemma in atom_lemmas))
                 certificate, report = self.check(source, core)
+                self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_rewrite_reshaping_ites_with_iff_and_xor_conditions_verifies(self):
+        # With an iff or xor inner condition, the value tables still match
+        # the two sides' ites, but grind alone cannot prove the atom over
+        # the merged ite equal to its normalized form; the atom lemma falls
+        # back to splitting every ite of its goal. Before that fallback the
+        # clause-log export failed in normalized_atom (and at the base
+        # commit, grind over the whole rewrite timed out).
+        for condition in ("=", "xor"):
+            with self.subTest(condition=condition):
+                source = ite_reshaping_instance(condition=condition)
+                certificate = proof_certificate.export_clause_log_certificate(source)
+                text = proof_to_lean.reconstruct(source, certificate)
+                self.assertIn("private theorem normalized_rewrite_", text)
+                self.assertIn("    | ((repeat' split) <;> grind)", text)
+                certificate, report = self.check(source)
                 self.assertIn(_STANDARD_AXIOMS, report)
 
     def test_ite_value_tables_key_reshaped_ites_alike(self):
