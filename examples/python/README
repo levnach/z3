@@ -104,8 +104,9 @@ xor (including Z3's one-argument xor, which it reads as the argument itself),
 Boolean equality/distinct, and Boolean ite. The qf_lra fragment adds Real
 variables and numerals, sums, differences, negation, multiplication by a
 constant, division by a nonzero constant, Real-valued ite whose condition is
-any supported formula, and the atoms <=, <, >=, >, =, and distinct over Real
-terms. The qf_uf fragment adds any number of uninterpreted sorts with
+any supported formula, abs (SMT-LIB defines it on Int only; Z3 accepts it
+over Real with the same definition, (ite (>= t 0) t (- t))), and the atoms
+<=, <, >=, >, =, and distinct over Real terms. The qf_uf fragment adds any number of uninterpreted sorts with
 constants, functions, and predicates whose arguments have uninterpreted
 sorts or Bool (functions may map between sorts; a Bool argument is any
 supported formula), ite terms over a sort whose condition is any supported
@@ -138,8 +139,9 @@ through a function signature such as (Int) Real) are rejected explicitly.
 The exception is an integer numeral where a Real is expected: without a
 set-logic, or under ALL, Z3 reads (* 2 x) over a Real x as
 (* (to_real 2) x), and such a to_real of a term built from numerals, sums,
-differences, products, and negations is read as the same term over Real
-numerals, as QF_LRA reads it. The same holds for such a to_real written
+differences, products, negations, and abs is read as the same term over Real
+numerals, as QF_LRA reads it ((abs 3) in a Real position is the Real abs of
+3.0). The same holds for such a to_real written
 explicitly, in any logic: (to_real (+ 2 1)) is read as (+ 2.0 1.0).
 One symbol name declared with
 several signatures is rejected in every fragment: Z3 accepts such overloading
@@ -402,10 +404,11 @@ and proved by Lean alone. Real division axioms use arith too, for example
 2 * (1 / 2) = 1, sometimes with a true literal standing for an elided
 false clause literal. The replay drops true from the hint's contradictory
 set before checking its arithmetic shape, removing its coefficient too
-when present. An otherwise empty hint is still rejected. abs never reaches
-the log: Z3's rewriter replaces
+when present. An otherwise empty hint is still rejected. abs, over Int or
+Real, rarely reaches the log: Z3's rewriter replaces
 (abs t) by (ite (>= t 0) t (- t)), and the exporter's rewrite bridge ties
-the assertion to the logged ite, as for any other rewrite.
+the assertion to the logged ite, as for any other rewrite. When the
+arithmetic solver does see an abs term, its two case axioms are arith hints.
 
 Uninterpreted functions through the legacy proof object
 -------------------------------------------------------
@@ -645,7 +648,8 @@ is the precondition of that argument; extending the fragment must revisit
 this encoding. A Real ite becomes Lean's ite over Rat with the classical
 decidability instance for its condition, so the term definitions that contain
 one are noncomputable; the argument above still applies, because under each
-fixed valuation of the conditions the constraints are linear. Every term
+fixed valuation of the conditions the constraints are linear. A Real abs is
+the same kind of ite, (if t >= 0 then t else -t) over Rat. Every term
 definition takes the atom valuation as well as the Rat valuation.
 
 Each th-lemma and each rewrite whose equivalence mentions arithmetic is proved

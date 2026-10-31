@@ -1360,6 +1360,16 @@ class TestFragmentClassification(unittest.TestCase):
         ite = ("(declare-const p Bool)(declare-const x Real)"
                "(assert (> (* 2.0 (ite (and p (< x 1.0)) x (ite p 1.0 (- x)))) 2.0))")
         self.assertEqual(self.classify(ite), "qf_lra")
+        # SMT-LIB defines abs on Int only; Z3 accepts it over Real, as the
+        # same ite, of any linear term, nested, and next to functions.
+        for source, fragment in [
+            ("(declare-const x Real)(assert (< (abs x) 0.0))", "qf_lra"),
+            ("(declare-const x Real)(declare-const y Real)(declare-const p Bool)"
+             "(assert (> (abs (- (* 2.0 x) (ite p y (abs y)))) (/ (abs (abs x)) 3.0)))", "qf_lra"),
+            ("(declare-fun f (Real) Real)(declare-const x Real)(assert (< (abs (f x)) (f (abs x))))", "qf_uflra"),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(self.classify(source), fragment)
 
     def test_integer_numerals_coerced_to_real_read_as_under_qf_lra(self):
         # Without a logic, or under ALL, Z3 reads an integer numeral where a
@@ -1374,6 +1384,10 @@ class TestFragmentClassification(unittest.TestCase):
              "(assert (distinct x 1 (+ 1 2)))", "QF_LRA", "qf_lra"),
             ("(set-logic ALL)(declare-fun f (Real) Real)(declare-const x Real)"
              "(assert (= (f 1) 3))(assert (< (f x) (- x 2)))", "QF_UFLRA", "qf_uflra"),
+            # (abs 3) in a Real position is (to_real (abs 3)): QF_LRA reads the
+            # Real abs of 3.0.
+            ("(declare-const x Real)(assert (< (abs (- x 1)) (* 2 (abs (- 1 3)))))(assert (> x (abs 3)))",
+             "QF_LRA", "qf_lra"),
         ]:
             with self.subTest(source=source):
                 context = z3.Context()
@@ -1472,8 +1486,10 @@ class TestFragmentClassification(unittest.TestCase):
             ("(declare-fun f (Int) Int)(declare-const x Int)(assert (> (mod x (f 2)) 1))",
              "integer mod is supported only by a nonzero constant"),
             ("(declare-const x Int)(assert (> (rem x 2) 1))", "unsupported arithmetic operator: rem"),
-            # SMT-LIB defines abs on Int only; Z3 accepts it over Real, the reconstructor does not.
-            ("(declare-const x Real)(assert (< (abs x) 0.0))", "unsupported arithmetic operator: abs over Real"),
+            # abs over Real is in the fragment, but not of a nonlinear term,
+            # nor an Int abs under to_real.
+            ("(declare-const x Real)(declare-const y Real)(assert (< (abs (* x y)) 1.0))", "nonlinear"),
+            ("(declare-const x Real)(declare-const n Int)(assert (< x (abs n)))", "operator: to_real"),
             ("(declare-const x Int)(declare-const y Int)(assert (> (* x y) 1))", "nonlinear"),
             ("(declare-fun f (Real) Real)(declare-const x Real)(assert (> (* x (f x)) 1.0))", "nonlinear"),
             ("(declare-fun f (Real) Real)(declare-const x Real)(assert (> (/ 1.0 (f x)) 1.0))", "division"),

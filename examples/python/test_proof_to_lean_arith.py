@@ -281,6 +281,93 @@ COERCED_NUMERAL_INPUTS = {
 """,
 }
 
+# abs over Real: SMT-LIB defines abs on Int only, Z3 accepts it over Real as
+# (ite (>= t 0) t (- t)). Without a logic, (abs 3) in a Real position is
+# (to_real (abs 3)), read as the Real abs of 3.0.
+REAL_ABS_INPUTS = {
+    "distance": """\
+(declare-const x Real)
+(declare-const y Real)
+(assert (< (abs (- x y)) 1.0))
+(assert (> x 3.0))
+(assert (< y 1.0))
+(check-sat)
+""",
+    "triangle_inequality": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(declare-const y Real)
+(assert (> (abs (+ x y)) (+ (abs x) (abs y))))
+(check-sat)
+""",
+    "symmetry": """\
+(set-logic QF_LRA)
+(declare-const x Real)
+(assert (not (= (abs x) (abs (- x)))))
+(check-sat)
+""",
+    "nested_without_logic": """\
+(declare-const x Real)
+(declare-const p Bool)
+(assert (< (* 2 (abs (ite p x (- x 1)))) (- (abs (abs x)) (abs 3))))
+(check-sat)
+""",
+    "function": """\
+(declare-fun f (Real) Real)
+(declare-const x Real)
+(assert (< (abs (f x)) (- (f (abs x)) (f (abs (- x))))))
+(assert (= x (- 2.0)))
+(check-sat)
+""",
+}
+
+
+def random_abs_instance(seed, variables=3, constraints=8, functions=False):
+    """A random problem over Real abs terms, without a logic; None unless unsat."""
+    generator = random.Random(seed)
+    lines = ["(declare-const x%d Real)" % i for i in range(variables)]
+    if functions:
+        lines.append("(declare-fun f (Real) Real)")
+
+    def term(v):
+        roll = generator.random()
+        if roll < 0.25:
+            return "(abs x%d)" % v
+        if roll < 0.45:
+            other = generator.randrange(variables)
+            return "(abs (- x%d (* %d x%d) %d))" % (v, generator.choice([-2, 1, 3]), other, generator.randint(-3, 3))
+        if functions and roll < 0.6:
+            return "(f (abs x%d))" % v if generator.random() < 0.5 else "(abs (f x%d))" % v
+        return "x%d" % v
+
+    def atom():
+        chosen = generator.sample(range(variables), generator.randint(1, 3))
+        terms = " ".join("(* %d %s)" % (generator.choice([-3, -2, -1, 1, 2, 3]), term(v)) for v in chosen)
+        relation = generator.choice(["<=", ">=", "<", ">", "="])
+        constant = generator.choice(["%d" % generator.randint(-5, 5), "(/ %d 2)" % generator.randint(-5, 5)])
+        return "(%s (+ %s 0) %s)" % (relation, terms, constant)
+
+    for _ in range(constraints):
+        roll = generator.random()
+        if roll < 0.4:
+            lines.append("(assert (or %s %s))" % (atom(), atom()))
+        elif roll < 0.5:
+            lines.append("(assert (not (and %s %s)))" % (atom(), atom()))
+        else:
+            lines.append("(assert %s)" % atom())
+    lines.append("(check-sat)")
+    source = "\n".join(lines) + "\n"
+    solver = z3.Solver(ctx=z3.Context())
+    solver.from_string(source)
+    return source if solver.check() == z3.unsat else None
+
+
+# Seeds of random_abs_instance with long refutations among the first sixty
+# without functions and the first forty with (167 to 502 steps on either
+# core); every unsat seed there verifies on both cores.
+REAL_ABS_SEEDS = (17, 52)
+REAL_ABS_FUNCTION_SEEDS = (9, 34)
+
 
 def random_instance(seed, variables, constraints, ite=False):
     """A random QF_LRA problem; callers filter for unsat ones."""
@@ -393,6 +480,37 @@ class TestArithmeticValidation(unittest.TestCase):
                 declaration["name"] = "5"
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "do not match the original input"):
             proof_to_lean.reconstruct(source, certificate)
+
+    def test_real_abs_is_stated_as_its_ite_over_rat(self):
+        source = REAL_ABS_INPUTS["distance"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        text = proof_to_lean.reconstruct(source, certificate)
+        self.assertIn("-- Real abs, which Z3 accepts beyond SMT-LIB, is the ite", text)
+        self.assertRegex(text, r"noncomputable def term_\d+ \(_atoms : Nat -> Prop\) \(_vars : Nat -> Rat\) : Rat := "
+                               r"\(@ite Rat \(\(term_(\d+) _atoms _vars\) >= \(\(0 : Rat\)\)\) "
+                               r"\(Classical.propDecidable _\) \(term_\1 _atoms _vars\) \(-\(term_\1 _atoms _vars\)\)\)")
+        self.assertNotIn("Int", text.split("namespace", 1)[1])
+        absolute = next(index for index, d in enumerate(certificate["declarations"]) if d["kind"] == z3.Z3_OP_ABS)
+        self.assertEqual((certificate["declarations"][absolute]["name"], certificate["declarations"][absolute]["domain"],
+                          certificate["declarations"][absolute]["range"]), ("abs", ["Real"], "Real"))
+        # Of the integer operators only abs is a Real operator; abs keeps its
+        # arity and sort, and a declaration renamed to another operator's
+        # name, or replaced by negation, no longer states the input.
+        for mutate, message in [
+            (lambda d: d.update(kind=z3.Z3_OP_IDIV, name="div", domain=["Real", "Real"]),
+             "unsupported arithmetic declaration: div"),
+            (lambda d: d.update(kind=z3.Z3_OP_MOD, name="mod", domain=["Real", "Real"]),
+             "unsupported arithmetic declaration: mod"),
+            (lambda d: d.update(name="div"), "unsupported arithmetic declaration: div"),
+            (lambda d: d.update(domain=["Int"]), "arithmetic declarations take Real arguments"),
+            (lambda d: d.update(domain=["Real", "Real"]), "invalid arithmetic declaration arity"),
+            (lambda d: d.update(kind=z3.Z3_OP_UMINUS, name="-"), "do not match the original input"),
+        ]:
+            tampered = copy.deepcopy(certificate)
+            mutate(tampered["declarations"][absolute])
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(proof_to_lean.ReconstructionError, message):
+                    proof_to_lean.reconstruct(source, tampered)
 
     def test_fragment_and_sort_consistency(self):
         certificate = copy.deepcopy(self.certificate)
@@ -770,6 +888,20 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         self.assertEqual(certificate["fragment"], "qf_lra")
         self.assertIn(["arith"], [d["parameters"] for d in certificate["declarations"] if d["name"] == "th-lemma"])
         self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_real_abs_verifies(self):
+        # Rejected as "abs over Real" before; the clause log has the
+        # rewriter's ite, the statement the input's abs as the ite over Rat.
+        sources = list(REAL_ABS_INPUTS.items())
+        sources += [("seed%d" % seed, random_abs_instance(seed)) for seed in REAL_ABS_SEEDS]
+        sources += [("function_seed%d" % seed, random_abs_instance(seed, functions=True))
+                    for seed in REAL_ABS_FUNCTION_SEEDS]
+        for name, source in sources:
+            with self.subTest(name=name):
+                certificate, report = self.check(source)
+                self.assertEqual(certificate["fragment"], "qf_uflra" if "function" in name else "qf_lra")
+                self.assertIn(_STANDARD_AXIOMS, report)
+                self.assertIn("th-lemma", certificate["rule_counts"])
 
     def test_integer_numerals_in_real_terms_verify(self):
         for name, source in COERCED_NUMERAL_INPUTS.items():
@@ -1464,6 +1596,17 @@ class TestLegacyArithmeticLeanIntegration(unittest.TestCase):
         certificate, report = self.check(REAL_DIVISION_AXIOM, core="legacy")
         self.assertEqual(certificate["fragment"], "qf_lra")
         self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_real_abs_verifies_through_the_legacy_core(self):
+        sources = list(REAL_ABS_INPUTS.items())
+        sources += [("seed%d" % seed, random_abs_instance(seed)) for seed in REAL_ABS_SEEDS]
+        sources += [("function_seed%d" % seed, random_abs_instance(seed, functions=True))
+                    for seed in REAL_ABS_FUNCTION_SEEDS]
+        for name, source in sources:
+            with self.subTest(name=name):
+                certificate, report = self.check(source, core="legacy")
+                self.assertEqual(certificate["fragment"], "qf_uflra" if "function" in name else "qf_lra")
+                self.assertIn(_STANDARD_AXIOMS, report)
 
     def test_integer_numerals_in_real_terms_verify_through_the_legacy_core(self):
         for name, source in COERCED_NUMERAL_INPUTS.items():
