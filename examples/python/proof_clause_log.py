@@ -385,8 +385,10 @@ class _Terms:
         if head in ("div", "mod") and count == 2 and all(z3.is_int(argument) for argument in arguments):
             # z3py builds the integer operators for Int operands: div for /, mod for %.
             return arguments[0] / arguments[1] if head == "div" else arguments[0] % arguments[1]
-        if head == "abs" and count == 1 and z3.is_int(arguments[0]):
-            return z3.Abs(arguments[0])
+        if head == "abs" and count == 1 and z3.is_arith(arguments[0]):
+            # The abs application itself, as logged: z3py's Abs builds
+            # (ite (> t 0) t (- t)), a different term from the input's abs.
+            return z3.ArithRef(z3.Z3_mk_abs(self.context.ref(), arguments[0].as_ast()), self.context)
         if head in ("<=", "<", ">=", ">") and count == 2:
             left, right = arguments
             return {"<=": left <= right, "<": left < right, ">=": left >= right, ">": left > right}[head]
