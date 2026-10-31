@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #57: Evaluate comparisons of numeral-valued ites in ite value tables</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+  }
+}
+html { background: var(--bg); color: var(--fg); }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+       max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; font-size: 0.85rem;
+         font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+       background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
+      white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; margin: 0.8rem 0; width: 100%; font-size: 0.92rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.note { color: var(--muted); font-size: 0.92rem; }
+dl dt { font-weight: 600; margin-top: 0.7rem; }
+dl dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Evaluate comparisons of numeral-valued ites in ite value tables</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/57">levnach/z3#57</a> &middot;
+state <span class="badge">OPEN</span> &middot; opened 2026-10-31T08:52:45Z &middot; loop iteration 57
+</p>
+<p class="meta">
+This pull request is open and <strong>not merged</strong>. It contains two commits.
+The change commit is
+<a href="https://github.com/levnach/z3/commit/43d90c864b397939ff27e586da741aa7ad86df05"><code>43d90c864</code></a>,
+on top of base <code>c4658bdcd</code>.
+</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+This PR lets the Lean reconstructor certify a <a href="#g-rewrite-step">rewrite step</a> in which
+Z3's rewriter has already decided comparisons like <code>(= s 2)</code>.
+Here <code>s</code> is an <a href="#g-ite">if-then-else term</a> whose branches are all
+<a href="#g-numeral">numerals</a>.
+Before, each such comparison was an independent <a href="#g-atom">atom</a> in the
+<a href="#g-value-table">value table</a>, so the two sides looked different.
+The step fell back to one large <a href="#g-grind">grind</a> call, which ran out of
+<a href="#g-heartbeat">heartbeats</a>.
+Now the table evaluates those comparisons, and the two sides match.
+Each matching pair gets its own small <a href="#g-lemma">lemma</a>, proved by a
+<a href="#g-case-split">case split</a> on the <a href="#g-boolean-variable">Boolean variables</a>.
+This closes the last of four known <a href="#g-qf-lra">QF_LRA</a> rewrite failures,
+the benchmark <code>Carpark2-ausgabe-6</code>.
+The Lean <a href="#g-kernel">kernel</a> still checks every lemma, so nothing new is trusted.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+The reconstructor could already prove large rewrite steps one atom at a time, on a
+<a href="#g-normal-form">normalized</a> path.
+PR #56 extended that path to <a href="#g-ite">ite</a> terms that Z3 reshapes, by pairing ites with equal value tables.
+It still failed on the sal/carpark benchmarks.
+There, a rate ite tests a <em>selector</em> ite, as in <code>(= s 4)</code>, and Z3's rewriter turns those tests into
+<a href="#g-disjunction">disjunctions</a> of <a href="#g-conjunction">conjunctions</a> of flags.
+This PR serves Milestone 3 of the plan, equality and linear arithmetic.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>The reconstructor now sees that <code>(ite (= s 2) 20 &hellip;)</code> and the ite Z3 rewrote it into,
+<code>(ite a 20 &hellip;)</code>, take the same value under every assignment of the flags.</li>
+<li>The lemma that relates such a pair can now be proved by trying every true/false combination of
+the flags, then simplifying, then running grind.</li>
+<li>A Lean warning about unused <a href="#g-simp">simp</a> arguments is now silenced only on lemmas
+that use this new split, not on every lemma over ites.</li>
+<li>New tests generate inputs with the carpark shape and check both proof cores in Lean.</li>
+<li>The plan document records the change and marks the old open item as done.</li>
+</ul>
+<p>
+Think of two price lists. One says &ldquo;if the dial reads 2, charge 20&rdquo;.
+The other says &ldquo;if switch <code>a</code> is on, charge 20&rdquo;. The dial is wired to the switches.
+Listing the price for every switch setting shows the lists agree. The value table now does exactly that.
+</p>
+<table>
+<thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">100</td><td class="num">8</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Tests</td><td class="num">102</td><td class="num">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">27</td><td class="num">4</td></tr>
+<tr><th>Total (3 files)</th><th></th><th class="num">229</th><th class="num">12</th></tr>
+</tbody>
+</table>
+<p class="note">There is no C++ change. Z3 and the certificate exporter are unchanged.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+This input is a smaller version of the PR's test generator <code>selector_ite_instance</code>, with four groups of two flags.
+Each group requires <code>z &ge; 3</code>, while the last assertion requires every <code>z &lt; 3</code>.
+All output below comes from real runs. Local paths are shortened.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(declare-const a0 Bool) (declare-const b0 Bool) (declare-const x0 Real) (declare-const y0 Real) (declare-const z0 Real) (declare-const w0 Real)
+(declare-const a1 Bool) (declare-const b1 Bool) (declare-const x1 Real) (declare-const y1 Real) (declare-const z1 Real) (declare-const w1 Real)
+(declare-const a2 Bool) (declare-const b2 Bool) (declare-const x2 Real) (declare-const y2 Real) (declare-const z2 Real) (declare-const w2 Real)
+(declare-const a3 Bool) (declare-const b3 Bool) (declare-const x3 Real) (declare-const y3 Real) (declare-const z3 Real) (declare-const w3 Real)
+(assert (or (or (or
+  (and (and (and (= y0 (+ x0 (* (ite (= (ite a0 2 (ite b0 1 0)) 2) 20 (ite (= (ite a0 2 (ite b0 1 0)) 1) 10 1)) 10))) (not (&lt; z0 3))) (= w0 (ite (not (&lt; z0 3)) 3 z0))) (or (or a0 (= y0 3)) (= w0 0)))
+  (and (and (and (= y1 (+ x1 (* (ite (= (ite a1 2 (ite b1 1 0)) 2) 20 (ite (= (ite a1 2 (ite b1 1 0)) 1) 10 1)) 10))) (not (&lt; z1 3))) (= w1 (ite (not (&lt; z1 3)) 3 z1))) (or (or a1 (= y1 3)) (= w1 0))))
+  (and (and (and (= y2 (+ x2 (* (ite (= (ite a2 2 (ite b2 1 0)) 2) 20 (ite (= (ite a2 2 (ite b2 1 0)) 1) 10 1)) 10))) (not (&lt; z2 3))) (= w2 (ite (not (&lt; z2 3)) 3 z2))) (or (or a2 (= y2 3)) (= w2 0))))
+  (and (and (and (= y3 (+ x3 (* (ite (= (ite a3 2 (ite b3 1 0)) 2) 20 (ite (= (ite a3 2 (ite b3 1 0)) 1) 10 1)) 10))) (not (&lt; z3 3))) (= w3 (ite (not (&lt; z3 3)) 3 z3))) (or (or a3 (= y3 3)) (= w3 0)))))
+(assert (and (&lt; z0 3) (&lt; z1 3) (&lt; z2 3) (&lt; z3 3)))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the base commit <code>c4658bdcd</code></h3>
+<p>The old exporter produced a certificate. The old reconstructor produced Lean, but Lean rejected it:</p>
+<pre><code>$ python3 old/proof_certificate.py example.smt2 &gt; example.old.json
+$ python3 old/proof_to_lean.py example.smt2 example.old.json -o example.old.lean
+Build completed successfully (4 jobs).
+Checking z3_proof_094g3nfo.lean
+z3_proof_094g3nfo.lean:324:7: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+Lean checking failed; no proof was published.</code></pre>
+<p>Line 324 is the old proof of the whole rewrite step, one <code>grind (splits := 64)</code> call that ran out of heartbeats.</p>
+
+<h3>(c) After: the change commit <code>43d90c864</code></h3>
+<p>Lean accepted the new file. <code>check_lean.sh</code> printed &ldquo;Lean checks passed.&rdquo;</p>
+<pre><code>-- Atom 0: "a0"
+-- Atom 1: "b0"
+...
+def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := _atoms 0
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((2 : Rat))
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := _atoms 1
+def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
+def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((0 : Rat))
+noncomputable def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_4 _atoms _vars) (Classical.propDecidable _) (term_5 _atoms _vars) (term_6 _atoms _vars))
+noncomputable def term_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_2 _atoms _vars) (Classical.propDecidable _) (term_3 _atoms _vars) (term_7 _atoms _vars))
+def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_8 _atoms _vars) = (term_3 _atoms _vars))
+...
+noncomputable def term_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_11 _atoms _vars) (Classical.propDecidable _) (term_12 _atoms _vars) (term_5 _atoms _vars))
+noncomputable def term_14 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_9 _atoms _vars) (Classical.propDecidable _) (term_10 _atoms _vars) (term_13 _atoms _vars))
+...</code></pre>
+<p>These declarations build the selector ite <code>term_8</code>, the comparison <code>formula_9</code>, and the rate ite <code>term_14</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_112 _atoms _vars))
+    (_h1 : (formula_113 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p>The theorem states the <a href="#g-refutation">refutation</a>: the two assertions together imply <code>False</code>.</p>
+<pre><code>set_option linter.unusedSimpArgs false in
+set_option maxHeartbeats 1000000 in
+private theorem normalized_atom_177_139 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_139 _atoms _vars) &lt;-&gt; ((((1 : Rat)) * _vars 0) + (((-1 : Rat)) * _vars 1) + (((-10 : Rat)) * ((@ite Rat ((((@ite Rat (_atoms 0) (Classical.propDecidable _) (((2 : Rat))) ((@ite Rat (_atoms 1) (Classical.propDecidable _) (((1 : Rat))) (((0 : Rat))))))) = (((2 : Rat))))) ... (((20 : Rat))) ... (((10 : Rat))) (((1 : Rat)))))))) + ((0 : Rat)) = ((0 : Rat))) := by
+  change ((_vars 0) = (((_vars 1) + (((((10 : Rat))) * ((@ite Rat (_atoms 0) (Classical.propDecidable _) (((20 : Rat))) ((@ite Rat ((And ((Not (_atoms 0))) (_atoms 1))) (Classical.propDecidable _) (((10 : Rat))) (((1 : Rat)))))))))))) &lt;-&gt; ...
+  first
+    | grind
+    | (by_cases _c0 : _atoms 0 &lt;;&gt; by_cases _c1 : _atoms 1 &lt;;&gt;
+        simp (config := { decide := true }) only [_c0, _c1, not_true_eq_false, not_false_eq_true, and_true, true_and, and_false, false_and, or_true, true_or, or_false, false_or, true_implies, false_implies, implies_true, true_iff, iff_true, false_iff, iff_false, ite_true, ite_false] &lt;;&gt; grind)
+    | ((repeat' split) &lt;;&gt; grind)</code></pre>
+<p>
+This lemma equates the rewritten rate ite, over the flags alone, with the original one over <code>(= selector 2)</code>.
+Plain grind fails, so the new second <a href="#g-tactic">tactic</a> alternative splits on both flags, then simp, then grind.
+Eight lemmas in this file use the split.
+</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+Every test suite passed on the final commit, and the carpark benchmark now checks in about 15 seconds.
+<a href="#g-ablation">Ablations</a> showed that both parts of the change are needed.
+Some runs used the pre-review commit <code>dd0f60369</code> and were not repeated.
+</p>
+<table>
+<thead><tr><th>Check</th><th>Commit</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><code>test_proof_to_lean*.py</code> (reconstructor tests)</td><td>final</td><td class="ok">330 tests OK, 1379.6 s</td></tr>
+<tr><td><code>test_proof_certificate.py</code> (exporter tests)</td><td>final</td><td class="ok">106 tests OK, 13.9 s</td></tr>
+<tr><td><code>scripts/check_lean.sh</code> (Lean project)</td><td>final</td><td class="ok">passed</td></tr>
+<tr><td>z3test <code>test_proof*.py</code></td><td>final</td><td class="ok">46 tests OK, 15.2 s</td></tr>
+<tr><td><code>Carpark2-ausgabe-6</code>, <a href="#g-clause-log">clause-log</a> core</td><td>final</td><td class="ok">Lean exit 0 in 14.8 s</td></tr>
+<tr><td>QF_LRA sample benchmarks</td><td><code>dd0f60369</code></td><td class="ok">11 of 11 exit 0</td></tr>
+<tr><td><code>proof_matrix.py --lean</code></td><td><code>dd0f60369</code></td><td class="ok">Boolean 6/6, <code>lra_*</code> 8/8</td></tr>
+<tr><td>Test input, base code</td><td><code>c4658bdcd</code></td><td class="bad">heartbeat timeout after about 58 to 60 s</td></tr>
+<tr><td>Test input, new tables without the split</td><td>ablation</td><td class="bad">six &ldquo;grind failed&rdquo;</td></tr>
+<tr><td>Test input, new code</td><td><code>dd0f60369</code></td><td class="ok">1.2 s</td></tr>
+<tr><td>Test input, split moved after <code>repeat' split</code></td><td>ablation</td><td>3.2 s</td></tr>
+<tr><td>Worked example above, new code</td><td>final</td><td class="ok">Lean accepted</td></tr>
+</tbody>
+</table>
+<p>
+The loop's local gate had not recorded a result when this was written. No CI status was recorded either, so CI results are unknown here.
+There were no CI fix rounds.
+</p>
+<table>
+<thead><tr><th>CI workflow / job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu build - cmake - releaseClang (<code>ubuntu-cmake</code>)</td><td>Check native Boolean proofs in Lean</td>
+<td class="warn">not recorded; see <a href="https://github.com/levnach/z3/pull/57/checks">PR checks</a></td></tr>
+<tr><td>All other workflows</td><td>&mdash;</td>
+<td class="warn">not recorded; see <a href="https://github.com/levnach/z3/pull/57/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>
+The reviewer approved with two nits and two suggestions, and no blocker, major, or minor findings.
+They reran the benchmark and the ablations and found no <a href="#g-axiom">axiom</a> beyond the standard three.
+</p>
+<p>
+<strong>Nit 1, fixed.</strong> Reading the generated Lean, the reviewer saw a <a href="#g-linter">linter</a> switch on every lemma over ites,
+even lemmas with no simp call. It silenced nothing, and it could later hide a real warning.
+Now it is printed only with the new split, and the test checks that the counts match.
+</p>
+<p>
+<strong>Nit 2, fixed.</strong> A 97-character line in the plan document was rewrapped. This was cosmetic.
+</p>
+<p>
+<strong>Suggestion 1, not applied.</strong> A heartbeat timeout in one alternative is not caught by the next,
+so a slow failing split could starve the old fallback. No such case appeared, and the current order was faster. It is a follow-up.
+</p>
+<p>
+<strong>Suggestion 2, not applied.</strong> Table evaluation could cache shared parts. The reviewer measured the same slowdown on deep nesting with the old code. It is a follow-up.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>More ites now share a table. If a lemma cannot prove an equality the table claims, Lean fails where grind once ran. No such case appeared.</li>
+<li>The split is exponential in the number of flags. It is capped at 8 flags, so at most 256 cases per lemma.</li>
+<li>CI and local gate results were not available for this page.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Comparisons of ites with a variable branch, such as <code>(= (ite c x 4) 4)</code>, are still independent atoms.</li>
+<li>The split could also case on arithmetic conditions, not only on Boolean variables.</li>
+<li>Caching in the table evaluation, and trying the split later when no comparison was evaluated.</li>
+<li>Work on the tta_startup benchmark is unchanged and remains in the backlog.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-ablation">ablation</dt>
+<dd>An experiment that removes one part of a change to see whether that part is needed.</dd>
+<dt id="g-atom">atom</dt>
+<dd>A formula with no Boolean connective inside, such as <code>a0</code> or <code>(&lt; z0 3)</code>.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement accepted without proof. A Lean proof here may use only the three standard ones: <code>propext</code>, <code>Classical.choice</code>, <code>Quot.sound</code>.</dd>
+<dt id="g-boolean-variable">Boolean variable</dt>
+<dd>A constant of <a href="#g-sort">sort</a> Bool, true or false. In the example, <code>a0</code> and <code>b0</code> are Boolean variables, also called flags.</dd>
+<dt id="g-case-split">case split</dt>
+<dd>Proving a goal separately for each possibility, for example once with <code>a0</code> true and once with it false. Lean's <code>by_cases</code> tactic does this.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>A record of the clauses Z3 derived while solving. It is one of the two proof sources, or cores, the exporter can use. The other is the legacy proof object.</dd>
+<dt id="g-conjunction">conjunction</dt>
+<dd>An &ldquo;and&rdquo; of formulas, written <code>(and p q)</code>.</dd>
+<dt id="g-disjunction">disjunction</dt>
+<dd>An &ldquo;or&rdquo; of formulas, written <code>(or p q)</code>.</dd>
+<dt id="g-grind">grind</dt>
+<dd>A Lean tactic that searches for a proof automatically, using case splits, equalities, and linear arithmetic.</dd>
+<dt id="g-heartbeat">heartbeat</dt>
+<dd>Lean's unit of work. Each declaration may use a fixed budget, here 1,000,000. Exceeding it is a timeout error.</dd>
+<dt id="g-ite">if-then-else term (ite)</dt>
+<dd>A term <code>(ite c t e)</code> whose value is <code>t</code> when condition <code>c</code> holds and <code>e</code> otherwise.</dd>
+<dt id="g-kernel">kernel</dt>
+<dd>The small core of Lean that checks every proof. It is the only part that must be trusted.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A small proved statement used as a step in a larger proof.</dd>
+<dt id="g-linter">linter</dt>
+<dd>A checker that warns about suspicious but valid code. The checks here treat warnings as errors.</dd>
+<dt id="g-normal-form">normal form</dt>
+<dd>A fixed way of writing a formula, so that equal formulas look the same. For example, <code>(&lt; x 3)</code> and <code>(not (&lt;= 3 x))</code> get one normal form.</dd>
+<dt id="g-numeral">numeral</dt>
+<dd>A constant number written in the input, such as <code>2</code> or <code>20</code>.</dd>
+<dt id="g-qf-lra">QF_LRA</dt>
+<dd>The SMT-LIB logic of quantifier-free linear real arithmetic: Boolean structure over sums of real variables times numerals.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions implies <code>False</code>.</dd>
+<dt id="g-rewrite-step">rewrite step</dt>
+<dd>A proof step where Z3's rewriter replaces a formula with an equivalent, simpler one. The certificate must show the two are equivalent.</dd>
+<dt id="g-simp">simp</dt>
+<dd>A Lean tactic that rewrites a goal with a given list of equations, such as <code>ite_true</code>, until it is simpler.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that builds part of a proof, such as <code>grind</code>, <code>simp</code>, or <code>by_cases</code>.</dd>
+<dt id="g-value-table">value table</dt>
+<dd>The reconstructor's list of an ite's value under every true/false assignment of its condition atoms. Two ites with the same table are treated as equal, and a lemma must then prove it.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-10-31.
+</footer>
+</body>
+</html>
