@@ -385,6 +385,9 @@ class _Terms:
         if head in ("div", "mod") and count == 2 and all(z3.is_int(argument) for argument in arguments):
             # z3py builds the integer operators for Int operands: div for /, mod for %.
             return arguments[0] / arguments[1] if head == "div" else arguments[0] % arguments[1]
+        if head == "rem" and count == 2 and all(z3.is_int(argument) for argument in arguments):
+            return z3.ArithRef(z3.Z3_mk_rem(self.context.ref(), arguments[0].as_ast(), arguments[1].as_ast()),
+                               self.context)
         if head == "abs" and count == 1 and z3.is_arith(arguments[0]):
             # The abs application itself, as logged: z3py's Abs builds
             # (ite (> t 0) t (- t)), a different term from the input's abs.
@@ -528,17 +531,17 @@ def _linear(expr, terms=None, scale=Fraction(1)):
 
     An ite term is an opaque variable here, as in Z3's arithmetic solver: the
     clause log relates it to its branches through explicit gate clauses. So
-    are an integer div or mod by a nonzero numeral, which the solver's arith
-    axioms relate to their operands, and abs.
+    are an integer div, mod, or rem by a nonzero numeral, which the solver's
+    arith axioms relate to their operands, and abs.
     """
     terms = {} if terms is None else terms
     kind = expr.decl().kind()
     value = constant_value(expr)
     if value is not None:
         return terms, scale * value
-    if kind in (z3.Z3_OP_IDIV, z3.Z3_OP_MOD):
+    if kind in (z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_REM):
         integer_divisor(expr)
-    if kind in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE, z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_ABS):
+    if kind in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE, z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_REM, z3.Z3_OP_ABS):
         terms[expr.get_id()] = terms.get(expr.get_id(), Fraction(0)) + scale
         return terms, Fraction(0)
     constant = Fraction(0)
@@ -654,10 +657,11 @@ def check_arith_hint(pairs):
 
     The sat.smt arithmetic solver labels the clauses it adds on its own arith
     (the definitions of an integer div and mod by a numeral k: k * (div t k)
-    + (mod t k) = t, 0 <= mod t k, and mod t k <= |k| - 1). The literals are
-    not a Farkas combination, so only their shape is checked (an arithmetic
-    equality or inequality whose sides are linear, with div and mod by a
-    nonzero numeral as atoms); Lean proves the clause. Each literal is
+    + (mod t k) = t, 0 <= mod t k, and mod t k <= |k| - 1; and of rem:
+    k < 0 or rem t k = mod t k, k >= 0 or rem t k = -(mod t k)). The
+    literals are not a Farkas combination, so only their shape is checked (an
+    arithmetic equality or inequality whose sides are linear, with div, mod,
+    and rem by a nonzero numeral as atoms); Lean proves the clause. Each literal is
     checked as its atom, whatever its polarity: the equality axiom reaches
     the hint as a negated equality, which the combination paths (cut among
     them) refuse because a disequality cannot be summed, while here nothing

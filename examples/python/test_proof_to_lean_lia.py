@@ -191,6 +191,20 @@ LIA_INPUTS = {
 (assert (>= x -2))
 (check-sat)
 """,
+    # Z3's rem, of a sum so that the rewriter keeps it (it rewrites
+    # (rem x k) to (mod x k), or its negation for k < 0): the arithmetic
+    # solver relates it to mod by two arith axioms, (or (not (>= k 0))
+    # (= (rem t k) (mod t k))) and (or (>= k 0) (= (rem t k) (- (mod t k)))).
+    # Lean states rem at its numeral divisor, t % 3 and -(t % -3).
+    "lia_rem": """\
+(set-logic QF_LIA)
+(declare-const x Int)
+(declare-const y Int)
+(assert (> (rem (+ x y) (- 3)) 0))
+(assert (> (rem (+ x y) 3) 0))
+(assert (= (mod (+ x y) 3) 1))
+(check-sat)
+""",
     # Division of a sum, with the remainder fixed, inside a bound conflict.
     "lia_div_sum": """\
 (set-logic QF_LIA)
@@ -327,6 +341,51 @@ def random_division_instance(seed, variables=4, constraints=10, functions=False)
     return source if solver.check() == z3.unsat else None
 
 
+def random_remainder_instance(seed, variables=3, constraints=8):
+    """A random QF_LIA problem over rem atoms (and mod next to them), or None when it is satisfiable.
+
+    Z3's rewriter turns (rem t k) into (mod t k), or its negation for a
+    negative k, unless t is a sum or a product, so most rem terms here
+    take a sum or a scaled variable and reach the arithmetic solver, which
+    relates them to mod by its two rem axioms. Divisors are -4, -3, -2, 2,
+    3, and 4.
+    """
+    generator = random.Random(seed)
+    lines = ["(set-logic QF_LIA)"] + ["(declare-const x%d Int)" % i for i in range(variables)]
+
+    def term(v):
+        roll = generator.random()
+        k = generator.choice([-4, -3, -2, 2, 3, 4])
+        other = generator.randrange(variables)
+        if roll < 0.35:
+            return "(rem (+ x%d x%d) %d)" % (v, other, k)
+        if roll < 0.5:
+            return "(rem (* %d x%d) %d)" % (generator.choice([2, 3, -2]), v, k)
+        if roll < 0.6:
+            return "(rem x%d %d)" % (v, k)
+        if roll < 0.75:
+            return "(mod (+ x%d x%d) %d)" % (v, other, k)
+        return "x%d" % v
+
+    def atom():
+        chosen = generator.sample(range(variables), generator.randint(1, 2))
+        terms = " ".join("(* %d %s)" % (generator.choice([-2, -1, 1, 2]), term(v)) for v in chosen)
+        return "(%s (+ %s 0) %d)" % (generator.choice(["<=", ">=", "<", ">", "="]), terms,
+                                     generator.randint(-4, 4))
+
+    for _ in range(constraints):
+        if generator.random() < 0.4:
+            lines.append("(assert (or %s %s))" % (atom(), atom()))
+        else:
+            lines.append("(assert %s)" % atom())
+    lines.append("(check-sat)")
+    source = "\n".join(lines) + "\n"
+    context = z3.Context()
+    solver = z3.Solver(ctx=context)
+    solver.from_string(source)
+    return source if solver.check() == z3.unsat else None
+
+
 def wide_rewrite_instance(variables=9, term="{0}", logic="QF_LIA", declarations=()):
     """Every variable in [5, 7] and one clause asking for one of them outside.
 
@@ -382,6 +441,11 @@ PINNED_SEEDS = (9, 78, 97)
 # hints (seed 23 also an implied equality) next to the arith axioms and the
 # Farkas steps; 250 to 400 proof steps each when they were pinned.
 DIVISION_SEEDS = (19, 23, 27)
+# Seeds of random_remainder_instance with rem by both signs of sums and
+# scaled variables: seeds 23 and 39 refute through cuts, seed 48 through a
+# cut, bound propagations, and an implied equality (30 to 94 clause-log
+# proof steps when they were pinned).
+REMAINDER_SEEDS = (23, 39, 48)
 # Seed of random_division_instance(variables=6, constraints=18) from the
 # iter-027 stress run: 547 theory lemmas over div, mod, and abs atoms by
 # negative numerals, among them a Farkas step and four cuts over a dozen
@@ -905,6 +969,62 @@ class TestIntegerValidation(unittest.TestCase):
         self.assertRegex(negative_text, r": Int := \(-\(term_\d+ _atoms _vars\)\)")
         self.assertRegex(negative_text, r": Int := \(\(term_\d+ _atoms _vars\) % \(term_\d+ _atoms _vars\)\)")
 
+    def test_rem_is_stated_at_its_numeral_divisor(self):
+        # Z3's rem is (ite (>= k 0) (mod t k) (- (mod t k))); at a numeral k
+        # Lean states it as t % k, or -(t % k) for a negative k, and each rem
+        # term reaches the certificate with its two axioms as arith hints.
+        source = LIA_INPUTS["lia_rem"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        declarations, nodes = certificate["declarations"], certificate["nodes"]
+        rem = next(index for index, d in enumerate(declarations) if d["kind"] == z3.Z3_OP_REM)
+        self.assertEqual((declarations[rem]["name"], declarations[rem]["domain"], declarations[rem]["range"]),
+                         ("rem", ["Int", "Int"], "Int"))
+
+        def rem_axiom(node):
+            clause = nodes[nodes[node]["arguments"][-1]]
+            return declarations[clause["declaration"]]["name"] == "or" and any(
+                declarations[nodes[literal]["declaration"]]["name"] == "="
+                and nodes[nodes[literal]["arguments"][0]]["declaration"] == rem for literal in clause["arguments"])
+
+        arith = [node for node in _th_lemma_nodes(certificate) if _parameters(certificate, node) == ["arith"]]
+        self.assertEqual(sum(map(rem_axiom, arith)), 4)
+        text = proof_to_lean.reconstruct(source, certificate)
+        self.assertIn("-- Int rem by a numeral k is Z3's (ite (>= k 0) (mod t k) (- (mod t k)))", text)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        signs = []
+        for node in range(len(graph.nodes)):
+            if graph.kind(node) != z3.Z3_OP_REM:
+                continue
+            divisor = proof_to_lean._integer_divisor(graph, node)
+            signs.append(divisor > 0)
+            remainder = r"\(term_\d+ _atoms _vars\) % \(term_\d+ _atoms _vars\)"
+            self.assertRegex(text, r"def term_%d \(_atoms : Nat -> Prop\) \(_vars : Nat -> Int\) : Int := %s\n" % (
+                node, r"\(%s\)" % remainder if divisor > 0 else r"\(-\(%s\)\)" % remainder))
+        self.assertEqual(sorted(signs), [False, True])
+        rem_node = next(index for index, raw in enumerate(nodes) if raw["declaration"] == rem)
+        for mutate, message in [
+            (lambda c: c["declarations"][rem].update(name="mod"), "unsupported arithmetic declaration: mod"),
+            (lambda c: c["declarations"][rem].update(domain=["Int"]), "invalid arithmetic declaration arity"),
+            (lambda c: c["nodes"][rem_node]["arguments"].__setitem__(1, c["nodes"][rem_node]["arguments"][0]),
+             "integer rem by a nonconstant or zero"),
+            # mod for rem agrees with rem at a positive divisor, but the
+            # theorem would no longer state the input.
+            (lambda c: c["declarations"][rem].update(kind=z3.Z3_OP_MOD, name="mod"), "do not match the original input"),
+        ]:
+            tampered = copy.deepcopy(certificate)
+            mutate(tampered)
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(proof_to_lean.ReconstructionError, message):
+                    proof_to_lean.reconstruct(source, tampered)
+        # A Real certificate never declares rem.
+        from test_proof_to_lean_arith import Z3TEST_LRA_INPUTS
+        real_source = Z3TEST_LRA_INPUTS["lra_farkas"]
+        real = proof_certificate.export_clause_log_certificate(real_source)
+        addition = next(index for index, d in enumerate(real["declarations"]) if d["kind"] == z3.Z3_OP_ADD)
+        real["declarations"][addition].update(kind=z3.Z3_OP_REM, name="rem")
+        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "unsupported arithmetic declaration: rem"):
+            proof_to_lean.reconstruct(real_source, real)
+
     def test_legacy_axioms_resolve_with_true_and_dead_branches_may_divide_by_zero(self):
         # The legacy core states the div and mod axioms as (or false l) and
         # resolves false away with the unit true (a true-axiom step).
@@ -1018,7 +1138,8 @@ class TestIntegerValidation(unittest.TestCase):
             (lambda c: c["nodes"][div_node]["arguments"].__setitem__(1, c["nodes"][div_node]["arguments"][0]),
              "integer div by a nonconstant or zero"),
             (lambda c: c["declarations"][div].update(kind=z3.Z3_OP_DIV, name="/"), "unsupported arithmetic declaration"),
-            (lambda c: c["declarations"][div].update(kind=z3.Z3_OP_REM, name="rem"), "unsupported arithmetic declaration"),
+            # rem is an Int operator too, but no longer the input's.
+            (lambda c: c["declarations"][div].update(kind=z3.Z3_OP_REM, name="rem"), "do not match the original input"),
             (lambda c: c["declarations"][mod].update(name="div"), "unsupported arithmetic declaration"),
             (lambda c: c["declarations"][div].update(domain=["Int"]), "invalid arithmetic declaration arity"),
             (lambda c: c["declarations"][div].update(domain=["Int", "Real"]), "arithmetic declarations take Int"),
@@ -1043,12 +1164,18 @@ class TestIntegerValidation(unittest.TestCase):
         real["declarations"][addition].update(kind=z3.Z3_OP_IDIV, name="div")
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "unsupported arithmetic declaration: div"):
             proof_to_lean.reconstruct(real_source, real)
-        # The replay keys div and mod atoms by identity, so the arith axioms'
-        # literals are linear constraints over them.
+        # The replay keys div, mod, and rem atoms by identity, so the arith
+        # axioms' literals are linear constraints over them.
         context = z3.Context()
         x = z3.Int("x", context)
         relation, terms, constant = proof_clause_log._constraint(3 * (x / 3) + x % 3 == x)
         self.assertEqual((relation, constant, sorted(terms.values())), ("=", 0, [-1, 1, 3]))
+        remainder = z3.ArithRef(z3.Z3_mk_rem(context.ref(), x.as_ast(), z3.IntVal(-3, context).as_ast()), context)
+        relation, terms, constant = proof_clause_log._constraint(remainder == -(x % -3))
+        self.assertEqual((relation, constant, sorted(terms.values())), ("=", 0, [1, 1]))
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, "integer rem is supported only by a nonzero"):
+            proof_clause_log._constraint(
+                z3.ArithRef(z3.Z3_mk_rem(context.ref(), x.as_ast(), x.as_ast()), context) == x)
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "nonzero constant"):
             proof_clause_log._constraint(x / 0 == x)
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "nonzero constant"):
@@ -1263,7 +1390,7 @@ class TestIntegerLeanIntegration(unittest.TestCase):
                     self.assertEqual(certificate["rule_counts"]["rewrite"], 1)
                 else:
                     self.assertIn("th-lemma", certificate["rule_counts"])
-                if name in ("lia_div", "lia_mod_sum", "lia_negative_divisor", "lia_div_sum"):
+                if name in ("lia_div", "lia_mod_sum", "lia_negative_divisor", "lia_div_sum", "lia_rem"):
                     self.assertIn("arith", _hints(certificate))
                 if name == "lia_mod_sum":
                     self.assertIn("cut", _hints(certificate))
@@ -1285,6 +1412,19 @@ class TestIntegerLeanIntegration(unittest.TestCase):
             with self.subTest(seed=seed):
                 hints |= _hints(self.check(source))
         self.assertLessEqual({"arith", "farkas", "bound", "cut", "euf"}, hints)
+
+    def test_pinned_remainder_instances_verify_on_both_cores(self):
+        hints = set()
+        for seed in REMAINDER_SEEDS:
+            source = random_remainder_instance(seed)
+            self.assertIsNotNone(source, "seed %d is no longer unsatisfiable" % seed)
+            for core in ("clause-log", "legacy"):
+                with self.subTest(seed=seed, core=core):
+                    certificate = self.check(source, core)
+                    self.assertIn("rem", {d["name"] for d in certificate["declarations"]})
+                    if core == "clause-log":
+                        hints |= _hints(certificate)
+        self.assertLessEqual({"arith", "farkas", "cut", "implied-eq"}, hints)
 
     def test_wide_division_instance_verifies_over_generalized_atoms(self):
         source = random_division_instance(WIDE_DIVISION_SEED, variables=6, constraints=18)
