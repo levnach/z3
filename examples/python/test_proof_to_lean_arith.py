@@ -643,6 +643,46 @@ def ite_reshaping_instance(groups=5, condition="and"):
     return "\n".join(lines) + "\n"
 
 
+def selector_ite_instance(groups=3):
+    """ite_reshaping_instance's skeleton over a rate selected by comparing a numeral-valued ite.
+
+    The shape of the sal/carpark QF_LRA benchmarks (Carpark2-ausgabe-6): per
+    group, a selector s is an ite chain over four flags valued 4 to 0, and
+    the rate (ite (= s 4) 20 (ite (= s 3) 10 (ite (= s 2) 5 (ite (= s 1) 2
+    1)))) compares it with numerals. Z3's rewriter decides those
+    comparisons, turning the rate into an ite over disjunctions of the
+    flags' conjunctions, so the two sides' rate ites share no condition.
+    """
+    names, disjuncts = [], []
+    for group in range(groups):
+        a, b, c, d, x, y, z, w = ("%s%d" % (name, group) for name in "abcdxyzw")
+        names += [(name, "Bool") for name in (a, b, c, d)] + [(name, "Real") for name in (x, y, z, w)]
+        cases = []
+        for value, flags in zip((4, 3, 2, 1), ((False, False, True), (True, True, False),
+                                               (False, True, False), (True, False, False))):
+            for first in (True, False):
+                literals = [name if flag else "(not %s)" % name
+                            for name, flag in zip((a, b, c, d), (first,) + flags)]
+                cases.append(("(and (and (and %s %s) %s) %s)" % tuple(literals), value))
+        selector = "0"
+        for condition, value in reversed(cases):
+            selector = "(ite %s %d %s)" % (condition, value, selector)
+        rate = "1"
+        for value, amount in ((1, 2), (2, 5), (3, 10), (4, 20)):
+            rate = "(ite (= %s %d) %d %s)" % (selector, value, amount, rate)
+        disjuncts.append(
+            "(and (and (and (= %s (+ %s (* %s 10))) (not (< %s 3))) (= %s (ite (not (< %s 3)) 3 %s)))"
+            " (or (or %s (= %s 3)) (= %s 0)))" % (y, x, rate, z, w, z, z, a, y, w))
+    assertion = disjuncts[0]
+    for disjunct in disjuncts[1:]:
+        assertion = "(or %s %s)" % (assertion, disjunct)
+    lines = ["(set-logic QF_LRA)"] + ["(declare-const %s %s)" % pair for pair in names]
+    lines.append("(assert %s)" % assertion)
+    lines += ["(assert (< z%d 3))" % group for group in range(groups)]
+    lines.append("(check-sat)")
+    return "\n".join(lines) + "\n"
+
+
 class TestNormalizedRewriteLinks(unittest.TestCase):
     """The prover of a normalized rewrite links the sides' structures equal up to flattening."""
 
@@ -958,6 +998,65 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 self.assertIn("    | ((repeat' split) <;> grind)", text)
                 certificate, report = self.check(source)
                 self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_rewrite_over_numeral_comparisons_of_selector_ites_verifies(self):
+        # Z3's rewriter decides the rate's (= selector k) conditions (see
+        # selector_ite_instance), so the left's rate ite is over comparisons
+        # of the selector ite and the right's over the flags alone. With the
+        # comparisons as independent leaves the tables differed, and grind
+        # over the unfolded rewrite timed out after 60 s, as on
+        # Carpark2-ausgabe-6. Evaluated in the table, they key the two rate
+        # ites alike, and the atom lemmas relating them are proved by cases
+        # on the four flags (grind and splitting every ite both fail there).
+        source = selector_ite_instance()
+        for core in ("clause-log", "legacy"):
+            with self.subTest(core=core):
+                certificate = (proof_certificate.export_clause_log_certificate(source) if core == "clause-log"
+                               else proof_certificate.export_certificate(source))
+                text = proof_to_lean.reconstruct(source, certificate)
+                if core == "clause-log":
+                    self.assertIn("private theorem normalized_rewrite_", text)
+                    self.assertIn("    | (by_cases _c", text)
+                certificate, report = self.check(source, core)
+                self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_ite_value_tables_evaluate_comparisons_of_numeral_ites(self):
+        # Each rate ite over (= selector k) conditions shares its table with
+        # the rewritten rate ite, whose conditions are over the flags alone;
+        # the selectors are keyed among themselves.
+        groups = 3
+        source = selector_ite_instance(groups)
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        rewrite = max((node for node in range(len(graph.nodes)) if graph.decl(node).name == "rewrite"),
+                      key=lambda node: len(proof_to_lean._reachable(graph, graph.conclusion(node))[0]))
+        conclusion = graph.conclusion(rewrite)
+        ites = proof_to_lean._arith_ites(graph, proof_to_lean._reachable(graph, conclusion)[0])
+        atoms = [formula for formula in proof_to_lean._reachable_outside(graph, conclusion, ites)
+                 if graph.kind(formula) == z3.Z3_OP_EQ and graph.is_arith(graph.arguments(formula)[0])]
+        representatives = proof_to_lean._ite_representatives(graph, atoms)
+        self.assertEqual(set(representatives), ites)
+
+        def compares_selector(ite):
+            nodes = proof_to_lean._reachable(graph, graph.arguments(ite)[0])[0]
+            return any(graph.kind(node) == z3.Z3_OP_EQ and proof_to_lean._numeral_ite(graph, graph.arguments(node)[0])
+                       for node in nodes)
+
+        chains = [ite for ite in ites if compares_selector(ite)]
+        self.assertEqual(len(chains), 4 * groups)
+        rates = [ite for ite in chains if not any(ite in graph.arguments(other) for other in chains)]
+        self.assertEqual(len(rates), groups)
+        for rate in rates:
+            partners = [ite for ite in ites if ite != rate and representatives[ite] == representatives[rate]]
+            self.assertTrue(partners)
+            for partner in partners:
+                condition = proof_to_lean._reachable(graph, graph.arguments(partner)[0])[0]
+                self.assertFalse(proof_to_lean._arith_ites(graph, condition))
+        # An ite with a variable branch (the w ites) is no numeral ite, so a
+        # comparison of it would stay a leaf.
+        variable_branch = [ite for ite in ites if graph.kind(graph.arguments(ite)[2]) == z3.Z3_OP_UNINTERPRETED]
+        self.assertTrue(variable_branch)
+        self.assertFalse(any(proof_to_lean._numeral_ite(graph, ite) for ite in variable_branch))
 
     def test_ite_value_tables_key_reshaped_ites_alike(self):
         # Per group, the y ite (nested on the left, merged on the right)
