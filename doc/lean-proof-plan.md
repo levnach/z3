@@ -2076,6 +2076,35 @@ binary successfully with the remaining checks unrun.
 
 ## Arithmetic proof infrastructure
 
+### abs over Real (2026-10-31)
+
+SMT-LIB defines `abs` on Int only, but Z3 accepts it over Real with the
+same definition, `(ite (>= t 0) t (- t))`, and its rewriter replaces it by
+that ite before solving. Hand-written Real inputs use it for distances and
+error bounds, and every one was rejected ("unsupported arithmetic operator:
+abs over Real"), on both cores. The exporter now accepts it, and the
+reconstructor accepts an `abs` declaration over Real (of the integer
+operators, only `abs`; `div` and `mod` stay Int only) and states it as
+`(@ite Rat (t >= 0) (Classical.propDecidable _) t (-t))`, the same ite it
+already used for Int `abs`. The Rat encoding stays sound: like an ite, `abs`
+is linear under each fixed sign of its argument. The rewrite bridges key
+`(abs t)` as its ite (`_real_atom_key`), which already handled Real
+conditions. Without a logic, `(abs 3)` in a Real position is
+`(to_real (abs 3))`; the snapshot now reads it as the Real `abs` of `3.0`,
+as QF_LRA does. `(to_real (abs n))` of an Int variable is still rejected. No
+trimmed certificate in 450 random seeds kept an `arith` hint over `abs`
+(the arithmetic solver's two case axioms, seen in untrimmed logs); such a
+lemma is proved by grind as for Int. The replay rebuilds a logged `(abs t)`
+as the `abs` application itself, the input's term; it used z3py's `Abs`,
+which is `(ite (> t 0) t (- t))`, a different term.
+`test_untrimmed_real_abs_axioms_verify` replays seed 59 under QF_LRA
+untrimmed, keeping that lemma, through Lean. Tests:
+`test_real_abs_verifies` and `..._through_the_legacy_core` (five
+hand-written inputs, including the triangle inequality and a QF_UFLRA one,
+plus four random seeds, with Lean and `#print axioms`; all 18 runs were
+rejected before), `test_real_abs_is_stated_as_its_ite_over_rat`, and the
+classification tests in `test_proof_certificate.py`.
+
 ### Integer numerals in Real terms (2026-10-30)
 
 Without a `set-logic`, or under `ALL`, Z3 reads an integer numeral where a

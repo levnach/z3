@@ -91,7 +91,9 @@ _BOOLEAN_OPERATORS = {
 }
 # Linear real arithmetic: atoms over Real terms built from variables, numerals,
 # sums, differences, negation, scaling by a numeral, division by a numeral,
-# and Real-valued ite, whose value is a linear term under either branch.
+# and Real-valued ite, whose value is a linear term under either branch, and
+# abs, which SMT-LIB defines on Int only but Z3 accepts over Real with the
+# same definition (ite (>= t 0) t (- t)).
 # Linear integer arithmetic is the same fragment over Int without Real
 # division, plus the integer div and mod by a nonzero numeral and abs, which
 # are opaque atoms of the linear forms (Z3's arithmetic solver axiomatizes
@@ -382,6 +384,7 @@ def _assertion_commands(source, query=None):
 _REAL_COUNTERPARTS = {
     z3.Z3_OP_ADD: z3.Z3_mk_add, z3.Z3_OP_SUB: z3.Z3_mk_sub, z3.Z3_OP_MUL: z3.Z3_mk_mul,
     z3.Z3_OP_UMINUS: lambda reference, size, array: z3.Z3_mk_unary_minus(reference, array[0]),
+    z3.Z3_OP_ABS: lambda reference, size, array: z3.Z3_mk_abs(reference, array[0]),
 }
 
 
@@ -425,9 +428,11 @@ def _real_counterpart(expr, context):
     """The Real term QF_LRA reads for (to_real expr), or None unless expr is built from numerals.
 
     Numerals become Real numerals of the same value, and sums, differences,
-    products, and negations over such terms the same operation over their
-    counterparts, so the statement keeps the input's structure. Any other
-    Int term (a variable, an application, an ite, div, mod, abs) has none.
+    products, negations, and abs over such terms the same operation over
+    their counterparts (the injection commutes with each, abs included:
+    QF_LRA reads (abs 3) as the Real abs of 3.0), so the statement keeps the
+    input's structure. Any other Int term (a variable, an application, an
+    ite, div, mod) has none.
     """
     counterparts = {}
     pending = [(expr, False)]
@@ -512,14 +517,13 @@ def _require_linear_arithmetic(expr):
     """Reject Real or Int terms outside the linear fragment with constant coefficients.
 
     Real division is accepted by a nonzero constant, integer div and mod by a
-    nonzero constant, and abs over Int; rem and the conversions between Int
+    nonzero constant, and abs over Int or Real; rem and the conversions between Int
     and Real are distinct operators that fall through to the rejection.
     """
     kind = expr.decl().kind()
-    if kind == z3.Z3_OP_ABS and not z3.is_int(expr):
-        # SMT-LIB defines abs on Int only. Z3 accepts a Real abs, which the
-        # reconstructor rejects, so the exporter rejects it as unsupported.
-        raise ProofExportError("unsupported arithmetic operator: abs over Real")
+    # abs over Real is accepted too: SMT-LIB defines abs on Int only, but Z3
+    # reads a Real abs by the same definition, (ite (>= t 0) t (- t)), which
+    # the reconstructor states over Rat.
     if kind in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ANUM, z3.Z3_OP_ABS):
         pass  # Variables, applications of uninterpreted functions, and abs are the atoms of linear forms.
     elif kind == z3.Z3_OP_MUL:
