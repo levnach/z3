@@ -5,114 +5,97 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PR #56: Prove normalized rewrites over reshaped ite terms and wide flattenings</title>
 <style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --pass: #1a7f37; --fail: #cf222e; --warn: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
   :root {
-    color-scheme: light dark;
-    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --pass: #3fb950; --fail: #f85149; --warn: #d29922;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
-    }
-  }
-  body { background: var(--bg); color: var(--fg); margin: 0;
-         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
-  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-top: 2.2rem; }
-  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-  a { color: var(--accent); }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
-         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
-        overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8rem; line-height: 1.45; }
-  pre code { background: none; padding: 0; font-size: inherit; }
-  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
-  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
-  th { background: var(--code-bg); }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .meta { color: var(--muted); margin: 0.2rem 0; }
-  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 999px; font-weight: 600;
-           font-size: 0.85rem; border: 1px solid currentColor; }
-  .open { color: var(--ok); }
-  .ok { color: var(--ok); font-weight: 600; }
-  .bad { color: var(--bad); font-weight: 600; }
-  .unknown { color: var(--warn); font-weight: 600; }
-  .note { color: var(--muted); font-size: 0.92rem; }
-  dt { font-weight: 600; margin-top: 0.6rem; }
-  dd { margin-left: 1.2rem; }
-  footer { color: var(--muted); font-size: 0.88rem; border-top: 1px solid var(--border); margin-top: 3rem; padding-top: 0.8rem; }
+}
+html { background: var(--bg); color: var(--fg); }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+       max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.meta div { margin: 0.1rem 0; }
+.state { font-weight: 600; color: var(--pass); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+       background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: 0.8rem; white-space: pre; }
+table { border-collapse: collapse; margin: 0.8rem 0; width: 100%; font-size: 0.93rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pass { color: var(--pass); font-weight: 600; }
+.fail { color: var(--fail); font-weight: 600; }
+.unknown { color: var(--warn); font-weight: 600; }
+.caption { color: var(--muted); margin-top: -0.3rem; }
+dt { font-weight: 600; margin-top: 0.7rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--border); padding-top: 0.8rem; }
 </style>
 </head>
 <body>
-<main>
 
 <header>
-  <h1>Prove normalized rewrites over reshaped ite terms and wide flattenings</h1>
-  <p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/56">levnach/z3#56</a>
-    · <span class="badge open">OPEN</span> · 2026-10-31T06:57:29Z · loop iteration 56</p>
-  <p class="meta">This pull request is open and <strong>not merged</strong>.
-    The change commit is <a href="https://github.com/levnach/z3/commit/d91a1b0f521a90d9e79acdc3427b8946e3d076b1"><code>d91a1b0f5</code></a>.</p>
+<h1>Prove normalized rewrites over reshaped ite terms and wide flattenings</h1>
+<div class="meta">
+  <div>Pull request: <a href="https://github.com/levnach/z3/pull/56">levnach/z3#56</a> into <code>master</code></div>
+  <div>State: <span class="state">MERGED</span> on 2026-10-31T07:21:07Z</div>
+  <div>Merge commit: <a href="https://github.com/levnach/z3/commit/c4658bdcddd82c1518893e7c71d9e6b734599668"><code>c4658bdcd</code></a> (base <code>1ab9d2d77</code>)</div>
+  <div>Loop iteration: 56</div>
+</div>
 </header>
 
-<section>
-  <h2>In one paragraph</h2>
-  <p>Z3's <a href="#g-rewrite">rewrite</a> step often reshapes
-    <a href="#g-ite">if-then-else terms</a> over <a href="#g-sort">sort</a> Real before solving.
-    The reconstructor must then prove, as a <a href="#g-lemma">lemma</a>, that the original
-    <a href="#g-assertion">assertion</a> and the reshaped one are equivalent.
-    This PR proves such lemmas when the two sides hold differently shaped ite terms with the same values.
-    It also handles a wide <a href="#g-disjunction">disjunction</a> that one side nests and the other side
-    <a href="#g-flattening">flattens</a>, with proof size growing linearly instead of quadratically.
-    Three <a href="#g-qf-lra">QF_LRA</a> benchmarks that failed the Lean check before now pass it.
-    Every new step is checked by the Lean <a href="#g-kernel">kernel</a>, so nothing new is trusted.</p>
-</section>
+<h2 id="summary">In one paragraph</h2>
+<p>This PR lets the Lean reconstructor prove two kinds of <a href="#g-rewrite">rewrite step</a> that used to fail.
+In the first kind, Z3 reshapes <a href="#g-ite">if-then-else terms</a> of <a href="#g-sort">sort</a> Real.
+The two sides of the rewrite then hold different-looking ites that always have the same value.
+In the second kind, one side holds a wide <a href="#g-disjunction">disjunction</a> nested to the left, and the other side holds it <a href="#g-flattening">flattened</a>.
+Before, both ended in one large <a href="#g-grind">grind</a> call that ran out of <a href="#g-heartbeat">heartbeats</a>, so the whole <a href="#g-refutation">refutation</a> failed.
+Now matching ites are proved equal by small <a href="#g-lemma">lemmas</a>, and matching pieces of the two sides are linked first.
+Three <a href="#g-qflra">QF_LRA</a> benchmarks now pass the Lean check.
+Every new step is checked by the Lean <a href="#g-kernel">kernel</a>, so the <a href="#g-trust">trust boundary</a> does not move.</p>
 
-<section>
-  <h2>Background</h2>
-  <p>Before this PR, the reconstructor had a fast path for rewrites, the
-    <a href="#g-normalized-rewrite">normalized rewrite</a>.
-    It proves one small lemma per <a href="#g-atom">atom</a>, then one
-    <a href="#g-propositional">propositional</a> lemma that ties the two sides together.
-    Any ite term kept a rewrite off that path.
-    The fallback was the <a href="#g-tactic">tactic</a> <a href="#g-grind"><code>grind</code></a> over the whole rewrite,
-    and on two spider benchmarks it ran out of <a href="#g-heartbeat">heartbeats</a>.
-    On a clock benchmark, a 250-way disjunction made the propositional lemma too large, and grind failed too.
-    This work serves milestone 3, equality and <a href="#g-linear-arithmetic">linear arithmetic</a>, and the plan's priority of fixing rescan failures.</p>
-</section>
+<h2 id="background">Background</h2>
+<p>The reconstructor already had a fast path for rewrites, the <a href="#g-normalization">normalized</a> rewrite.
+It replaces each arithmetic <a href="#g-atom">atom</a> by its <a href="#g-linear-form">linear form</a> and then proves the <a href="#g-boolean">Boolean</a> skeleton.
+That path refused any rewrite containing an ite, so such rewrites went to grind, which timed out on larger inputs.
+The propositional prover also did work quadratic in a disjunction's width.
+Iteration 55 found four exported QF_LRA inputs that Lean rejected in a rewrite step, and this PR fixes three.
+It serves Milestone 3, "Equality and linear arithmetic", which asks each fragment to work end to end.</p>
 
-<section>
-  <h2>What changed</h2>
-  <p>All code changes are in the Python reconstructor <code>proof_to_lean.py</code>. There is no C++ change.</p>
-  <ul>
-    <li><strong>Ite value tables.</strong> Rewrites whose sides hold reshaped but equal-valued ites can now be proved, since each ite is matched to its partner by its values in every case.</li>
-    <li><strong>Atom lemma fallback.</strong> When <code>grind</code> fails on two matched ites, as with an <a href="#g-iff">iff</a> or <a href="#g-xor">xor</a> condition, the lemma now does a <a href="#g-case-split">case split</a> on every ite.</li>
-    <li><strong>Links.</strong> The propositional prover first proves that matching pieces of the two sides are equivalent, so it stops re-walking long disjunctions.</li>
-    <li><strong>Linear refutation.</strong> Refuting each operand of a false disjunction with more than 32 operands now takes a bounded number of steps.</li>
-    <li><strong>Tests and docs.</strong> New tests cover the spider shape, its iff and xor variants, and a 16-clock flattening, and the plan gained a dated section.</li>
-  </ul>
-  <p>Think of two lamps wired differently that light up in exactly the same switch positions.
-    A value table lists every switch position, so the two wirings visibly agree.
-    It only picks which term is written. A wrong match would fail the Lean check.</p>
-  <table>
-    <thead><tr><th>File</th><th>What it is</th><th>Lines added</th><th>Lines removed</th></tr></thead>
-    <tbody>
-      <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">356</td><td class="num">27</td></tr>
-      <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Arithmetic tests</td><td class="num">173</td><td class="num">5</td></tr>
-      <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">30</td><td class="num">0</td></tr>
-      <tr><th>Total, 2 commits</th><td></td><td class="num">559</td><td class="num">32</td></tr>
-    </tbody>
-  </table>
-</section>
+<h2 id="changes">What changed</h2>
+<p>All code changes are in the Python reconstructor <code>examples/python/proof_to_lean.py</code>. There is no C++ change.</p>
+<ul>
+<li><strong>Ite value tables.</strong> A rewrite that reshapes a Real ite can now be certified, because ites with the same value under every assignment of their conditions count as one term, like two recipes that list steps differently but make the same dish.</li>
+<li><strong>A fallback for ite lemmas.</strong> When grind cannot prove two matched ites equal, as with an <a href="#g-iff">iff</a> or <a href="#g-xor">xor</a> condition, the lemma now does a <a href="#g-case-split">case split</a> on every ite.</li>
+<li><strong>Links between equal structures.</strong> Sides that differ only by flattening, operand order, duplicates, constants, or <a href="#g-double-negation">double negation</a> are now proved equal piece by piece, smallest pieces first.</li>
+<li><strong>Linear refutation of wide false disjunctions.</strong> Refuting each disjunct of a long false disjunction now starts from a saved tail at most 32 disjuncts back, not from the front.</li>
+<li><strong>Tests and notes.</strong> New tests reproduce the benchmark shapes, and the plan document has a dated section on this work.</li>
+</ul>
+<table>
+<tr><th>File</th><th>What it holds</th><th>Lines added</th><th>Lines removed</th></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">356</td><td class="num">27</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Arithmetic tests</td><td class="num">173</td><td class="num">5</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Project plan</td><td class="num">30</td><td class="num">0</td></tr>
+<tr><th>Total</th><th></th><th class="num">559</th><th class="num">32</th></tr>
+</table>
 
-<section>
-  <h2>Worked example</h2>
-  <h3>(a) The input</h3>
-  <p>This is the PR's test generator <code>ite_reshaping_instance</code> with four groups, one group's declarations per line.
-    The test uses five groups. In my runs the base commit already passed one to three groups.
-    Every operand of the disjunction needs <code>(not (&lt; z 3))</code>, which the unit <a href="#g-clause">clauses</a> at the end contradict.</p>
-  <pre><code>(set-logic QF_LRA)
+<h2 id="example">Worked example</h2>
+<p>This input is the PR's new test generator <code>ite_reshaping_instance</code> with four groups, with only line breaks changed.
+Each group defines <code>y</code> by a nested ite, which Z3 merges into one ite with a different condition.
+The PR reports that three groups already passed before, slowly, so four are used here.</p>
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
 (declare-const b0 Bool) (declare-const c0 Bool) (declare-const x0 Real) (declare-const y0 Real) (declare-const z0 Real) (declare-const w0 Real)
 (declare-const b1 Bool) (declare-const c1 Bool) (declare-const x1 Real) (declare-const y1 Real) (declare-const z1 Real) (declare-const w1 Real)
 (declare-const b2 Bool) (declare-const c2 Bool) (declare-const x2 Real) (declare-const y2 Real) (declare-const z2 Real) (declare-const w2 Real)
@@ -121,35 +104,30 @@
 (assert (&lt; z0 3)) (assert (&lt; z1 3)) (assert (&lt; z2 3)) (assert (&lt; z3 3))
 (check-sat)</code></pre>
 
-  <h3>(b) Before</h3>
-  <p>With the base commit's scripts, the exporter succeeded and the reconstructor wrote a Lean file.
-    Lean rejected it after about 71 seconds, at the final <code>grind</code> of the lemma for the big rewrite.</p>
-  <pre><code>Build completed successfully (4 jobs).
+<h3>(b) Before: the base commit</h3>
+<p>The base commit's exporter and reconstructor accepted the input and wrote a Lean file.
+Its command-line script could not find the Lean check script from a scratch folder, so its <code>reconstruct</code> function was called directly.
+Lean then rejected the file after about 82 seconds, at the final grind of the rewrite lemma.</p>
+<pre><code>$ python3 old/proof_certificate.py example.smt2 &gt; example_old.json      # exit 0
+$ (base reconstruct) example.smt2 example_old.json -&gt; example_old.lean  # exit 0
+$ ./scripts/check_lean.sh example_old.lean                              # exit 1, after 82 s
 example_old.lean:292:7: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached</code></pre>
-  <p class="note">The old script cannot find the Lean checker from a scratch copy.
-    So I called its <code>reconstruct</code> function directly and checked the output with the repository's checker script.</p>
 
-  <h3>(c) After</h3>
-  <p>With the PR's code, Lean accepted the file and printed <span class="ok">Lean checks passed.</span>
-    The file has 1001 lines and 40 atom lemmas, 16 of them over an ite.</p>
-  <pre><code>import Init
--- Original input SHA-256: 01b288023167a45db7932094d9d39cb204961dd5380fc087b34ba2d6a21a1716
--- Atom 0: &quot;b0&quot;
--- Atom 1: &quot;c0&quot;
+<h3>(c) After: this PR</h3>
+<p>The current scripts produce a file that Lean accepts.</p>
+<pre><code>$ python3 examples/python/proof_certificate.py example.smt2 &gt; example.json
+$ python3 examples/python/proof_to_lean.py example.smt2 example.json -o example.lean
+Lean checked the refutation; wrote example.lean
+$ ./scripts/check_lean.sh example.lean
+Build completed successfully (4 jobs).
+Lean checks passed.</code></pre>
+<p>Declarations: the original nested ite of group 3, and the reshaped ite that Z3's rewriter produced for it.</p>
+<pre><code>noncomputable def term_85 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_83 _atoms _vars) (Classical.propDecidable _) (term_84 _atoms _vars) (term_80 _atoms _vars))
+noncomputable def term_86 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_79 _atoms _vars) (Classical.propDecidable _) (term_85 _atoms _vars) (term_80 _atoms _vars))
 ...
--- Atom 7: &quot;c3&quot;
--- Variable 0: &quot;y0&quot;
--- Variable 1: &quot;x0&quot;
--- Variable 2: &quot;z0&quot;
-...
--- Real variables are encoded as Rat; see the exporter documentation.
-namespace Z3Proofs.NativeCertificate.p01b288023167a45db7932094d9d39cb204961dd5380fc087b34ba2d6a21a1716
-...
-def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
-def formula_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := _atoms 0
-...</code></pre>
-  <p>The comments map Lean names back to the input, and Real variables become Lean rationals.</p>
-  <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+noncomputable def term_108 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_106 _atoms _vars) (Classical.propDecidable _) (term_80 _atoms _vars) (term_107 _atoms _vars))</code></pre>
+<p>The theorem statement: the assertions imply <code>False</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     (_h0 : (formula_101 _atoms _vars))
     (_h1 : (formula_14 _atoms _vars))
     (_h2 : (formula_39 _atoms _vars))
@@ -157,136 +135,116 @@ def formula_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := _atoms
     (_h4 : (formula_89 _atoms _vars))
     : False :=
   ...</code></pre>
-  <p>The main theorem says the five assertions imply <code>False</code>, which is the <a href="#g-refutation">refutation</a>.</p>
-  <pre><code>set_option maxHeartbeats 1000000 in
-private theorem normalized_atom_169_129 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
-    : (formula_129 _atoms _vars) &lt;-&gt; ((((1 : Rat)) * _vars 0) + (((-1 : Rat)) * ((@ite Rat ((Not (_atoms 0))) (Classical.propDecidable _) ((@ite Rat ((And (((_vars 1) &lt; (((3 : Rat))))) (_atoms 1))) (Classical.propDecidable _) (((_vars 1) + (((1 : Rat))))) (_vars 1))) (_vars 1)))) + ((0 : Rat)) = ((0 : Rat))) := by
-  change ((_vars 0) = ((@ite Rat ((Or (_atoms 0) ((Not ((And ((Not (((((3 : Rat))) &lt;= (_vars 1))))) (_atoms 1))))))) (Classical.propDecidable _) (_vars 1) (((((1 : Rat))) + (_vars 1)))))) &lt;-&gt; ((((1 : Rat)) * _vars 0) + (((-1 : Rat)) * ((@ite Rat ((Not (_atoms 0))) (Classical.propDecidable _) ((@ite Rat ((And (((_vars 1) &lt; (((3 : Rat))))) (_atoms 1))) (Classical.propDecidable _) (((_vars 1) + (((1 : Rat))))) (_vars 1))) (_vars 1)))) + ((0 : Rat)) = ((0 : Rat)))
+<p>The new atom lemma: the equation over the reshaped ite equals the linear form over the original ite, by grind or by splitting.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem normalized_atom_169_109 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_109 _atoms _vars) &lt;-&gt; ((((1 : Rat)) * _vars 12) + (((-1 : Rat)) * ((@ite Rat ((Not (_atoms 6))) (Classical.propDecidable _) ((@ite Rat ((And (((_vars 13) &lt; (((3 : Rat))))) (_atoms 7))) (Classical.propDecidable _) (((_vars 13) + (((1 : Rat))))) (_vars 13))) (_vars 13)))) + ((0 : Rat)) = ((0 : Rat))) := by
+  change ...
   first
     | grind
-    | ((repeat&#x27; split) &lt;;&gt; grind)</code></pre>
-  <p>Atom 129 says <code>y0</code> equals the ite reshaped by Z3, and the lemma restates it over the original nested ite.</p>
-  <pre><code>set_option maxHeartbeats 1000000 in
-private theorem normalized_rewrite_169 ...
+    | ((repeat' split) &lt;;&gt; grind)</code></pre>
+<p>Inside the rewrite proof, both sides' equations about <code>y3</code> map to the same atom <code>_atom15</code>, which is what the value table makes possible.</p>
+<pre><code>private theorem rewrite_169 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_168 _atoms _vars) := by
+  ...
+  let _atom15 : Prop := ((((1 : Rat)) * _vars 12) + (((-1 : Rat)) * ((@ite Rat ((Not (_atoms 6))) (Classical.propDecidable _) ((@ite Rat ((And (((_vars 13) &lt; (((3 : Rat))))) (_atoms 7))) (Classical.propDecidable _) (((_vars 13) + (((1 : Rat))))) (_vars 13))) (_vars 13)))) + ((0 : Rat)) = ((0 : Rat)))
+  have _norm87 : (formula_87 _atoms _vars) &lt;-&gt; _atom15 := normalized_atom_169_87 _atoms _vars
+  ...
+  have _norm109 : (formula_109 _atoms _vars) &lt;-&gt; _atom15 := normalized_atom_169_109 _atoms _vars
+  ...</code></pre>
+<p>In the propositional lemma, links such as "not not <code>_atom1</code> iff <code>_atom1</code>" are proved first, by contradiction.</p>
+<pre><code>private theorem normalized_rewrite_169 (_atoms : Nat -&gt; Prop) (_atom0 : Prop) (_atom1 : Prop) (_atom2 : Prop) (_atom3 : Prop) (_atom4 : Prop) (_atom5 : Prop) (_atom6 : Prop) (_atom7 : Prop) (_atom8 : Prop) (_atom9 : Prop) (_atom10 : Prop) (_atom11 : Prop) (_atom12 : Prop) (_atom13 : Prop) (_atom14 : Prop) (_atom15 : Prop) (_atom16 : Prop) (_atom17 : Prop) (_atom18 : Prop) (_atom19 : Prop)
+    : ...
   by first
-    | (let _s0 : Prop := (And _atom0 (Not (Not _atom1)))
-       let _s1 : Prop := (And _s0 _atom2)
-       let _s2 : Prop := (Or (_atoms 1) _atom3)
-       let _s3 : Prop := (Or _s2 _atom4)
-...
-       let _s23 : Prop := (Or (_atoms 1) (Or _atom3 _atom4))
-...
+    | (...
        let _s32 : Prop := (Iff (Not (Not _atom1)) _atom1)
-...
-       let _s36 : Prop := (Iff _s23 _s3)
-...
+       ...
        have _f12 : _s32 := by
          refine Iff.intro (fun (_f1 : (Not (Not _atom1))) =&gt; ?_) (fun (_f5 : _atom1) =&gt; ?_)
-         · refine Classical.byContradiction (fun (_f2 : Not _atom1) =&gt; ?_)
-           have _f3 : (Not _s32) := (fun _g =&gt; _f2 (Iff.mp _g _f1))
-           have _f4 : (Not _s24) := (mt (@And.right _ _) (mt (@And.left _ _) _f2))
-           exact (False.elim (_f1 _f2))
-...
+         ...
     | grind (splits := 64)</code></pre>
-  <p>The prover links <code>_s23</code> to its nested twin <code>_s3</code>, and <code>_s32</code> removes a <a href="#g-double-negation">double negation</a>.
-    Each link is proved <a href="#g-contradiction">by contradiction</a>, with <code>grind</code> as the last resort.</p>
-</section>
 
-<section>
-  <h2>How it was verified</h2>
-  <p>On the final commit, every Python and Lean test suite passed.
-    Three real benchmarks that failed before now check, and four older ones still do.
-    The numbers come from the PR description.</p>
-  <table>
-    <thead><tr><th>Check</th><th>Commit</th><th>Result</th></tr></thead>
-    <tbody>
-      <tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>d91a1b0f5</td><td class="ok">328 tests OK, 1365.9 s</td></tr>
-      <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td>d91a1b0f5</td><td class="ok">106 tests OK</td></tr>
-      <tr><td>Lean project build, <code>check_lean.sh</code></td><td>d91a1b0f5</td><td class="ok">passed</td></tr>
-      <tr><td>z3test proof tests</td><td>d91a1b0f5</td><td class="ok">46 tests OK</td></tr>
-      <tr><td>Newly verified: <code>mode_cntrl.base</code>, <code>current_frame.base</code>, <code>clocksynchro_8clocks.main_invar.base</code></td><td>d91a1b0f5</td><td class="ok">pass, 5.9 s, 8.2 s, 60.0 s</td></tr>
-      <tr><td>Still verified: <code>clocksynchro_3clocks.main_invar.base</code>, <code>clocksynchro_8clocks.worst_case_skew.base</code>, <code>Carpark2-t1-2</code>, <code>windowreal-safe-2</code></td><td>d91a1b0f5</td><td class="ok">pass, 6.3 s, 0.9 s, 1.4 s, 2.9 s</td></tr>
-      <tr><td>Proof matrix, Boolean inputs, legacy core</td><td>feaed3c26</td><td class="ok">6 of 6 verified</td></tr>
-      <tr><td>Proof matrix, <code>lra_*</code> inputs, clause-log core</td><td>feaed3c26</td><td class="ok">8 of 8 verified</td></tr>
-    </tbody>
-  </table>
-  <p>The loop's local gate had not recorded a result when this page was written. Its log showed it still running.</p>
-  <p>No CI status was recorded for this iteration, so the CI outcome is unknown here. No CI fix rounds were recorded.</p>
-  <table>
-    <thead><tr><th>Workflow job</th><th>Step</th><th>Status</th></tr></thead>
-    <tbody>
-      <tr><td><code>ubuntu-cmake</code>, matrix <code>releaseClang</code></td><td>Check native Boolean proofs in Lean</td>
-        <td class="unknown">not recorded, see the <a href="https://github.com/levnach/z3/pull/56/checks">PR checks page</a></td></tr>
-    </tbody>
-  </table>
-</section>
+<h2 id="verified">How it was verified</h2>
+<p>All local test suites passed, including the full Lean reconstruction suite, and the three target benchmarks now pass the Lean check.
+The loop merged this PR on its local gate, because it changes only Python, tests, and documentation.
+The gate mirrors the steps of the <code>releaseClang</code> CI job that exercise this work.</p>
+<table>
+<tr><th>Local gate step (loop machine, Darwin arm64)</th><th>Result</th><th class="num">Time</th></tr>
+<tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">13 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">1372 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
+</table>
+<table>
+<tr><th>Check reported in the PR, at its final commit</th><th>Result</th></tr>
+<tr><td><code>test_proof_to_lean*.py</code></td><td class="pass">328 tests OK (1365.9 s)</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td class="pass">106 tests OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+<tr><td>z3test <code>scripts/proofs</code> tests</td><td class="pass">46 tests OK</td></tr>
+<tr><td>Newly verified: <code>mode_cntrl.base</code>, <code>current_frame.base</code>, <code>clocksynchro_8clocks.main_invar.base</code></td><td class="pass">pass (5.9 s, 8.2 s, 60.0 s)</td></tr>
+<tr><td>Still verified: four benchmarks that passed before</td><td class="pass">pass (0.9 s to 6.3 s)</td></tr>
+<tr><td>Still failing: <code>Carpark2-ausgabe-6</code></td><td class="fail">fail (out of scope)</td></tr>
+</table>
+<table>
+<tr><th>GitHub CI workflow / job</th><th>Result</th><th>Link</th></tr>
+<tr><td>CI / Ubuntu build - cmake - releaseClang, step "Check native Boolean proofs in Lean" (runs the new tests)</td><td class="unknown">not recorded</td><td><a href="https://github.com/levnach/z3/pull/56/checks">PR checks</a></td></tr>
+</table>
+<p class="caption">No CI status files were recorded for this PR, and there were no CI fix rounds. GitHub CI runs on <code>master</code> after the merge, and its result is not known to this report.</p>
 
-<section>
-  <h2>Review</h2>
-  <p>The reviewer approved, with no blocker and no major finding.
-    They forced a deliberately wrong ite match, and Lean rejected the output.
-    So a bad table match cannot sneak in a false claim.</p>
-  <ul>
-    <li><strong>Minor, fixed.</strong> The reviewer changed the inner ite condition to <code>=</code> or <code>xor</code>.
-      The tables still matched correctly, but a bare <code>grind</code> could not prove the ites equal.
-      The base commit failed these inputs too, so it was a gap, not a regression.
-      The split fallback fixed it, and both variants became a regression test.</li>
-    <li><strong>Nit, fixed.</strong> A comment wrongly implied that <code>abs</code> ites get no table. It now gives the real reason they still go to grind.</li>
-    <li><strong>Nit, partly fixed.</strong> The size budget now counts one header line it missed.
-      An unproved link still leaves an unused binding, which the author kept because a safe removal needs a larger change.</li>
-  </ul>
-</section>
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR with no blockers and no major findings.</p>
+<ul>
+<li><strong>Minor, fixed: ites with iff or xor conditions.</strong> The reviewer changed the test's inner condition from <code>and</code> to <code>=</code> or <code>xor</code>. The tables still matched the ites, but bare grind could not prove them equal, so Lean rejected the file. The fix added the case-split fallback, and both variants became a regression test. The base commit failed these inputs too, so it was not a regression.</li>
+<li><strong>Nit, fixed: a misleading comment.</strong> A comment implied that absolute-value ites have no table. They do. Such rewrites still go to grind for another reason, and the comment now says so.</li>
+<li><strong>Nit, partly fixed: size bookkeeping.</strong> One header line per link was missing from the proof size budget, and it is now counted. A link that fails still leaves an unused binding, which the author kept because removing it safely needs a larger change.</li>
+</ul>
+<p>The reviewer also forced a deliberately wrong ite match, and Lean rejected the output. A wrong match cannot slip through.</p>
 
-<section>
-  <h2>Risks and open questions</h2>
-  <ul>
-    <li>The faster refutation affects every prover use, but only for false disjunctions over 32 operands.</li>
-    <li>Linked proofs are larger per step. A much wider rewrite than the 16-clock test could exceed the size budget and fall back to grind.</li>
-    <li>A value table grows exponentially with its condition leaves, so it is capped.</li>
-    <li>The split fallback grows exponentially with the ites in one atom, but it only runs after grind fails.</li>
-  </ul>
-  <h2>What comes next</h2>
-  <ul>
-    <li><code>Carpark2-ausgabe-6</code> still fails. Its rewriter evaluates atoms over ites inside other ites' conditions, which the table does not see.</li>
-    <li>The main search partly repeats the top link. Reusing that link would roughly halve the proof text.</li>
-  </ul>
-</section>
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>The tail change touches every prover use, but only for false disjunctions wider than 32. The proof terms are the same, in shorter chains.</li>
+<li>Linked proofs are larger per step. The 16-clock test lemma is 540 KB, under the 1 MB budget. A much wider rewrite could still fall back to grind.</li>
+<li>Value tables grow exponentially with condition leaves, so they are capped at 8 leaves and 200 nodes. The case-split fallback is also exponential, but runs only after grind fails.</li>
+<li>Post-merge CI results on <code>master</code> are not known to this report.</li>
+</ul>
 
-<section>
-  <h2>Glossary</h2>
-  <dl>
-    <dt id="g-assertion">assertion</dt><dd>A formula given to the solver with <code>assert</code>, claimed to be true.</dd>
-    <dt id="g-atom">atom</dt><dd>A formula with no <a href="#g-boolean">Boolean</a> connective inside, such as <code>(&lt; x 3)</code> or a Boolean variable <code>b</code>.</dd>
-    <dt id="g-boolean">Boolean</dt><dd>The sort of truth values, true and false.</dd>
-    <dt id="g-case-split">case split</dt><dd>Proving a goal separately for each possibility, such as once with <code>c</code> true and once with <code>c</code> false.</dd>
-    <dt id="g-clause">clause</dt><dd>A disjunction of <a href="#g-literal">literals</a>. A unit clause has a single literal, like <code>(&lt; z0 3)</code>.</dd>
-    <dt id="g-congruence">congruence</dt><dd>The rule that equal inputs give equal outputs: if <code>a = b</code>, then <code>f a = f b</code>.</dd>
-    <dt id="g-contradiction">contradiction, proof by</dt><dd>Assume the opposite of the goal and derive <code>False</code>.</dd>
-    <dt id="g-disjunction">disjunction</dt><dd>An “or” of formulas, true when at least one of them is true. Each formula is an operand.</dd>
-    <dt id="g-double-negation">double negation</dt><dd>“Not not p”, which classically means the same as p.</dd>
-    <dt id="g-flattening">flattening</dt><dd>Rewriting <code>(or (or a b) c)</code> as <code>(or a b c)</code>. Nothing changes in meaning, only in shape.</dd>
-    <dt id="g-grind">grind</dt><dd>A general-purpose Lean tactic that combines case splits, <a href="#g-congruence">congruence</a>, and arithmetic.</dd>
-    <dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit of work. A proof that uses more than the limit is stopped with a timeout error.</dd>
-    <dt id="g-iff">iff</dt><dd>“If and only if”: both sides are true or both are false. Written <code>&lt;-&gt;</code> in Lean.</dd>
-    <dt id="g-ite">if-then-else term (ite)</dt><dd>A term <code>(ite c a b)</code> whose value is <code>a</code> when <code>c</code> holds and <code>b</code> otherwise.</dd>
-    <dt id="g-kernel">kernel</dt><dd>The small core of Lean that checks every proof step. It is the only part that must be trusted.</dd>
-    <dt id="g-lemma">lemma</dt><dd>A helper theorem proved on the way to the main theorem.</dd>
-    <dt id="g-linear-arithmetic">linear arithmetic</dt><dd>Arithmetic with sums of variables times constants, such as <code>2x + y ≤ 3</code>, and no products of variables.</dd>
-    <dt id="g-literal">literal</dt><dd>An atom or the negation of an atom.</dd>
-    <dt id="g-normalized-rewrite">normalized rewrite</dt><dd>The reconstructor's way to prove a rewrite: put each atom into one canonical linear form, then prove the remaining propositional equivalence.</dd>
-    <dt id="g-propositional">propositional</dt><dd>About how atoms are combined with and, or, not, and iff, ignoring what the atoms mean.</dd>
-    <dt id="g-qf-lra">QF_LRA</dt><dd>The SMT-LIB logic of quantifier-free linear real arithmetic.</dd>
-    <dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions implies <code>False</code>.</dd>
-    <dt id="g-rewrite">rewrite</dt><dd>A step where Z3 simplifies a formula and claims the new form is equivalent to the old one.</dd>
-    <dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
-    <dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically.</dd>
-    <dt id="g-xor">xor</dt><dd>“Exclusive or”: true when exactly one of two formulas is true.</dd>
-  </dl>
-</section>
+<h2 id="next">What comes next</h2>
+<ul>
+<li><code>Carpark2-ausgabe-6</code> still fails. Its rewriter evaluates atoms over ites inside other ites' conditions, which a table over independent leaves cannot see. It is on the backlog.</li>
+<li>Links could also be enabled for the non-theory propositional rewrites.</li>
+<li>The main search partly repeats the top link. Reusing it directly would roughly halve the proof text.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-atom">atom</dt><dd>A formula with no Boolean connectives inside it, such as <code>(&lt; x 3)</code> or a Boolean variable <code>b</code>.</dd>
+<dt id="g-boolean">Boolean</dt><dd>The sort of truth values, true and false. The Boolean skeleton of a formula is its <code>and</code>/<code>or</code>/<code>not</code> structure with the atoms left opaque.</dd>
+<dt id="g-case-split">case split</dt><dd>Proving a goal separately for each possible case, for example once with the condition true and once with it false.</dd>
+<dt id="g-clause-log">clause log</dt><dd>Z3's record of the clauses it learned while solving, one of the two kinds of proof evidence the exporter reads.</dd>
+<dt id="g-conjunction">conjunction</dt><dd>An <code>and</code> of formulas. It is true when every part is true.</dd>
+<dt id="g-disjunction">disjunction</dt><dd>An <code>or</code> of formulas, called disjuncts. It is true when at least one disjunct is true.</dd>
+<dt id="g-double-negation">double negation</dt><dd>A formula negated twice, <code>(not (not p))</code>, which in classical logic is equivalent to <code>p</code>.</dd>
+<dt id="g-flattening">flattening</dt><dd>Rewriting nested operators of the same kind into one wide operator, for example <code>(or (or a b) c)</code> into <code>(or a b c)</code>.</dd>
+<dt id="g-grind">grind</dt><dd>A Lean tactic that searches for a proof automatically, using case splits, equalities, and arithmetic.</dd>
+<dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit for counting work. A proof that exceeds the heartbeat limit fails with a timeout.</dd>
+<dt id="g-ite">if-then-else term (ite)</dt><dd>A term <code>(ite c a b)</code> whose value is <code>a</code> when condition <code>c</code> is true and <code>b</code> otherwise.</dd>
+<dt id="g-iff">iff</dt><dd>"If and only if": two formulas that are both true or both false. SMT-LIB writes it as <code>=</code> between Booleans.</dd>
+<dt id="g-kernel">kernel</dt><dd>The small core of Lean that checks every proof term. Only the kernel has to be trusted.</dd>
+<dt id="g-lemma">lemma</dt><dd>A helper theorem proved on its own and then used inside a larger proof.</dd>
+<dt id="g-linear-form">linear form</dt><dd>A sum of constant multiples of variables plus a constant, such as <code>1*y - 1*x + 0</code>.</dd>
+<dt id="g-normalization">normalization</dt><dd>Rewriting a formula or term into one standard shape, so that equal things look the same.</dd>
+<dt id="g-qflra">QF_LRA</dt><dd>The SMT-LIB logic of quantifier-free linear real arithmetic.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions implies <code>False</code>.</dd>
+<dt id="g-rewrite">rewrite step</dt><dd>A proof step saying that a formula is equivalent to the simplified formula Z3's rewriter produced from it.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof, such as <code>grind</code> or <code>split</code>.</dd>
+<dt id="g-trust">trust boundary</dt><dd>The line between what must be trusted, here the Lean kernel and the input, and what is checked.</dd>
+<dt id="g-xor">xor</dt><dd>Exclusive or: true when exactly one of its two arguments is true.</dd>
+</dl>
 
 <footer>
-  Generated by the Lean certificate improvement loop on 2026-10-31.
+Generated by the Lean certificate improvement loop on 2026-10-31.
 </footer>
-</main>
 </body>
 </html>
