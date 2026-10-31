@@ -1431,10 +1431,11 @@ class TestFragmentClassification(unittest.TestCase):
         self.assertEqual(self.classify("(declare-const r Real)(declare-const x Int)(assert (> x 1))"), "qf_lia")
         # Integer div and mod by a nonzero numeral (negative too, and written
         # as a negated numeral), of any linear term, variable-free as well,
-        # and abs are opaque atoms of the linear forms.
+        # and abs are opaque atoms of the linear forms, and so is Z3's rem.
         division = ("(declare-const x Int)(declare-const y Int)"
                     "(assert (= y (div x 3)))(assert (> (mod (+ x y) (- 2)) 0))(assert (< (div (* 2 x) -4) y))"
-                    "(assert (= (mod (abs (- x y)) 7) (div 7 2)))(assert (> (* 2 (div (ite (> x 0) x y) 3)) 1))")
+                    "(assert (= (mod (abs (- x y)) 7) (div 7 2)))(assert (> (* 2 (div (ite (> x 0) x y) 3)) 1))"
+                    "(assert (< (rem (+ x y) -3) (rem x 5)))")
         self.assertEqual(self.classify(division), "qf_lia")
         self.assertEqual(self.classify(_LIA_DIV), "qf_lia")
 
@@ -1458,6 +1459,7 @@ class TestFragmentClassification(unittest.TestCase):
             declarations + "(declare-fun h (Int) U)(declare-const p Bool)(assert (= (ite p (h 1) a) a))",
             "(declare-fun h (Bool) Int)(declare-const p Bool)(assert (distinct (h p) (h (not p)) 3))",
             "(declare-fun f (Int) Int)(declare-const x Int)(assert (> (f (div x 2)) (mod (f x) 3)))",
+            "(declare-fun f (Int) Int)(declare-const x Int)(assert (> (f (rem x 2)) (rem (f x) (- 3))))",
         ]:
             with self.subTest(source=source):
                 self.assertEqual(self.classify(source), "qf_uflia")
@@ -1478,14 +1480,16 @@ class TestFragmentClassification(unittest.TestCase):
             ("(declare-const x Int)(declare-const y Real)(assert (> (to_real x) y))", "unsupported arithmetic operator"),
             ("(declare-const x Int)(declare-const y Real)(assert (and (> x 1) (> y 1.0)))", "mixing integer and real"),
             # Integer div and mod by zero are uninterpreted in SMT-LIB and
-            # total in Lean, by a term nonlinear; rem is not SMT-LIB.
+            # total in Lean, by a term nonlinear; so is Z3's rem.
             ("(declare-const x Int)(assert (> (div x 0) 1))", "integer div is supported only by a nonzero constant"),
             ("(declare-const x Int)(assert (> (mod x (- 1 1)) 1))", "integer mod is supported only by a nonzero constant"),
             ("(declare-const x Int)(declare-const y Int)(assert (> (div x y) 1))",
              "integer div is supported only by a nonzero constant"),
             ("(declare-fun f (Int) Int)(declare-const x Int)(assert (> (mod x (f 2)) 1))",
              "integer mod is supported only by a nonzero constant"),
-            ("(declare-const x Int)(assert (> (rem x 2) 1))", "unsupported arithmetic operator: rem"),
+            ("(declare-const x Int)(assert (> (rem x 0) 1))", "integer rem is supported only by a nonzero constant"),
+            ("(declare-const x Int)(declare-const y Int)(assert (> (rem x y) 1))",
+             "integer rem is supported only by a nonzero constant"),
             # abs over Real is in the fragment, but not of a nonlinear term,
             # nor an Int abs under to_real.
             ("(declare-const x Real)(declare-const y Real)(assert (< (abs (* x y)) 1.0))", "nonlinear"),
@@ -2137,14 +2141,14 @@ class TestClauseLogReplay(unittest.TestCase):
         self.assertEqual(sorted(axioms), ["<=", "=", ">="])
         # The literals must be arithmetic atoms over linear terms: a Boolean
         # literal, a division by zero or by a term, and an empty hint are
-        # rejected; rem is not an SMT-LIB operator.
+        # rejected, rem's too.
         for tampered, message in [
             (_LIA_DIV_LOG.replace("(arith $22)", "(arith true)"), "arith hint has no literals besides true"),
             (_LIA_DIV_LOG.replace("(arith $22)", "(arith false)"), "not an arithmetic atom"),
             (_LIA_DIV_LOG.replace("(div x 3)", "(div x 0)"), "integer div is supported only by a nonzero constant"),
             (_LIA_DIV_LOG.replace("(mod x 3)", "(mod x x)"), "integer mod is supported only by a nonzero constant"),
             (_LIA_DIV_LOG.replace("(arith $22)", "(arith)"), "arith hint has no literals"),
-            (_LIA_DIV_LOG.replace("(mod x 3)", "(rem x 3)"), "unsupported operator in the clause log: rem"),
+            (_LIA_DIV_LOG.replace("(mod x 3)", "(rem x 0)"), "integer rem is supported only by a nonzero constant"),
         ]:
             with self.subTest(message=message):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):

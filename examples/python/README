@@ -122,7 +122,8 @@ even without any uninterpreted sort (qf_uflra when their arguments are Real
 atoms); both cores certify them. The qf_lia fragment is linear integer
 arithmetic on its own: Int variables and numerals, sums, differences,
 negation, multiplication by a numeral, Int-valued ite, integer div and mod
-by a nonzero numeral (negative too) and abs, and the same atoms over Int
+by a nonzero numeral (negative too), Z3's rem by a nonzero numeral, and
+abs, and the same atoms over Int
 terms; both cores certify it, and a consumer of parse_assertions or
 parse_legacy_assertions accepts it explicitly (integer=True, as the
 exporter and the reconstructor do), because its cut steps are certified by
@@ -133,9 +134,9 @@ integer arithmetic, where functions and predicates may take and return Int
 a function whose signature mentions Int makes the input qf_uflia even
 without any Int atom, and a Bool-only predicate over Int atoms belongs here
 too; it shares qf_lia's opt-in on both cores. Integer
-div and mod by zero or by a term (SMT-LIB leaves division by zero
+div, mod, and rem by zero or by a term (SMT-LIB leaves division by zero
 uninterpreted, where Lean's Int division is total; a term divisor is
-nonlinear), rem, to_real, to_int, and Int mixed with Real (QF_LIRA, also
+nonlinear), to_real, to_int, and Int mixed with Real (QF_LIRA, also
 through a function signature such as (Int) Real) are rejected explicitly.
 The exception is an integer numeral where a Real is expected: without a
 set-logic, or under ALL, Z3 reads (* 2 x) over a Real x as
@@ -186,10 +187,10 @@ parameters name a theory hint ("farkas", "bound", "implied-eq", "euf",
 "tseitin", "smt", or the exporter's own "cnf") followed, for the first three,
 by one nonnegative rational coefficient per literal of the lemma clause.
 The qf_lia fragment uses the Int sort the same way, with integer numerals,
-no Real division, and the declarations div, mod (both over (Int Int)) and
+no Real division, and the declarations div, mod, rem (over (Int Int)) and
 abs (over (Int)) in its place; its th-lemma hints
 additionally include "cut" (the integer solver's Gomory cuts and gcd
-conflicts) and "arith" (the solver's own div and mod axioms), which carry
+conflicts) and "arith" (the solver's own div, mod, and rem axioms), which carry
 no coefficients, and a farkas or bound whose
 coefficients did not re-derive the lemma over the tightened and rounded
 integer bounds is recorded without coefficients too (see below); a
@@ -399,7 +400,12 @@ opaque atoms of the linear forms, like ite terms: the arithmetic solver adds
 their defining clauses itself, k (div t k) + (mod t k) = t, (mod t k) >= 0,
 and (mod t k) <= |k| - 1, under the hint arith, whose arguments are the
 negated clause literals (an input mentioning div alone still gets the mod
-atom and all three clauses). An arith hint is shape-checked like a cut
+atom and all three clauses). Z3's rem is (ite (>= k 0) (mod t k) (- (mod t
+k))); its rewriter turns (rem t k) by a numeral into (mod t k), or its
+negation for a negative k, unless t is a sum or a product, and the solver
+relates the rem atoms it keeps to mod by two more arith clauses,
+(or (not (>= k 0)) (= (rem t k) (mod t k))) and
+(or (>= k 0) (= (rem t k) (- (mod t k)))). An arith hint is shape-checked like a cut
 (every literal an arithmetic atom over linear terms, under any negations)
 and proved by Lean alone. Real division axioms use arith too, for example
 2 * (1 / 2) = 1, sometimes with a true literal standing for an elided
@@ -680,7 +686,8 @@ exactly the integers. Integer div and mod by a numeral are Lean's Int / and
 %, which follow the same Euclidean convention as SMT-LIB (the remainder is
 nonnegative and below the divisor's absolute value, for negative divisors
 too), and abs is the ite SMT-LIB defines it as, (if t >= 0 then t else -t)
-with the classical instance. The agreement holds for nonzero divisors only
+with the classical instance. Z3's rem by a numeral k is its definition at k:
+t % k for a positive k, -(t % k) for a negative one. The agreement holds for nonzero divisors only
 (Lean's x / 0 is 0 where SMT-LIB's is any value), so the reconstructor
 rejects every div or mod node whose divisor is not a nonzero constant
 among the nodes the theorem states, the assertions and their subterms (a

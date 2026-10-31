@@ -57,14 +57,19 @@ _REAL_ARITY = {z3.Z3_OP_UNINTERPRETED: 0, z3.Z3_OP_ANUM: 0, z3.Z3_OP_UMINUS: 1, 
 # The integer operators, Int certificates only: div and mod by a nonzero
 # numeral are Lean's Euclidean Int division and remainder (/ and %, which
 # agree with SMT-LIB's away from zero; a zero divisor is rejected, see
-# _integer_divisor), abs is the ite SMT-LIB defines it as. All three are
+# _integer_divisor), abs is the ite SMT-LIB defines it as. rem, a Z3
+# extension, is Z3's definition (ite (>= k 0) (mod t k) (- (mod t k)))
+# evaluated at its numeral divisor k: t % k for a positive k, -(t % k) for a
+# negative one. All four are
 # opaque atoms of the linear forms; omega reads / and % by a positive
 # numeral and grind proves the axioms of a negative divisor. abs is also a
 # Real operator (_NUMERIC_KINDS): SMT-LIB defines it on Int only, but Z3
 # accepts it over Real with the same definition, (ite (>= t 0) t (- t)), and
 # its rewriter replaces it by that ite before solving.
-_INT_NAMES = {z3.Z3_OP_IDIV: "div", z3.Z3_OP_MOD: "mod", z3.Z3_OP_ABS: "abs"}
-_INT_ARITY = {z3.Z3_OP_IDIV: 2, z3.Z3_OP_MOD: 2, z3.Z3_OP_ABS: 1}
+_INT_NAMES = {z3.Z3_OP_IDIV: "div", z3.Z3_OP_MOD: "mod", z3.Z3_OP_REM: "rem", z3.Z3_OP_ABS: "abs"}
+_INT_ARITY = {z3.Z3_OP_IDIV: 2, z3.Z3_OP_MOD: 2, z3.Z3_OP_REM: 2, z3.Z3_OP_ABS: 1}
+# The integer operators taking a divisor, a nonzero numeral (_integer_divisor).
+_DIVISION_KINDS = (z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_REM)
 _NUMERIC_KINDS = {z3.Z3_OP_ABS}
 # An ite is the one arithmetic or uninterpreted-sort term with a Boolean
 # argument; Lean's ite needs a decidability instance, which the classical one
@@ -78,7 +83,7 @@ _REAL_DOMAIN_PREDICATES = _ARITH_PREDICATE_NAMES.keys() | {z3.Z3_OP_EQ, z3.Z3_OP
 _COEFFICIENT_HINTS = ("farkas", "bound", "implied-eq", "cut")
 # triangle-eq: the legacy core's axioms tying a Real equality to its two
 # inequalities, proved by grind like every other theory tautology. arith: the
-# sat.smt arithmetic solver's own axioms (the div and mod definitions), a
+# sat.smt arithmetic solver's own axioms (the div, mod, and rem definitions), a
 # clause of linear arithmetic atoms without coefficients, proved by Lean.
 _HINTS = _COEFFICIENT_HINTS + ("euf", "tseitin", "smt", "cnf", "triangle-eq", "arith")
 _FRAGMENTS = ("propositional", "qf_lra", "qf_lia", "qf_uf", "qf_uflra", "qf_uflia")
@@ -578,7 +583,7 @@ def _validate_graph(source, certificate):
                                   "and they contain no other")
     if any(graph.decl(arg).range != "Bool" for arg in assertions):
         raise ReconstructionError("assertion roots must be Boolean expressions")
-    # The theorem states the assertions, so every div and mod they contain
+    # The theorem states the assertions, so every div, mod, and rem they contain
     # must mean the same in Lean and in SMT-LIB (see _integer_divisor). A
     # proof step may mention other such terms: Z3's rewriter cancels a common
     # factor of (div (* 2 x) (- 2)) through (ite (= 0 (- 2)) (div (* 2 x) 0)
@@ -589,7 +594,7 @@ def _validate_graph(source, certificate):
     for assertion in assertions:
         stated |= _reachable(graph, assertion)[0]
     for index in sorted(stated):
-        if graph.kind(index) in (z3.Z3_OP_IDIV, z3.Z3_OP_MOD):
+        if graph.kind(index) in _DIVISION_KINDS:
             _integer_divisor(graph, index)
     if graph.decl(root).range != "Proof" or graph.kind(graph.conclusion(root)) != z3.Z3_OP_FALSE:
         raise ReconstructionError("the root must be a proof concluding false")
@@ -808,6 +813,10 @@ def _term_body(graph, node, variable_indices, term=None, formula=None):
             graph.number_type, args[0], graph.number_type, args[0], args[0])
     if kind in (z3.Z3_OP_IDIV, z3.Z3_OP_MOD):
         return "(%s %s %s)" % (args[0], "/" if kind == z3.Z3_OP_IDIV else "%", args[1])
+    if kind == z3.Z3_OP_REM:
+        # Z3's (ite (>= k 0) (mod t k) (- (mod t k))) at the numeral divisor k.
+        remainder = "(%s %% %s)" % (args[0], args[1])
+        return remainder if _integer_divisor(graph, node) > 0 else "(-%s)" % remainder
     return _infix(_REAL_NAMES[kind], args)
 
 
@@ -1875,7 +1884,7 @@ def _linear_structure(graph, node):
     return structure
 
 
-_LINEAR_ATOM_KINDS = (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE, z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_ABS)
+_LINEAR_ATOM_KINDS = (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE, z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_REM, z3.Z3_OP_ABS)
 
 
 def _farkas_multipliers(forms, coefficients, equalities):
@@ -1955,7 +1964,7 @@ def _opaque_rewrite_tactic(graph):
     return "omega" if graph.numeric == "Int" else "grind (splits := 64)"
 
 
-_OPAQUE_INT_KINDS = (z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_ABS, z3.Z3_OP_ITE, z3.Z3_OP_UNINTERPRETED)
+_OPAQUE_INT_KINDS = (z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_REM, z3.Z3_OP_ABS, z3.Z3_OP_ITE, z3.Z3_OP_UNINTERPRETED)
 
 
 def _is_opaque_int_atom(graph, node):
@@ -4025,18 +4034,18 @@ def _def_axiom_lemma(graph, terms, node):
 def _linear_term(graph, node, scale, terms):
     """Accumulate the linear form of a Real or Int node into terms; return its constant part.
 
-    Variables, ite terms, integer div and mod, and abs are the atoms of the
-    linear form; each is opaque to Farkas reasoning, an ite tied to its
-    branches by gate clauses and a div or mod to its operands by the
-    solver's arith axioms.
+    Variables, ite terms, integer div, mod, and rem, and abs are the atoms
+    of the linear form; each is opaque to Farkas reasoning, an ite tied to
+    its branches by gate clauses and a div, mod, or rem to its operands by
+    the solver's arith axioms.
     """
     kind = graph.kind(node)
     arguments = graph.arguments(node)
     if kind == z3.Z3_OP_ANUM:
         return scale * Fraction(graph.decl(node).name)
-    if kind in (z3.Z3_OP_IDIV, z3.Z3_OP_MOD):
+    if kind in _DIVISION_KINDS:
         _integer_divisor(graph, node)
-    if kind in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE, z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_ABS):
+    if kind in _LINEAR_ATOM_KINDS:
         terms[node] = terms.get(node, Fraction(0)) + scale
         return Fraction(0)
     if kind == z3.Z3_OP_ADD:
@@ -4069,7 +4078,7 @@ def _linear_term(graph, node, scale, terms):
 
 
 def _integer_divisor(graph, node):
-    """Return the nonzero constant divisor of an Int div or mod node, rejecting any other.
+    """Return the nonzero constant divisor of an Int div, mod, or rem node, rejecting any other.
 
     Lean's Int / and % are total (x / 0 = 0) where SMT-LIB leaves div and mod
     by zero uninterpreted, so a zero divisor would prove the input
@@ -4496,6 +4505,8 @@ def reconstruct(source, certificate):
         lines.append("-- Int variables are encoded as Int; the integer lemmas are proved by omega, else grind.")
         if any(decl.kind in _INT_NAMES for decl in graph.declarations):
             lines.append("-- Int div and mod by a numeral are Lean's Euclidean / and %; abs is the ite SMT-LIB defines.")
+        if any(decl.kind == z3.Z3_OP_REM for decl in graph.declarations):
+            lines.append("-- Int rem by a numeral k is Z3's (ite (>= k 0) (mod t k) (- (mod t k))): t % k, or -(t % k) for k < 0.")
     elif graph.arithmetic:
         lines.append("-- Real variables are encoded as Rat; see the exporter documentation.")
         if any(decl.kind in _NUMERIC_KINDS for decl in graph.declarations):
