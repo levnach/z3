@@ -1,0 +1,22 @@
+{
+  "pull_request": 60,
+  "head_sha": "ee3564ff3ff980b747f39cea55bdae00c1fe474d",
+  "base_sha": "167e71a60239ffc0d7638608bffde020560806cb",
+  "path_prefix": "fstar/audits/pr-60/ee3564ff3ff980b747f39cea55bdae00c1fe474d/",
+  "verdict": "proved",
+  "run_url": "https://github.com/levnach/z3/actions/runs/41243383310",
+  "files": [
+    {
+      "name": "RemExpansionAudit.fst",
+      "sha256": "8a142d9e09b14ddf5d5ca58bfa07644ae10d143ad1009660e2845e0dc89d2485"
+    },
+    {
+      "name": "REPORT.md",
+      "sha256": "8e2201ba7ff8480d2d0ad2a94f92ea3ccd4a60d062230a5624a237c8bd687f1c"
+    },
+    {
+      "name": "verification.log",
+      "sha256": "2b1f939b57ac7a343dafabda5d792fa518f025a8f1eaca434fdbf869f8de1496"
+    }
+  ]
+}
