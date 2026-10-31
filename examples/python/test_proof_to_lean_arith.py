@@ -248,6 +248,39 @@ REAL_DIVISION_AXIOM = """\
 (check-sat)
 """
 
+# Real input with integer numerals and no Real-only logic: Z3 reads each
+# numeral where a Real is expected as an Int term under to_real (around the
+# whole (- 5 1) and (+ 1 3)), which the exporter rejected as an unsupported
+# operator before; it now reads them as QF_LRA does.
+COERCED_NUMERAL_INPUTS = {
+    "numerals_without_logic": """\
+(declare-const x Real)
+(declare-const y Real)
+(assert (<= (* 2 x) 1))
+(assert (> (+ x y) (/ 1 3)))
+(assert (< y (- 2)))
+(check-sat)
+""",
+    "real_ite_under_all": """\
+(set-logic ALL)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const p Bool)
+(assert (= y (ite (> x 1) (- 5 1) (ite p x 2))))
+(assert (distinct y 2 (+ 1 3)))
+(assert (< 3 (* 3 x) (/ 9 2)))
+(check-sat)
+""",
+    "function_of_numerals_without_logic": """\
+(declare-fun f (Real) Real)
+(declare-const x Real)
+(assert (= x 1))
+(assert (= (f 1) 3))
+(assert (< (f x) (- x 2)))
+(check-sat)
+""",
+}
+
 
 def random_instance(seed, variables, constraints, ite=False):
     """A random QF_LRA problem; callers filter for unsat ones."""
@@ -342,6 +375,24 @@ class TestArithmeticValidation(unittest.TestCase):
             with self.subTest(parameters=parameters):
                 with self.assertRaisesRegex(proof_to_lean.ReconstructionError, message):
                     proof_to_lean.reconstruct(self.source, certificate)
+
+    def test_coerced_numerals_are_bound_to_the_input_by_value(self):
+        # The certificate of a script without a logic states the Real terms
+        # QF_LRA reads: the certificate of the same assertions under QF_LRA
+        # binds to it, and a numeral changed in the certificate does not.
+        source = COERCED_NUMERAL_INPUTS["numerals_without_logic"]
+        certificate = proof_certificate.export_clause_log_certificate("(set-logic QF_LRA)\n" + source)
+        certificate["source_smt2"] = source
+        self.assertNotIn("to_real", json.dumps(certificate))
+        proof_to_lean.reconstruct(source, certificate)
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        numerals = {d["name"] for d in certificate["declarations"] if d["kind"] == z3.Z3_OP_ANUM}
+        self.assertTrue({"1", "2", "3"} <= numerals, numerals)
+        for declaration in certificate["declarations"]:
+            if declaration["kind"] == z3.Z3_OP_ANUM and declaration["name"] == "2":
+                declaration["name"] = "5"
+        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "do not match the original input"):
+            proof_to_lean.reconstruct(source, certificate)
 
     def test_fragment_and_sort_consistency(self):
         certificate = copy.deepcopy(self.certificate)
@@ -595,6 +646,14 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         self.assertEqual(certificate["fragment"], "qf_lra")
         self.assertIn(["arith"], [d["parameters"] for d in certificate["declarations"] if d["name"] == "th-lemma"])
         self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_integer_numerals_in_real_terms_verify(self):
+        for name, source in COERCED_NUMERAL_INPUTS.items():
+            with self.subTest(name=name):
+                certificate, report = self.check(source)
+                self.assertEqual(certificate["fragment"], "qf_uflra" if "function" in name else "qf_lra")
+                self.assertIn(_STANDARD_AXIOMS, report)
+                self.assertIn("th-lemma", certificate["rule_counts"])
 
     def test_boolean_inputs_through_the_clause_log(self):
         from test_proof_to_lean import Z3TEST_LEAN_INPUTS
@@ -1135,6 +1194,13 @@ class TestLegacyArithmeticLeanIntegration(unittest.TestCase):
         certificate, report = self.check(REAL_DIVISION_AXIOM, core="legacy")
         self.assertEqual(certificate["fragment"], "qf_lra")
         self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_integer_numerals_in_real_terms_verify_through_the_legacy_core(self):
+        for name, source in COERCED_NUMERAL_INPUTS.items():
+            with self.subTest(name=name):
+                certificate, report = self.check(source, core="legacy")
+                self.assertIn(certificate["fragment"], ("qf_lra", "qf_uflra"))
+                self.assertIn(_STANDARD_AXIOMS, report)
 
     def test_bound_propagations_and_theory_arith_inputs_verify(self):
         for name, source in {**LEGACY_BOUND_INPUTS, **LEGACY_THEORY_ARITH_INPUTS}.items():
