@@ -270,8 +270,10 @@ step:
     accepted as an assumption. In Lean a cnf lemma is first proved by gate
     propagation over the Boolean structure of the clause with the theory
     atoms opaque (two atoms denoting one constraint, or complementary ones,
-    are bridged by an equivalence the theory tactic proves); a clause that
-    needs a theory fact falls back to the unfolded grind proof.
+    are bridged by an equivalence the theory tactic proves; a distinct over
+    terms is the conjunction of its pairs' negated equalities when Z3 logged
+    each pair as an equality node); a clause that needs a theory fact falls
+    back to the unfolded grind proof.
   - farkas, bound, implied-eq, and euf hints list literals that are jointly
     contradictory; the exporter emits one th-lemma concluding the clause of
     their complements, after checking farkas and bound coefficients with exact
