@@ -534,6 +534,11 @@ class TestIntegerValidation(unittest.TestCase):
                     if combination is not None:
                         # A lemma of many bounds tries its combination first (_farkas_combination).
                         self.assertIn("  first\n    | (have _sum : ", block)
+                    split = proof_to_lean._split_combination(graph, node)
+                    if split is not None:
+                        # A lattice lemma tries its split first (_split_combination).
+                        self.assertIn("  first\n    | (have _sum0 : ", block)
+                        combination = split
                     if not (tactic and atoms):
                         self.assertNotIn("generalize", block)
                         self.assertEqual("first\n" in block, combination is not None)
@@ -1096,6 +1101,63 @@ class TestIntegerValidation(unittest.TestCase):
         text = proof_to_lean.reconstruct(source, proof_certificate.export_clause_log_certificate(source))
         self.assertEqual(text.count("have _sum : "), 2)
 
+    def test_split_certificates_refute_bounds_without_an_integer_point(self):
+        # Facts 0 <= form, form = (terms, constant); an equality holds both ways.
+        certificate = proof_to_lean._split_certificate
+        x, y = 1, 2
+        # 2x >= 1 and 2x <= 1 hold at x = 1/2: no combination refutes them,
+        # the split on x does, each side a combination with the split's fact.
+        split, bound, below, above = certificate([({x: 2}, -1), ({x: -2}, 1)], [False, False], 1)
+        self.assertEqual(set(split), {x})
+        self.assertTrue(all(multiplier >= 0 for multiplier in below + above))
+        # 2x = 2y + 1 (lia_gcd) as one equality, whose multipliers take any sign.
+        self.assertIsNotNone(certificate([({x: 2, y: -2}, -1)], [True]))
+        # Bounds with an integer point (x = 0 or 1), and the empty clause
+        # (no bound at all), have none.
+        self.assertIsNone(certificate([({x: 1}, 0), ({x: -1}, 1)], [False, False]))
+        self.assertIsNone(certificate([], []))
+        # A split with no atom is no split: 2x = 1 needs one.
+        self.assertIsNone(certificate([({x: 2}, -1), ({x: -2}, 1)], [False, False], 0))
+        # Nor is there one when z3 runs out of its budget.
+        with patch.object(proof_to_lean, "_SPLIT_RLIMIT", 1):
+            self.assertIsNone(certificate([({x: 2}, -1), ({x: -2}, 1)], [False, False]))
+        with patch.object(proof_to_lean, "_SPLIT_BOUNDED_RLIMIT", 1):
+            self.assertIsNone(certificate([({x: 2}, -1), ({x: -2}, 1)], [False, False], 1))
+        # Only an equality's fact may be summed with a negative multiplier.
+        bound = ("x", "y", False, "_h", False, ({x: -1, y: 1}, 1), set())
+        self.assertIsNone(proof_to_lean._combination_sum([bound], [Fraction(-1)]))
+        self.assertIsNotNone(proof_to_lean._combination_sum([bound[:4] + (True,) + bound[5:]], [Fraction(-1)]))
+
+    def test_lattice_lemmas_over_twenty_variables_get_a_split(self):
+        # QF_LIA cut_lemma_02_002 (z3test smtlib-sample, 2.6 KB): 188 cut,
+        # coefficient-free bound, and farkas lemmas over twenty variables,
+        # which omega and grind redo the search for (over a minute or six
+        # gigabytes each), and Farkas lemmas of 20 and 21 dense bounds with
+        # coefficients below _FARKAS_COMBINATION_COEFFICIENT, as costly
+        # through omega. Each lattice lemma gets a split (_split_combination),
+        # each wide Farkas lemma its combination, and the file is elaborated
+        # serially.
+        source = (_EXAMPLES / "data" / "QF_LIA_cut_lemma_02_002.smt2").read_text()
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        lattice = [node for node in _th_lemma_nodes(certificate) if proof_to_lean._lattice_step(graph, node)]
+        wide = [node for node in _th_lemma_nodes(certificate) if proof_to_lean._combination_certified(graph, node)
+                and len(_parameters(certificate, node)) > proof_to_lean._FARKAS_COMBINATION_BOUNDS]
+        self.assertGreater(len(lattice), 100)
+        self.assertGreater(len(wide), 50)
+        text = proof_to_lean.reconstruct(source, certificate)
+        self.assertEqual(text.count("(Int.lt_or_le "), len(lattice))
+        self.assertEqual(text.count("have _sum : "), len(wide))
+        self.assertTrue(any(max(abs(Fraction(value)) for value in _parameters(certificate, node)[1:])
+                            < proof_to_lean._FARKAS_COMBINATION_COEFFICIENT for node in wide))
+        self.assertIn("set_option Elab.async false", text)
+        # The split states each side as a fact over the atoms: 0 <= s - (k + 1) and 0 <= k - s.
+        lemma = text.split("private theorem th_lemma_%d " % lattice[0], 1)[1].split("\n\n", 1)[0]
+        self.assertIn("  first\n    | (have _sum0 : ", lemma)
+        self.assertIn("\n       have _sum1 : ", lemma)
+        self.assertIn("(Int.sub_nonneg_of_le (Int.lt_iff_add_one_le.mp _s))", lemma)
+        self.assertIn("(Int.sub_nonneg_of_le _s)", lemma)
+
 
 @contextlib.contextmanager
 def _combination_only(test):
@@ -1122,6 +1184,30 @@ def _combination_only(test):
             patch.object(proof_to_lean, "_FARKAS_COMBINATION_BOUNDS", 0), \
             patch.object(proof_to_lean, "_FARKAS_COMBINATION_COEFFICIENT", 0):
         yield proved
+
+
+@contextlib.contextmanager
+def _split_only():
+    """Prove every Int lattice th-lemma that has a split (_split_combination) by it alone.
+
+    The generalized and unfolded alternatives are dropped, so a split that
+    does not elaborate fails the check instead of falling through to them.
+    Yields the lists of the lattice th-lemma nodes so proved and of all of them.
+    """
+    original = proof_to_lean._grind_lemma
+    proved, lattice = [], []
+
+    def grind_lemma(graph, node, prefix, *arguments, structural=None, **options):
+        lines, term = original(graph, node, prefix, *arguments, structural=structural, **options)
+        if prefix == "th_lemma" and proof_to_lean._lattice_step(graph, node):
+            lattice.append(node)
+            if structural is not None:
+                lines = lines[:lines.index("  first")] + ["  " + line for line in structural]
+                proved.append(node)
+        return lines, term
+
+    with patch.object(proof_to_lean, "_grind_lemma", grind_lemma):
+        yield proved, lattice
 
 
 class TestIntegerLeanIntegration(unittest.TestCase):
@@ -1344,6 +1430,47 @@ class TestIntegerLeanIntegration(unittest.TestCase):
                 proved_by_core[core] += len(proved)
         self.assertGreater(proved_by_core["clause-log"], 10)
         self.assertGreater(proved_by_core["legacy"], 10)
+
+    def test_lattice_lemmas_are_proved_by_their_split_alone(self):
+        # Every cut, and coefficient-free farkas or bound, of the inputs below
+        # (gcd conflicts, cuts over mod atoms, the legacy core's unexplained
+        # LP conflicts with their premises) has a split, and Lean checks it
+        # with no fallback behind it.
+        inputs = [(name, LIA_INPUTS[name], "clause-log") for name in (
+            "lia_gcd", "lia_equality_elimination", "lia_mod_sum", "lia_lattice_conflict", "lia_lattice_bounds")]
+        inputs += [(name, LIA_INPUTS[name], "legacy") for name in LEGACY_UNSUPPORTED_INPUTS]
+        inputs += [("random%d" % seed, random_instance(seed), "clause-log") for seed in PINNED_SEEDS]
+        inputs += [("division%d" % seed, random_division_instance(seed), "clause-log") for seed in (19, 23)]
+        for name, source, core in inputs:
+            with self.subTest(name=name, core=core), _split_only() as (proved, lattice):
+                self.check(source, core)
+                self.assertTrue(lattice)
+                self.assertEqual(proved, lattice)
+
+    def test_cut_lemmas_over_twenty_variables_verify(self):
+        # QF_LIA cut_lemma_02_002 (see
+        # test_lattice_lemmas_over_twenty_variables_get_a_split) failed with
+        # Lean at 13 GB in under a minute; with its 188 lattice lemmas proved
+        # by their splits alone, its wide Farkas lemmas by their
+        # combinations, and serial elaboration, it peaks at 6.7 GB in under
+        # three minutes. Lean runs once here (self.check would run it twice).
+        source = (_EXAMPLES / "data" / "QF_LIA_cut_lemma_02_002.smt2").read_text()
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        self.assertEqual(certificate["fragment"], "qf_lia")
+        with _split_only() as (proved, lattice):
+            text = proof_to_lean.reconstruct(source, certificate)
+        self.assertGreater(len(lattice), 100)
+        self.assertEqual(proved, lattice)
+        self.assertIn("\nset_option Elab.async false\n", text)
+        statement = text.split("theorem unsat", 1)[1].split(": False :=", 1)[0]
+        self.assertEqual(statement.count("    (_h"), len(certificate["assertions"]))
+        namespace = "Z3Proofs.NativeCertificate.p" + hashlib.sha256(source.encode()).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "checked.lean"
+            output.write_text(text + "\n#print axioms %s.unsat\n" % namespace)
+            result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(output)], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout[-5000:] + result.stderr[-5000:])
+        self.assertIn(".unsat' depends on axioms: " + _STANDARD_AXIOMS, " ".join(result.stdout.split()))
 
     def test_arith_lemmas_over_real_atoms_verify(self):
         # The arith hint is accepted in Real certificates too, where grind
