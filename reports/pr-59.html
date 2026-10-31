@@ -6,115 +6,117 @@
 <title>PR #59: Certify Int rem by a nonzero numeral on both proof cores</title>
 <style>
   :root {
+    color-scheme: light dark;
     --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --head-bg: #f6f8fa;
+    --card: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --head-bg: #151b23;
+      --card: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922;
     }
   }
-  html { background: var(--bg); color: var(--fg); }
-  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
-         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.2rem 3rem; background: var(--bg); color: var(--fg); }
-  a { color: var(--accent); }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
   h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-  .meta { color: var(--muted); font-size: 0.95rem; }
-  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; font-size: 0.85rem;
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .badge { display: inline-block; padding: .05rem .55rem; border-radius: 1rem; font-size: .85rem;
            font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
-         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
-        overflow-x: auto; line-height: 1.4; }
-  pre code { background: none; padding: 0; font-size: 0.82rem; }
-  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
-  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
-  th { background: var(--head-bg); }
+  code { font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         background: var(--card); padding: .05rem .3rem; border-radius: 4px; }
+  pre { background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+        padding: .8rem 1rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: .82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .pass { color: var(--ok); font-weight: 600; }
-  .pending { color: var(--warn); font-weight: 600; }
-  .explain { margin-top: -0.3rem; color: var(--muted); }
-  dt { font-weight: 600; margin-top: 0.7rem; }
-  dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .explain { color: var(--muted); margin-top: -.4rem; }
+  dl dt { font-weight: 600; margin-top: .8rem; }
+  dl dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 1rem; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
-<h1>Certify Int rem by a nonzero numeral on both proof cores</h1>
-<p class="meta">
-  Pull request <a href="https://github.com/levnach/z3/pull/59">levnach/z3#59</a> ·
-  State: <span class="badge">OPEN</span> · Opened 2026-10-31T20:06:39Z · Loop iteration 59
-</p>
-<p class="meta">
-  This pull request is open and <strong>not merged</strong>.
-  The change it proposes ends at commit
-  <a href="https://github.com/levnach/z3/commit/43e54d24dc58551c7b14601c067c4b0f1c566612"><code>43e54d24d</code></a>.
-</p>
+  <h1>Certify Int rem by a nonzero numeral on both proof cores</h1>
+  <p class="meta">
+    <a href="https://github.com/levnach/z3/pull/59">Pull request #59</a> on levnach/z3 ·
+    <span class="badge">MERGED</span> · 2026-10-31T20:30:24Z · loop iteration 59
+  </p>
+  <p class="meta">
+    Merge commit <a href="https://github.com/levnach/z3/commit/167e71a60239ffc0d7638608bffde020560806cb"><code>167e71a60</code></a>,
+    merged 2026-10-31T20:30:24Z.
+    Base <code>660c853bb</code>.
+  </p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
 <p>
-Z3 has an extra integer operator, <a href="#g-rem"><code>rem</code></a>, that is not part of standard SMT-LIB. Z3 defines it with an <a href="#g-ite">if-then-else term</a> over <code>mod</code>.
-Until now, any input that used it was rejected on both proof cores.
-This PR accepts <code>rem</code> when its <a href="#g-divisor">divisor</a> is a nonzero <a href="#g-numeral">numeral</a>.
-The exporter treats each <code>rem</code> term as an opaque <a href="#g-atom">atom</a> of a <a href="#g-linear">linear arithmetic</a> constraint, the same way it already treats <code>div</code> and <code>mod</code>.
-The solver adds two <a href="#g-axiom">axioms</a> per <code>rem</code> term, each a two-<a href="#g-literal">literal</a> <a href="#g-clause">clause</a>.
-They link <code>rem</code> to <a href="#g-mod"><code>mod</code></a>, and Lean now proves both of them.
-In the Lean <a href="#g-theorem">theorem</a>, <code>rem</code> appears at its numeral divisor <code>k</code>: as <code>t % k</code> when <code>k</code> is positive, and as <code>-(t % k)</code> when it is negative.
-The result is that a new family of <a href="#g-qflia">QF_LIA</a> and <a href="#g-qflia">QF_UFLIA</a> <a href="#g-refutation">refutations</a> can be checked by the Lean <a href="#g-kernel">kernel</a>.
-No new trusted axioms were added.
+Z3 has an extra integer operator, <a href="#g-rem"><code>rem</code></a>, that is not part of standard SMT-LIB.
+Before this PR, the certificate exporter rejected every input that used it.
+Now <code>rem</code> by a nonzero <a href="#g-numeral">numeral</a> is accepted on both <a href="#g-proof-core">proof cores</a>.
+The exporter treats each <code>rem</code> term as an <a href="#g-atom">opaque atom</a> of <a href="#g-linear-arithmetic">linear arithmetic</a>, just like <a href="#g-div-mod"><code>div</code> and <code>mod</code></a>.
+The solver's two <a href="#g-axiom">axioms</a> that link <code>rem</code> to <code>mod</code> go through the existing <code>arith</code> check.
+The Lean theorem states <code>rem</code> as <code>t % k</code> when <code>k</code> is positive and as <code>-(t % k)</code> when <code>k</code> is negative.
+The Lean <a href="#g-kernel">kernel</a> then proves every <a href="#g-theory-lemma">theory lemma</a>, so no new trust is added.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-Before this PR, the pipeline already certified integer <code>div</code> and <code>mod</code> by a nonzero numeral, and <code>abs</code>.
-It rejected <code>rem</code> with the message "unsupported arithmetic operator: rem".
-An earlier probe of hand-written inputs, in iteration 58, listed <code>rem</code> among the remaining rejections.
-Z3's <a href="#g-rewriter">rewriter</a> usually turns <code>(rem t k)</code> into <code>mod</code> or its negation, so the proof never sees <code>rem</code>.
-When <code>t</code> is a sum or a product, though, the rewriter keeps the <code>rem</code> atom, and the solver needs <a href="#g-arith-hint">arith hints</a> for it.
-This work serves milestone 3 of the project plan, "Equality and linear arithmetic", which asks for each fragment to be complete end to end.
+The previous iteration probed hand-written inputs and listed <code>rem</code> among the constructs still rejected.
+The pipeline already certified <a href="#g-div-mod"><code>div</code>, <code>mod</code></a>, and <code>abs</code> in <a href="#g-qf-lia">QF_LIA</a> and <a href="#g-qf-lia">QF_UFLIA</a> <a href="#g-refutation">refutations</a>.
+Any <code>rem</code> stopped the exporter with "unsupported arithmetic operator: rem".
+Other gaps from that probe remain, such as <code>to_int</code> and <code>to_real</code> over Int terms, <code>^</code>, and enumeration datatypes.
+This PR serves Milestone 3 of the plan, "Equality and linear arithmetic", which asks that each fragment be complete end to end.
 </p>
 
 <h2 id="changes">What changed</h2>
 <ul>
   <li>The exporter now accepts <code>rem</code> by a nonzero numeral and still rejects a zero divisor or a divisor that is a term.</li>
-  <li>The clause-log replay can rebuild a <code>rem</code> term, and it checks the shape of the two <code>rem</code> axioms like any other arith hint.</li>
-  <li>The Lean reconstructor declares <code>rem</code> only in certificates over the Int <a href="#g-sort">sort</a> and writes it as <code>t % k</code> or <code>-(t % k)</code>, depending on the sign of <code>k</code>.</li>
-  <li>A <code>rem</code> by zero or by a term is rejected wherever it appears, because its Lean form depends on the divisor's sign.</li>
-  <li>New tests cover both signs, five kinds of tampered certificate, and three pinned random instances that need <a href="#g-cut">cuts</a> and an <a href="#g-implied-eq">implied equality</a>.</li>
-  <li>The README and the project plan describe the new operator, its axioms, and its Lean encoding.</li>
+  <li>The clause-log replay now rebuilds <code>rem</code> terms and checks the two <code>rem</code> axioms with the same shape check it uses for <code>div</code> and <code>mod</code>.</li>
+  <li>The Lean reconstructor can now state a <code>rem</code> term, choosing <code>t % k</code> or <code>-(t % k)</code> from the sign of the numeral <code>k</code>.</li>
+  <li>The reconstructor now checks every stated <code>div</code>, <code>mod</code>, or <code>rem</code> node for a nonzero numeral divisor through one shared list, <code>_DIVISION_KINDS</code>.</li>
+  <li>New tests feed <code>rem</code> problems through both cores into Lean, and try tampered certificates that must be rejected.</li>
 </ul>
 <p>
-The change is Python only. No C++ changed, so the Z3 build is the same as before.
-The PR has two commits: the feature itself, and a README wording fix from review.
+Think of <code>rem</code> as <code>mod</code> wearing a sign badge.
+For a positive divisor the badge says "+", so <code>rem</code> equals <code>mod</code>.
+For a negative divisor it says "−", so <code>rem</code> is the negated <code>mod</code>.
+The reconstructor reads the badge from the numeral and writes the matching Lean term.
 </p>
 <table>
-  <thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/proof_certificate.py</code></td><td>exporter: accepts <code>rem</code></td><td class="num">12</td><td class="num">10</td></tr>
-    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>clause-log replay</td><td class="num">12</td><td class="num">8</td></tr>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">26</td><td class="num">15</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Lean tests</td><td class="num">144</td><td class="num">4</td></tr>
-    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>exporter tests</td><td class="num">10</td><td class="num">6</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>documentation</td><td class="num">22</td><td class="num">13</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>project plan</td><td class="num">25</td><td class="num">0</td></tr>
-    <tr><th>Total (7 files)</th><th></th><th class="num">251</th><th class="num">56</th></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">144</td><td class="num">4</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">26</td><td class="num">15</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">22</td><td class="num">13</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">25</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">12</td><td class="num">10</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">12</td><td class="num">8</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">10</td><td class="num">6</td></tr>
+    <tr><th>Total (7 files)</th><th class="num">251</th><th class="num">56</th></tr>
   </tbody>
 </table>
+<p class="explain">No C++ changed, so the Z3 binary is the same as before.</p>
 
 <h2 id="example">Worked example</h2>
 <p>
-The input below is <code>lia_rem</code>, the new documented test input from the PR.
-It was run through the exporter, the reconstructor, and the Lean check for this report.
-The default proof source for an integer problem is the clause log.
+This input is the PR's new test <code>lia_rem</code>.
+The dividend is a sum, so Z3's rewriter keeps the <code>rem</code> terms instead of turning them into <code>mod</code>.
+Both <code>rem</code> terms must be positive, and the <code>mod</code> must be 1.
+With divisor −3, <code>rem</code> is minus the <code>mod</code>, so it equals −1.
+That contradicts the first assertion.
 </p>
-
-<h3>(a) The input</h3>
+<h3>(a) Input</h3>
 <pre><code>(set-logic QF_LIA)
 (declare-const x Int)
 (declare-const y Int)
@@ -122,209 +124,176 @@ The default proof source for an integer problem is the clause log.
 (assert (&gt; (rem (+ x y) 3) 0))
 (assert (= (mod (+ x y) 3) 1))
 (check-sat)</code></pre>
-<p class="explain">
-The first assertion alone is impossible.
-With a negative divisor, <code>rem</code> is the negation of <code>mod</code>, and <code>mod</code> is never negative.
-The dividend is a sum, so Z3 keeps the <code>rem</code> atoms instead of rewriting them away.
-</p>
 
-<h3>(b) Before: the exporter at the PR's base commit</h3>
+<h3>(b) Before</h3>
+<p>The exporter from the PR's base commit stopped at once:</p>
 <pre><code>proof_certificate.py: error: unsupported arithmetic operator: rem</code></pre>
-<p class="explain">The old exporter stopped here, so no certificate and no Lean file existed.</p>
 
-<h3>(c) After: the generated Lean file</h3>
-<p>The certificate header now explains how <code>rem</code> is encoded.</p>
-<pre><code>-- Int variables are encoded as Int; the integer lemmas are proved by omega, else grind.
--- Int div and mod by a numeral are Lean's Euclidean / and %; abs is the ite SMT-LIB defines.
--- Int rem by a numeral k is Z3's (ite (&gt;= k 0) (mod t k) (- (mod t k))): t % k, or -(t % k) for k &lt; 0.</code></pre>
-<p class="explain">The last comment line is new, and it appears only when <code>rem</code> occurs.</p>
-
+<h3>(c) After</h3>
+<p>
+The current exporter used the clause-log core, its default for this logic.
+The reconstructor wrote a 267-line Lean file, and <code>check_lean.sh</code> reported "Lean checks passed."
+Excerpts follow.
+</p>
+<pre><code>-- Int rem by a numeral k is Z3's (ite (&gt;= k 0) (mod t k) (- (mod t k))): t % k, or -(t % k) for k &lt; 0.
+...</code></pre>
+<p class="explain">A header comment tells a reader how <code>rem</code> is encoded in this file.</p>
 <pre><code>def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) + (term_1 _atoms _vars))
 def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((3 : Int))
 def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (-(term_3 _atoms _vars))
 def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (-((term_2 _atoms _vars) % (term_4 _atoms _vars)))
 ...
 def term_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_2 _atoms _vars) % (term_3 _atoms _vars))
-...
-def term_15 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_2 _atoms _vars) % (term_4 _atoms _vars))
 ...</code></pre>
-<p class="explain">
-<code>term_5</code> is <code>(rem (+ x y) (- 3))</code>, written with a minus sign because the divisor is negative.
-<code>term_8</code> is <code>(rem (+ x y) 3)</code>, written without one.
-<code>term_15</code> is the matching <code>mod</code> term.
-</p>
-
+<p class="explain"><code>term_5</code> is <code>(rem (+ x y) (- 3))</code>, written with a minus sign, and <code>term_8</code> is <code>(rem (+ x y) 3)</code>, written as plain <code>%</code>.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_7 _atoms _vars))
     (_h1 : (formula_9 _atoms _vars))
     (_h2 : (formula_12 _atoms _vars))
     : False :=
-  ...</code></pre>
-<p class="explain">The theorem says that the three assertions together imply <code>False</code>.</p>
-
-<pre><code>def formula_24 ... : Prop := ((term_6 _atoms _vars) &lt;= (term_4 _atoms _vars))
-def formula_25 ... : Prop := (Not (formula_24 _atoms _vars))
-def formula_26 ... : Prop := ((term_5 _atoms _vars) = (term_15 _atoms _vars))
-def formula_27 ... : Prop := (Or (formula_25 _atoms _vars) (formula_26 _atoms _vars))
+...</code></pre>
+<p class="explain">The theorem says the three assertions together imply <code>False</code>.</p>
+<pre><code>def formula_24 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_6 _atoms _vars) &lt;= (term_4 _atoms _vars))
 ...
-private theorem th_lemma_28 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
-    : (formula_27 _atoms _vars) := by
-  unfold formula_27 formula_26 formula_25 formula_24 term_15 term_6 term_5 term_4 term_3 term_2 term_1 term_0
-  first | omega | grind (splits := 64)
-
+def formula_30 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_5 _atoms _vars) = (term_29 _atoms _vars))
+def formula_31 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_24 _atoms _vars) (formula_30 _atoms _vars))
+...
 private theorem th_lemma_32 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_31 _atoms _vars) := by
   unfold formula_31 formula_30 term_29 formula_24 term_15 term_6 term_5 term_4 term_3 term_2 term_1 term_0
   first | omega | grind (splits := 64)</code></pre>
-<p class="explain">
-These two <a href="#g-lemma">lemmas</a> are the solver's two <code>rem</code> axioms for the divisor −3.
-The first reads "−3 is negative, or rem equals mod".
-The second reads "−3 is not negative, or rem equals minus mod".
-Each is proved by a <a href="#g-tactic">tactic</a>, not assumed.
-</p>
-<p>
-<strong>Result:</strong> the reconstructor printed "Lean checked the refutation".
-The Lean check script then reported "Lean checks passed."
-The full file is 267 lines.
-</p>
+<p class="explain">This lemma is one of the solver's <code>rem</code> axioms, "0 ≤ −3, or <code>rem</code> equals minus the <code>mod</code>", and the <code>omega</code> <a href="#g-tactic">tactic</a> proves it from the definitions.</p>
 
 <h2 id="verification">How it was verified</h2>
 <p>
-The implementer ran every existing test suite at the PR head, plus three new tests, and all passed.
-Hand-written probes and 93 random unsatisfiable <code>rem</code> problems were all certified by Lean on both cores.
-The reviewer also tried to break the check on purpose.
-They dropped the minus sign from a negative-divisor <code>rem</code>, and Lean rejected the file on both cores.
-That shows the kernel really depends on the new encoding.
+Every local test suite passed, including the new Lean tests on both cores.
+Random <code>rem</code> problems from a <a href="#g-fuzzing">fuzzer</a> all verified in Lean.
+The reviewer also broke the negative-divisor encoding on purpose, and Lean rejected the result.
+This shows the Lean check really depends on the new encoding.
+</p>
+<p>
+The loop merged this PR on its local gate, because the change touches only Python, tests, and documentation.
+The gate mirrors the relevant steps of the CI job and ran on the loop machine.
 </p>
 <table>
-  <thead><tr><th>Check (from the PR description)</th><th>Result</th></tr></thead>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
   <tbody>
-    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">107 tests, OK</td></tr>
-    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">336 tests, OK (333 before, plus 3 new)</td></tr>
-    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
-    <tr><td>z3test proof tests</td><td class="pass">46 tests, OK</td></tr>
-    <tr><td>Hand-written <code>rem</code> probes</td><td class="pass">9 inputs × 2 cores, all verified in Lean</td></tr>
-    <tr><td>Random sweep, seeds 0–59</td><td class="pass">106/106 runs verified in Lean</td></tr>
-    <tr><td>Random sweep, seeds 100–139, 5 variables</td><td class="pass">80/80 runs verified in Lean</td></tr>
-    <tr><td>Regression matrix, legacy cell</td><td class="pass">6/6 verified in Lean</td></tr>
-    <tr><td>Regression matrix, clause-log cell</td><td class="pass">8/8 verified in Lean</td></tr>
-    <tr><td>Z3 cross-check of the encoding for k in {−4, −3, −1, 1, 3, 5}</td><td class="pass">unsat each time, so the encoding matches</td></tr>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">13 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">1382 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">15 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Other check, reported in the PR</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="pass">107 tests OK</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code></td><td class="pass">336 tests OK (333 before, 3 new)</td></tr>
+    <tr><td>z3test <code>test_proof*.py</code></td><td class="pass">46 tests OK</td></tr>
+    <tr><td>Hand-written <code>rem</code> probes</td><td class="pass">9 inputs × 2 cores, 18/18 verified in Lean</td></tr>
+    <tr><td>Fuzz, seeds 0–59</td><td class="pass">53 unsat, 106/106 runs verified in Lean</td></tr>
+    <tr><td>Fuzz, seeds 100–139, 5 variables</td><td class="pass">40 unsat, 80/80 runs verified in Lean</td></tr>
+    <tr><td>Reviewer edge-case probes</td><td class="pass">19/20 verified; 1 pre-existing rejection, see Review</td></tr>
+    <tr><td>Kernel sensitivity: wrong sign for a negative divisor</td><td class="pass">Lean rejected it on both cores</td></tr>
   </tbody>
 </table>
 <p>
-<strong>Local gate.</strong> The loop's local gate had not recorded a result when this report was written.
-Its log was still running.
-The first stage, the exporter tests, had passed with 107 tests.
-The Lean reconstruction stage had not finished yet.
-</p>
-<p>
-<strong>CI.</strong> No CI status files were available for this report, so the results of the CI checks are unknown.
-The PR description names the checks that cover this change.
-See the <a href="https://github.com/levnach/z3/pull/59/checks">PR's checks page</a> for live results.
-There were no CI fix rounds recorded.
+No CI status files were recorded for this PR, and there were no CI fix rounds.
+GitHub CI runs on <code>master</code> after the merge, and its result is not known to this report.
 </p>
 <table>
-  <thead><tr><th>Workflow</th><th>Job</th><th>Step that covers this PR</th><th>Status</th></tr></thead>
+  <thead><tr><th>CI workflow / job</th><th>Step that covers this PR</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td><code>ci.yml</code></td><td><code>ubuntu-cmake</code> (<code>releaseClang</code>)</td><td>Check native Boolean proofs in Lean</td><td class="pending">unknown, see <a href="https://github.com/levnach/z3/pull/59/checks">checks</a></td></tr>
-    <tr><td><code>ci.yml</code></td><td><code>ubuntu-cmake</code></td><td>Test Python wheel</td><td class="pending">unknown, see <a href="https://github.com/levnach/z3/pull/59/checks">checks</a></td></tr>
+    <tr><td><code>ci.yml</code> / <code>ubuntu-cmake</code> (<code>releaseClang</code>)</td><td>Check native Boolean proofs in Lean</td><td class="unknown">not recorded</td></tr>
+    <tr><td><code>ci.yml</code> / <code>ubuntu-cmake</code> (<code>releaseClang</code>)</td><td>Test Python wheel</td><td class="unknown">not recorded</td></tr>
   </tbody>
 </table>
 
 <h2 id="review">Review</h2>
 <p>
-The reviewer approved the PR. There were no blocker, major, or minor findings.
+The reviewer approved the PR with no blocker, major, or minor findings.
+They checked the encoding against Z3's own definition in its rewriter, and it matched.
 </p>
-<p>
-<strong>Nit, fixed.</strong>
-The reviewer read the README next to the code.
-One sentence still said the reconstructor rejects a bad divisor only for <code>div</code> and <code>mod</code>.
-A reader could wrongly conclude that <code>(rem t 0)</code> is accepted.
-The second commit rewrote the sentence.
-It now says that <code>rem</code> by zero or by a term is rejected at any node, since its encoding depends on the divisor's sign.
-</p>
-<p>
-<strong>Suggestion, deferred.</strong>
-The reconstructor adds known bounds for <code>mod</code> atoms, such as "never negative", but not for <code>rem</code> atoms.
-A future cut over <code>rem</code> might need them.
-No sweep seed did, so this only affects completeness, not soundness. It is in the backlog.
-</p>
-<p>
-<strong>Suggestion, older issue.</strong>
-The reviewer probed 20 edge cases, and 19 were certified.
-The 20th used a divisor written as <code>(+ 1 2)</code>.
-The z3 executable treated it as nonlinear and dropped the assertion, so the clause-log core reported "sat".
-The same happens for <code>mod</code>, so this predates the PR.
-It is a rejection, not a wrong certificate, and it is left for a follow-up.
-</p>
+<ul>
+  <li><strong>Nit, fixed.</strong>
+    The reviewer read the README and found a sentence that still named only <code>div</code> and <code>mod</code>.
+    A reader could wrongly think a stated <code>(rem t 0)</code> was allowed.
+    The sentence now covers <code>rem</code> too.
+    It also says a <code>rem</code> by zero is rejected everywhere, because its encoding needs the divisor's sign.</li>
+  <li><strong>Suggestion, deferred.</strong>
+    A helper adds known bounds for <code>mod</code> atoms, such as "between 0 and |k| − 1", but not for <code>rem</code>.
+    A <a href="#g-cut">cut</a> over <code>rem</code> atoms might one day need them.
+    This affects only how many inputs succeed, not soundness, and no fuzz seed needed it.
+    It is in the backlog.</li>
+  <li><strong>Suggestion, pre-existing.</strong>
+    One probe used a divisor written as <code>(+ 1 2)</code>.
+    The Python parser accepted it, but the z3 executable dropped that assertion as nonlinear.
+    The clause-log core then said "sat: no unsat proof exists".
+    <code>mod</code> behaves the same way, so the PR did not cause it.
+    It is a rejection, not a wrong proof, and it is left for a follow-up.</li>
+</ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>The theorem now contains an operator that is not standard SMT-LIB. Its meaning is Z3's definition, so a consumer that wants strict SMT-LIB may reject <code>rem</code>.</li>
-  <li>A <code>rem</code> and a <code>mod</code> with the same positive divisor become the same Lean term but remain separate atoms in Python. In the example, <code>term_8</code> and <code>term_10</code> show this. It is harmless, since Lean proves each lemma on its own.</li>
-  <li>Not yet examined: whether Z3's native C++ arith checker accepts the two <code>rem</code> axioms.</li>
-  <li>When producing this report, the exporter's <code>--help</code> text still listed only "div and mod by a numeral and abs" as the integer extras. This is a small documentation gap that the review did not mention.</li>
+  <li>The theorem statement now contains an operator outside SMT-LIB. Its meaning is Z3's definition. A consumer that wants strict SMT-LIB can still reject <code>rem</code> declarations.</li>
+  <li>A <code>rem</code> and a <code>mod</code> with the same positive divisor print as the same Lean term but stay separate atoms in Python. This is harmless, because Lean proves each lemma on its own.</li>
+  <li>Nobody has checked yet whether Z3's native C++ <code>arith</code> checker validates the two <code>rem</code> axioms.</li>
+  <li>At larger sizes the fuzzer produces easy instances with no cuts, so hard <code>rem</code> problems are less tested.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
   <li>Add <code>rem</code> bounds next to the <code>mod</code> bounds, if a cut ever needs them.</li>
-  <li>Write a harder <code>rem</code> stress generator. At larger sizes, the current one gives easy instances with no cuts.</li>
-  <li>Reject a divisor written as a constant expression up front, with a clear message.</li>
-  <li>Other constructs from the iteration-58 probe are still rejected: Int-to-Real conversions, <code>^</code>, and enumeration datatypes.</li>
+  <li>Write a harder <code>rem</code> stress generator.</li>
+  <li>Reject constant-expression divisors such as <code>(+ 1 2)</code> up front, with a clear message.</li>
+  <li>Close the other gaps from the probe: <code>to_int</code>, <code>is_int</code>, and <code>to_real</code> over Int terms, <code>^</code>, and enumeration datatypes.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
 <dl>
-  <dt id="g-arith-hint">arith hint</dt>
-  <dd>A label in Z3's proof log for a clause that the arithmetic solver adds on its own, such as the definition of <code>div</code>, <code>mod</code>, or <code>rem</code>. The pipeline checks its shape and Lean proves it.</dd>
-  <dt id="g-atom">atom</dt>
-  <dd>A term that a reasoning step treats as a single unknown. An "opaque" atom is never looked inside, like a sealed box. Example: <code>(rem (+ x y) 3)</code> treated as one variable.</dd>
+  <dt id="g-atom">atom (opaque atom)</dt>
+  <dd>A term that linear reasoning treats as a single unknown, without looking inside. Example: <code>(rem (+ x y) 3)</code> is handled like a fresh variable.</dd>
   <dt id="g-axiom">axiom</dt>
-  <dd>A statement accepted as a starting point. Here the solver's axioms are not trusted: each one is proved in Lean.</dd>
+  <dd>A fact a solver adds because it holds by definition. Here, Z3 adds two axioms per <code>rem</code> term that tie it to <code>mod</code>.</dd>
   <dt id="g-clause">clause</dt>
-  <dd>A disjunction ("or") of literals. Example: <code>(or (&gt;= k 0) (= r m))</code>.</dd>
+  <dd>A disjunction of literals, read as "at least one of these is true". Example: <code>(or (&gt;= k 0) (= r m))</code>.</dd>
   <dt id="g-cut">cut</dt>
-  <dd>A new inequality that holds for all integer solutions but removes some fractional ones. Integer solvers use cuts to close gaps that pure linear reasoning leaves open.</dd>
-  <dt id="g-divisor">divisor</dt>
-  <dd>The number you divide by. In <code>(rem t k)</code>, the divisor is <code>k</code> and the dividend is <code>t</code>.</dd>
-  <dt id="g-ite">if-then-else term (ite)</dt>
-  <dd>A term that picks one of two values based on a Boolean condition. Example: <code>(ite (&gt;= k 0) a b)</code>. Z3 defines <code>rem</code> with one.</dd>
-  <dt id="g-implied-eq">implied equality</dt>
-  <dd>An equality between two terms that the arithmetic solver derives from the current constraints and passes to other reasoning.</dd>
+  <dd>An integer reasoning step that rounds a bound to the nearest integer. Example: from <code>2x ≤ 3</code> it derives <code>x ≤ 1</code>.</dd>
+  <dt id="g-div-mod">div and mod</dt>
+  <dd>Integer division and remainder in SMT-LIB. For a nonzero <code>k</code>, <code>(mod t k)</code> is always between 0 and |k| − 1. Lean's <code>/</code> and <code>%</code> on Int agree with them.</dd>
+  <dt id="g-fuzzing">fuzzing</dt>
+  <dd>Testing with many randomly generated inputs, each fixed by a seed number so it can be repeated.</dd>
+  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+  <dd>A term that picks one of two values based on a Boolean condition. Example: <code>(ite (&gt;= k 0) a b)</code>.</dd>
   <dt id="g-kernel">kernel</dt>
-  <dd>The small core of Lean that checks every proof. Only what the kernel accepts counts as proved.</dd>
-  <dt id="g-lemma">lemma</dt>
-  <dd>A small proved statement used as a step toward a larger theorem.</dd>
-  <dt id="g-linear">linear arithmetic</dt>
-  <dd>Arithmetic where variables are only added together and multiplied by constants. Example: <code>2x + 3y &lt;= 5</code>, but not <code>x * y</code>.</dd>
+  <dd>The small, trusted core of Lean that checks every proof step.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Arithmetic where variables are only added together or multiplied by constants. Example: <code>2x + 3y ≤ 5</code>.</dd>
   <dt id="g-literal">literal</dt>
-  <dd>An atomic formula or its negation. Example: <code>(&gt;= k 0)</code> or <code>(not (&gt;= k 0))</code>.</dd>
-  <dt id="g-mod">mod (Euclidean remainder)</dt>
-  <dd>The remainder of integer division, which is never negative. Example: <code>(mod -7 3)</code> is 2. Lean's <code>%</code> on Int is the same.</dd>
+  <dd>An atomic formula or its negation. Example: <code>x ≥ 0</code> or <code>not (x ≥ 0)</code>.</dd>
   <dt id="g-numeral">numeral</dt>
-  <dd>A constant number written directly, such as <code>3</code> or <code>(- 3)</code>, as opposed to a variable or a term.</dd>
-  <dt id="g-qflia">QF_LIA and QF_UFLIA</dt>
+  <dd>A constant number written directly in the input, such as <code>3</code> or <code>(- 3)</code>.</dd>
+  <dt id="g-proof-core">proof core</dt>
+  <dd>One of the two sources of Z3 proof evidence this project reads: the legacy proof object or the newer clause log.</dd>
+  <dt id="g-qf-lia">QF_LIA and QF_UFLIA</dt>
   <dd>SMT-LIB logics. QF_LIA is quantifier-free linear integer arithmetic. QF_UFLIA adds <a href="#g-uf">uninterpreted functions</a>.</dd>
   <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all be true.</dd>
+  <dd>A proof that a set of assertions leads to a contradiction, that is, to <code>False</code>.</dd>
   <dt id="g-rem">rem</dt>
-  <dd>A Z3 extension for an integer remainder. It equals <code>mod</code> when the divisor is positive and minus <code>mod</code> when it is negative. Example: <code>(rem 7 -3)</code> is −1.</dd>
-  <dt id="g-rewriter">rewriter</dt>
-  <dd>The part of Z3 that simplifies terms before solving. Example: it turns <code>(rem x 3)</code> into <code>(mod x 3)</code>.</dd>
-  <dt id="g-sort">sort</dt>
-  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dd>Z3's remainder operator, an extension to SMT-LIB. It is defined as <code>(ite (&gt;= k 0) (mod t k) (- (mod t k)))</code>. Example: <code>(rem 7 -3)</code> is −1.</dd>
   <dt id="g-tactic">tactic</dt>
-  <dd>A command that builds a Lean proof automatically. <code>omega</code> solves linear integer goals, including <code>/</code> and <code>%</code> by numerals. <code>grind</code> is a more general fallback.</dd>
-  <dt id="g-theorem">theorem</dt>
-  <dd>The main statement a Lean file proves. Here it says the input's assertions imply <code>False</code>.</dd>
+  <dd>A Lean command that builds a proof automatically. <code>omega</code> solves linear integer goals, and <code>grind</code> is a more general search.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that is true by the rules of a theory, such as arithmetic, and that the solver adds during its search.</dd>
   <dt id="g-uf">uninterpreted function</dt>
-  <dd>A function symbol with no fixed meaning, only a name and a type. Example: <code>(declare-fun f (Int) Int)</code>.</dd>
+  <dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.</dd>
 </dl>
 
 <footer>
-Generated by the Lean certificate improvement loop on 2026-10-31.
+  Generated by the Lean certificate improvement loop on 2026-10-31.
 </footer>
 
+</main>
 </body>
 </html>
