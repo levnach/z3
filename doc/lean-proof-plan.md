@@ -1725,6 +1725,36 @@ from the start. The 600-operand implication chain checks in 6 s and
 operands), inline (150), and outlined with the conjunction's proof local to
 the eliminating lemma (80).
 
+### Normalized rewrites over ite terms and wide flattenings (2026-10-30)
+
+Four QF_LRA smtlib-sample benchmarks failed Lean in a whole-assertion
+rewrite. In `spider_benchmarks/mode_cntrl` and `current_frame` the
+rewriter reshapes Real `ite` terms (`(ite (not b) (ite c (+ x 1) x) x)`
+becomes `(ite (or b (not c)) x (+ 1 x))`), so the ites of the two sides
+differ, the generalized attempt failed, and grind over the unfolded rewrite
+ran out of heartbeats; ites kept these rewrites off the normalized path. An
+ite is now one opaque term keyed by its value table (its linear-form value
+under every assignment of at most eight condition leaves, Boolean variables
+and normalized atoms), and the atom lemma over the other side's ite proves
+the two equal by grind, or, when grind fails (an iff or xor condition), by
+`repeat' split` and grind on each case. In `clocksynchro_8clocks.main_invar` the
+propositional lemma of a 250-way disjunction (left-nested on one side,
+flattened on the other) exhausted the prover's character budget, and grind
+failed. The prover of a normalized rewrite now first links the structures
+of the two sides that are equal up to and/or flattening, order, duplicates,
+constants, and double negation, children first (iff by `iff_congr`, the
+rest by its search), proves each direction by contradiction, and refutes
+the disjuncts of a false disjunction from tails bound every 32 operands
+(the mirror of the conjunction tails). mode_cntrl verifies in 6 s,
+current_frame in 8 s, clocksynchro_8clocks in 60 s. Still open:
+`sal/carpark/Carpark2-ausgabe-6`, whose rewriter evaluates `(= (ite ...) 4)`
+conditions inside other ites, which a table over independent leaves does
+not see. Tests: `test_rewrite_reshaping_ite_terms_verifies` (both cores),
+`test_rewrite_reshaping_ites_with_iff_and_xor_conditions_verifies`,
+`test_ite_value_tables_key_reshaped_ites_alike`, and
+`test_wide_clock_shaped_flattening_rewrite_verifies` (16 clocks; grind
+failed on it before) in `test_proof_to_lean_arith.py`.
+
 ### Normalized rewrites: one lemma per atom normalization (2026-10-29)
 
 `_normalized_rewrite` proved each atom's normalization to its canonical

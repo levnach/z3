@@ -99,6 +99,14 @@ _OUTLINE_CHUNK_STEPS = 500
 # from the nearest such tail.
 _AND_ELIM_STRIDE = 32
 _NORMALIZED_REWRITE_ATOMS = 16
+# Condition leaves (Boolean variables and linear atoms) an ite term of a
+# normalized rewrite may have to be keyed by its value table, which has one
+# row per assignment (_ite_table); the spider and carpark QF_LRA rewrites
+# have at most four.
+_ITE_TABLE_LEAVES = 8
+# And the nodes of its branches and conditions, which bounds the cost of a
+# row and the depth of evaluating a condition.
+_ITE_TABLE_NODES = 200
 # Heartbeats (Lean's unit, thousands of small allocations) of an Int lattice
 # lemma (a cut, or a farkas or bound without coefficients) over its atoms
 # generalized, where grind's cutsat module decides the goal (see
@@ -2416,7 +2424,7 @@ class _PropositionalProver:
     standard axioms through their theory lemmas anyway.
     """
 
-    def __init__(self, *roots, classical=False, names=None):
+    def __init__(self, *roots, classical=False, names=None, links=False):
         self.parents = {}
         self.order = []  # every structure, children before parents
         self.named = {}  # the and, or, implies and iff structures by their names
@@ -2428,8 +2436,13 @@ class _PropositionalProver:
         self.chars = 0
         self.classical = classical
         self.decidable = ("atom", "leaf") if classical else ("atom",)
+        self.roots = roots
         for root in roots:
             self._index(root)
+        self.linked = links
+        self.links, self.representatives = (self._equivalent_structures() if links else ([], {}))
+        for link in self.links:
+            self._index(link)
         for structure in self.order:
             if structure[0] not in ("and", "or", "implies", "iff"):
                 continue
@@ -2488,12 +2501,153 @@ class _PropositionalProver:
 
     def equivalence(self, left, right):
         """Tactic lines proving the goal Iff left right (as Lean reads the two structures), or None."""
-        forward = self._implication(left, right)
-        backward = self._implication(right, left) if forward is not None else None
+        links, facts = self._prove_links()
+        forward = self._implication(left, right, facts)
+        backward = self._implication(right, left, facts) if forward is not None else None
         if backward is None:
             return None
-        return self._bindings() + ["refine Iff.intro (fun (%s : %s) => ?_) (fun (%s : %s) => ?_)" % (
+        return self._bindings() + links + ["refine Iff.intro (fun (%s : %s) => ?_) (fun (%s : %s) => ?_)" % (
             forward[0], self._render(left), backward[0], self._render(right))] + _bullets([forward[1], backward[1]])
+
+    def _equivalent_structures(self):
+        """The links (iff structures) between structures equal up to flattening, order, and double negation.
+
+        A structure's class is its and/or flattened into the set of its
+        operands' classes (duplicates dropped, a single operand standing for
+        itself), its double negation the class of the negated structure, and
+        an iff the set of its sides' classes. Each structure is linked to
+        the first of its class, children before parents. The rewriter
+        flattens, sorts, and deduplicates the gates over the normalized
+        atoms, so the two sides of a rewrite are mostly such structures: the
+        search alone splits every disjunction it assumes, and the case
+        splits of the disjunctions of one conjunction multiply (the spider
+        QF_LRA rewrites exhausted the character budget that way). Proved
+        children first (_prove_links), each link is a fact of the next
+        ones and of the search, and a disjunction case closes as soon as it
+        reaches a linked operand.
+        """
+        classes, keys, interned, representatives, links = {}, [], {}, {}, []
+        # The roots each structure is under: two structures under one root
+        # only (prefixes of one left-nested chain that differ by a repeated
+        # disjunct) are not linked, as the search would walk the chain once
+        # per link; the search relates them through the other side's links.
+        sides = {}
+        for position, root in enumerate(self.roots):
+            for structure in self._descendants(root):
+                sides[structure] = sides.get(structure, frozenset()) | {position}
+
+        def intern(key):
+            if key not in interned:
+                interned[key] = len(keys)
+                keys.append(key)
+            return interned[key]
+
+        true, false = intern(("true",)), intern(("false",))
+        for structure in self.order:
+            kind = structure[0]
+            children = [classes[child] for child in _structure_children(structure)]
+            if kind == "not" and keys[children[0]][0] == "not":
+                cls = keys[children[0]][1]
+            elif kind == "not":
+                cls = {true: false, false: true}.get(children[0], None)
+                if cls is None:
+                    cls = intern(("not", children[0]))
+            elif kind in ("and", "or"):
+                unit, zero = (true, false) if kind == "and" else (false, true)
+                members = set()
+                for child in children:
+                    members |= keys[child][1] if keys[child][0] == kind else {child}
+                members.discard(unit)
+                if zero in members or not members:
+                    cls = zero if members else unit
+                elif len(members) == 1:
+                    cls = next(iter(members))
+                else:
+                    cls = intern((kind, frozenset(members)))
+            elif kind == "iff":
+                cls = intern(("iff", frozenset(children)))
+            elif kind == "implies":
+                cls = intern(("implies", tuple(children)))
+            else:
+                cls = intern(structure)
+            classes[structure] = cls
+            representative = representatives.setdefault(cls, structure)
+            if representative != structure and (sides[structure] != sides[representative]
+                                                or len(sides[structure]) > 1):
+                links.append(("iff", structure, representative))
+        return links, {structure: representatives[cls] for structure, cls in classes.items()}
+
+    def _prove_links(self):
+        """The `have` lines proving the links, and the facts they give, children first.
+
+        An iff linked to an iff is proved by iff_congr from its sides'
+        links; any other link by the search in both directions, from the
+        links below it. A link not proved within the budget is dropped and
+        its steps and characters given back.
+        """
+        lines, facts, proofs = [], [], {}
+
+        def equivalent(structure, other):
+            """A proof of structure <-> other from the proved links, or None."""
+            if structure == other:
+                return "Iff.rfl"
+            if self.representatives[structure] != self.representatives[other]:
+                return None
+            ends = []
+            for end in (structure, other):
+                representative = self.representatives[end]
+                ends.append("Iff.rfl" if end == representative else proofs.get(("iff", end, representative)))
+            if None in ends:
+                return None
+            return "(Iff.trans %s (Iff.symm %s))" % tuple(ends)
+
+        for link in self.links:
+            _, structure, representative = link
+            relevant = self._descendants(structure) | self._descendants(representative)
+            if structure[0] == "iff" and representative[0] == "iff":
+                (a, b), (c, d) = structure[1:], representative[1:]
+                straight = [equivalent(a, c), equivalent(b, d)]
+                crossed = [equivalent(a, d), equivalent(b, c)]
+                if None not in straight:
+                    proof = "(iff_congr %s %s)" % tuple(straight)
+                elif None not in crossed:
+                    proof = "(Iff.trans (iff_congr %s %s) iff_comm)" % tuple(crossed)
+                else:
+                    continue
+                proof_lines = None
+            else:
+                steps, chars = self.steps, self.chars
+                below = [fact for fact in facts if fact[0][1] in relevant]
+                forward = self._implication(structure, representative, below)
+                backward = self._implication(representative, structure, below) if forward is not None else None
+                if backward is None:
+                    self.steps, self.chars = steps, chars
+                    continue
+                proof_lines = ["refine Iff.intro (fun (%s : %s) => ?_) (fun (%s : %s) => ?_)" % (
+                    forward[0], self._render(structure), backward[0], self._render(representative))]
+                proof_lines += _bullets([forward[1], backward[1]])
+            name = self.name()
+            if proof_lines is None:
+                line = "have %s : %s := %s" % (name, self._render(link), proof)
+                lines.append(line)
+                self.chars += len(line)
+            else:
+                lines.append("have %s : %s := by" % (name, self._render(link)))
+                self.chars += len(lines[-1])
+                lines.extend("  " + line for line in proof_lines)
+            proofs[link] = name
+            facts.append((link, True, name))
+        return lines, facts
+
+    def _descendants(self, root):
+        """The structures under root, root included."""
+        seen, pending = set(), [root]
+        while pending:
+            structure = pending.pop()
+            if structure not in seen:
+                seen.add(structure)
+                pending.extend(_structure_children(structure))
+        return seen
 
     def implication(self, source, target):
         """Tactic lines proving the goal source -> target, or None."""
@@ -2503,10 +2657,26 @@ class _PropositionalProver:
         hypothesis, lines = result
         return self._bindings() + ["refine (fun (%s : %s) => ?_)" % (hypothesis, self._render(source))] + lines
 
-    def _implication(self, source, target):
-        """The hypothesis name and the tactic lines proving target under it, or None."""
+    def _implication(self, source, target, facts=()):
+        """The hypothesis name and the tactic lines proving target under it and the facts, or None.
+
+        With links (classical), the target's negation is assumed too and
+        the lines refute both: a false disjunction makes all its disjuncts
+        false at once, where proving one up a left-nested chain of n
+        disjunctions takes n steps in each of n cases (the 250-way
+        disjunction of the clock synchronization QF_LRA rewrite, flattened
+        on the other side, exceeded the character budget that way).
+        """
         hypothesis = self.name()
-        lines = self._prove(dict(), target, self.constants + [(source, True, hypothesis)])
+        if self.linked:
+            negation = self.name()
+            lines = self._prove(dict(), ("false",), self.constants + list(facts)
+                                + [(source, True, hypothesis), (target, False, negation)])
+            if lines is None:
+                return None
+            return hypothesis, ["refine Classical.byContradiction (fun (%s : Not %s) => ?_)" % (
+                negation, self._render(target))] + lines
+        lines = self._prove(dict(), target, self.constants + list(facts) + [(source, True, hypothesis)])
         if lines is None:
             return None
         return hypothesis, lines
@@ -2695,6 +2865,24 @@ class _PropositionalProver:
             lines.append(line)
         return tails
 
+    def _refuted_tails(self, lines, proof, last):
+        """Bind the refutations of a false disjunction's tails from every _AND_ELIM_STRIDE-th operand on.
+
+        The mirror of _tails: each tail is refuted from the one before by
+        _AND_ELIM_STRIDE steps of mt Or.inr, so refuting every disjunct is
+        linear in the width; from the refutation itself, disjunct i took i
+        steps, and the 165 disjuncts of a flattened clock synchronization
+        rewrite took 270,000 characters. Returns the tail names by base.
+        """
+        tails = {0: proof}
+        for base in range(_AND_ELIM_STRIDE, last + 1, _AND_ELIM_STRIDE):
+            tails[base] = self.name()
+            line = "have %s := %s" % (tails[base], _reject_disjunct(_AND_ELIM_STRIDE, _AND_ELIM_STRIDE + 1,
+                                                                     tails[base - _AND_ELIM_STRIDE]))
+            self.chars += len(line)
+            lines.append(line)
+        return tails
+
     def _consequences(self, state, structure, lines):
         """The truth values one gate determines from its own value and its operands' values.
 
@@ -2750,9 +2938,11 @@ class _PropositionalProver:
                 add(structure, True, _fold("And.intro", proofs, "True.intro"), typed=False)
         elif kind == "or":
             if value is not None and not value[0]:
-                for i, child in enumerate(children):
-                    if truths[i] is not False:  # as for a true conjunction
-                        add(child, False, _reject_disjunct(i, count, value[1]), typed=False)
+                positions = [i for i in range(count) if truths[i] is not False]  # as for a true conjunction
+                tails = self._refuted_tails(lines, value[1], positions[-1]) if positions else {}
+                for i in positions:
+                    base = i // _AND_ELIM_STRIDE * _AND_ELIM_STRIDE
+                    add(children[i], False, _reject_disjunct(i - base, count - base, tails[base]), typed=False)
             if value is not None and value[0] and truths.count(None) == 1 and True not in truths:
                 position = truths.index(None)
                 handlers = ["(fun _g => _g)" if i == position else "(fun _g => absurd _g %s)" % proof
@@ -2992,13 +3182,17 @@ def _rewrite_lemma(graph, node, atom_indices, variable_indices=None, terms=None)
                                    opaque_tactic=_opaque_rewrite_tactic(graph))
         return lines, set(), term
     if theory:
-        atoms = [formula for formula in sorted(reachable)
+        # The atoms and connectives outside the ite terms: the normalized
+        # rewrite leaves an ite whole, so the formulas in its condition are
+        # neither atoms nor connectives of its propositional lemma.
+        outside = _reachable_outside(graph, conclusion, _arith_ites(graph, reachable))
+        atoms = [formula for formula in sorted(outside)
                  if graph.kind(formula) in _ARITH_PREDICATE_NAMES.keys() | {z3.Z3_OP_EQ}
                  and graph.arguments(formula) and graph.is_arith(graph.arguments(formula)[0])]
         distinct = any(graph.kind(formula) == z3.Z3_OP_DISTINCT for formula in reachable)
         if (len(atoms) > _NORMALIZED_REWRITE_ATOMS and not distinct
-                and _normalizable_rewrite(graph, node, reachable, atoms)):
-            lines, term = _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_indices)
+                and _normalizable_rewrite(graph, node, outside, atoms)):
+            lines, term = _normalized_rewrite(graph, node, outside, atoms, atom_indices, variable_indices)
         else:
             lines, term = _grind_lemma(graph, node, "rewrite", atom_indices, variable_indices,
                                        opaque_tactic=_opaque_rewrite_tactic(graph))
@@ -3042,11 +3236,18 @@ def _normalizable_rewrite(graph, node, reachable, atoms):
     rewriter reasoned about the term, which the lemma over abstract atoms
     cannot: it decides (< (mod x 10) 0) from the bounds of mod, and it
     simplifies inside a function's arguments, (f (+ x 0)) to (f x), so
-    that the two sides' atoms differ by more than their linear form. An ite
-    term is excluded, since its condition is a formula the atom rewrites
-    could reach inside it (abs is logged as an ite). Every other formula
-    must be a connective or a Boolean variable, as the propositional lemma
-    binds the atoms alone. Anything else goes to grind as before.
+    that the two sides' atoms differ by more than their linear form. An
+    ite term is opaque as a whole, keyed by its value table
+    (_ite_representatives), since the rewriter reshapes ite terms, (ite
+    (not c) a b) to (ite c b a), merging nested conditions and normalizing
+    the atoms in them; an ite without a table is excluded. An abs, logged
+    as (ite (>= t 0) t (- t)), has a table, but its rewrite still goes to
+    grind: one side keys the opaque (abs t) and the other the ite, so the
+    two sides' atom keys differ. reachable holds the formulas outside the
+    ite terms. Every
+    other formula must be a connective or a Boolean variable, as the
+    propositional lemma binds the atoms alone. Anything else goes to grind
+    as before.
     """
     def formula_free(term):
         pending, seen = [term], set()
@@ -3060,9 +3261,13 @@ def _normalizable_rewrite(graph, node, reachable, atoms):
             pending.extend(graph.arguments(current))
         return True
 
+    representatives = _ite_representatives(graph, atoms)
+
     def order(variable):
         # Any total order keys two atoms alike exactly when _normalized_rewrite's does.
-        return (0 if not graph.arguments(variable) else 1), variable
+        if not graph.arguments(variable):
+            return 0, variable
+        return 1, representatives.get(variable, variable)
 
     atom_set = set(atoms)
     for formula in reachable:
@@ -3080,12 +3285,12 @@ def _normalizable_rewrite(graph, node, reachable, atoms):
     try:
         keys = []
         for side in graph.arguments(graph.conclusion(node)):
-            side_reachable = _reachable(graph, side)[0]
+            side_reachable = _reachable_outside(graph, side, representatives)
             keys.append({_normalized_atom(graph, atom, order)[0] for atom in atoms if atom in side_reachable})
     except ReconstructionError:
         return False
     opaque = {term for side in keys for _, ordered, _ in side for (kind, term), _ in ordered if kind == 1}
-    if any(not formula_free(term) for term in opaque):
+    if any(term not in representatives and not formula_free(term) for term in opaque):
         return False
     left, right = keys
     return all(kind == 0 for _, ordered, _ in left ^ right for (kind, _), _ in ordered)
@@ -3117,6 +3322,115 @@ def _normalized_atom(graph, atom, order):
     return (relation, ordered, constant), negated
 
 
+def _arith_ites(graph, nodes):
+    """The Real or Int ite terms among nodes."""
+    return {node for node in nodes if graph.kind(node) == z3.Z3_OP_ITE and graph.is_arith(node)}
+
+
+def _ite_representatives(graph, atoms):
+    """Map each ite term under the atoms that has a value table to the least ite of the same table.
+
+    The table (_ite_table) is the ite's value, a linear form, under every
+    assignment of its condition leaves; two ites of one table denote the
+    same number, whatever the leaves' values, so a normalized rewrite keys
+    them as one opaque term (the lemma of an atom over the other one proves
+    them equal; nothing is assumed). Ids are topological, so an ite nested
+    in another's branch or condition is keyed first; an ite of more than
+    _ITE_TABLE_LEAVES leaves, or with a condition that is not over Boolean
+    variables and linear atoms, has no table and no entry.
+    """
+    ites = set()
+    for atom in atoms:
+        ites |= _arith_ites(graph, _reachable(graph, atom)[0])
+    representatives, tables = {}, {}
+
+    def order(variable):
+        if not graph.arguments(variable):
+            return 0, graph.nodes[variable].declaration
+        return 1, representatives.get(variable, variable)
+
+    for ite in sorted(ites):
+        try:
+            table = _ite_table(graph, ite, order)
+        except ReconstructionError:
+            continue
+        representatives[ite] = tables.setdefault(table, ite)
+    return representatives
+
+
+def _ite_table(graph, ite, order):
+    """The leaves of an ite's conditions and its linear-form value under each of their assignments.
+
+    A leaf is a Boolean variable or the canonical key of a linear atom
+    (_normalized_atom), so (< x 3) and (not (<= 3 x)) are one leaf. The
+    leaves are treated as independent, which only makes fewer ites equal.
+    """
+    leaves, pending, seen = set(), [ite], set()
+    while pending:
+        node = pending.pop()
+        if node in seen:
+            continue
+        seen.add(node)
+        if len(seen) > _ITE_TABLE_NODES:
+            raise ReconstructionError("ite %d has too large conditions" % ite)
+        kind, arguments = graph.kind(node), graph.arguments(node)
+        if graph.is_term(node):
+            if kind == z3.Z3_OP_ITE:
+                pending.extend(arguments)
+        elif kind == z3.Z3_OP_UNINTERPRETED and not arguments:
+            leaves.add(("bool", graph.nodes[node].declaration))
+        elif kind in _ARITH_PREDICATE_NAMES or (kind == z3.Z3_OP_EQ and graph.is_arith(arguments[0])):
+            leaves.add(_normalized_atom(graph, node, order)[0])
+        elif kind in _NORMALIZED_CONNECTIVES or (kind == z3.Z3_OP_EQ and len(arguments) == 2
+                                                 and not graph.is_term(arguments[0])):
+            pending.extend(arguments)
+        else:
+            raise ReconstructionError("no value table for ite %d" % ite)
+    names = sorted(leaves, key=repr)
+    if len(names) > _ITE_TABLE_LEAVES:
+        raise ReconstructionError("ite %d has too many condition leaves" % ite)
+
+    def holds(node, values):
+        kind, arguments = graph.kind(node), graph.arguments(node)
+        if kind == z3.Z3_OP_UNINTERPRETED:
+            return values[("bool", graph.nodes[node].declaration)]
+        if kind in _ARITH_PREDICATE_NAMES or (kind == z3.Z3_OP_EQ and graph.is_arith(arguments[0])):
+            key, negated = _normalized_atom(graph, node, order)
+            return values[key] != negated
+        operands = [holds(argument, values) for argument in arguments]
+        if kind == z3.Z3_OP_TRUE:
+            return True
+        if kind == z3.Z3_OP_FALSE:
+            return False
+        if kind == z3.Z3_OP_NOT:
+            return not operands[0]
+        if kind == z3.Z3_OP_AND:
+            return all(operands)
+        if kind == z3.Z3_OP_OR:
+            return any(operands)
+        if kind == z3.Z3_OP_IMPLIES:
+            return not operands[0] or operands[1]
+        if kind in (z3.Z3_OP_IFF, z3.Z3_OP_EQ):
+            return operands[0] == operands[1]
+        if kind == z3.Z3_OP_XOR:
+            return operands[0] != operands[1]
+        return operands[1] if operands[0] else operands[2]  # a Boolean ite
+
+    def value(node, values):
+        while graph.kind(node) == z3.Z3_OP_ITE:
+            condition, then_branch, else_branch = graph.arguments(node)
+            node = then_branch if holds(condition, values) else else_branch
+        terms = {}
+        constant = _linear_term(graph, node, Fraction(1), terms)
+        return tuple(sorted((order(term), coefficient) for term, coefficient in terms.items() if coefficient)), constant
+
+    table = []
+    for bits in range(1 << len(names)):
+        values = {name: bool(bits >> position & 1) for position, name in enumerate(names)}
+        table.append(value(ite, values))
+    return tuple(names), tuple(table)
+
+
 def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_indices):
     """Separate linear atom normalization from propositional rewrite search.
 
@@ -3134,16 +3448,27 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
     with it. The 74-way disjunction of the clock synchronization QF_LRA
     benchmark, flattened by Z3 to 48 disjuncts with the duplicates and the
     conjuncts false by a constant atom dropped, is where `grind` alone
-    failed.
+    failed. The prover links the sides' structures equal up to flattening
+    first (_equivalent_structures), so the 250-way disjunction of the
+    8-clock variant is proved too.
+
+    An ite term is one opaque term of the linear forms, an ite and its
+    reshaped counterpart on the other side (_ite_representatives) rendered
+    alike: the lemma of an atom over the other proves the two ites equal
+    by grind's case splits on their few conditions, so the reshaping is
+    checked atom by atom and the propositional lemma never sees it.
     """
     def numeral(value):
         return _numeral(graph, value)
 
+    representatives = _ite_representatives(graph, atoms)
+
     def order(variable):
-        # Variables by index, then opaque terms by node (see _normalizable_rewrite).
+        # Variables by index, then opaque terms by node, an ite by its
+        # representative's (see _normalizable_rewrite).
         if not graph.arguments(variable):
             return 0, variable_indices[graph.nodes[variable].declaration]
-        return 1, variable
+        return 1, representatives.get(variable, variable)
 
     def render(key):
         kind, index = key
@@ -3180,14 +3505,18 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         expanded = "(Not %s)" % expression if negated else expression
         rewrite = "_norm%d" % atom
         rewrites.append(rewrite)
+        # Over an ite term, grind alone fails to prove two ites equal whose
+        # conditions are an iff or xor of an atom and a Boolean variable;
+        # splitting every ite of the goal first leaves linear goals.
+        tactic = (["  grind"] if not _arith_ites(graph, _reachable(graph, atom)[0])
+                  else ["  first", "    | grind", "    | ((repeat' split) <;> grind)"])
         atom_lemmas.extend([
             "", "set_option maxHeartbeats 1000000 in",
             "private theorem normalized_atom_%d_%d (_atoms : Nat -> Prop)%s" % (
                 node, atom, _valuation_binder(graph)),
             "    : %s <-> %s := by" % (_formula(graph, atom), expanded),
             "  change %s <-> %s" % (_inline(graph, atom, atom_indices, variable_indices), expanded),
-            "  grind",
-        ])
+        ] + tactic)
         lines.append("  have %s : %s <-> %s := normalized_atom_%d_%d _atoms%s" % (
             rewrite, _formula(graph, atom), target, node, atom, graph.valuation))
     definitions = ["formula_%d" % formula for formula in sorted(reachable, reverse=True)
@@ -3224,7 +3553,7 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         return structures[root]
 
     left, right = (structure(side) for side in graph.arguments(graph.conclusion(node)))
-    prover = _PropositionalProver(left, right, classical=True)
+    prover = _PropositionalProver(left, right, classical=True, links=True)
     equivalence = prover.equivalence(left, right)
     boolean_lemma = [
         "", "set_option maxHeartbeats 1000000 in",
