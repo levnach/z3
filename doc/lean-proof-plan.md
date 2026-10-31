@@ -1589,6 +1589,30 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### cnf lemmas over a distinct's pairs; conjuncts projected from tails (2026-10-30)
+
+NEQ004's twelve cnf lemmas (`(not A) or (not (= c2 c3))` and the like, A
+the 814-definition assertion holding `(distinct c0 c1 c2 c3)`) all went to
+the unfolded grind fallback, about 3 s each: the propagation prover read
+the distinct as one opaque leaf, so the clause's literal named nothing in
+A. A distinct over terms whose every argument pair (a, b) has its own node
+`(= a b)` (the alldiff literals Z3 logs) is now read as the conjunction of
+those equalities negated, which is how `_formula_body` renders it, so the
+pairs are shared leaves (and bridged to `(= b a)` like any other equality
+leaves). A pair logged only with its sides swapped keeps the distinct a
+single leaf. With the lemmas in reach, half of them made the 400-operand
+assertion true and projected every conjunct from its proof
+(`And.left (And.right ...)`, 80,000 levels): 30 s in Lean, ten times
+grind. The prover now projects by field notation from a tail bound once
+every `_AND_ELIM_STRIDE` operands, as and-elim does: those lemmas check in
+under a second, and NEQ004 as a whole in 79 s at a 5.54 GB peak (was
+116 s, 7.06 GB, measured on the same machine), more headroom under the
+8 GB cap. Tests: `test_cnf_lemmas_read_a_distinct_over_terms_as_its_pairs`
+and `test_cnf_lemmas_over_a_distinct_verify_by_propagation_alone` (the
+fallbacks dropped, so Lean checks the propagation proofs themselves) in
+`test_proof_to_lean_uf.py`, and the NEQ004 test now requires a
+propagation attempt for each of its cnf lemmas.
+
 ### One interpretation argument; serial elaboration of large files (2026-10-30)
 
 z3test's QF_UF `NEQ/NEQ004_size4` (16 KB of SMT-LIB) exported in 3 s but
