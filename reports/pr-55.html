@@ -7,113 +7,125 @@
 <style>
   :root {
     --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --note-bg: #fff8c5; --ok: #1a7f37; --warn: #9a6700;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --note-bg: #3b2e00; --ok: #3fb950; --warn: #d29922;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922;
     }
   }
-  body { background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .5rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.5rem; }
   a { color: var(--accent); }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2rem; }
-  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-  .meta { color: var(--muted); font-size: 0.95rem; }
-  .badge { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 1rem; border: 1px solid var(--ok);
-           color: var(--ok); font-weight: 600; font-size: 0.85rem; }
-  .note { background: var(--note-bg); border-radius: 6px; padding: 0.6rem 0.9rem; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
-         background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
-        overflow-x: auto; line-height: 1.4; }
-  pre code { background: none; padding: 0; font-size: 0.85rem; }
-  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
-  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+    background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: .85em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .95em; }
+  th, td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; vertical-align: top; }
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+  .meta dd { margin: 0 0 .2rem 9rem; }
+  .state { font-weight: 700; color: var(--ok); }
   .pass { color: var(--ok); font-weight: 600; }
   .unknown { color: var(--warn); font-weight: 600; }
-  dt { font-weight: 600; margin-top: 0.6rem; }
-  dd { margin-left: 1.2rem; }
-  footer { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 0.6rem; color: var(--muted); font-size: 0.9rem; }
+  .explain { margin-top: -.4rem; color: var(--muted); }
+  dl.glossary dt { font-weight: 700; margin-top: .8rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9em; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
-<h1>Read integer numerals coerced to Real as Real numerals in certificates</h1>
-<p class="meta">
-  Pull request <a href="https://github.com/levnach/z3/pull/55">levnach/z3 #55</a> into <code>master</code>
-  &middot; State: <span class="badge">OPEN</span>
-  &middot; Opened 2026-10-31T04:09:42Z
-  &middot; Loop iteration 55
-</p>
-<p class="note">This pull request is open and <strong>not merged</strong>.
-  The change it proposes ends at commit
-  <a href="https://github.com/levnach/z3/commit/6291d878af0100749c4a356e9926ee55607920d7"><code>6291d878a</code></a>.
-  It contains two commits: <code>8a0092fd1</code> makes the change, and <code>6291d878a</code> adds documentation and one test after review.</p>
+  <h1>Read integer numerals coerced to Real as Real numerals in certificates</h1>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/55">levnach/z3 #55</a></dd>
+    <dt>State</dt><dd><span class="state">MERGED</span></dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/368dee766dc92c8d305fd3e10ae1ccf7721f3a0c"><code>368dee766</code></a></dd>
+    <dt>Merged on</dt><dd>2026-10-31T04:33:30Z</dd>
+    <dt>Loop iteration</dt><dd>55</dd>
+  </dl>
 </header>
 
-<h2>In one paragraph</h2>
-<p>Without a <code>set-logic</code>, Z3 reads an integer <a href="#g-numeral">numeral</a> in a Real position, like the <code>2</code> in <code>(* 2 x)</code>, as an Int under a <code>to_real</code> <a href="#g-coercion">coercion</a>.
-The <a href="#g-certificate">certificate</a> exporter refused every <code>to_real</code>, so these common inputs could not be certified.
-This PR rewrites <code>to_real</code> of a pure numeral expression into the same expression over Real numerals, before anything reads the <a href="#g-assertion">assertions</a>.
-The result is exactly what Z3 reads under the <a href="#g-logic">logic</a> <a href="#g-lra">QF_LRA</a>.
-Both the <a href="#g-clause-log">clause log</a> and the <a href="#g-legacy">legacy proof object</a> now yield a <a href="#g-refutation">refutation</a> that Lean checks.
-The <a href="#g-binding">binding</a> to the input uses the same rewritten assertions, so a changed numeral is still caught.
-This closes a <a href="#g-completeness">completeness</a> gap without adding trust.</p>
+<section>
+  <h2>In one paragraph</h2>
+  <p>
+    Many people write a Real problem with plain integer <a href="#g-numeral">numerals</a>, such as <code>(* 2 x)</code>, and give no
+    <a href="#g-logic">logic</a>. In that case Z3 parses each such numeral as an Int term wrapped in a
+    <a href="#g-to-real"><code>to_real</code></a> <a href="#g-coercion">coercion</a>.
+    The exporter refused every such <a href="#g-assertion">assertion</a> with “unsupported arithmetic operator: to_real”.
+    This PR rewrites those coercions into Real numerals before anything else reads the input.
+    The result is exactly how Z3 reads the same text under <a href="#g-qf-lra">QF_LRA</a>.
+    The exporter, both proof <a href="#g-core">cores</a>, and the step that binds the <a href="#g-certificate">certificate</a> to the input all share that one rewritten <a href="#g-snapshot">snapshot</a>.
+    So a whole class of everyday inputs now gets a <a href="#g-refutation">refutation</a> that Lean checks.
+    The change is Python, tests, and docs only. No Lean rule, C++ code, or trusted <a href="#g-axiom">axiom</a> changed.
+  </p>
+</section>
 
-<h2>Background</h2>
-<p>Before this PR, the pipeline already certified <a href="#g-lra">linear real arithmetic</a> when the input said <code>(set-logic QF_LRA)</code>.
-The same text without that line failed with "unsupported arithmetic operator: to_real".
-Even a two-line input such as <code>(assert (&gt; x 1))</code> over a Real <code>x</code> was refused.
-Mixing the <a href="#g-sort">sorts</a> Int and Real stays outside the supported <a href="#g-fragment">fragment</a>, and that boundary does not move.
-The work serves milestone 3 of the plan, "Equality and linear arithmetic".</p>
+<section>
+  <h2>Background</h2>
+  <p>
+    Before this PR, the pipeline certified <a href="#g-qf-lra">QF_LRA</a> inputs only when every Real numeral was written as a decimal, or when the file declared <code>(set-logic QF_LRA)</code>.
+    Without that line, even <code>(assert (&gt; x 1))</code> over a Real <code>x</code> was rejected, because the parser had inserted a <a href="#g-to-real"><code>to_real</code></a> <a href="#g-coercion">coercion</a>.
+    Mixing the Int and Real <a href="#g-sort">sorts</a> stays out of scope, so the exporter rejected the whole input.
+    The PR body calls this a completeness gap on inputs Z3 already solves.
+    The work serves milestone 3 of the project plan, “Equality and linear arithmetic”, which asks to complete each fragment end to end.
+  </p>
+</section>
 
-<h2>What changed</h2>
-<ul>
-  <li>You can now certify a Real input that uses integer numerals and has no <code>set-logic</code>, or uses <code>(set-logic ALL)</code>.</li>
-  <li>An explicit <code>(to_real (+ 2 1))</code> is read as <code>(+ 2.0 1.0)</code> under any logic, including QF_LIRA.</li>
-  <li>The exporter and the Lean reconstructor's input check now share one parsed copy of the assertions, built by the new function <code>_parse_snapshot</code>.</li>
-  <li><code>to_real</code> of anything that is not a pure numeral expression is still rejected, for example an Int variable, an application of an <a href="#g-uf">uninterpreted function</a>, <code>div</code>, or an Int <a href="#g-ite">if-then-else term</a>.</li>
-  <li>New tests pin all of this down, and the README and plan document describe the new exception to the rejection list.</li>
-</ul>
-<p>An analogy: a form asks for a price, and someone writes "2" instead of "2.00".
-Z3 tags the 2 with "convert to decimal", and the old exporter threw the form away.
-Now it peels the tag off and writes "2.00", which means the same thing.
-The rewrite never computes, so <code>(- 5 1)</code> becomes <code>(- 5.0 1.0)</code>, not <code>4.0</code>.</p>
+<section>
+  <h2>What changed</h2>
+  <ul>
+    <li>You can now certify a Real problem written with integer numerals and no <code>set-logic</code>, or under <code>(set-logic ALL)</code>.</li>
+    <li>An explicit <code>to_real</code> of a numeral expression, such as <code>(to_real (+ 2 1))</code>, is now read as <code>(+ 2.0 1.0)</code> under any logic.</li>
+    <li>The certificate and the Lean statement show the same Real numerals that QF_LRA would show, with the input's structure kept and nothing folded.</li>
+    <li>A certificate whose numeral was edited, for example <code>2</code> changed to <code>5</code>, is still caught and rejected before Lean runs.</li>
+    <li><code>to_real</code> of anything else stays rejected, such as an Int variable, a function application, <code>div</code>, <code>mod</code>, <code>abs</code>, or an Int <a href="#g-ite">if-then-else term</a>.</li>
+  </ul>
+  <p>
+    The rewrite lives in one new function, <code>_parse_snapshot</code>. Think of it as a translator at the door.
+    Every later reader sees the same translated text, so the exporter and the binding check can never disagree about what the input said.
+    The two parsing helpers now return a Python list instead of a Z3 vector.
+  </p>
+  <table>
+    <thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+    <tbody>
+      <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter: the new snapshot rewrite</td><td class="num">81</td><td class="num">3</td></tr>
+      <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Tests: binding by value and Lean checks on both cores</td><td class="num">66</td><td class="num">0</td></tr>
+      <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests: snapshot equals the QF_LRA reading, and rejected shapes</td><td class="num">42</td><td class="num">0</td></tr>
+      <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td class="num">24</td><td class="num">0</td></tr>
+      <tr><td><code>examples/python/README</code></td><td>Rejection list updated</td><td class="num">6</td><td class="num">0</td></tr>
+      <tr><th>Total (5 files)</th><th></th><th class="num">219</th><th class="num">3</th></tr>
+    </tbody>
+  </table>
+</section>
 
-<table>
-  <thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
-  <tbody>
-    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter front end: the rewrite</td><td class="num">81</td><td class="num">3</td></tr>
-    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Parsing and classification tests</td><td class="num">42</td><td class="num">0</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Lean and binding tests</td><td class="num">66</td><td class="num">0</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td class="num">24</td><td class="num">0</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>Rejection list</td><td class="num">6</td><td class="num">0</td></tr>
-    <tr><th>Total (5 files)</th><th></th><th class="num">219</th><th class="num">3</th></tr>
-  </tbody>
-</table>
-<p>No Lean files, no C++ files, and no trusted <a href="#g-axiom">axioms</a> changed.</p>
+<section>
+  <h2>Worked example</h2>
+  <p>This example was produced by running the real pipeline for this report, on the old and the new code.</p>
 
-<h2>Worked example</h2>
-<p>This input, a smaller version of the PR's test input <code>numerals_without_logic</code>, was run for this report at the PR head and at the PR base.</p>
-
-<h3>(a) The input</h3>
+  <h3>(a) The input</h3>
 <pre><code>(declare-const x Real)
 (assert (&lt;= (* 2 x) 1))
 (assert (&gt; x 1))
 (check-sat)</code></pre>
-<p>If 2x is at most 1, then x is at most one half, so x cannot also be greater than 1.</p>
+  <p class="explain">A Real <code>x</code> with 2x ≤ 1 and x &gt; 1 cannot exist. The numerals <code>2</code> and <code>1</code> are written as integers, and there is no <code>set-logic</code> line.</p>
 
-<h3>(b) Before: the pipeline at the PR base</h3>
+  <h3>(b) Before: the exporter at the PR's base commit</h3>
 <pre><code>proof_certificate.py: error: unsupported arithmetic operator: to_real</code></pre>
-<p>The old exporter stopped here, so the old Lean reconstructor had nothing to read.</p>
+  <p class="explain">The old exporter saw <code>(* (to_real 2) x)</code> and stopped. No certificate and no Lean file were produced.</p>
 
-<h3>(c) After: the Lean file the reconstructor now generates</h3>
+  <h3>(c) After: the Lean file the reconstructor now generates</h3>
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((2 : Rat))
 def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
 def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((term_0 _atoms _vars) * (term_1 _atoms _vars))
@@ -121,14 +133,14 @@ def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat)
 def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_2 _atoms _vars) &lt;= (term_3 _atoms _vars))
 def formula_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_1 _atoms _vars) &gt; (term_3 _atoms _vars))
 ...</code></pre>
-<p>The numeral <code>2</code> appears directly as a Real number, with no Int and no coercion around it. The file encodes Real values as Lean's rationals, <code>Rat</code>.</p>
+  <p class="explain">The numerals <code>2</code> and <code>1</code> now appear directly as rational constants, with no <code>to_real</code> anywhere, and <code>formula_4</code> is the first assertion 2·x ≤ 1.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     (_h0 : (formula_4 _atoms _vars))
     (_h1 : (formula_5 _atoms _vars))
     : False :=
   ...</code></pre>
-<p>The theorem says that the two input assertions, <code>2x ≤ 1</code> and <code>x &gt; 1</code>, together imply <code>False</code>.</p>
+  <p class="explain">The <a href="#g-theorem">theorem</a> says that the two input assertions together imply <code>False</code>.</p>
 
 <pre><code>private theorem rewrite_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     : (formula_9 _atoms _vars) := by
@@ -136,130 +148,142 @@ def formula_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term
   have _s8 : ((_vars 0) &lt;= (((((1 : Rat))) / (((2 : Rat)))))) -&gt; (((2 : Rat)) * _vars 0 + ((-1 : Rat)) &lt;= ((0 : Rat))) := by grind
   grind (splits := 64)
 ...</code></pre>
-<p>This <a href="#g-rewrite">rewrite step</a> proves that <code>2x ≤ 1</code> is equivalent to <code>x ≤ 1/2</code>, using Real numerals on both sides and the <a href="#g-tactic">tactic</a> <code>grind</code>.</p>
-<p>A <a href="#g-theory-lemma">theory lemma</a> and a <a href="#g-unit-resolution">unit resolution</a> then reach <code>False</code>.
-<strong>Lean accepted the file:</strong> the reconstructor reported "Lean checked the refutation", and <code>check_lean.sh</code> printed "Lean checks passed."</p>
+  <p class="explain">This <a href="#g-lemma">lemma</a> proves Z3's <a href="#g-rewrite">rewrite</a> of 2·x ≤ 1 into x ≤ 1/2, working on the same Real constant <code>2</code> that the input statement uses.</p>
+  <p><strong>Result:</strong> the reconstructor reported “Lean checked the refutation”, and <code>scripts/check_lean.sh</code> on the file printed “Lean checks passed.”</p>
+</section>
 
-<h2>How it was verified</h2>
-<p>All existing exporter and Lean tests still pass, and the inputs the old code rejected now verify on both proof sources.
-Every certificate with a tampered numeral was rejected.
-The PR changes Python only, so no C++ tests were run.</p>
+<section>
+  <h2>How it was verified</h2>
+  <p>
+    In plain terms, every local test suite passed, including several hundred Lean reconstruction tests.
+    The PR merged on the loop's local gate, because it touched only Python examples, tests, and docs.
+    That gate mirrors the steps of the Ubuntu <code>releaseClang</code> CI job that exercise this work.
+    The PR body also reports a before-and-after run. All six new (input, core) pairs were rejected at the base commit, and all six verify now.
+    The reviewer ran eight extra edge inputs on both cores through Lean, and all of them verified.
+  </p>
+  <table>
+    <thead><tr><th>Local check</th><th>Result</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td>Local gate: certificate exporter tests</td><td class="pass">pass</td><td>14 s</td></tr>
+      <tr><td>Local gate: Lean reconstruction tests</td><td class="pass">pass</td><td>1381 s</td></tr>
+      <tr><td>Local gate: z3test proof script tests</td><td class="pass">pass</td><td>17 s</td></tr>
+      <tr><td>Local gate: Boolean matrix, legacy proof object</td><td class="pass">pass</td><td>5 s</td></tr>
+      <tr><td>Local gate: QF_LRA matrix, clause log</td><td class="pass">pass</td><td>7 s</td></tr>
+      <tr><td>Implementer and integrator: <code>test_proof_certificate.py</code></td><td class="pass">pass</td><td>106 tests</td></tr>
+      <tr><td>Implementer and integrator: <code>test_proof_to_lean*.py</code></td><td class="pass">pass</td><td>322 tests</td></tr>
+      <tr><td>z3test proof tests</td><td class="pass">pass</td><td>46 tests</td></tr>
+      <tr><td>Matrix, legacy proof object, Boolean inputs</td><td class="pass">pass</td><td>6 of 6 Lean-verified</td></tr>
+      <tr><td>Matrix, clause log, <code>lra_*.smt2</code></td><td class="pass">pass</td><td>8 of 8 Lean-verified</td></tr>
+      <tr><td>Before and after, new inputs</td><td class="pass">pass</td><td>6 of 6 rejected before, 6 of 6 verified after</td></tr>
+      <tr><td>Reviewer edge inputs through Lean</td><td class="pass">pass</td><td>16 of 16 verified, tampering rejected on 14 of 14 editable runs</td></tr>
+      <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">pass</td><td>“Lean checks passed.”</td></tr>
+    </tbody>
+  </table>
+  <p>
+    No GitHub CI status was recorded for this PR, so its CI results are unknown here.
+    The local gate notes say GitHub CI still runs on <code>master</code> after the merge.
+    There were no CI fix rounds. The PR body names the CI jobs that run the new tests.
+  </p>
+  <table>
+    <thead><tr><th>CI workflow and job</th><th>Step that runs this PR's tests</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>CI / <code>ubuntu-cmake</code> (<code>releaseClang</code>)</td><td>“Check native Boolean proofs in Lean”: <code>test_proof_to_lean*.py</code></td><td class="unknown">not recorded</td></tr>
+      <tr><td>CI / <code>manylinux-python-amd64</code></td><td>“Test Python wheel”: <code>test_proof_certificate.py</code></td><td class="unknown">not recorded</td></tr>
+    </tbody>
+  </table>
+  <p>Check results, when available, are on the <a href="https://github.com/levnach/z3/pull/55/checks">PR's checks page</a>.</p>
+</section>
 
-<table>
-  <thead><tr><th>Check</th><th>Commit</th><th>Result</th></tr></thead>
-  <tbody>
-    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td>6291d878a</td><td class="pass">106 tests OK</td></tr>
-    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>6291d878a</td><td class="pass">322 tests OK (1351 s)</td></tr>
-    <tr><td>Lean library build, <code>check_lean.sh</code></td><td>6291d878a</td><td class="pass">Passed</td></tr>
-    <tr><td>z3test proof tests</td><td>6291d878a</td><td class="pass">46 tests OK</td></tr>
-    <tr><td>Regression matrix, legacy proof object, Boolean inputs</td><td>8a0092fd1</td><td class="pass">6 / 6 Lean-verified</td></tr>
-    <tr><td>Regression matrix, clause log, <code>lra_*</code> inputs</td><td>8a0092fd1</td><td class="pass">8 / 8 Lean-verified</td></tr>
-    <tr><td>Before / after on the new inputs, both proof sources</td><td>f5e4972c3 vs 8a0092fd1</td><td class="pass">6 / 6 rejected before, 6 / 6 verified after</td></tr>
-    <tr><td>Reviewer edge inputs through Lean (8 inputs, 2 sources)</td><td>review</td><td class="pass">16 / 16 verified</td></tr>
-    <tr><td>Reviewer tampering of a numeral</td><td>review</td><td class="pass">14 / 14 rejected</td></tr>
-    <tr><td>This report's worked example</td><td>6291d878a</td><td class="pass">Lean checks passed</td></tr>
-  </tbody>
-</table>
+<section>
+  <h2>Review</h2>
+  <p>The reviewer approved the PR. There were no blocker, major, or minor findings. There was one nit.</p>
+  <table>
+    <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+    <tbody>
+      <tr><td>nit</td><td>The README and the docstring described the rewrite more narrowly than the code behaves.</td><td>Fixed: docs widened and a test added.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The reviewer wrote an input under <code>(set-logic QF_LIRA)</code> with an explicit <code>(to_real 2)</code>.
+    The new code accepted it as QF_LRA and Lean verified it on both cores.
+    That behaviour is correct, because <code>to_real</code> of 2 is simply 2.0.
+    But the README still said <code>to_real</code> is “rejected explicitly”, and it only mentioned the parser's hidden coercion.
+    A reader trusting the docs would have a wrong picture of what is certified.
+    The implementer extended the README, the docstring, and the plan note to cover an explicit <code>to_real</code> in any logic.
+    They also added a test that pins <code>(to_real (+ 2 1))</code> to <code>(+ 2.0 1.0)</code>.
+    The reviewer found no <a href="#g-soundness">soundness</a> problem. No Lean files changed and no new trust was added.
+  </p>
+</section>
 
-<p><strong>Local gate.</strong> No final local gate result was recorded when this report was written.
-Its log showed the exporter tests passing with 106 tests OK, and the Lean reconstruction tests still running.</p>
+<section>
+  <h2>Risks and open questions</h2>
+  <ul>
+    <li>Lean proves the rewritten statement. Where the text says <code>(* 2 x)</code>, Lean states <code>(* 2.0 x)</code>. This matches Z3's own QF_LRA reading, and a test compares the two. The rewrite runs in the trusted Python front end.</li>
+    <li>The two parsing helpers now return a list instead of a Z3 vector. An outside caller that relies on vector-only methods would break. All in-repo callers and z3test pass.</li>
+    <li>Whether GitHub CI on <code>master</code> passed with this change is not recorded in the inputs.</li>
+  </ul>
+</section>
 
-<p><strong>CI.</strong> No CI status was available to this report, so the results are unknown.
-See the <a href="https://github.com/levnach/z3/pull/55/checks">PR checks page</a> for the live state.
-There were no CI fix rounds.</p>
-<table>
-  <thead><tr><th>Workflow job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>manylinux-python-amd64</code></td><td>"Test Python wheel" (<code>test_proof_certificate.py</code>)</td><td class="unknown">Not recorded</td></tr>
-    <tr><td><code>ubuntu-cmake</code>, matrix <code>releaseClang</code></td><td>"Check native Boolean proofs in Lean" (<code>test_proof_to_lean*.py</code>)</td><td class="unknown">Not recorded</td></tr>
-    <tr><td>Other workflows</td><td>&mdash;</td><td class="unknown">Not recorded</td></tr>
-  </tbody>
-</table>
+<section>
+  <h2>What comes next</h2>
+  <ul>
+    <li>An Int if-then-else term of numerals in a Real position, such as <code>(= x (ite p 1 2))</code>, is still rejected. The clause log keeps that coercion over an Int <code>ite</code>, so support needs the replay to read part of QF_LIRA.</li>
+    <li>A rescan of QF_LRA benchmarks found new Lean failures, now in the backlog. One hits the step limit of the <a href="#g-tactic">tactic</a> <code>grind</code>. Three others time out in fallback proofs of <a href="#g-theory-lemma">theory lemmas</a> over <code>ite</code> terms.</li>
+  </ul>
+</section>
 
-<h2>Review</h2>
-<p>The reviewer approved the change. There were no blocker, major, or minor findings, and one nit.</p>
-<table>
-  <thead><tr><th>Severity</th><th class="num">Count</th></tr></thead>
-  <tbody>
-    <tr><td>Blocker / Major / Minor</td><td class="num">0</td></tr>
-    <tr><td>Nit</td><td class="num">1</td></tr>
-  </tbody>
-</table>
-<p><strong>Nit: the documentation was narrower than the code.</strong>
-The reviewer wrote an input under <code>(set-logic QF_LIRA)</code> with an explicit <code>(to_real 2)</code>.
-The new code accepted it, and Lean verified it.
-That is correct, because <code>to_real</code> of 2 is the Real number 2.0.
-But the README still said <code>to_real</code> is "rejected explicitly".
-This mattered because readers use that list to learn what the pipeline certifies.
-Commit <code>6291d878a</code> fixed the README, the code comment, and the plan document.
-It also added a test: <code>(to_real (+ 2 1))</code> must read as <code>(+ 2.0 1.0)</code>.</p>
-<p>The reviewer also probed <a href="#g-soundness">soundness</a> with edge cases and tampered certificates, and found no problem.</p>
-
-<h2>Risks and open questions</h2>
-<ul>
-  <li>Lean proves the rewritten statement: the input says <code>(* 2 x)</code>, the theorem says <code>2.0 * x</code>. This is Z3's own QF_LRA reading, and it happens in the trusted Python front end.</li>
-  <li>Two parsing functions now return a Python list instead of a Z3 vector. An outside caller using vector-only methods would break. All known callers pass.</li>
-  <li>CI results and the final local gate result are unknown at the time of writing.</li>
-</ul>
-
-<h2>What comes next</h2>
-<ul>
-  <li>An Int if-then-else term in a Real position, such as <code>(= x (ite p 1 2))</code>, is still rejected. Supporting it needs more work in the clause-log replay.</li>
-  <li>A rescan of QF_LRA benchmarks found four new Lean failures, now in the backlog. They hit <code>grind</code> step limits or time out on Real theory lemmas over <code>ite</code> terms.</li>
-</ul>
-
-<h2 id="glossary">Glossary</h2>
-<dl>
-  <dt id="g-assertion">assertion</dt>
-  <dd>A formula the input states as true, written <code>(assert ...)</code>.</dd>
-  <dt id="g-axiom">axiom</dt>
-  <dd>A statement a proof checker accepts without proof. A certificate is trustworthy only if it uses the checker's standard axioms and nothing extra.</dd>
-  <dt id="g-binding">binding (of a certificate to its input)</dt>
-  <dd>The check that the formulas inside a certificate are exactly the assertions of the original input, so a certificate for a different problem is rejected.</dd>
-  <dt id="g-certificate">certificate</dt>
-  <dd>A file that records a proof so that a separate checker can confirm it.</dd>
-  <dt id="g-clause">clause</dt>
-  <dd>A disjunction of literals: at least one of them must be true. Example: <code>(or (not a) b)</code>.</dd>
-  <dt id="g-clause-log">clause log</dt>
-  <dd>A record of the clauses a solver learned while searching, which a checker can replay step by step.</dd>
-  <dt id="g-coercion">coercion</dt>
-  <dd>A conversion of a value from one sort to another. In SMT-LIB, <code>to_real</code> turns an Int into the same number as a Real.</dd>
-  <dt id="g-completeness">completeness</dt>
-  <dd>How many correct inputs a tool can handle. A completeness gap is a correct input that the tool refuses.</dd>
-  <dt id="g-fragment">fragment</dt>
-  <dd>A restricted part of logic that a tool supports, such as linear real arithmetic without quantifiers.</dd>
-  <dt id="g-ite">if-then-else term</dt>
-  <dd>A term whose value depends on a condition, written <code>(ite c a b)</code>: it equals <code>a</code> when <code>c</code> holds, otherwise <code>b</code>.</dd>
-  <dt id="g-legacy">legacy proof object</dt>
-  <dd>Z3's older proof format: one large proof term built during solving, as opposed to the clause log.</dd>
-  <dt id="g-lra">linear real arithmetic (QF_LRA)</dt>
-  <dd>Formulas over Real variables using sums, differences, and multiplication by constants. QF_LRA is its quantifier-free SMT-LIB logic. QF_LIRA allows Int and Real together.</dd>
-  <dt id="g-literal">literal</dt>
-  <dd>An atomic formula or its negation, such as <code>x &gt; 1</code> or <code>(not p)</code>.</dd>
-  <dt id="g-logic">logic (SMT-LIB)</dt>
-  <dd>A named setting, chosen with <code>set-logic</code>, that fixes which sorts and operations an input may use. <code>ALL</code> allows everything.</dd>
-  <dt id="g-numeral">numeral</dt>
-  <dd>A number written literally in the input. <code>2</code> is an Int numeral, and <code>2.0</code> is a Real numeral.</dd>
-  <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
-  <dt id="g-rewrite">rewrite step</dt>
-  <dd>A proof step that replaces a formula by an equivalent one, such as <code>2x ≤ 1</code> by <code>x ≤ 1/2</code>.</dd>
-  <dt id="g-sort">sort</dt>
-  <dd>The type of a value, such as Int, Real, or Bool.</dd>
-  <dt id="g-soundness">soundness</dt>
-  <dd>The guarantee that a checker never accepts a false claim.</dd>
-  <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that builds part of a proof automatically. <code>grind</code> is one such tactic.</dd>
-  <dt id="g-theory-lemma">theory lemma</dt>
-  <dd>A clause that is true because of the rules of a theory such as arithmetic, not because of Boolean reasoning alone.</dd>
-  <dt id="g-uf">uninterpreted function</dt>
-  <dd>A function symbol with no fixed meaning. The only rule is that equal arguments give equal results. Example: <code>(declare-fun f (Real) Real)</code>.</dd>
-  <dt id="g-unit-resolution">unit resolution</dt>
-  <dd>A proof step that takes a clause and facts contradicting all but one of its literals, and concludes the remaining literal.</dd>
-</dl>
+<section>
+  <h2>Glossary</h2>
+  <dl class="glossary">
+    <dt id="g-assertion">assertion</dt>
+    <dd>A formula the input states as true, written <code>(assert …)</code> in SMT-LIB.</dd>
+    <dt id="g-axiom">axiom</dt>
+    <dd>A statement Lean accepts without proof. The project allows only Lean's standard axioms in a certified proof.</dd>
+    <dt id="g-certificate">certificate</dt>
+    <dd>The file the exporter writes. It holds the input's terms and Z3's proof steps, so that Lean can recheck them.</dd>
+    <dt id="g-clause">clause</dt>
+    <dd>A disjunction of literals, such as <code>(or (not a) b)</code>. A clause log records the clauses Z3 derives.</dd>
+    <dt id="g-coercion">coercion</dt>
+    <dd>An automatic conversion of a value from one sort to another, such as an Int 2 used where a Real is expected.</dd>
+    <dt id="g-core">core (proof core)</dt>
+    <dd>One of the two Z3 proof sources the exporter can read: the clause log or the legacy proof object.</dd>
+    <dt id="g-ite">if-then-else term</dt>
+    <dd>A term that picks one of two values by a Boolean condition, written <code>(ite p 1 2)</code>.</dd>
+    <dt id="g-lemma">lemma</dt>
+    <dd>A small proved statement used as a step inside a bigger proof.</dd>
+    <dt id="g-literal">literal</dt>
+    <dd>An atomic formula or its negation, such as <code>(&gt; x 1)</code> or <code>(not (&gt; x 1))</code>.</dd>
+    <dt id="g-logic">logic (SMT-LIB logic)</dt>
+    <dd>The fragment an input declares with <code>set-logic</code>, such as QF_LRA or ALL. It tells the parser which sorts and operators to expect.</dd>
+    <dt id="g-numeral">numeral</dt>
+    <dd>A constant number written in the input, such as <code>2</code> (an Int numeral) or <code>2.0</code> (a Real numeral).</dd>
+    <dt id="g-qf-lra">QF_LRA</dt>
+    <dd>Quantifier-free linear real arithmetic: Real variables, sums, and products by constants, with no quantifiers.</dd>
+    <dt id="g-refutation">refutation</dt>
+    <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
+    <dt id="g-rewrite">rewrite</dt>
+    <dd>A proof step that replaces a formula by an equivalent one, such as 2·x ≤ 1 by x ≤ 1/2.</dd>
+    <dt id="g-snapshot">snapshot (assertion snapshot)</dt>
+    <dd>The list of assertions parsed from the input at the query, which the exporter and the reconstructor both read.</dd>
+    <dt id="g-sort">sort</dt>
+    <dd>The type of a value, such as Int, Real, or Bool.</dd>
+    <dt id="g-soundness">soundness</dt>
+    <dd>The property that a checker never accepts a false claim.</dd>
+    <dt id="g-tactic">tactic</dt>
+    <dd>A Lean command that builds part of a proof automatically, such as <code>grind</code>.</dd>
+    <dt id="g-theorem">theorem</dt>
+    <dd>A statement with a proof that Lean has checked.</dd>
+    <dt id="g-theory-lemma">theory lemma</dt>
+    <dd>A clause that holds by the rules of a theory such as arithmetic, written <code>th-lemma</code> in Z3 proofs.</dd>
+    <dt id="g-to-real"><code>to_real</code></dt>
+    <dd>The SMT-LIB function that maps an integer to the same real number. For example, <code>(to_real 2)</code> is 2.0.</dd>
+  </dl>
+</section>
 
 <footer>
   Generated by the Lean certificate improvement loop on 2026-10-30.
 </footer>
+
+</main>
 </body>
 </html>
