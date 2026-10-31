@@ -95,10 +95,12 @@ _BOOLEAN_OPERATORS = {
 # abs, which SMT-LIB defines on Int only but Z3 accepts over Real with the
 # same definition (ite (>= t 0) t (- t)).
 # Linear integer arithmetic is the same fragment over Int without Real
-# division, plus the integer div and mod by a nonzero numeral and abs, which
-# are opaque atoms of the linear forms (Z3's arithmetic solver axiomatizes
-# div and mod by explicit clauses, see proof_clause_log, and rewrites abs to
-# an ite); to_real and to_int are rejected, and Int never mixes with Real
+# division, plus the integer div, mod, and rem by a nonzero numeral and abs,
+# which are opaque atoms of the linear forms (Z3's arithmetic solver
+# axiomatizes div, mod, and rem by explicit clauses, see proof_clause_log, and
+# rewrites abs to an ite; rem, a Z3 extension, is mod by a positive divisor
+# and its negation by a negative one); to_real and to_int are rejected, and
+# Int never mixes with Real
 # (an integer numeral Z3 coerces to Real is read as a Real numeral, see
 # _parse_snapshot).
 _ARITH_PREDICATES = {z3.Z3_OP_LE, z3.Z3_OP_GE, z3.Z3_OP_LT, z3.Z3_OP_GT}
@@ -106,7 +108,7 @@ _ARITH_OPERATORS = {z3.Z3_OP_ADD, z3.Z3_OP_SUB, z3.Z3_OP_UMINUS, z3.Z3_OP_MUL, z
 _ARITH_NAMES = {
     z3.Z3_OP_LE: "<=", z3.Z3_OP_GE: ">=", z3.Z3_OP_LT: "<", z3.Z3_OP_GT: ">",
     z3.Z3_OP_ADD: "+", z3.Z3_OP_SUB: "-", z3.Z3_OP_UMINUS: "-", z3.Z3_OP_MUL: "*",
-    z3.Z3_OP_DIV: "/", z3.Z3_OP_IDIV: "div", z3.Z3_OP_MOD: "mod", z3.Z3_OP_ABS: "abs",
+    z3.Z3_OP_DIV: "/", z3.Z3_OP_IDIV: "div", z3.Z3_OP_MOD: "mod", z3.Z3_OP_REM: "rem", z3.Z3_OP_ABS: "abs",
 }
 # Clause-log hint encodings; replay handles each hint's clause convention.
 # cut is the integer solver's hint for a Gomory cut or a gcd conflict: its
@@ -499,7 +501,7 @@ def constant_value(expr):
 
 
 def integer_divisor(expr):
-    """Return the nonzero constant divisor of an Int div or mod term, rejecting any other.
+    """Return the nonzero constant divisor of an Int div, mod, or rem term, rejecting any other.
 
     SMT-LIB leaves div and mod by zero uninterpreted, while Lean's Int
     division and remainder are total functions (x / 0 = 0), so a proof over
@@ -516,9 +518,9 @@ def integer_divisor(expr):
 def _require_linear_arithmetic(expr):
     """Reject Real or Int terms outside the linear fragment with constant coefficients.
 
-    Real division is accepted by a nonzero constant, integer div and mod by a
-    nonzero constant, and abs over Int or Real; rem and the conversions between Int
-    and Real are distinct operators that fall through to the rejection.
+    Real division is accepted by a nonzero constant, integer div, mod, and rem
+    by a nonzero constant, and abs over Int or Real; the conversions between
+    Int and Real are distinct operators that fall through to the rejection.
     """
     kind = expr.decl().kind()
     # abs over Real is accepted too: SMT-LIB defines abs on Int only, but Z3
@@ -533,7 +535,7 @@ def _require_linear_arithmetic(expr):
         divisor = constant_value(expr.arg(1))
         if divisor is None or divisor == 0:
             raise ProofExportError("division is supported only by a nonzero constant")
-    elif kind in (z3.Z3_OP_IDIV, z3.Z3_OP_MOD):
+    elif kind in (z3.Z3_OP_IDIV, z3.Z3_OP_MOD, z3.Z3_OP_REM):
         integer_divisor(expr)
     elif kind not in (z3.Z3_OP_ADD, z3.Z3_OP_SUB, z3.Z3_OP_UMINUS, z3.Z3_OP_ITE):
         raise ProofExportError("unsupported arithmetic operator: %s" % expr.decl().name())

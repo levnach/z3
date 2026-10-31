@@ -2076,6 +2076,31 @@ binary successfully with the remaining checks unrun.
 
 ## Arithmetic proof infrastructure
 
+### Int rem by a numeral (2026-10-31)
+
+`rem` is a Z3 extension, `(ite (>= k 0) (mod t k) (- (mod t k)))`, and every
+input using it was rejected ("unsupported arithmetic operator: rem"). Z3's
+rewriter turns `(rem t k)` by a numeral into `mod` or `-mod`, so most such
+inputs never show `rem` in the proof, but a sum or product dividend keeps
+it, and the arithmetic solver then adds two axioms per term (both cores):
+`(or (not (>= k 0)) (= (rem t k) (mod t k)))` and
+`(or (>= k 0) (= (rem t k) (- (mod t k))))`. Now the exporter accepts `rem`
+by a nonzero numeral (`integer_divisor`, as for `div` and `mod`), the replay
+rebuilds `(rem a b)` and keeps it an opaque atom of the linear forms, and the
+axioms take the existing `arith` path (shape check in Python, proof in Lean).
+The reconstructor declares `rem` in Int certificates only, rejects a zero or
+term divisor on every stated node, and states `rem` at its numeral divisor:
+`t % k` for `k > 0`, `-(t % k)` for `k < 0`; Lean proves the rewrite to
+`mod` and both axioms. Tests: `lia_rem` among the documented QF_LIA inputs
+(both cores, and the combination-only Farkas test),
+`test_rem_is_stated_at_its_numeral_divisor` (rendering, the four axioms, and
+tampering: renamed, wrong arity, term divisor, rem relabelled as mod, rem
+in a Real certificate), `test_pinned_remainder_instances_verify_on_both_cores`
+(three seeds of the new `random_remainder_instance`, with cuts and an
+implied equality), and classification and rejection cases in
+`test_proof_certificate.py`. A sweep of 93 unsatisfiable generator seeds
+(186 runs on both cores) verified in Lean.
+
 ### abs over Real (2026-10-31)
 
 SMT-LIB defines `abs` on Int only, but Z3 accepts it over Real with the
