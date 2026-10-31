@@ -6,42 +6,44 @@
 <title>PR #54: Prove Int cut lemmas by one split that z3 finds</title>
 <style>
   :root {
-    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+    --code-bg: #f6f8fa; --accent: #0969da; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+      --code-bg: #161b22; --accent: #4493f8; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
     }
   }
   body { background: var(--bg); color: var(--fg); margin: 0;
-         font: 16px/1.6 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
   main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; margin-top: 2.2rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--line); padding-bottom: 0.25rem; margin-top: 2.2rem; }
   h3 { font-size: 1.05rem; margin-top: 1.4rem; }
   a { color: var(--accent); }
-  .meta { color: var(--muted); font-size: .95rem; }
-  .badge { display: inline-block; padding: .05rem .55rem; border-radius: 1rem; font-size: .85rem;
-           font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
-  code { font: .88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-         background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
-        padding: .8rem; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-  pre code { background: none; padding: 0; font-size: .82rem; }
-  .note { color: var(--muted); margin-top: -.4rem; }
-  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
-  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; font-size: 0.85rem;
+           font-weight: 600; border: 1px solid currentColor; }
+  .merged { color: #8250df; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .fail { color: var(--bad); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+         background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+        padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: 0.82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--line); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .pass { color: var(--ok); font-weight: 600; }
-  .pending { color: var(--warn); font-weight: 600; }
-  .fail { color: var(--bad); font-weight: 600; }
-  dt { font-weight: 600; margin-top: .7rem; }
-  dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border);
-           color: var(--muted); font-size: .9rem; }
+  .explain { margin-top: -0.3rem; color: var(--muted); }
+  dl.glossary dt { font-weight: 700; margin-top: 0.7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
@@ -50,310 +52,266 @@
 <header>
   <h1>Prove Int cut lemmas by one split that z3 finds</h1>
   <p class="meta">
-    Pull request <a href="https://github.com/levnach/z3/pull/54">levnach/z3#54</a>
-    · State: <span class="badge">OPEN</span>
-    · Opened 2026-10-31T02:21:08Z
-    · Loop iteration 54
+    <a href="https://github.com/levnach/z3/pull/54">Pull request #54</a> on <code>levnach/z3</code>
+    &middot; <span class="badge merged">MERGED</span>
+    &middot; merged 2026-10-31T02:45:12Z
+    &middot; loop iteration 54
   </p>
   <p class="meta">
-    Open and <strong>not merged</strong>. Change commit
-    <a href="https://github.com/levnach/z3/commit/61b749429256bfdb4b4f741e1da6fb189a852924"><code>61b7494</code></a>.
-    This page covers both of the PR's commits.
+    Merge commit
+    <a href="https://github.com/levnach/z3/commit/f5e4972c3f5e0eb580e2836b25ff75b856090eb6"><code>f5e4972c3</code></a>,
+    on base <code>653595ae0</code>. It squashes both of the PR's commits.
   </p>
 </header>
 
-<section>
-  <h2 id="summary">In one paragraph</h2>
-  <p>
-    Some integer <a href="#g-theory-lemma">theory lemmas</a> reach Lean with no
-    <a href="#g-multiplier">multipliers</a> at all. These are every
-    <a href="#g-cut">cut</a> and every <a href="#g-farkas-lemma">Farkas lemma</a> that z3 did not explain.
-    Before this PR, Lean's arithmetic <a href="#g-tactic">tactics</a>
-    had to redo z3's integer search, which could take minutes or many gigabytes.
-    Now each such lemma is proved by one <a href="#g-case-split">case split</a>.
-    z3, acting as an untrusted <a href="#g-oracle">oracle</a>, finds the split and two
-    <a href="#g-linear-combination">linear combinations</a> under a fixed
-    <a href="#g-rlimit">rlimit</a>. Python checks that answer, and Lean checks each side's
-    <a href="#g-refutation">refutation</a>. With two memory fixes, a 20-variable
-    <a href="#g-qf-lia">QF_LIA</a> benchmark now verifies end to end. Nothing new is trusted.
-  </p>
-</section>
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+  Some integer <a href="#g-theory-lemma">theory lemmas</a> reach Lean with their
+  <a href="#g-bound">bounds</a> listed but without the <a href="#g-multiplier">multipliers</a> that combine them.
+  These <a href="#g-lattice-lemma">lattice lemmas</a> include every <a href="#g-cut">cut</a>
+  and every unexplained <a href="#g-farkas-lemma">Farkas lemma</a>.
+  The <a href="#g-tactic">tactics</a> <code>omega</code> and <code>grind</code> used to redo z3's integer search for them.
+  Now each one is proved by a single <a href="#g-case-split">case split</a>.
+  z3, as an untrusted <a href="#g-oracle">oracle</a>, finds a <a href="#g-linear-form">linear form</a> <code>s</code>
+  and a constant <code>k</code>. Each side of <code>k &lt; s</code> or <code>s ≤ k</code> then ends in a short
+  <a href="#g-refutation">refutation</a>. Python checks the answer, and Lean checks the proof.
+  With two memory fixes, a 20-variable <a href="#g-qf-lia">QF_LIA</a> benchmark now verifies for the first time.
+  Nothing new is trusted.
+</p>
 
-<section>
-  <h2 id="background">Background</h2>
-  <p>
-    Earlier iterations proved integer Farkas lemmas that come with large multipliers by summing
-    their <a href="#g-bound">bounds</a> directly. Lemmas without multipliers, which this page calls
-    <a href="#g-lattice-lemma">lattice lemmas</a>, still went to Lean's general arithmetic tactics.
-    On the z3test input <code>cut_lemma_02_002</code>, with 188 such lemmas, Lean ran out of memory.
-    This PR serves Milestone&nbsp;3, equality and linear arithmetic.
-  </p>
-</section>
+<h2 id="background">Background</h2>
+<p>
+  Since PR #51, an integer Farkas lemma with multipliers got a direct proof.
+  A lattice lemma has none, so it still went to <code>omega</code> or <code>grind</code>.
+  That worked on small inputs. On the z3test benchmark <code>cut_lemma_02_002</code>,
+  with 188 lattice lemmas, Lean ran out of memory. The plan listed it as still open.
+  This PR serves Milestone&nbsp;3, equality and linear arithmetic, which completes each fragment end to end.
+</p>
 
-<section>
-  <h2 id="changes">What changed</h2>
-  <ul>
-    <li>A lattice lemma can now be proved by one case split, <code>k &lt; s</code> or <code>s ≤ k</code>, each side closed by a linear combination.</li>
-    <li>The split and its multipliers come from a small z3 search under an rlimit, and Python re-checks the answer.</li>
-    <li>A wide Farkas lemma whose bounds span 8 or more <a href="#g-atom">atoms</a> now also gets a direct combination.</li>
-    <li>Lean files from 5&nbsp;MB, down from 8&nbsp;MB, use serial <a href="#g-elaboration">elaboration</a>, which saves memory.</li>
-    <li>The summing helper now itself rejects a negative multiplier on an inequality.</li>
-    <li>The old tactic proofs remain as a fallback, so a lemma without a split loses nothing.</li>
-  </ul>
-  <p>
-    An analogy: to show no whole number lies between 2.3 and 2.7, say “it is at most 2, or at
-    least 3”. Each case contradicts one bound. The split does the same over a sum of variables.
-  </p>
-  <table>
-    <thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th><th>What it holds</th></tr></thead>
-    <tbody>
-      <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">222</td><td class="num">37</td><td>The split search, the split proof, the shared summing helpers</td></tr>
-      <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">127</td><td class="num">0</td><td>Four new tests and one extended test</td></tr>
-      <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">32</td><td class="num">1</td><td>A dated note on the new proof form</td></tr>
-      <tr><td><code>examples/python/data/QF_LIA_cut_lemma_02_002.smt2</code></td><td class="num">31</td><td class="num">0</td><td>The benchmark, copied unchanged from z3test</td></tr>
-      <tr><td><code>examples/python/README</code></td><td class="num">16</td><td class="num">3</td><td>A paragraph describing the split</td></tr>
-      <tr><th>Total, 5 files</th><th class="num">428</th><th class="num">41</th><th></th></tr>
-    </tbody>
-  </table>
-  <p>There is no C++ change, no <a href="#g-sorry"><code>sorry</code></a>, and no new <a href="#g-axiom">axiom</a>.</p>
-</section>
+<h2 id="what-changed">What changed</h2>
+<ul>
+  <li>A lattice lemma can now be proved by one case split, <code>k &lt; s</code> or <code>s ≤ k</code>, with each side closed by a Farkas combination.</li>
+  <li>The split comes from a small z3 search, a <a href="#g-mixed-integer-problem">mixed integer problem</a> under a fixed <a href="#g-rlimit">rlimit</a>, and Python re-checks it.</li>
+  <li>A wide Farkas lemma whose bounds span 8 or more <a href="#g-atom">atoms</a> now also gets a direct combination.</li>
+  <li>Lean files from 5&nbsp;MB, down from 8&nbsp;MB, use serial <a href="#g-elaboration">elaboration</a>, which saves memory.</li>
+  <li>The old tactic proofs stay as a fallback, so a lemma without a split loses nothing.</li>
+</ul>
+<p>
+  An analogy: to show no whole number lies between 2.3 and 2.7, say “it is at most 2, or at least 3”.
+  Each case contradicts one bound. The split does the same over a sum of variables.
+</p>
+<table>
+  <thead><tr><th>Component</th><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td>Reconstructor</td><td><code>examples/python/proof_to_lean.py</code></td><td class="num">222</td><td class="num">37</td></tr>
+    <tr><td>Tests</td><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">127</td><td class="num">0</td></tr>
+    <tr><td>Test data</td><td><code>examples/python/data/QF_LIA_cut_lemma_02_002.smt2</code></td><td class="num">31</td><td class="num">0</td></tr>
+    <tr><td>Docs</td><td><code>doc/lean-proof-plan.md</code></td><td class="num">32</td><td class="num">1</td></tr>
+    <tr><td>Docs</td><td><code>examples/python/README</code></td><td class="num">16</td><td class="num">3</td></tr>
+    <tr><th colspan="2">Total, 5 files</th><th class="num">428</th><th class="num">41</th></tr>
+  </tbody>
+</table>
 
-<section>
-  <h2 id="example">Worked example</h2>
-  <p>
-    Small integer inputs were already accepted before this PR. The input it newly certifies is
-    its 31-line benchmark <code>cut_lemma_02_002</code>, shown trimmed. All output comes from real runs.
-  </p>
+<h2 id="example">Worked example</h2>
+<p>
+  Small integer inputs already verified before this PR. The input it newly certifies is its
+  31-line benchmark <code>cut_lemma_02_002</code>, shown trimmed. All output below comes from real runs.
+</p>
 
-  <h3>(a) The input</h3>
+<h3>(a) The input</h3>
 <pre><code>(set-logic QF_LIA)
-...
+(set-info :status unsat)
 (declare-fun x0 () Int)
-(declare-fun x1 () Int)
 ...
 (declare-fun x19 () Int)
-(assert (let ((?v_10 (- x13)) (?v_3 (- x17)) ... (and (not (&gt;= (+ (* x8 14921) (+ (* x1 (- 45457)) ...
-  ... 428198)) (and ... (not (&lt;= 1 x19)) (not (&lt;= x17 (- 2)))) (not (&lt;= 1 x1))) ...
-(check-sat)
-</code></pre>
-  <p class="note">Twenty Int variables and one conjunction of about twenty linear inequalities.</p>
+(assert (let ((?v_10 (- x13)) (?v_3 (- x17)) ...)
+  (and (not (&gt;= (+ (* x8 14921) (+ (* x1 (- 45457)) ... ) 428198))
+       ... (not (&lt;= 1 x19)) (not (&lt;= x17 (- 2))) (not (&lt;= 1 x1)) ...)))
+(check-sat)</code></pre>
+<p class="explain">Twenty integer variables, one large conjunction of linear inequalities, and no integer solution.</p>
 
-  <h3>(b) Before</h3>
-  <p>
-    The pre-PR exporter produced the same certificate. Its reconstructor, run without the Lean
-    check, wrote a 2.8&nbsp;MB file. Every lattice lemma in it looked like this:
-  </p>
-<pre><code>set_option maxHeartbeats 1000000 in
-private theorem th_lemma_792 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+<h3>(b) Before</h3>
+<p>
+  The base commit's exporter and reconstructor accepted the input and wrote a 2.8&nbsp;MB Lean file.
+  Each lattice lemma in it had only the tactic proof:
+</p>
+<pre><code>private theorem th_lemma_792 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_791 _atoms _vars) := by
-  unfold formula_791 formula_790 formula_787 formula_783 ...
-  first | omega | grind (splits := 64)
-</code></pre>
-  <p class="note">A tactic must find the integer argument alone.</p>
-  <p>
-    The failure came in the Lean check, not re-run here because it needs over 13&nbsp;GB.
-    The PR records it as <strong>“exit 143 (watchdog) at 13 to 16 GB”</strong>.
-  </p>
+  unfold formula_791 formula_790 formula_787 ...
+  first | omega | grind (splits := 64)</code></pre>
+<p class="explain">With no split to follow, the tactics must find the integer argument themselves.</p>
+<p>
+  The old command line, run from a scratch copy, cannot find its Lean checker. So the old file was checked
+  with <code>check_lean.sh</code> under an 8&nbsp;GB memory watchdog. Lean printed no error. It was killed:
+</p>
+<pre><code>exit -9 wall 5 s peak 8775 MB killed by watchdog: RSS above 8192 MB</code></pre>
+<p class="explain">Lean passed the cap within seconds. The PR's own measurement saw a kill at 13 to 16&nbsp;GB.</p>
 
-  <h3>(c) After</h3>
-  <p>
-    The new reconstructor wrote a 6.8&nbsp;MB file with 188 split proofs. It runs the Lean
-    checker before publishing, and printed <code>Lean checked the refutation; wrote example.lean</code>.
-    So <strong>Lean accepted the file</strong>. A second, standalone checker run was not permitted
-    in this session.
-  </p>
-<pre><code>import Init
-
--- Original input SHA-256: 3f486132767db440120fae48141bf68a4e4ff13310b678406869d4e14d5184d1
-...
--- Variable 1: "x1"
--- Variable 2: "x14"
--- Variable 3: "x5"
-...
--- Variable 10: "x10"
-...
-namespace Z3Proofs.NativeCertificate.p3f486132767db440120fae48141bf68a4e4ff13310b678406869d4e14d5184d1
-
-set_option maxRecDepth 100000
+<h3>(c) After</h3>
+<p>
+  The current reconstructor wrote a 6.8&nbsp;MB Lean file with 188 split proofs.
+  <strong>Lean accepted it</strong>, both in the reconstructor's own check and in a separate <code>check_lean.sh</code> run.
+</p>
+<pre><code>set_option maxRecDepth 100000
 set_option Elab.async false
-...
-def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
-...
-def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 2
-...
-</code></pre>
-  <p class="note">Each variable becomes an Int, and <code>set_option Elab.async false</code> turns on serial elaboration.</p>
 
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+...</code></pre>
+<p class="explain">The file is over 5&nbsp;MB, so it now turns off parallel elaboration.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_280 _atoms _vars))
     : False :=
-  proof_step_2305 _atoms _vars _h0
-</code></pre>
-  <p class="note">The unchanged theorem statement: the assertion implies <code>False</code>.</p>
-
+  proof_step_2305 _atoms _vars _h0</code></pre>
+<p class="explain">The theorem says the input assertion implies <code>False</code>, unchanged by the PR.</p>
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem th_lemma_792 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_791 _atoms _vars) := by
   first
-    | (have _sum0 : (((194788398644 : Int)) * ((term_64 _atoms _vars) - ((term_161 _atoms _vars) + 1)) + ... := by delta ...; omega
-       have _sum1 : (((3 : Int)) * ((term_87 _atoms _vars) - ((term_3 _atoms _vars) + 1)) + (((1 : Int)) * ((term_112 _atoms _vars) - (term_37 _atoms _vars)) + (((1 : Int)) * ((term_392 _atoms _vars) - (term_112 _atoms _vars)) + (((3 : Int)) * ((term_7 _atoms _vars) - ((term_560 _atoms _vars) + 1)) + ((2 : Int)) * (((-5 : Int)) - (((-1 : Int)) * (term_3 _atoms _vars) + ((1 : Int)) * (term_7 _atoms _vars) + ((-1 : Int)) * (term_11 _atoms _vars) + ((-1 : Int)) * (term_37 _atoms _vars))))))) = ((-1 : Int)) := by delta term_560 term_559 term_392 term_391 term_308 term_282 term_142 term_112 term_91 term_90 term_87; omega
-       exact Classical.byContradiction fun _hn =&gt; (Int.lt_or_le ((-5 : Int)) (((-1 : Int)) * (term_3 _atoms _vars) + ((1 : Int)) * (term_7 _atoms _vars) + ((-1 : Int)) * (term_11 _atoms _vars) + ((-1 : Int)) * (term_37 _atoms _vars))).elim (fun _s =&gt; absurd (Int.le_trans (... ) (Int.le_of_eq _sum0)) (by decide)) (fun _s =&gt; absurd (Int.le_trans (... ) (Int.le_of_eq _sum1)) (by decide)))
-    | (unfold formula_791 formula_790 ...
-       first | omega | grind (splits := 64))
-</code></pre>
-  <p class="note">
-    The split compares <code>s = -x1 + x14 - x5 - x10</code> with -5.
-    In each case, an identity shows a nonnegative sum equals -1, which is impossible.
-    The old proof follows as a fallback.
-  </p>
-</section>
+    | (have _sum0 : (((194788398644 : Int)) * ((term_64 _atoms _vars) - ((term_161 _atoms _vars) + 1)) + ...
+           ... ) = ((-89592237387 : Int)) := by delta term_621 term_620 ...; omega
+       have _sum1 : (((3 : Int)) * ((term_87 _atoms _vars) - ((term_3 _atoms _vars) + 1)) + ...
+           ... ) = ((-1 : Int)) := by delta term_560 term_559 ...; omega
+       exact Classical.byContradiction fun _hn =&gt;
+         (Int.lt_or_le ((-5 : Int)) (((-1 : Int)) * (term_3 _atoms _vars) + ((1 : Int)) * (term_7 _atoms _vars)
+           + ((-1 : Int)) * (term_11 _atoms _vars) + ((-1 : Int)) * (term_37 _atoms _vars))).elim
+           (fun _s =&gt; absurd (Int.le_trans ... (Int.le_of_eq _sum0)) (by decide))
+           (fun _s =&gt; absurd (Int.le_trans ... (Int.le_of_eq _sum1)) (by decide)))
+    ...</code></pre>
+<p class="explain">
+  z3 proposed the split <code>-5 &lt; -x1 + x14 - x5 - x10</code> or the reverse.
+  Identities <code>_sum0</code> and <code>_sum1</code> show that each side sums to a negative constant.
+</p>
+<pre><code>    | (unfold formula_791 formula_790 ... term_1 term_0
+       first | omega | grind (splits := 64))</code></pre>
+<p class="explain">The old tactic proof stays second under <code>first</code>, as a fallback.</p>
 
-<section>
-  <h2 id="verification">How it was verified</h2>
-  <p>
-    All reconstruction tests passed, including the new whole-benchmark Lean test, which now fits
-    under the memory cap. The reviewer also corrupted z3's splits on purpose. Python dropped or
-    Lean rejected every one.
-  </p>
-  <table>
-    <thead><tr><th>Local check, on the final commit, macOS</th><th>Result</th></tr></thead>
-    <tbody>
-      <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">319 tests, OK, 1371 s</td></tr>
-      <tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">105 tests, OK</td></tr>
-      <tr><td>Integer validation tests, no Lean</td><td class="pass">19 tests, OK</td></tr>
-      <tr><td>Lean project check, <code>scripts/check_lean.sh</code></td><td class="pass">“Lean checks passed.”</td></tr>
-      <tr><td>z3test proof scripts</td><td class="pass">46 tests, OK</td></tr>
-      <tr><td>Proof matrix, Boolean inputs, legacy proof cell</td><td class="pass">6/6 Lean-verified</td></tr>
-      <tr><td>Proof matrix, LRA inputs, clause-log cell</td><td class="pass">8/8 Lean-verified</td></tr>
-      <tr><td>Reviewer: new benchmark test alone</td><td class="pass">OK, 191.5 s</td></tr>
-      <tr><td>Reviewer: split-only test on the documented inputs</td><td class="pass">OK, 16.4 s</td></tr>
-    </tbody>
-  </table>
-  <table>
-    <thead><tr><th>Measurement, 8 GB cap</th><th>Before</th><th>After</th></tr></thead>
-    <tbody>
-      <tr><td><code>cut_lemma_02_002</code>, whole file</td><td>killed by watchdog at 13 to 16 GB</td><td>158 s, 6.74 GB peak, 0 errors</td></tr>
-      <tr><td>Wide division seed test</td><td>31 s, 7.73 GB peak</td><td>30 s, 3.70 GB peak</td></tr>
-      <tr><td>Split search over all 188 lattice lemmas, no Lean</td><td>not applicable</td><td>all found, largest 2.94M rlimit, 2.1 s in total</td></tr>
-    </tbody>
-  </table>
-  <p>
-    The loop's local gate had <strong>not been recorded</strong> when this page was written.
-  </p>
-  <table>
-    <thead><tr><th>CI workflow and check</th><th>Status</th><th>Link</th></tr></thead>
-    <tbody>
-      <tr><td>Ubuntu build - cmake - releaseClang, step “Check native Boolean proofs in Lean”, which runs the new tests</td><td class="pending">Unknown: no CI status was recorded for this page</td><td><a href="https://github.com/levnach/z3/pull/54/checks">PR checks</a></td></tr>
-    </tbody>
-  </table>
-  <p>No CI fix rounds were recorded.</p>
-</section>
+<h2 id="verified">How it was verified</h2>
+<p>
+  Every test for this area passed on the loop machine, including the new three-minute benchmark test.
+  The PR was merged on this local gate, which mirrors the relevant CI steps.
+</p>
+<table>
+  <thead><tr><th>Local gate step (macOS, arm64)</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">14 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">1399 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">16 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+<p>The implementer and reviewer also ran these checks.</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>319 tests, OK</td></tr>
+    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td>105 tests, OK</td></tr>
+    <tr><td>Integer validation tests, no Lean</td><td>19 tests, OK</td></tr>
+    <tr><td><code>check_lean.sh</code></td><td>Lean checks passed</td></tr>
+    <tr><td>z3test proof script tests</td><td>46 tests, OK</td></tr>
+    <tr><td>Boolean matrix, legacy proof object</td><td>6 of 6 Lean-verified</td></tr>
+    <tr><td>QF_LRA matrix, clause log</td><td>8 of 8 Lean-verified</td></tr>
+    <tr><td>Benchmark <code>cut_lemma_02_002</code>, whole file</td><td>before: killed at 13 to 16 GB &middot; after: 158 s, 6.74 GB peak</td></tr>
+    <tr><td>Wide division seed</td><td>peak before: 7.73 GB &middot; after: 3.70 GB</td></tr>
+    <tr><td>Split searches on the benchmark</td><td>all 188 lattice lemmas found a split with coefficients in [-1, 1]; largest search 2.9M rlimit</td></tr>
+    <tr><td>Searches that should fail, one bound dropped</td><td>374 of 376 found no split; 7.9 s in total</td></tr>
+    <tr><td>Tampered splits: shifted <code>k</code>, wrong constant, flipped coefficient, doubled multipliers</td><td>each dropped by Python or rejected by Lean</td></tr>
+  </tbody>
+</table>
+<p>
+  No CI status was recorded, and there were no CI fix rounds. GitHub CI runs on <code>master</code> after the merge,
+  and its result is unknown here.
+</p>
+<table>
+  <thead><tr><th>CI workflow and job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><a href="https://github.com/levnach/z3/pull/54/checks">CI / Ubuntu build - cmake - releaseClang</a></td>
+      <td>Check native Boolean proofs in Lean</td>
+      <td class="unknown">not recorded</td>
+    </tr>
+    <tr>
+      <td>manylinux job</td>
+      <td>runs only <code>test_proof_to_lean.py</code>, so it is not affected</td>
+      <td class="unknown">not recorded</td>
+    </tr>
+  </tbody>
+</table>
 
-<section>
-  <h2 id="review">Review</h2>
-  <p>The reviewer approved, with no blocker and no major finding.</p>
-  <h3>Minor: the rlimit margin might be too thin on Linux</h3>
-  <p>
-    The reviewer measured the split search on all 188 lemmas. The largest used 2.9M of a 5M rlimit.
-    Linux CI might count differently, and one missing split would fail the new tests.
-    The second commit raised the bounded search's limit to 20M. The unbounded search keeps 5M,
-    since it once needed over 400M.
-  </p>
-  <h3>Minor: a slow split could block the fallback</h3>
-  <p>
-    Lean's <code>first</code> does not catch a <a href="#g-heartbeat">heartbeat</a> timeout.
-    A slow split would fail the whole lemma instead of reaching the fallback.
-    The reviewer never saw it, as splits took about 0.7 s. It was <strong>not changed</strong>, and is a follow-up.
-  </p>
-  <h3>Nit: a precondition lived only in a comment</h3>
-  <p>
-    The summing helper assumed only equalities get negative multipliers. A future caller could
-    break this and waste a proof attempt. The second commit added the check and a test.
-  </p>
-</section>
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blocker or major finding.</p>
+<h3>Minor: a thin margin in the benchmark test</h3>
+<p>
+  The test demands a split for all 188 lattice lemmas within the search limit.
+  The hardest search used over half of it on macOS, and Linux may count differently.
+  A missing split would send a lemma back to <code>grind</code>, which had run out of memory.
+  <strong>Fixed:</strong> the bounded search got its own, four times larger limit.
+</p>
+<h3>Minor: a slow split cannot fall through to the fallback</h3>
+<p>
+  Lean's <code>first</code> does not catch a <a href="#g-heartbeat">heartbeat</a> timeout.
+  So a slow split would fail the whole lemma instead of trying <code>grind</code>. No test showed this.
+  <strong>Recorded as a follow-up:</strong> the older Farkas combination already behaved this way.
+</p>
+<h3>Nit: a rule stated only in a comment</h3>
+<p>
+  The summing helper assumed only equalities get a negative multiplier, and said so only in a comment.
+  <strong>Fixed:</strong> it now refuses such input, and a unit test covers it.
+  A suggested per-certificate search budget is a follow-up.
+</p>
 
-<section>
-  <h2 id="risks">Risks and open questions</h2>
-  <ul>
-    <li>The new test adds about 3 minutes and 6.7 GB to a CI job that already uses over half its time limit. Linux was not measured.</li>
-    <li>Another z3 build may find another split. Lean still checks it.</li>
-    <li>Split searches have no total budget per certificate.</li>
-    <li>The heartbeat interaction from the review remains open.</li>
-  </ul>
-</section>
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>Reconstruction now runs z3 searches, usually fast but up to a few seconds per lemma.</li>
+  <li>Another z3 build may find a different split. Lean still checks it.</li>
+  <li>The benchmark test adds about 3 minutes and a 6.7&nbsp;GB peak to CI, measured on macOS only.</li>
+  <li>The heartbeat issue from the review remains open, and the post-merge CI result is unknown.</li>
+</ul>
 
-<section>
-  <h2 id="next">What comes next</h2>
-  <ul>
-    <li>The cut in <code>lia_gomory</code> needs rounding inside one side of the split, so it still uses the tactic fallback.</li>
-    <li>A cheaper identity check would cut the roughly 26 MB each split costs Lean.</li>
-    <li>A rescan of the QF_LIA sample for lattice lemmas that get no split.</li>
-    <li>A per-certificate budget for split searches.</li>
-    <li>Real Farkas lemmas still go to <code>grind</code>.</li>
-  </ul>
-</section>
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>The cut in <code>lia_gomory</code> needs gcd rounding inside a side, so it keeps <code>grind</code>.</li>
+  <li>A cheaper identity check, a QF_LIA rescan, and a per-certificate search budget.</li>
+  <li>Real-valued Farkas lemmas still go to <code>grind</code>.</li>
+</ul>
 
-<section>
-  <h2 id="glossary">Glossary</h2>
-  <dl>
-    <dt id="g-atom">atom</dt>
-    <dd>A smallest unit inside a formula, here a single integer variable such as <code>x5</code>.</dd>
-
-    <dt id="g-axiom">axiom</dt>
-    <dd>A statement Lean accepts without proof. The proofs here may use only Lean's standard axioms.</dd>
-
-    <dt id="g-bound">bound</dt>
-    <dd>An inequality or equality on a linear expression, such as <code>x1 + x2 ≤ 7</code>.</dd>
-
-    <dt id="g-case-split">case split</dt>
-    <dd>A proof that considers every possible case separately. For integers, “<code>k &lt; s</code> or <code>s ≤ k</code>” always covers everything.</dd>
-
-    <dt id="g-clause">clause</dt>
-    <dd>A disjunction of literals, where a literal is an atom or its negation. Example: <code>x ≤ 3 or not (y ≤ 0)</code>.</dd>
-
-    <dt id="g-cut">cut</dt>
-    <dd>A new inequality that every integer solution satisfies but some fractional solutions do not. A Gomory cut is a common kind that z3 derives.</dd>
-
-    <dt id="g-elaboration">elaboration</dt>
-    <dd>Lean's step of turning source text into fully checked terms. Doing it in parallel is faster but uses more memory.</dd>
-
-    <dt id="g-farkas-lemma">Farkas lemma</dt>
-    <dd>A theory lemma showing that some inequalities conflict, because a nonnegative sum of them gives a false statement such as <code>0 ≤ -1</code>.</dd>
-
-    <dt id="g-heartbeat">heartbeat</dt>
-    <dd>Lean's unit of work. A proof that uses more heartbeats than allowed is stopped with a timeout.</dd>
-
-    <dt id="g-lattice-lemma">lattice lemma</dt>
-    <dd>This project's name for an integer theory lemma without multipliers: a cut, or a Farkas lemma that z3 did not explain. It holds only because the variables are integers.</dd>
-
-    <dt id="g-linear-combination">linear combination</dt>
-    <dd>A sum of facts, each multiplied by a number. Example: 2·(x ≥ 1) plus 1·(−2x ≥ 0) gives 0 ≥ 2, which is false.</dd>
-
-    <dt id="g-multiplier">multiplier</dt>
-    <dd>The number each fact is scaled by in a linear combination. A multiplier on an inequality must not be negative.</dd>
-
-    <dt id="g-oracle">oracle</dt>
-    <dd>A helper whose answers are used but not trusted. Every answer is checked before it counts.</dd>
-
-    <dt id="g-qf-lia">QF_LIA</dt>
-    <dd>The SMT-LIB logic of quantifier-free linear integer arithmetic: sums of Int variables times constants, compared with ≤, &lt;, and =.</dd>
-
-    <dt id="g-refutation">refutation</dt>
-    <dd>A proof that a set of facts leads to <code>False</code>.</dd>
-
-    <dt id="g-rlimit">rlimit</dt>
-    <dd>z3's resource limit. Unlike a time limit, it gives the same result on every run of the same build.</dd>
-
-    <dt id="g-sorry">sorry</dt>
-    <dd>Lean's placeholder for a missing proof. A file that uses it proves nothing.</dd>
-
-    <dt id="g-tactic">tactic</dt>
-    <dd>A Lean command that builds part of a proof automatically. Example: <code>omega</code> decides integer linear arithmetic.</dd>
-
-    <dt id="g-theory-lemma">theory lemma</dt>
-    <dd>A clause that z3 asserts is true in a theory, here integer arithmetic. The certificate calls it a th-lemma, and Lean must prove each one.</dd>
-  </dl>
-</section>
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-atom">atom</dt>
+  <dd>A smallest term that a linear form is built from, usually one variable. In <code>2*x + 3*y</code> the atoms are <code>x</code> and <code>y</code>.</dd>
+  <dt id="g-bound">bound</dt>
+  <dd>An inequality or equality on a linear form, such as <code>x + y ≤ 3</code>.</dd>
+  <dt id="g-case-split">case split</dt>
+  <dd>A proof that covers every possibility by cases. Here: either <code>k &lt; s</code> or <code>s ≤ k</code>, and both cases lead to a contradiction.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>A new inequality that holds for every integer solution but removes some fractional ones. A Gomory cut is a common kind. A split cut is a cut justified by one case split.</dd>
+  <dt id="g-elaboration">elaboration</dt>
+  <dd>Lean's step that turns source text into checked terms. Serial elaboration does one declaration at a time, which is slower but uses less memory.</dd>
+  <dt id="g-farkas-lemma">Farkas lemma</dt>
+  <dd>A theory lemma proved by adding bounds with nonnegative multipliers until the sum reads <code>0 ≤ -1</code>. That sum is the Farkas combination.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work for a single declaration. A proof that uses too many heartbeats stops with an error.</dd>
+  <dt id="g-lattice-lemma">lattice lemma</dt>
+  <dd>In this project, an integer theory lemma that lists its bounds without multipliers: a cut, or an unexplained Farkas or bound lemma.</dd>
+  <dt id="g-linear-form">linear form</dt>
+  <dd>A sum of variables times constant coefficients, such as <code>-x1 + x14 - x5 - x10</code>.</dd>
+  <dt id="g-mixed-integer-problem">mixed integer problem</dt>
+  <dd>A system of linear constraints where some unknowns must be integers and others may be fractions.</dd>
+  <dt id="g-multiplier">multiplier</dt>
+  <dd>The constant that a bound is scaled by before it is added to the others in a combination.</dd>
+  <dt id="g-oracle">oracle</dt>
+  <dd>A helper that proposes an answer without being trusted. Every answer is checked before it is used.</dd>
+  <dt id="g-qf-lia">QF_LIA</dt>
+  <dd>The SMT-LIB logic of quantifier-free linear integer arithmetic.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of facts leads to <code>False</code>.</dd>
+  <dt id="g-rlimit">rlimit</dt>
+  <dd>z3's resource limit. It counts internal steps instead of seconds, so a run stops at the same point every time on one build.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>omega</code> decides linear integer goals, and <code>grind</code> is a general automated prover.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that holds in a background theory, such as integer arithmetic, and that the solver adds to its search. Written <code>th-lemma</code> in z3 proofs.</dd>
+</dl>
 
 <footer>
   Generated by the Lean certificate improvement loop on 2026-10-30.
