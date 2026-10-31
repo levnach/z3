@@ -135,6 +135,12 @@ div and mod by zero or by a term (SMT-LIB leaves division by zero
 uninterpreted, where Lean's Int division is total; a term divisor is
 nonlinear), rem, to_real, to_int, and Int mixed with Real (QF_LIRA, also
 through a function signature such as (Int) Real) are rejected explicitly.
+The exception is an integer numeral where a Real is expected: without a
+set-logic, or under ALL, Z3 reads (* 2 x) over a Real x as
+(* (to_real 2) x), and such a to_real of a term built from numerals, sums,
+differences, products, and negations is read as the same term over Real
+numerals, as QF_LRA reads it. The same holds for such a to_real written
+explicitly, in any logic: (to_real (+ 2 1)) is read as (+ 2.0 1.0).
 One symbol name declared with
 several signatures is rejected in every fragment: Z3 accepts such overloading
 and tells the declarations apart by sort, but the certificate binds symbols
