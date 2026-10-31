@@ -327,6 +327,13 @@ class _Graph:
     def arguments(self, node):
         return self.nodes[node].arguments
 
+    @functools.cached_property
+    def equalities(self):
+        """The equality nodes between two terms, by their (ordered) argument pair."""
+        return {self.arguments(node): node for node in range(len(self.nodes))
+                if self.kind(node) == z3.Z3_OP_EQ and len(self.arguments(node)) == 2
+                and self.is_term(self.arguments(node)[0])}
+
     def conclusion(self, node):
         return self.arguments(node)[-1]
 
@@ -1977,7 +1984,13 @@ def _boolean_structure(graph, node, atom_indices, memo=None, leaves=None):
     distinct over terms, or a predicate application) is the opaque leaf
     ("leaf", node, rendering), rendered by its definition name so that it is
     never unfolded, and is recorded in leaves by node; without, a theory
-    atom is unsupported.
+    atom is unsupported. A distinct over terms whose every pair has an
+    equality node of its own (the alldiff literals Z3 logs) is instead the
+    conjunction of those equalities negated, the leaves in the order
+    _formula_body renders the pairs, so the literal (not (= a b)) of a
+    clause names a conjunct of the distinct: a cnf lemma tying such a
+    literal to an assertion holding the distinct (QF_UF NEQ004) was out of
+    the prover's reach and unfolded the whole assertion into grind.
 
     The nodes are read bottom up on an explicit stack, arguments left to
     right, rather than recursively: a QF_UF input asserting a conjunction
@@ -1997,11 +2010,31 @@ def _boolean_structure(graph, node, atom_indices, memo=None, leaves=None):
         elif _trivial_distinct(graph, current):
             memo[current] = ("true",)  # over a term as well as over an atom
         elif leaves is not None and arguments and (kind == z3.Z3_OP_UNINTERPRETED or graph.is_term(arguments[0])):
-            memo[current] = leaves.setdefault(current, ("leaf", current, _formula(graph, current)))
+            pairs = _distinct_pair_equalities(graph, current)
+            if pairs is None:
+                memo[current] = leaves.setdefault(current, ("leaf", current, _formula(graph, current)))
+            else:
+                memo[current] = _structure_fold("and", [
+                    ("not", leaves.setdefault(pair, ("leaf", pair, _formula(graph, pair)))) for pair in pairs])
         else:
             pending.append((current, True))
             pending.extend((argument, False) for argument in reversed(arguments))
     return memo[node]
+
+
+def _distinct_pair_equalities(graph, node):
+    """The equality nodes of a distinct's argument pairs, in rendering order, or None.
+
+    None unless node is a distinct over terms and every pair (a, b), a
+    before b, has the node (= a b): a pair logged as (= b a) renders as
+    another proposition than the conjunct (Not (a = b)) of the distinct.
+    """
+    if graph.kind(node) != z3.Z3_OP_DISTINCT:
+        return None
+    arguments = graph.arguments(node)
+    pairs = [graph.equalities.get((left, right))
+             for index, left in enumerate(arguments) for right in arguments[index + 1:]]
+    return None if None in pairs else pairs
 
 
 def _boolean_connective(kind, children):
@@ -2454,18 +2487,38 @@ class _PropositionalProver:
             if self._exhausted():
                 return None
             structure = pending.pop()
-            for target, truth, proof, decides, typed in self._consequences(state, structure):
+            for target, truth, proof, decides, typed in self._consequences(state, structure, lines):
                 conflict = self._assign(state, lines, pending, target, truth, proof, decides, typed)
                 if conflict is not None:
                     return conflict
         return None
 
-    def _consequences(self, state, structure):
+    def _tails(self, lines, proof, last):
+        """Bind the rest of a true conjunction from every _AND_ELIM_STRIDE-th operand on, up to operand last.
+
+        As _tail_lets does for and-elim: each tail projects from the one
+        before, so projecting every operand of a conjunction takes one `.2`
+        per operand plus at most a stride per projection. Projected from the
+        proof itself, the conjuncts of a 400-operand assertion (a cnf lemma
+        of QF_UF NEQ004) took 80,000 projections, longer in Lean than grind
+        over the whole unfolded assertion. Returns the tail names by base.
+        """
+        tails = {0: proof}
+        for base in range(_AND_ELIM_STRIDE, last + 1, _AND_ELIM_STRIDE):
+            tails[base] = self.name()
+            line = "have %s := %s%s" % (tails[base], tails[base - _AND_ELIM_STRIDE], ".2" * _AND_ELIM_STRIDE)
+            self.chars += len(line)
+            lines.append(line)
+        return tails
+
+    def _consequences(self, state, structure, lines):
         """The truth values one gate determines from its own value and its operands' values.
 
         Each consequence is (structure, truth, proof, decides, typed) where
         decides is the atom whose Decidable instance the proof uses, or
         None, and typed is whether the proof's `have` must state its type.
+        The `have` lines binding the tails of a wide true conjunction go
+        to lines, ahead of the consequences that project from them.
         """
         kind = structure[0]
         children = _structure_children(structure)
@@ -2495,9 +2548,11 @@ class _PropositionalProver:
                 # A conjunct already true would be dropped by _assign; skipping it
                 # here keeps a conjunction of n operands from building its n
                 # projections each time one of them is assigned (cubic in n).
-                for i, child in enumerate(children):
-                    if truths[i] is not True:
-                        add(child, True, _project(i, count, value[1]), typed=False)
+                positions = [i for i in range(count) if truths[i] is not True]
+                tails = self._tails(lines, value[1], positions[-1]) if positions else {}
+                for i in positions:
+                    base = i // _AND_ELIM_STRIDE * _AND_ELIM_STRIDE
+                    add(children[i], True, _select(i - base, count - base, tails[base]), typed=False)
             if value is not None and not value[0] and truths.count(None) == 1 and False not in truths:
                 position = truths.index(None)
                 parts = ["_g" if i == position else proof for i, proof in enumerate(proofs)]
