@@ -2251,7 +2251,8 @@ the bounds `0 <= (mod u k) <= |k| - 1`, or when the clause is one of the two
 by the negation of the other literal. A leading `true` stands for the false
 `q = 0` literal of `q * (p / q) = p` that the logged clause omits; the
 checker's `clause` drops it, so the trimmer keeps the logged clause. Anything
-else under `arith` (to_int, powers, nonlinear divisors) still falls back (rem: see 2026-10-31).
+else under `arith` (to_int, powers, nonlinear divisors) still falls back
+(`rem`: see 2026-10-31).
 After the change the same logs have no `arith` fallback (only the `cut`
 steps, by design), and a soundness fuzz of 3,000 random near-miss clauses
 found no accepted invalid one. The Python replay and Lean checked these

@@ -530,8 +530,10 @@ static bool check_arith_axiom(ast_manager& m, char const* source, bool leading_t
 
 // The arith solver's axioms (arith_axioms.cpp) for div, mod and / by a numeral
 // and for abs went to the SMT fallback (5,213 steps over the division
-// generators of test_proof_to_lean_lia.py, 18 over test_proof_to_lean_uflra.py).
-// They are checked against the defining identities and bounds now.
+// generators of test_proof_to_lean_lia.py, 18 over test_proof_to_lean_uflra.py),
+// and so did the rem axiom with the false guard (280 steps over
+// random_remainder_instance seeds 1 to 40). They are checked against the
+// defining identities and bounds now.
 static void tst_checker_arith_axioms() {
     ast_manager m;
     reg_decl_plugins(m);
