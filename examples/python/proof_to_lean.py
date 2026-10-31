@@ -119,6 +119,23 @@ _FARKAS_COMBINATION_BOUNDS = 16
 # Lean peak by 0.2 GB, close to the 8 GB cap; the conflicts omega could
 # not finish had coefficients of seven and eight digits.
 _FARKAS_COMBINATION_COEFFICIENT = 10000
+# Or the atoms one of those bounds must reach (a dense bound): omega took
+# over a minute, or six gigabytes, on 9 of the 25 Farkas lemmas of 20 and 21
+# bounds over twenty variables, coefficients below 10,000, of QF_LIA
+# cut_lemma_02_002, whose bounds span 19 atoms each; the wide division
+# seed's bounds span at most four.
+_FARKAS_COMBINATION_ATOMS = 8
+# Resource limits of the searches z3 makes for the split of an Int lattice
+# lemma (_split_certificate), first with the split's coefficients bounded by
+# one, then unbounded (_SPLIT_MAGNITUDES). Bounded, each of the 188
+# lattice lemmas of QF_LIA cut_lemma_02_002 has one within 3 million (4 s of
+# z3 for all of them), so the bounded limit leaves rlimit accounting on
+# other platforms and builds a margin of six; a bounded search that fails
+# costs at most about 3 s. Unbounded, two of them needed 50 million and
+# over 400 million (a minute of z3).
+_SPLIT_BOUNDED_RLIMIT = 20000000
+_SPLIT_RLIMIT = 5000000
+_SPLIT_MAGNITUDES = (1, None)
 # The formulas a normalized rewrite's propositional lemma states over its
 # atoms (Boolean = is checked separately: its arguments must be formulas).
 _NORMALIZED_CONNECTIVES = (z3.Z3_OP_AND, z3.Z3_OP_OR, z3.Z3_OP_NOT, z3.Z3_OP_IMPLIES, z3.Z3_OP_IFF,
@@ -138,9 +155,11 @@ _STRUCTURAL_REWRITE_CHARS = 1000000
 # Elaborating declarations in parallel tasks keeps far more memory alive:
 # z3test's NEQ004_size4 (21 MB) peaks above 10 GB in parallel and at 7.1 GB
 # serially, against the 8 GB `--memory` cap of check_lean.sh, at the price
-# of three times the wall time (about 100 s against 34 s). No other test
-# file exceeds 4 MB.
-_SERIAL_ELABORATION_CHARS = 8000000
+# of three times the wall time (about 100 s against 34 s). QF_LIA
+# cut_lemma_02_002 (6.5 MB, 294 split and combination proofs of lattice and
+# Farkas lemmas over twenty variables) exhausts the cap in parallel and
+# peaks at 6.7 GB serially. No other test file exceeds 4 MB.
+_SERIAL_ELABORATION_CHARS = 5000000
 _RESERVED_SORTS = ("Bool", "Real", "Int", "Proof")
 # The uninterpreted sorts are one type variable; constants, functions, and
 # predicates are indexed families over argument lists, so one signature serves
@@ -1571,8 +1590,9 @@ def _farkas_combination(graph, node):
     smtlib-sample) ran for ten minutes without an answer. Inequality
     multipliers are the hint's coefficients; equality multipliers are solved
     for, as in linear_combination_refutes. A lemma of fewer than
-    _FARKAS_COMBINATION_BOUNDS bounds or with no coefficient of magnitude
-    _FARKAS_COMBINATION_COEFFICIENT, a combination that needs the integer
+    _FARKAS_COMBINATION_BOUNDS bounds, or with neither a coefficient of
+    magnitude _FARKAS_COMBINATION_COEFFICIENT nor a bound over
+    _FARKAS_COMBINATION_ATOMS atoms, a combination that needs the integer
     rounding of a bound step (bound_combination_refutes), and any literal
     shape outside the cases below get no attempt: the caller's
     generalized and unfolded proofs remain. Lean checks the attempt like
@@ -1580,13 +1600,64 @@ def _farkas_combination(graph, node):
     """
     if graph.numeric != "Int" or not _combination_certified(graph, node):
         return None
-    premises = [graph.conclusion(premise) for premise in graph.arguments(node)[:-1]]
-    conclusion = graph.conclusion(node)
-    literals = graph.clause(conclusion)
     coefficients = [Fraction(parameter) for parameter in graph.decl(node).parameters[1:]]
-    if (len(coefficients) != len(premises) + len(literals) or len(coefficients) < _FARKAS_COMBINATION_BOUNDS
-            or max((abs(coefficient) for coefficient in coefficients), default=0) < _FARKAS_COMBINATION_COEFFICIENT):
+    if (len(coefficients) != len(graph.arguments(node)) - 1 + len(graph.clause(graph.conclusion(node)))
+            or len(coefficients) < _FARKAS_COMBINATION_BOUNDS):
         return None
+    lemma = _lemma_bounds(graph, node)
+    if lemma is None:
+        return None
+    premises, bounds = lemma
+    if (max((abs(coefficient) for coefficient in coefficients), default=0) < _FARKAS_COMBINATION_COEFFICIENT
+            and max(len(bound[5][0]) for bound in bounds) < _FARKAS_COMBINATION_ATOMS):
+        return None
+    multipliers = _farkas_multipliers([bound[5] for bound in bounds], coefficients, [bound[4] for bound in bounds])
+    summed = None if multipliers is None else _combination_sum(bounds, multipliers)
+    if summed is None:
+        return None
+    combination, nonnegative, total, sides = summed
+    # The identity goes first, while omega sees no hypothesis but the
+    # valuation, over the atoms of the linear forms left folded (delta
+    # unfolds the sums, products, and numerals above them in one pass, and
+    # omega reads a folded atom as one variable). The rest is one
+    # term, typed by the ascription of the sum: a tactic `have` per fact
+    # cost Lean about two megabytes per lemma, which a certificate of 800
+    # two-literal Farkas lemmas (the wide division seed) could not afford.
+    return [
+        _sum_identity(graph, "_sum", combination, total, sides),
+        "exact %sClassical.byContradiction fun _hn => %s" % (
+            "".join("fun _p%d => " % position for position in range(premises)),
+            _combination_absurd(nonnegative, combination, "_sum")),
+    ]
+
+
+def _sum_identity(graph, name, combination, total, sides):
+    """The tactic line stating that a combination of facts sums to its constant, proved by omega."""
+    return "have %s : %s = ((%d : Int)) := by %somega" % (
+        name, combination, total, "delta %s; " % " ".join(_definition_names(graph, sides)) if sides else "")
+
+
+def _combination_absurd(nonnegative, combination, identity):
+    """The proof of False from 0 <= combination (nonnegative) and the identity combination = a negative constant."""
+    return "absurd (Int.le_trans (%s : ((0 : Int)) <= %s) (Int.le_of_eq %s)) (by decide)" % (
+        nonnegative, combination, identity)
+
+
+def _lemma_bounds(graph, node):
+    """The bounds an Int th-lemma's premises and negated clause literals state, or None.
+
+    Returns the number of premises and the bounds, each a tuple (lower,
+    upper, tightened, proof, equality, form, structure) with lower and
+    upper rendered: proof shows lower <= upper (lower + 1 <= upper when
+    tightened, lower = upper for an equality) from the premises _p0, ...
+    and the negated clause _hn of the caller's proof, form is the linear
+    form (terms, constant) of the fact 0 <= upper - lower (- 1 when
+    tightened) over the atoms, and structure the term nodes above the
+    atoms (_linear_structure). A disequality bounds nothing, so a lemma
+    with one, or with a literal outside the shapes below, gets None.
+    """
+    premises = [graph.conclusion(premise) for premise in graph.arguments(node)[:-1]]
+    literals = graph.clause(graph.conclusion(node))
     # (atom, holds, evidence): evidence proves the atom, or its negation when it does not hold.
     evidence = [(premise, True, "_p%d" % position) for position, premise in enumerate(premises)]
     for position, literal in enumerate(literals):
@@ -1617,53 +1688,166 @@ def _farkas_combination(graph, node):
             bounds.append((right, left, True, "(Int.lt_iff_add_one_le.mp (Int.not_le.mp %s))" % proof, False))
         else:
             bounds.append((right, left, False, "(Int.not_lt.mp %s)" % proof, False))
-    # Each fact is 0 <= upper - lower (- 1 when tightened), a linear form.
-    forms = []
-    for lower, upper, tightened, _, _ in bounds:
+    rendered = []
+    for lower, upper, tightened, proof, equality in bounds:
         terms = {}
         constant = (_linear_term(graph, upper, Fraction(1), terms) + _linear_term(graph, lower, Fraction(-1), terms)
                     - (1 if tightened else 0))
-        forms.append(({key: value for key, value in terms.items() if value}, constant))
-    multipliers = _farkas_multipliers(forms, coefficients, [bound[4] for bound in bounds])
-    if multipliers is None:
-        return None
+        rendered.append((_term(graph, lower), _term(graph, upper), tightened, proof, equality,
+                         ({key: value for key, value in terms.items() if value}, constant),
+                         _linear_structure(graph, lower) | _linear_structure(graph, upper)))
+    return len(premises), rendered
+
+
+def _combination_sum(bounds, multipliers):
+    """The facts 0 <= upper - lower of bounds (_lemma_bounds) scaled by multipliers and summed, or None.
+
+    Returns the sum, the proof that it is nonnegative, its constant (the
+    multipliers scaled to integers), and the term nodes to delta in its
+    identity, or None unless the constant is negative and every negative
+    multiplier is an equality's.
+    """
     scale = functools.reduce(math.lcm, (multiplier.denominator for multiplier in multipliers), 1)
     summands, proofs, sides, total = [], [], set(), Fraction(0)
-    for (lower, upper, tightened, proof, equality), multiplier, (_, constant) in zip(bounds, multipliers, forms):
+    for (lower, upper, tightened, proof, equality, (_, constant), structure), multiplier in zip(bounds, multipliers):
         if multiplier == 0:
             continue
         total += multiplier * constant
         if multiplier < 0:
             # Only an equality takes a negative multiplier: use it the other way round.
+            if not equality:
+                return None
             lower, upper, proof, multiplier = upper, lower, "(Eq.symm %s)" % proof, -multiplier
         if equality:
             proof = "(Int.le_of_eq %s)" % proof
-        sides |= _linear_structure(graph, lower) | _linear_structure(graph, upper)
-        rendered_lower = "(%s + 1)" % _term(graph, lower) if tightened else _term(graph, lower)
-        difference = "(%s - %s)" % (_term(graph, upper), rendered_lower)
+        sides |= structure
+        rendered_lower = "(%s + 1)" % lower if tightened else lower
+        difference = "(%s - %s)" % (upper, rendered_lower)
         summands.append("((%d : Int)) * %s" % (multiplier * scale, difference))
         proofs.append("(Int.mul_nonneg (by decide) (Int.sub_nonneg_of_le %s))" % proof)
     if not summands or total >= 0 or (total * scale).denominator != 1:
         return None
-    total = int(total * scale)
     combination, nonnegative = summands[-1], proofs[-1]
     for summand, proof in zip(reversed(summands[:-1]), reversed(proofs[:-1])):
         combination = "(%s + %s)" % (summand, combination)
         nonnegative = "(Int.add_nonneg %s %s)" % (proof, nonnegative)
-    # The identity goes first, while omega sees no hypothesis but the
-    # valuation, over the atoms of the linear forms left folded (delta
-    # unfolds the sums, products, and numerals above them in one pass, and
-    # omega reads a folded atom as one variable). The rest is one
-    # term, typed by the ascription of the sum: a tactic `have` per fact
-    # cost Lean about two megabytes per lemma, which a certificate of 800
-    # two-literal Farkas lemmas (the wide division seed) could not afford.
-    return [
-        "have _sum : %s = ((%d : Int)) := by %somega" % (
-            combination, total, "delta %s; " % " ".join(_definition_names(graph, sides)) if sides else ""),
-        "exact %sClassical.byContradiction fun _hn => absurd (Int.le_trans (%s : ((0 : Int)) <= %s) "
-        "(Int.le_of_eq _sum)) (by decide)" % (
-            "".join("fun _p%d => " % position for position in range(len(premises))), nonnegative, combination),
-    ]
+    return combination, nonnegative, int(total * scale), sides
+
+
+def _split_combination(graph, node):
+    """Tactic lines proving an Int lattice lemma by one split and two combinations, or None.
+
+    A cut, and a farkas or bound without coefficients (_lattice_step),
+    states a clause whose negation has no integer solution, though it may
+    have a rational one: the hint names the bounds but not the cut's
+    derivation, so omega and grind redo the search, and a cut over twenty
+    variables (QF_LIA cut_lemmas) ran for minutes or exhausted Lean's
+    memory. Every Gomory cut is a split cut: for some integer form s and
+    integer k, each side of s <= k or k + 1 <= s, with the bounds
+    (_lemma_bounds), has a rational combination refuting it. z3 searches
+    for s, k, and both combinations as one mixed integer problem
+    (_split_certificate) within a resource limit, the coefficients of s
+    bounded first (_SPLIT_MAGNITUDES); nothing it returns is
+    trusted: Python checks the combinations, and Lean checks the case
+    split on Int.lt_or_le and each combination as in _farkas_combination.
+    A lemma without a certificate gets no attempt, and one that does not
+    elaborate falls through to the generalized and unfolded proofs.
+    """
+    if not _lattice_step(graph, node):
+        return None
+    lemma = _lemma_bounds(graph, node)
+    if lemma is None:
+        return None
+    premises, bounds = lemma
+    for magnitude in _SPLIT_MAGNITUDES:
+        certificate = _split_certificate([bound[5] for bound in bounds], [bound[4] for bound in bounds], magnitude)
+        if certificate is not None:
+            break
+    else:
+        return None
+    split, bound, below, above = certificate
+    form = " + ".join("((%d : Int)) * %s" % (coefficient, _term(graph, key))
+                      for key, coefficient in sorted(split.items())) or "((0 : Int))"
+    form, limit = "(%s)" % form, "((%d : Int))" % bound
+    # The side k < s, tightened to k + 1 <= s, and the side s <= k, each a
+    # fact 0 <= upper - lower over the atoms.
+    facts = [((limit, form, True, "(Int.lt_iff_add_one_le.mp _s)", False, (split, -bound - 1), set()), above),
+             ((form, limit, False, "_s", False, ({key: -value for key, value in split.items()}, bound), set()),
+              below)]
+    lines, branches = [], []
+    for position, (fact, multipliers) in enumerate(facts):
+        summed = _combination_sum(bounds + [fact], multipliers + [Fraction(1)])
+        if summed is None:
+            return None
+        combination, nonnegative, total, structure = summed
+        lines.append(_sum_identity(graph, "_sum%d" % position, combination, total, structure))
+        branches.append("(fun _s => %s)" % _combination_absurd(nonnegative, combination, "_sum%d" % position))
+    lines.append("exact %sClassical.byContradiction fun _hn => (Int.lt_or_le %s %s).elim %s %s" % (
+        "".join("fun _p%d => " % position for position in range(premises)), limit, form, *branches))
+    return lines
+
+
+def _split_certificate(forms, equalities, magnitude=None):
+    """A split refuting the facts 0 <= form over Int, by z3, or None: (s, k, below, above).
+
+    s maps atoms to integer coefficients, of at most magnitude when given,
+    and k is an integer; below are
+    multipliers (nonnegative except an equality's) summing the facts and
+    k - s >= 0 to a negative constant with every atom cancelled, above the
+    same for the facts and s - k - 1 >= 0. The model is checked here, so a
+    wrong one gives None, as does a problem z3 does not solve within
+    _SPLIT_BOUNDED_RLIMIT, or _SPLIT_RLIMIT when unbounded (deterministic,
+    unlike a timeout).
+    """
+    context = z3.Context()
+    solver = z3.Solver(ctx=context)
+    solver.set("rlimit", _SPLIT_RLIMIT if magnitude is None else _SPLIT_BOUNDED_RLIMIT)
+    keys = sorted({key for terms, _ in forms for key in terms})
+    split = {key: z3.Int("s%d" % key, context) for key in keys}
+    if magnitude is not None:
+        solver.add(*[z3.And(-magnitude <= variable, variable <= magnitude) for variable in split.values()])
+    bound = z3.Int("k", context)
+    below = [z3.Real("b%d" % position, context) for position in range(len(forms))]
+    above = [z3.Real("a%d" % position, context) for position in range(len(forms))]
+
+    def rational(number):
+        return z3.RealVal(str(number), context)
+
+    for position, equality in enumerate(equalities):
+        if not equality:
+            solver.add(below[position] >= 0, above[position] >= 0)
+    for key in keys:
+        uses = [(position, terms[key]) for position, (terms, _) in enumerate(forms) if key in terms]
+        solver.add(z3.Sum([below[position] * rational(factor) for position, factor in uses]) == split[key])
+        solver.add(z3.Sum([above[position] * rational(factor) for position, factor in uses]) == -split[key])
+    solver.add(z3.Sum([below[position] * rational(constant) for position, (_, constant) in enumerate(forms)])
+               + bound < 0)
+    solver.add(z3.Sum([above[position] * rational(constant) for position, (_, constant) in enumerate(forms)])
+               - bound - 1 < 0)
+    if solver.check() != z3.sat:
+        return None
+    model = solver.model()
+
+    def number(variable):
+        result = model.eval(variable, model_completion=True)
+        if z3.is_int_value(result):
+            return Fraction(result.as_long())
+        return Fraction(result.numerator_as_long(), result.denominator_as_long())
+
+    split = {key: int(number(variable)) for key, variable in split.items()}
+    split = {key: coefficient for key, coefficient in split.items() if coefficient}
+    bound = int(number(bound))
+    below, above = [number(variable) for variable in below], [number(variable) for variable in above]
+    for multipliers, (total, constant) in ((below, ({key: -value for key, value in split.items()}, bound)),
+                                           (above, (dict(split), -bound - 1))):
+        for (terms, form_constant), multiplier in zip(forms, multipliers):
+            constant += multiplier * form_constant
+            for key, factor in terms.items():
+                total[key] = total.get(key, 0) + multiplier * factor
+        if any(total.values()) or constant >= 0 or any(
+                multiplier < 0 for multiplier, equality in zip(multipliers, equalities) if not equality):
+            return None
+    return split, bound, below, above
 
 
 def _linear_structure(graph, node):
@@ -3933,7 +4117,8 @@ def reconstruct(source, certificate):
             else:
                 lemma, term = _grind_lemma(graph, node, "th_lemma", atom_indices, variable_indices,
                                            opaque_tactic=_opaque_tactic(graph, node),
-                                           structural=_farkas_combination(graph, node))
+                                           structural=(_farkas_combination(graph, node)
+                                                       or _split_combination(graph, node)))
             lines.extend(lemma)
             th_lemmas[node] = term
         elif graph.kind(node) == z3.Z3_OP_PR_REWRITE:
