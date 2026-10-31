@@ -3,112 +3,128 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>PR #53: Prove cnf lemmas over a distinct's pairs by propagation</title>
 <style>
   :root {
     --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --open: #1a7f37;
+    --border: #d1d9e0; --code-bg: #f6f8fa; --pass: #1a7f37; --badge-bg: #8250df;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --open: #3fb950;
+      --border: #3d444d; --code-bg: #161b22; --pass: #3fb950; --badge-bg: #8957e5;
     }
   }
-  html { background: var(--bg); color: var(--fg); }
-  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-  a { color: var(--accent); }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; margin-top: 2.2rem; }
   h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
   .meta { color: var(--muted); font-size: .95rem; }
-  .badge { display: inline-block; padding: .05rem .55rem; border-radius: 1rem; font-weight: 600;
-           font-size: .85rem; border: 1px solid var(--open); color: var(--open); }
+  .badge { display: inline-block; background: var(--badge-bg); color: #fff; border-radius: 1rem;
+           padding: 0 .6rem; font-size: .85rem; font-weight: 600; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
-         background: var(--code-bg); padding: .1rem .3rem; border-radius: 4px; }
+         background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
   pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
-        padding: .8rem; overflow-x: auto; line-height: 1.4; }
+        padding: .8rem; overflow-x: auto; line-height: 1.45; }
   pre code { background: none; padding: 0; font-size: .82rem; }
-  table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .93rem; }
-  th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  table { border-collapse: collapse; margin: .8rem 0; font-size: .93rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .65rem; text-align: left; vertical-align: top; }
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .ok { color: var(--ok); font-weight: 600; }
-  .warn { color: var(--warn); font-weight: 600; }
-  .explain { color: var(--muted); margin-top: -.3rem; }
+  .pass { color: var(--pass); font-weight: 600; }
+  .note { color: var(--muted); font-size: .93rem; }
   dt { font-weight: 600; margin-top: .6rem; }
   dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+  footer { border-top: 1px solid var(--border); margin-top: 2.5rem; padding-top: .8rem;
+           color: var(--muted); font-size: .9rem; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
   <h1>Prove cnf lemmas over a distinct's pairs by propagation</h1>
   <p class="meta">
-    Pull request <a href="https://github.com/levnach/z3/pull/53">levnach/z3 #53</a>
-    · State: <span class="badge">OPEN</span>
-    · Date: 2026-10-30T23:49:17Z
-    · Loop iteration 53
+    <a href="https://github.com/levnach/z3/pull/53">Pull request #53</a> on levnach/z3 &middot;
+    <span class="badge">MERGED</span> &middot; 2026-10-31T00:09:42Z &middot; loop iteration 53<br>
+    Merge commit <a href="https://github.com/levnach/z3/commit/653595ae0ca3e71475c31faea0272f656f00c507"><code>653595ae0</code></a>,
+    merged 2026-10-31T00:09:42Z into <code>master</code>.
   </p>
-  <p>This pull request is open and <strong>not merged</strong>.
-    The change it proposes ends at commit
-    <a href="https://github.com/levnach/z3/commit/92134e4e157eb165d1f11be132029aed5d20c951"><code>92134e4</code></a>.
-    It holds two commits on top of the base.</p>
 </header>
 
-<h2>In one paragraph</h2>
-<p>When Lean checks a <a href="#g-cnf-lemma">cnf lemma</a>, the reconstructor first tries a short
-  <a href="#g-propagation">propagation</a> proof. Only if that fails does it fall back to
-  <a href="#g-unfold">unfolding</a> every definition and calling the
-  <a href="#g-grind"><code>grind</code></a> <a href="#g-tactic">tactic</a>.
-  Before this PR, the propagation prover treated a <a href="#g-distinct"><code>distinct</code></a>
-  over terms as one opaque <a href="#g-atom">atom</a>. So a <a href="#g-clause">clause</a> whose
-  <a href="#g-literal">literal</a> was <code>(not (= a b))</code> found nothing to connect to.
-  Now the prover reads <code>(distinct a b c)</code> as a <a href="#g-conjunction">conjunction</a>
-  of negated <a href="#g-equality">equalities</a>, one per pair. It also takes
-  <a href="#g-conjunct">conjuncts</a> out of very wide conjunctions with far less proof text.
-  On the largest <a href="#g-qf-uf">QF_UF</a> test, all twelve cnf lemmas now get a propagation proof.
-  Lean's peak memory there fell from about 7 GB to about 5.5 GB, against an 8 GB limit.
-  The set of certified inputs and the trusted base do not change.</p>
+<h2 id="summary">In one paragraph</h2>
+<p>
+The Lean reconstructor now proves more <a href="#g-cnf-lemma">cnf lemmas</a> by
+<a href="#g-propagation">propagation</a> instead of by the expensive
+<a href="#g-grind">grind</a> fallback.
+Before, it treated a <a href="#g-distinct">distinct</a> over terms as one
+<a href="#g-opaque-atom">opaque atom</a>.
+So a <a href="#g-clause">clause</a> whose <a href="#g-literal">literal</a> was one
+pair of that distinct, such as <code>(not (= c2 c3))</code>, named nothing the prover could see.
+Now the distinct is read as a <a href="#g-conjunction">conjunction</a> of negated
+<a href="#g-equality">equalities</a>, one per pair.
+A second fix makes the resulting proofs short.
+Conjuncts of a wide conjunction are now reached through
+<a href="#g-projection">projections</a> from checkpoints bound every 32 conjuncts.
+On the hardest <a href="#g-qf-uf">QF_UF</a> test in CI, Lean's peak memory fell from about 7.1 GB to 5.5 GB.
+That widens the safety margin under the 8 GB cap that every Lean check runs with.
+</p>
 
-<h2>Background</h2>
-<p>The previous iteration brought the SMT-LIB benchmark <code>NEQ004_size4</code> under the
-  8 GB memory cap of the Lean check, but only just. Its <a href="#g-assertion">assertion</a> is a
-  conjunction of about 400 conjuncts, and it holds <code>(distinct c0 c1 c2 c3)</code>.
-  Its twelve cnf lemmas all went to the <code>grind</code> fallback over the whole assertion.
-  That was the slowest and most memory-hungry part of the file. This work serves milestone 3 of
-  the plan, <a href="#g-uninterpreted-function">uninterpreted functions</a> and equality
-  reasoning, by keeping large QF_UF <a href="#g-refutation">refutations</a> checkable
-  inside the limits.</p>
+<h2 id="background">Background</h2>
+<p>
+The pipeline could already certify this kind of <a href="#g-refutation">refutation</a>.
+Every cnf lemma has a fallback that unfolds all definitions and calls the
+<a href="#g-tactic">tactic</a> <a href="#g-grind">grind</a>.
+That works, but it is slow on large <a href="#g-assertion">assertions</a>.
+The test <code>NEQ004_size4</code> has one assertion with 814 definitions.
+Its 12 cnf lemmas all took the fallback, about 3 seconds each.
+This put the file within about 1 GB of the memory cap.
+The work serves milestone 3 of the plan, equality and
+<a href="#g-uninterpreted-function">uninterpreted functions</a>, and keeps the regression suite within its limits.
+</p>
 
-<h2>What changed</h2>
+<h2 id="changes">What changed</h2>
 <ul>
-  <li>A <code>distinct</code> over terms can now be split into its pairs, so a clause about one pair is proved by propagation instead of by <code>grind</code>.</li>
-  <li>The split happens only when every pair (a, b), with a before b, has its own equality in the proof, so the reading always matches the Lean definition.</li>
-  <li>A conjunct of a wide conjunction is now reached from a saved "tail" every 32 conjuncts, like using a bookmark instead of counting pages from the front.</li>
-  <li>New tests check that Lean accepts these propagation proofs with the <code>grind</code> fallback removed, both on a small input and on <code>NEQ004</code>.</li>
-  <li>The plan document and the examples README describe the new reading.</li>
+  <li>A cnf lemma whose literal is one pair of an asserted <code>distinct</code> can now be proved by propagation alone.</li>
+  <li>The prover now reaches deep conjuncts through checkpoints, so a 400-conjunct assertion no longer needs tens of thousands of projections.</li>
+  <li>A distinct whose pair Z3 logged with its sides swapped stays one opaque atom, exactly as before.</li>
+  <li>New tests check the propagation proofs in Lean with the grind fallbacks removed, so a broken proof can no longer hide behind the fallback.</li>
+  <li>The plan document and the examples README describe the new reading of a distinct.</li>
 </ul>
-<p>In Lean, the tail is a short <a href="#g-projection">projection</a> such as <code>h.2.2.1</code>.
-  Before, the prover wrote nested <code>And.left (And.right ...)</code> terms from the start of the
-  conjunction each time. For one <code>NEQ004</code> lemma that came to about 80,000 levels of nesting.</p>
+<p>
+An analogy for the checkpoints: to find page 390 of a long book, you do not count from page 1.
+You jump to the bookmark at page 384 and count six more.
+The reconstructor now places such a bookmark, a Lean <code>have</code>, every 32 conjuncts.
+</p>
 
 <table>
-  <thead><tr><th>File</th><th>What it is</th><th>Lines added</th><th>Lines removed</th></tr></thead>
-  <tbody>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">62</td><td class="num">7</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>QF_UF tests</td><td class="num">105</td><td class="num">3</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, dated note</td><td class="num">24</td><td class="num">0</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>Usage notes</td><td class="num">4</td><td class="num">2</td></tr>
-  </tbody>
+  <tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr>
+  <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">62</td><td class="num">7</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Tests</td><td class="num">105</td><td class="num">3</td></tr>
+  <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">24</td><td class="num">0</td></tr>
+  <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">4</td><td class="num">2</td></tr>
 </table>
 
-<h2>Worked example</h2>
-<p>This PR does not change which inputs are certified. It changes how the cnf lemmas are proved.
-  So the "Before" below is not a rejection. It is the proof the old code produced.
-  Every piece comes from a real run on the current code and on the base commit's scripts.</p>
+<p>Measured effect on <code>NEQ004_size4</code>, from the PR, on macOS:</p>
+<table>
+  <tr><th>Measurement</th><th>Before</th><th>After</th></tr>
+  <tr><td>Whole file, wall time</td><td class="num">116.0 s</td><td class="num">79.0 s</td></tr>
+  <tr><td>Whole file, Lean peak memory</td><td class="num">7,062 MB</td><td class="num">5,538 MB</td></tr>
+  <tr><td>cnf lemmas proved by propagation</td><td class="num">0 of 12</td><td class="num">12 of 12</td></tr>
+  <tr><td>One cnf lemma, propagation with <code>And.right</code> chains</td><td class="num">30.3 s</td><td>&mdash;</td></tr>
+  <tr><td>Same lemma, propagation from checkpoints</td><td>&mdash;</td><td class="num">1.4 s</td></tr>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+This input is a small version of the PR's new test <code>UF_WIDE_DISTINCT_CONJUNCTION</code>.
+It keeps the distinct and the two clauses, but drops the 40 extra predicate applications.
+All output below comes from real runs of the old and new scripts.
+</p>
 
 <h3>(a) The input</h3>
 <pre><code>(declare-sort U 0)
@@ -118,179 +134,186 @@
 (declare-fun p (U U) Bool)
 (assert (and (distinct a b c) (or (= a b) (p a c)) (or (= b c) (not (p a c)))))
 (check-sat)</code></pre>
-<p class="explain">A smaller cousin of the PR's new test input, without its forty extra predicates.
-  The <code>distinct</code> forbids <code>a = b</code> and <code>b = c</code>, which forces both
-  <code>(p a c)</code> and its negation.</p>
+<p class="note">Three different values, and two clauses that together force two of them to be equal.</p>
 
 <h3>(b) Before</h3>
-<p>The base commit's scripts ran without error, and Lean accepted the result.
-  But the old propagation prover found no proof for any of the four cnf lemmas.
-  The generated file contained zero propagation attempts. Each lemma was proved only like this:</p>
-<pre><code>private theorem th_lemma_15 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+<p>
+The old pipeline did <em>not</em> reject this input.
+This PR changes how lemmas are proved, not which inputs are accepted.
+The pre-PR scripts produced a Lean file that passed the check.
+But they made no propagation attempt in any of the 4 cnf lemmas.
+Each was proved only by the fallback:
+</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_15 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
     : (formula_14 _atoms _m) := by
   unfold formula_14 formula_13 formula_12 formula_10 formula_9 formula_8 formula_7 formula_6 formula_5 formula_4 formula_3 term_2 term_1 term_0
   grind (splits := 64)</code></pre>
-<p class="explain">Every definition is opened up and handed to <code>grind</code>. That is cheap here
-  but cost about 3 seconds per lemma on <code>NEQ004</code>.</p>
+<p class="note">Every definition is unfolded and grind searches the whole formula. Here that is cheap. On an 814-definition assertion it costs seconds per lemma.</p>
 
 <h3>(c) After</h3>
-<pre><code>def formula_3 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (And (Not ((term_0 _atoms _m) = (term_1 _atoms _m))) (And (Not ((term_0 _atoms _m) = (term_2 _atoms _m))) (Not ((term_1 _atoms _m) = (term_2 _atoms _m)))))
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 0
+...
+def formula_3 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (And (Not ((term_0 _atoms _m) = (term_1 _atoms _m))) (And (Not ((term_0 _atoms _m) = (term_2 _atoms _m))) (Not ((term_1 _atoms _m) = (term_2 _atoms _m)))))
 def formula_4 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_0 _atoms _m) = (term_1 _atoms _m))
 ...
 def formula_10 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (And (formula_3 _atoms _m) (And (formula_6 _atoms _m) (formula_9 _atoms _m)))
-...
-def formula_26 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Or (formula_12 _atoms _m) (formula_5 _atoms _m))</code></pre>
-<p class="explain"><code>formula_3</code> is the <code>distinct</code>, already written as three negated
-  pair equalities. <code>formula_4</code> is the equality <code>a = b</code> as its own definition.</p>
+def formula_12 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Not (formula_10 _atoms _m))
+def formula_13 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Not (formula_4 _atoms _m))
+def formula_14 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Or (formula_12 _atoms _m) (formula_13 _atoms _m))
+...</code></pre>
+<p class="note">The distinct <code>formula_3</code> is rendered as three negated equalities, and <code>formula_14</code> is the cnf clause "not the assertion, or a &ne; b".</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
     (_h0 : (formula_10 _atoms _m))
     : False :=
   ...</code></pre>
-<p class="explain">The theorem says the single assertion leads to <code>False</code>, for every
-  interpretation of the sort and the predicate.</p>
+<p class="note">The theorem says that the assertion <code>formula_10</code> implies False, and it is unchanged by this PR.</p>
+
+<pre><code>private theorem th_lemma_15 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_14 _atoms _m) := by
+  first
+    | (refine Classical.byContradiction ?_
+       refine (fun (_f1 : (Not (formula_14 _atoms _m))) =&gt; ?_)
+       have _f2 := (mt (@Or.inl _ _) _f1)
+       have _f3 := (mt (@Or.inr _ _) _f1)
+       have _f4 : (Not (formula_3 _atoms _m)) := (mt (@And.left _ _) _f3)
+       have _f5 : (Not (formula_10 _atoms _m)) := (mt (@And.left _ _) _f4)
+       exact (False.elim (_f5 (Classical.byContradiction (fun _g =&gt; _f2 _g)))))
+    | (unfold formula_14 ... term_0
+       grind (splits := 64))</code></pre>
+<p class="note">If the clause were false, a = b would hold, so the distinct's first pair fails, so the assertion fails, which is a contradiction.</p>
 
 <pre><code>private theorem th_lemma_27 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
     : (formula_26 _atoms _m) := by
   first
     | (refine Classical.byContradiction ?_
-       refine (fun (_f1 : (Not (formula_26 _atoms _m))) =&gt; ?_)
-       have _f2 := (mt (@Or.inl _ _) _f1)
-       have _f3 := (mt (@Or.inr _ _) _f1)
-       have _f4 : (formula_9 _atoms _m) := (Or.inr _f3)
+       ...
        have _f5 : (formula_10 _atoms _m) := (Classical.byContradiction (fun _g =&gt; _f2 _g))
        have _f6 := _f5.1
        have _f7 := _f5.2.1
        have _f8 := (Or.elim _f7 (fun _g =&gt; _g) (fun _g =&gt; absurd _g _f3))
        have _f9 : (Not (Not (formula_4 _atoms _m))) := (fun _g =&gt; _g _f8)
        exact (False.elim (_f9 _f6.1)))
-    | (unfold formula_26 formula_12 formula_10 formula_9 formula_8 formula_7 formula_6 formula_5 formula_4 formula_3 term_2 term_1 term_0
-       grind (splits := 64))</code></pre>
-<p class="explain">The lemma assumes its clause is false and propagates. It concludes
-  <code>a = b</code>, then contradicts it with <code>_f6.1</code>, the distinct's first pair.
-  <code>_f5.2.1</code> is the new projection style.</p>
+    | ...</code></pre>
+<p class="note">Here conjuncts are taken by <a href="#g-field-notation">field notation</a> such as <code>_f5.2.1</code>. With only three conjuncts no checkpoint is needed. The PR's 40-predicate test shows the 32-step checkpoint.</p>
 
-<p><strong>Lean result:</strong> <code>check_lean.sh</code> printed "Lean checks passed." for this file.
-  I also removed all four <code>grind</code> fallbacks and checked again. Lean still printed
-  "Lean checks passed.", so the propagation proofs stand on their own.
-  This input is too small to need a tail. The PR's test with forty predicates covers that part.</p>
+<p>
+<strong>Lean check:</strong> <span class="pass">accepted</span>.
+<code>check_lean.sh</code> printed "Lean checks passed." for the new file.
+It also passed a copy with the 4 grind fallbacks removed.
+So Lean accepted the propagation proofs themselves.
+</p>
 
-<h2>How it was verified</h2>
-<p>The full reconstructor test suite passed for the integrator and again for the reviewer.
-  The <code>NEQ004</code> test passed with its twelve fallbacks removed. Breaking one tail on purpose
-  made it fail, so the test really watches the propagation proofs.
-  No <code>LOCAL_GATE.md</code> record exists for this iteration, so the local gate result is not recorded.
-  The figures below are what the PR body and review report.</p>
+<h2 id="verification">How it was verified</h2>
+<p>
+The change touches only Python examples and docs.
+So the loop merged it on its local gate, which mirrors the CI job that runs this code.
+All five gate steps passed, including the full set of 315 reconstruction tests.
+A negative check shortened one checkpoint from 32 projections to 31.
+Lean then rejected the NEQ004 test, which shows the test really checks these proofs.
+</p>
 <table>
-  <thead><tr><th>Check</th><th>Who ran it</th><th>Result</th></tr></thead>
-  <tbody>
-    <tr><td><code>test_proof_to_lean*.py</code>, full suite</td><td>Integrator</td><td class="ok">315 tests, OK (1135.9 s)</td></tr>
-    <tr><td><code>NEQ004</code> memory-cap test, 12 fallbacks dropped</td><td>Integrator</td><td class="ok">OK (81.9 s)</td></tr>
-    <tr><td>Same test, one tail shortened from 32 to 31</td><td>Integrator</td><td class="ok">Failed as intended</td></tr>
-    <tr><td><code>test_proof_certificate.py</code></td><td>Integrator</td><td class="ok">105 tests, OK</td></tr>
-    <tr><td><code>check_lean.sh</code></td><td>Integrator</td><td class="ok">Lean checks passed</td></tr>
-    <tr><td>z3test proof tests</td><td>Integrator</td><td class="ok">46 tests, OK</td></tr>
-    <tr><td>Matrix, Boolean inputs, legacy proof object</td><td>Implementer</td><td class="ok">6/6 Lean-verified</td></tr>
-    <tr><td>Matrix, LRA inputs, clause log</td><td>Implementer</td><td class="ok">8/8 Lean-verified</td></tr>
-    <tr><td>Full suite, and tampered tails in the small Lean test</td><td>Reviewer</td><td class="ok">315 OK, tampering rejected</td></tr>
-    <tr><td>Worked example above, with and without fallbacks</td><td>This report</td><td class="ok">Lean checks passed</td></tr>
-  </tbody>
+  <tr><th>Local gate step (macOS, arm64)</th><th>Result</th><th>Time</th></tr>
+  <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">14 s</td></tr>
+  <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">1169 s</td></tr>
+  <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">22 s</td></tr>
+  <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="pass">pass</td><td class="num">8 s</td></tr>
+</table>
+<table>
+  <tr><th>Integrator run on the final branch</th><th>Result</th></tr>
+  <tr><td><code>test_proof_to_lean*.py</code></td><td>315 tests, OK</td></tr>
+  <tr><td>NEQ004 memory-cap test, 12 fallbacks dropped</td><td>OK, 81.9 s</td></tr>
+  <tr><td>NEQ004 test with one checkpoint shortened to 31</td><td>FAILED as intended</td></tr>
+  <tr><td><code>test_proof_certificate.py</code></td><td>105 tests, OK</td></tr>
+  <tr><td><code>check_lean.sh</code></td><td>Lean checks passed</td></tr>
+  <tr><td>z3test <code>test_proof*.py</code></td><td>46 tests, OK</td></tr>
+</table>
+<table>
+  <tr><th>GitHub CI workflow / check</th><th>Result</th></tr>
+  <tr><td colspan="2">No CI status was recorded for this PR. It merged on the local gate. GitHub CI runs on <code>master</code> after the merge, and its result is not known to this report. No CI fix rounds took place.</td></tr>
 </table>
 
-<table>
-  <thead><tr><th>Measurement, macOS, 8 GB cap</th><th>Wall time</th><th>Peak memory</th></tr></thead>
-  <tbody>
-    <tr><td>Whole <code>NEQ004</code> file, before</td><td class="num">116.0 s</td><td class="num">7,062 MB</td></tr>
-    <tr><td>Whole <code>NEQ004</code> file, after</td><td class="num">79.0 s</td><td class="num">5,538 MB</td></tr>
-    <tr><td>One lemma, old <code>grind</code></td><td class="num">3.9 s</td><td></td></tr>
-    <tr><td>One lemma, propagation with <code>And.right</code> chains</td><td class="num">30.3 s</td><td></td></tr>
-    <tr><td>One lemma, propagation with tails</td><td class="num">1.4 s</td><td></td></tr>
-  </tbody>
-</table>
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blocker or major findings.</p>
+<p>
+<strong>Minor, fixed.</strong>
+The reviewer asked what would happen if a later change broke the NEQ004 propagation proofs.
+Each lemma would quietly fall back to grind.
+Memory would climb back to about 7 GB, still under the cap, so the test would stay green.
+The fix hands Lean the NEQ004 text with the 12 fallbacks removed.
+Now a broken proof fails the test, at no extra cost.
+</p>
+<p>
+<strong>Nit, no change.</strong>
+The reviewer noticed that checkpoints are bound even for blocks with nothing left to project.
+Each checkpoint is built from the previous one, so the later ones need the earlier ones anyway.
+The cost stays linear, so the code was kept.
+</p>
 
-<h3>Continuous integration</h3>
-<p>No CI status files were provided for this iteration, so the CI results are unknown here.
-  There were no CI fix rounds on record. The new and changed tests run in one CI place, listed below.</p>
-<table>
-  <thead><tr><th>Workflow job</th><th>Step</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native Boolean proofs in Lean</td>
-      <td class="warn">Unknown, see <a href="https://github.com/levnach/z3/pull/53/checks">the PR's checks</a></td></tr>
-  </tbody>
-</table>
-
-<h2>Review</h2>
-<p>The reviewer approved the change. There were no blocker or major findings.</p>
-<p><strong>Minor, fixed.</strong> The reviewer asked what would happen if a later change broke the
-  propagation proofs in <code>NEQ004</code>. Lean would quietly fall back to <code>grind</code>.
-  Memory would climb back to about 7 GB, still under the cap, so the test would stay green.
-  The headroom this PR won would vanish without anyone noticing. The fix makes the test drop the
-  twelve fallbacks before calling Lean. Now a broken propagation proof fails the test.
-  This is the second commit. It costs no extra time, because Lean never runs a fallback whose first attempt succeeds.</p>
-<p><strong>Nit, no change.</strong> The reviewer noticed that tails are saved even for blocks where
-  nothing is left to project. Each tail is built from the one before, so the later ones need the
-  earlier ones anyway. The cost grows only linearly, so it was left as is.</p>
-
-<h2>Risks and open questions</h2>
+<h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>Projections now use field notation everywhere in the prover. This relies on Lean seeing through the formula definitions. A failure would be loud or fall back to <code>grind</code>, never unsound.</li>
-  <li>If Z3 logs a pair with its sides swapped, the <code>distinct</code> stays one atom. That is no gain, but no regression either.</li>
+  <li>All of the prover's projections now use field notation, which relies on Lean seeing through the formula definitions. A failure can only make a check fail, never make it unsound.</li>
+  <li>A distinct with a swapped pair gains nothing. This is not a regression.</li>
   <li>The memory figures come from macOS. CI runs on Linux, where the peak may differ.</li>
 </ul>
 
-<h2>What comes next</h2>
+<h2 id="next">What comes next</h2>
 <ul>
-  <li>Synthetic atoms for swapped <code>distinct</code> pairs.</li>
-  <li>The mirror problem for false wide <a href="#g-disjunction">disjunctions</a>, whose proof chains still grow quadratically.</li>
-  <li>More memory headroom for a QF_LIA input that peaks at 7.93 GB.</li>
+  <li>Fix the mirror case: false wide <a href="#g-disjunction">disjunctions</a> still build long chains that grow quadratically.</li>
+  <li>Add synthetic atoms for swapped distinct pairs.</li>
+  <li>Win back memory headroom for a QF_LIA test that peaks at 7.93 GB.</li>
 </ul>
 
-<h2>Glossary</h2>
+<h2 id="glossary">Glossary</h2>
 <dl>
   <dt id="g-assertion">assertion</dt>
-  <dd>A formula the input claims is true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+  <dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
   <dt id="g-atom">atom</dt>
-  <dd>A formula with no Boolean connective at the top, such as <code>(= a b)</code> or <code>(p a c)</code>. A prover treats it as one unit.</dd>
+  <dd>The smallest formula that is true or false on its own, such as <code>(= a b)</code> or <code>(p a c)</code>.</dd>
   <dt id="g-boolean">Boolean</dt>
-  <dd>The sort of truth values, true and false, written <code>Bool</code>.</dd>
+  <dd>The sort of truth values, true and false, written <code>Bool</code> in SMT-LIB.</dd>
   <dt id="g-clause">clause</dt>
-  <dd>A disjunction of literals. It is true when at least one literal is true.</dd>
+  <dd>A disjunction of literals, for example <code>(or (not A) (not (= a b)))</code>.</dd>
   <dt id="g-cnf-lemma">cnf lemma</dt>
-  <dd>A clause Z3 adds while turning formulas into clause form. It must follow from the formulas' Boolean structure alone.</dd>
-  <dt id="g-conjunct">conjunct</dt>
-  <dd>One part of a conjunction. In <code>(and x y z)</code>, <code>y</code> is the second conjunct.</dd>
+  <dd>A clause Z3 adds while converting formulas to clause form. It holds by the Boolean structure of the formulas alone.</dd>
   <dt id="g-conjunction">conjunction</dt>
-  <dd>An "and" of formulas. It is true only when every part is true.</dd>
+  <dd>An "and" of formulas. Each part is a conjunct.</dd>
   <dt id="g-disjunction">disjunction</dt>
-  <dd>An "or" of formulas. It is true when at least one part is true.</dd>
+  <dd>An "or" of formulas. Each part is a disjunct.</dd>
   <dt id="g-distinct">distinct</dt>
-  <dd>The SMT-LIB operator saying all its arguments differ. <code>(distinct a b c)</code> means a ≠ b, a ≠ c, and b ≠ c.</dd>
+  <dd>The SMT-LIB operator saying all its arguments differ. <code>(distinct a b c)</code> means a &ne; b, a &ne; c, and b &ne; c.</dd>
   <dt id="g-equality">equality</dt>
-  <dd>The atom <code>(= a b)</code>, true when both sides denote the same value.</dd>
+  <dd>An atom <code>(= a b)</code> stating that two terms have the same value.</dd>
+  <dt id="g-field-notation">field notation</dt>
+  <dd>Lean's dot syntax for taking a part of a proof or structure, such as <code>h.2.1</code>.</dd>
   <dt id="g-grind">grind</dt>
-  <dd>A general-purpose Lean tactic that searches for a proof by case splits and congruence reasoning. Powerful but can be slow on big goals.</dd>
+  <dd>A general Lean tactic that searches for a proof by case splits and rewriting. It is powerful but can be slow on big goals.</dd>
   <dt id="g-literal">literal</dt>
-  <dd>An atom or its negation, such as <code>(= a b)</code> or <code>(not (= a b))</code>.</dd>
+  <dd>An atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+  <dt id="g-opaque-atom">opaque atom</dt>
+  <dd>A formula the prover treats as a single unknown truth value, without looking inside it.</dd>
   <dt id="g-projection">projection</dt>
-  <dd>Taking one part out of a proof of a conjunction. In Lean, <code>h.1</code> is the first part and <code>h.2</code> the rest.</dd>
+  <dd>Taking one part out of a proof of a conjunction. In Lean, <code>h.1</code> is the first conjunct and <code>h.2</code> is the rest.</dd>
   <dt id="g-propagation">propagation</dt>
-  <dd>Deriving truth values step by step from the ones already known. If <code>x or y</code> is true and <code>x</code> is false, then <code>y</code> is true.</dd>
+  <dd>Deriving truth values step by step from known ones. If "A and B" is true, then A is true.</dd>
   <dt id="g-qf-uf">QF_UF</dt>
   <dd>The SMT-LIB logic of quantifier-free formulas over uninterpreted sorts and functions with equality.</dd>
   <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of formulas leads to false, so they cannot all hold together.</dd>
+  <dd>A proof that a set of assertions leads to a contradiction, that is, to False.</dd>
   <dt id="g-sort">sort</dt>
-  <dd>The type of a value, such as <code>Int</code>, <code>Bool</code>, or a declared sort <code>U</code>.</dd>
+  <dd>The type of a value, such as Int, Bool, or a declared sort like <code>U</code>.</dd>
   <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that builds part of a proof for you, such as <code>unfold</code> or <code>grind</code>.</dd>
-  <dt id="g-unfold">unfolding</dt>
-  <dd>Replacing a defined name by its definition, so a tactic can see inside it.</dd>
+  <dd>A Lean command that builds part of a proof, such as <code>unfold</code>, <code>exact</code>, or <code>grind</code>.</dd>
   <dt id="g-uninterpreted-function">uninterpreted function</dt>
-  <dd>A function symbol with no fixed meaning, only that equal inputs give equal outputs. The predicate <code>p</code> above is one.</dd>
+  <dd>A function symbol with no fixed meaning, only that equal arguments give equal results. <code>p</code> in the example is one that returns a Boolean.</dd>
 </dl>
 
 <footer>
   Generated by the Lean certificate improvement loop on 2026-10-30.
 </footer>
+
+</main>
 </body>
 </html>
