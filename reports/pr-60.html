@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #60: Check the arith solver's rem axioms natively in clause-log replay</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --pass: #1a7f37; --warn: #9a6700; --open: #1a7f37;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --pass: #3fb950; --warn: #d29922; --open: #3fb950;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.2rem 3rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .badge { display: inline-block; border: 1px solid var(--open); color: var(--open); border-radius: 1rem;
+           padding: 0 0.6rem; font-size: 0.85rem; font-weight: 600; }
+  code { background: var(--code-bg); border-radius: 4px; padding: 0.05rem 0.3rem; font-size: 0.9em;
+         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
+        overflow-x: auto; font-size: 0.82rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--pass); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.92rem; }
+  dt { font-weight: 600; margin-top: 0.7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Check the arith solver's rem axioms natively in clause-log replay</h1>
+  <p class="meta">
+    <a href="https://github.com/levnach/z3/pull/60">Pull request #60</a> on levnach/z3 &middot;
+    <span class="badge">OPEN</span> &middot; 2026-10-31T21:07:24Z &middot; loop iteration 60
+  </p>
+  <p class="meta">
+    This pull request is open and <strong>not merged</strong>.
+    The change it proposes is commit
+    <a href="https://github.com/levnach/z3/commit/ee3564ff3ff980b747f39cea55bdae00c1fe474d"><code>ee3564f</code></a>.
+  </p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+Z3's own checker for <a href="#g-clause-log">clause logs</a> now understands the
+<a href="#g-rem"><code>rem</code></a> operator when the divisor is a nonzero
+<a href="#g-numeral">integer numeral</a>.
+For every <code>rem</code> term, the arithmetic solver logs two
+<a href="#g-theory-axiom">theory axioms</a>, each a two-<a href="#g-literal">literal</a>
+<a href="#g-clause">clause</a>.
+Before, the native checker verified only one of them.
+The other went to the <a href="#g-smt-fallback">SMT fallback</a>.
+Now both verify natively.
+The Python checker and the Lean <a href="#g-refutation">refutations</a> do not change, since they already checked these steps.
+So the Lean <a href="#g-trust-boundary">trust boundary</a> stays where it was, and Z3's own diagnostic checker gets stronger.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+The previous iteration, PR #59, taught the Python exporter and Lean to certify <code>rem</code>
+by a nonzero numeral over the <a href="#g-sort">sort</a> Int.
+Z3's native <code>arith</code> checker still accepted only one of the two <code>rem</code> axioms.
+The axiom whose <a href="#g-guard">guard</a> literal is <a href="#g-valid">valid</a> passed.
+The other needs the defining identity of <code>rem</code>, which the checker did not know.
+After this PR, the only native fallbacks left in those logs are <a href="#g-cut">cut</a> steps, by design.
+The work serves milestone 3, "Equality and linear arithmetic", and keeps the C++ checker useful for diagnostics.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>Z3's native <code>arith</code> checker can now verify both <code>rem</code> axioms, for positive and for negative divisors.</li>
+  <li>It does this by rewriting <code>(rem u k)</code> as <code>s * (u - k * (div u k))</code>, where <code>s</code> is the sign of <code>k</code>, which is Z3's own definition of <code>rem</code>.</li>
+  <li>It still refuses <code>rem</code> by zero or by a term, and bounds on <code>rem</code>.</li>
+  <li>New C++ unit tests show 7 <code>rem</code> clauses that must be accepted and 7 that must be rejected.</li>
+  <li>A new Python test checks that a real Z3 log with both divisor signs replays with no SMT fallback.</li>
+  <li>The project plan gains a dated note, "Native checks of the rem axioms (2026-10-31)".</li>
+</ul>
+<p>
+An analogy: a grader knew the rule for <code>mod</code> but sent every <code>rem</code> question to a calculator.
+Now the grader knows that <code>rem</code> is <code>mod</code>, with a sign flip for negative divisors.
+</p>
+<table>
+  <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/sat/smt/arith_theory_checker.h</code></td><td>Native C++ checker</td><td class="num">10</td><td class="num">5</td></tr>
+    <tr><td><code>src/test/proof_replay.cpp</code></td><td>C++ unit tests</td><td class="num">27</td><td class="num">4</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Python test</td><td class="num">18</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">20</td><td class="num">1</td></tr>
+    <tr><th>Total, 4 files</th><th></th><th class="num">75</th><th class="num">10</th></tr>
+  </tbody>
+</table>
+<p class="note">The PR has two commits: the change itself and a review fix that only touches comments and the plan.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+This PR changes the native checker, not Lean reconstruction.
+So the example shows real native <a href="#g-hint">hints</a> and replay output, plus the unchanged Lean result.
+</p>
+
+<h3>(a) The input</h3>
+<p>The number <code>2x</code> is even, so its remainder by 4 is 0 or 2, never more than 2.</p>
+<pre><code>(set-logic QF_LIA)
+(declare-const x Int)
+(assert (&gt; (rem (* 2 x) 4) 2))
+(check-sat)</code></pre>
+<p>It is the <code>rem_prod</code> input of the implementer's probe script. Its clause log holds the two <code>rem</code> axioms:</p>
+<pre><code>(declare-fun x () Int)
+(define-const $7 Int (* 2 x))
+(define-const $17 Int (mod $7 4))
+...
+(define-const $19 Bool (&gt;= 4 0))
+(define-const $9 Int (rem $7 4))
+(define-const $21 Bool (= $9 $17))
+(declare-fun arith (Bool Bool) Proof)
+(define-const $34 Bool (not $21))
+(define-const $36 Proof (arith $19 $34))
+(infer (not $19) $21 $36)
+(define-const $18 Int (- $17))
+(define-const $35 Bool (= $9 $18))
+(define-const $38 Bool (not $35))
+(define-const $37 Bool (not $19))
+(define-const $39 Proof (arith $37 $38))
+(infer $19 $35 $39)
+...</code></pre>
+<p>
+The first <code>infer</code> says "4 &lt; 0, or rem equals mod". Only the <code>rem</code> identity justifies it.
+The second says "4 &ge; 0, or rem equals minus mod", and its guard is valid.
+</p>
+
+<h3>(b) Before</h3>
+<p>
+The pre-PR binary was not rebuilt for this report, so this exact input was not replayed with the old checker.
+The real "before" evidence is the implementer's guard check.
+With the change reverted, the new unit test failed on the same clause shape:
+</p>
+<pre><code>ASSERTION VIOLATION
+File: .../src/test/proof_replay.cpp
+Line: 557
+Failed to verify: check("(assert (not (&gt;= 3 0)))(assert (= (rem (+ x y) 3) (mod (+ x y) 3)))")</code></pre>
+<p>The test asserts the clause's negation, so this is "3 &lt; 0, or rem equals mod".</p>
+
+<h3>(c) After</h3>
+<p>Native replay of the log above with the PR's binary, last counter line:</p>
+<pre><code>(proofs +farkas 61 +arith 5 +euf 18 +rup 15)</code></pre>
+<p>
+All five <code>arith</code> steps verify natively, including both <code>rem</code> axioms.
+The two remaining <code>verified-smt</code> steps both carry a <code>cut</code> hint, as expected.
+</p>
+<p>
+The exporter scripts are identical before and after this PR.
+The Lean check accepted the generated file ("Lean checks passed."). Trimmed excerpt:
+</p>
+<pre><code>-- Int rem by a numeral k is Z3's (ite (&gt;= k 0) (mod t k) (- (mod t k))): t % k, or -(t % k) for k &lt; 0.
+...
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((4 : Int))
+def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_2 _atoms _vars) % (term_3 _atoms _vars))
+def formula_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_4 _atoms _vars) &gt; (term_0 _atoms _vars))</code></pre>
+<p>The input's <code>(rem (* 2 x) 4)</code> becomes Lean's <code>%</code>, because the divisor 4 is positive.</p>
+<pre><code>def formula_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_4 _atoms _vars) = (term_6 _atoms _vars))
+...
+def formula_22 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_21 _atoms _vars))
+def formula_23 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_22 _atoms _vars) (formula_7 _atoms _vars))
+...
+private theorem th_lemma_24 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_23 _atoms _vars) := by
+  unfold formula_23 formula_22 formula_21 term_20 formula_7 term_6 term_4 term_3 term_2 term_1 term_0
+  first | omega | grind (splits := 64)</code></pre>
+<p>This lemma is the same "4 &lt; 0, or rem equals mod" axiom, proved by the <code>omega</code> <a href="#g-tactic">tactic</a>, independently of Z3's checker.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_5 _atoms _vars))
+    : False :=
+...</code></pre>
+<p>The final theorem says that the assertion implies <code>False</code>.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+Every local test suite passed, and the new unit tests fail when the change is reverted.
+All <code>rem</code> fallbacks disappeared from the generator sweep, and nothing else changed.
+Two independent <a href="#g-fuzzing">fuzz</a> runs found no invalid clause accepted, the key <a href="#g-soundness">soundness</a> evidence.
+No local gate record exists for this iteration.
+</p>
+<table>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Build of <code>z3</code> and <code>test-z3</code></td><td class="pass">OK</td></tr>
+    <tr><td><code>test-z3 proof_replay proof_checker sat_smt_proof_scope</code></td><td class="pass">3 passed, 0 failed, shows <code>arith 8</code></td></tr>
+    <tr><td>Guard check, checker change reverted</td><td class="pass"><code>proof_replay</code> fails as expected</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="pass">107 tests OK</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code>, including Lean on both proof cores</td><td class="pass">336 tests OK</td></tr>
+    <tr><td>z3test proof tests</td><td class="pass">46 tests OK</td></tr>
+    <tr><td>z3test SMT-LIB regressions</td><td class="pass">exit 0, 960 files</td></tr>
+    <tr><td>Proof canaries</td><td class="pass">exit 0, one stale array note in z3test</td></tr>
+    <tr><td><code>proof_matrix.py --lean</code>, Boolean legacy cells</td><td class="pass">6/6 lean-verified</td></tr>
+    <tr><td><code>proof_matrix.py --lean</code>, LRA clause-log cells</td><td class="pass">8/8 lean-verified</td></tr>
+    <tr><td><code>check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>Fallback sweep, <code>rem</code> generator, seeds 1-40</td><td class="pass"><code>{'arith': 280, 'cut': 43}</code> to <code>{'cut': 43}</code></td></tr>
+    <tr><td>Implementer fuzz, near-miss <code>rem</code> clauses</td><td class="pass">1,500 tried, 457 accepted, 0 unsound</td></tr>
+    <tr><td>Reviewer fuzz, mixed <code>rem</code>/<code>mod</code>/<code>div</code> clauses</td><td class="pass">1,000 tried, 124 accepted, 0 unsound</td></tr>
+  </tbody>
+</table>
+<p>
+No CI status was recorded for this iteration, so CI results are unknown here.
+See the <a href="https://github.com/levnach/z3/pull/60/checks">PR checks page</a>. No CI fix rounds are recorded.
+</p>
+<table>
+  <thead><tr><th>CI workflow and job</th><th>What it runs for this PR</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>ci.yml</code>: <code>ubuntu-ocaml</code>, <code>ubuntu-ocaml-static</code>, other <code>test-z3</code> jobs</td><td>"Run unit tests" step, <code>./test-z3 -a</code>, the new C++ cases</td><td class="unknown"><a href="https://github.com/levnach/z3/pull/60/checks">not recorded</a></td></tr>
+    <tr><td><code>ci.yml</code>: <code>manylinux-python-amd64</code></td><td>"Test Python wheel" step, the new Python test</td><td class="unknown"><a href="https://github.com/levnach/z3/pull/60/checks">not recorded</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR, with no blockers and no major findings.</p>
+<p>
+The reviewer traced the rewrite and confirmed that zero divisors, term divisors, and <code>rem</code> bounds stay rejected.
+They then fuzzed shapes the implementer had not tried, such as sums of <code>rem</code>, <code>mod</code>, and <code>div</code> terms.
+Every accepted clause was valid.
+One z3test run first failed on a version mismatch from the reviewer's own partial rebuild, and passed after a full rebuild.
+</p>
+<table>
+  <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr><td>nit</td><td>A cross-reference added to the plan made one line 95 characters long, past the paragraph's wrapping.</td><td>Fixed in <code>ee3564f</code>: wrapped onto its own line.</td></tr>
+    <tr><td>nit</td><td>The comment above the C++ test function still listed only <code>div</code>, <code>mod</code>, <code>/</code>, and <code>abs</code>.</td><td>Fixed in <code>ee3564f</code>: the comment names <code>rem</code> and its 280 fallback steps.</td></tr>
+    <tr><td>suggestion</td><td>The checker cannot relate <code>(mod u -k)</code> to <code>(rem u k)</code>, because their <code>div</code> terms are not <a href="#g-hash-consing">hash-consed</a> together.</td><td>Left as a follow-up: Z3 does not log such mixed clauses today.</td></tr>
+  </tbody>
+</table>
+<p>Neither nit changed behavior, but a comment that omits <code>rem</code> would hide the new cases from the next reader.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The native checker now accepts more steps. A wrong acceptance would be a soundness bug in Z3's native checking, not in the Lean certificates.</li>
+  <li>Mitigations: Z3's own <code>rem</code> definition, negative unit tests, and two fuzz runs without an unsound acceptance.</li>
+  <li>Some valid clauses, such as those mixing <code>k</code> and <code>-k</code> divisors, are still rejected. That is safe but incomplete.</li>
+  <li>CI results for this PR are unknown to this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Native checking of <code>cut</code> steps, the last native fallbacks, which needs the cut derivation from C++.</li>
+  <li>Native <code>rem</code> bounds, which Z3 does not emit today.</li>
+  <li>Normalizing the divisor's sign across <code>mod</code>, <code>div</code>, and <code>rem</code>.</li>
+  <li>Updating a stale canary note for <code>t8.smt2</code> in z3test, which concerns arrays.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals: it holds when at least one of its literals is true. Example: <code>(or (not p) q)</code>.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A file in which the solver records each clause it derives, with a hint saying why it holds. A checker can replay it step by step.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>An integer reasoning step that strengthens a bound by rounding, such as from <code>2x &lt;= 3</code> to <code>x &lt;= 1</code>.</dd>
+  <dt id="g-div">div, mod</dt>
+  <dd>Integer division and its remainder. For a nonzero <code>k</code>, <code>u = k * (div u k) + (mod u k)</code>, and <code>mod</code> is never negative.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A proof that some linear inequalities conflict, given as coefficients whose weighted sum yields a false fact like <code>0 &lt; 0</code>. Shown as <code>farkas</code> in the replay counters.</dd>
+  <dt id="g-fuzzing">fuzzing</dt>
+  <dd>Testing with many automatically generated inputs to find cases that break a program.</dd>
+  <dt id="g-guard">guard</dt>
+  <dd>The condition literal of an axiom split into cases, such as <code>(&gt;= k 0)</code> in the <code>rem</code> axioms.</dd>
+  <dt id="g-hash-consing">hash-consing</dt>
+  <dd>Storing each distinct term once, so equal terms are the same object and cancel when subtracted.</dd>
+  <dt id="g-hint">hint</dt>
+  <dd>The label on a logged step that tells the checker which rule to use, such as <code>arith</code>, <code>farkas</code>, or <code>cut</code>.</dd>
+  <dt id="g-numeral">integer numeral</dt>
+  <dd>A literal constant number such as <code>3</code> or <code>(- 3)</code>, as opposed to a term with variables.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation. Example: <code>(&gt;= k 0)</code> and <code>(not (&gt;= k 0))</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
+  <dt id="g-rem">rem</dt>
+  <dd>Z3's integer remainder. It equals <code>(mod t k)</code> when <code>k &gt;= 0</code> and <code>(- (mod t k))</code> otherwise.</dd>
+  <dt id="g-smt-fallback">SMT fallback</dt>
+  <dd>When no native rule checks a step, the replay asks an SMT solver to confirm it. The output marks such a step <code>verified-smt</code>. It is weaker evidence than a rule check.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value in SMT-LIB, such as Int, Real, or Bool.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>A checker is sound if it never accepts a false step.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>omega</code> decides linear integer arithmetic.</dd>
+  <dt id="g-theory-axiom">theory axiom</dt>
+  <dd>A clause that holds because of what a theory's symbols mean, here arithmetic, rather than because of earlier steps.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The set of components a result's correctness depends on. Code outside it can have bugs without making a wrong proof pass.</dd>
+  <dt id="g-valid">valid</dt>
+  <dd>True under every assignment of values. <code>(&gt;= 4 0)</code> is valid. A formula that is not valid is falsifiable.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-31.
+</footer>
+
+</body>
+</html>
