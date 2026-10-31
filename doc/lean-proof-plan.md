@@ -1771,7 +1771,8 @@ the disjuncts of a false disjunction from tails bound every 32 operands
 current_frame in 8 s, clocksynchro_8clocks in 60 s. Still open then (done
 2026-10-31, above): `sal/carpark/Carpark2-ausgabe-6`, whose rewriter
 evaluates `(= (ite ...) 4)` conditions inside other ites, which a table over
-independent leaves does not see. Tests: `test_rewrite_reshaping_ite_terms_verifies` (both cores),
+independent leaves does not see. Tests:
+`test_rewrite_reshaping_ite_terms_verifies` (both cores),
 `test_rewrite_reshaping_ites_with_iff_and_xor_conditions_verifies`,
 `test_ite_value_tables_key_reshaped_ites_alike`, and
 `test_wide_clock_shaped_flattening_rewrite_verifies` (16 clocks; grind

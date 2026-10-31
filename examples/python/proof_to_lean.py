@@ -3597,12 +3597,12 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         # split on the Boolean variables of the conditions, after which simp
         # evaluates every condition and ite over them, does.
         ites = _arith_ites(graph, _reachable(graph, atom)[0])
-        tactic = ["  grind"]
+        tactic, split = ["  grind"], []
         if ites:
-            tactic = ["  first", "    | grind"] + _ite_leaf_split(
-                graph, ites | {representatives.get(ite, ite) for ite in ites}, atom_indices) + [
-                    "    | ((repeat' split) <;> grind)"]
-        atom_lemmas.extend([""] + (["set_option linter.unusedSimpArgs false in"] if ites else []) + [
+            split = _ite_leaf_split(graph, ites | {representatives.get(ite, ite) for ite in ites}, atom_indices)
+            tactic = ["  first", "    | grind"] + split + ["    | ((repeat' split) <;> grind)"]
+        # Not every case of the split uses every simp argument.
+        atom_lemmas.extend([""] + (["set_option linter.unusedSimpArgs false in"] if split else []) + [
             "set_option maxHeartbeats 1000000 in",
             "private theorem normalized_atom_%d_%d (_atoms : Nat -> Prop)%s" % (
                 node, atom, _valuation_binder(graph)),

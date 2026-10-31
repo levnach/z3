@@ -1017,6 +1017,9 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 if core == "clause-log":
                     self.assertIn("private theorem normalized_rewrite_", text)
                     self.assertIn("    | (by_cases _c", text)
+                    # The linter is relaxed only for the lemmas with the split.
+                    self.assertEqual(text.count("set_option linter.unusedSimpArgs false in"),
+                                     text.count("    | (by_cases _c"))
                 certificate, report = self.check(source, core)
                 self.assertIn(_STANDARD_AXIOMS, report)
 
