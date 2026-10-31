@@ -903,6 +903,22 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 self.assertIn(_STANDARD_AXIOMS, report)
                 self.assertIn("th-lemma", certificate["rule_counts"])
 
+    def test_untrimmed_real_abs_axioms_verify(self):
+        # Seed 59's log keeps (abs x1) and an arith lemma of its two case
+        # axioms, which trimming drops; replaying it untrimmed checks that
+        # lemma, over the logged abs rather than z3py's (ite (> t 0) t (- t)).
+        # QF_LRA reads the numerals as Real ones; without a logic the
+        # untrimmed log has to_real numerals, which the replay rejects.
+        source = "(set-logic QF_LRA)\n" + random_abs_instance(59)
+        with patch.object(proof_clause_log, "_TRIM_THRESHOLD", float("inf")):
+            certificate, report = self.check(source)
+        declarations = certificate["declarations"]
+        used = {node["declaration"] for node in certificate["nodes"]}
+        self.assertIn(("abs", ["Real"]), [(declarations[i]["name"], declarations[i]["domain"]) for i in used])
+        self.assertIn(["arith"], [declarations[i]["parameters"] for i in used if declarations[i]["name"] == "th-lemma"])
+        self.assertNotIn(z3.Z3_OP_GT, [declarations[i]["kind"] for i in used])
+        self.assertIn(_STANDARD_AXIOMS, report)
+
     def test_integer_numerals_in_real_terms_verify(self):
         for name, source in COERCED_NUMERAL_INPUTS.items():
             with self.subTest(name=name):

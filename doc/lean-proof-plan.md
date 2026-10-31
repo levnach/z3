@@ -2094,7 +2094,11 @@ conditions. Without a logic, `(abs 3)` in a Real position is
 as QF_LRA does. `(to_real (abs n))` of an Int variable is still rejected. No
 trimmed certificate in 450 random seeds kept an `arith` hint over `abs`
 (the arithmetic solver's two case axioms, seen in untrimmed logs); such a
-lemma would be proved by grind as for Int. Tests:
+lemma is proved by grind as for Int. The replay rebuilds a logged `(abs t)`
+as the `abs` application itself, the input's term; it used z3py's `Abs`,
+which is `(ite (> t 0) t (- t))`, a different term.
+`test_untrimmed_real_abs_axioms_verify` replays seed 59 under QF_LRA
+untrimmed, keeping that lemma, through Lean. Tests:
 `test_real_abs_verifies` and `..._through_the_legacy_core` (five
 hand-written inputs, including the triangle inequality and a QF_UFLRA one,
 plus four random seeds, with Lean and `#print axioms`; all 18 runs were

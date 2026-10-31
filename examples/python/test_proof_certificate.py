@@ -2994,6 +2994,19 @@ class TestClauseLogReplay(unittest.TestCase):
         with self.assertRaises(proof_certificate.ProofExportError):
             proof_clause_log._sexpressions("(a (b)")
 
+    def test_logged_abs_is_rebuilt_as_the_input_abs(self):
+        # z3py's Abs builds (ite (> t 0) t (- t)); a logged (abs t) must be
+        # the abs application itself, the same term as the input's.
+        for sort in ("Int", "Real"):
+            with self.subTest(sort=sort):
+                context = z3.Context()
+                source = "(declare-const x %s)(assert (< (abs x) (- 1)))" % sort
+                assertions = z3.parse_smt2_string(source, ctx=context)
+                terms = proof_clause_log._Terms(context, list(assertions))
+                built = terms.build(["abs", "x"])
+                self.assertEqual(built.decl().kind(), z3.Z3_OP_ABS)
+                self.assertTrue(built.eq(assertions[0].arg(0)), built)
+
     @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
     def test_executable_export_and_cli(self):
         certificate = proof_certificate.export_clause_log_certificate(_LRA)
