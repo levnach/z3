@@ -2023,6 +2023,29 @@ binary successfully with the remaining checks unrun.
 
 ## Arithmetic proof infrastructure
 
+### Integer numerals in Real terms (2026-10-30)
+
+Without a `set-logic`, or under `ALL`, Z3 reads an integer numeral where a
+Real is expected as an Int term under `to_real`, around the largest Int
+subterm: `(* 2 x)` over a Real `x` is `(* (to_real 2) x)`, `(/ 1 3)` is
+`(/ (to_real 1) (to_real 3))`, and `(- 5 1)` is `(to_real (- 5 1))`. The
+exporter rejected every such input ("unsupported arithmetic operator:
+to_real"), even `(assert (> x 1))`, although QF_LRA reads the same text
+with Real numerals. The assertion snapshot (`_parse_snapshot`, shared by the
+exporter's two cores and the reconstructor's binding to the input) now
+replaces `(to_real t)` of a term built from numerals, sums, differences,
+products, and negations by the same term over Real numerals, which is what
+QF_LRA reads (SMT-LIB defines `to_real` as the injection of the integers
+into the reals); the z3 executable folds the same coercions before logging.
+`to_real` of a variable, an application, `div`/`mod`/`abs`, or an Int `ite`
+(`(ite p 1 2)` in a Real position is `(to_real (ite p 1 2))`, which the
+clause log keeps over an Int `ite`) is still rejected. Tests:
+`test_integer_numerals_coerced_to_real_read_as_under_qf_lra` (the snapshot
+equals Z3's QF_LRA/QF_UFLRA reading), `test_coerced_numerals_are_bound_to_the_input_by_value`,
+and three inputs through Lean on both cores
+(`test_integer_numerals_in_real_terms_verify`,
+`..._through_the_legacy_core`).
+
 ### Int cut lemmas proved by one split (2026-10-30)
 
 A `cut`, and an Int `farkas` or `bound` without coefficients, names the

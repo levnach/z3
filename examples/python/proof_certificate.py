@@ -96,7 +96,9 @@ _BOOLEAN_OPERATORS = {
 # division, plus the integer div and mod by a nonzero numeral and abs, which
 # are opaque atoms of the linear forms (Z3's arithmetic solver axiomatizes
 # div and mod by explicit clauses, see proof_clause_log, and rewrites abs to
-# an ite); to_real and to_int are rejected, and Int never mixes with Real.
+# an ite); to_real and to_int are rejected, and Int never mixes with Real
+# (an integer numeral Z3 coerces to Real is read as a Real numeral, see
+# _parse_snapshot).
 _ARITH_PREDICATES = {z3.Z3_OP_LE, z3.Z3_OP_GE, z3.Z3_OP_LT, z3.Z3_OP_GT}
 _ARITH_OPERATORS = {z3.Z3_OP_ADD, z3.Z3_OP_SUB, z3.Z3_OP_UMINUS, z3.Z3_OP_MUL, z3.Z3_OP_DIV}
 _ARITH_NAMES = {
@@ -376,6 +378,81 @@ def _assertion_commands(source, query=None):
     return query_snapshot(source, query)[0]
 
 
+# The Int operators _real_counterpart rebuilds over Real, by their Z3 API constructors.
+_REAL_COUNTERPARTS = {
+    z3.Z3_OP_ADD: z3.Z3_mk_add, z3.Z3_OP_SUB: z3.Z3_mk_sub, z3.Z3_OP_MUL: z3.Z3_mk_mul,
+    z3.Z3_OP_UMINUS: lambda reference, size, array: z3.Z3_mk_unary_minus(reference, array[0]),
+}
+
+
+def _parse_snapshot(source, context, query=None):
+    """Parse the assertion snapshot of a query, with integer numerals coerced to Real read as Real numerals.
+
+    Under a logic with both Int and Real (none declared, or ALL), Z3 reads an
+    integer numeral where a Real is expected as an Int term under to_real,
+    around the largest Int subterm: (* 2 x) over a Real x is
+    (* (to_real 2) x), (/ 1 5) is (/ (to_real 1) (to_real 5)), and (- 5 1) is
+    (to_real (- 5 1)), where QF_LRA reads 2.0, (/ 1.0 5.0), and (- 5.0 1.0).
+    SMT-LIB defines to_real as the injection of the integers into the reals,
+    so (to_real t) of a term t built from numerals is replaced by t over Real
+    (_real_counterpart) before anything else reads the assertions: the
+    fragment, the exporter's solver and replay, and the reconstructor's
+    statement all see the input as QF_LRA reads it, and the z3 executable's
+    rewriter folds such a coercion to a Real numeral before logging. to_real
+    of any other Int term (a variable, an application, an ite, whose
+    coercion the log keeps) stays and is rejected: Int never mixes with Real.
+    """
+    assertions = list(z3.parse_smt2_string(_assertion_commands(source, query), ctx=context))
+    pending, seen, coerced = list(assertions), set(), []
+    while pending:
+        expr = pending.pop()
+        if not z3.is_app(expr) or expr.get_id() in seen:
+            continue
+        seen.add(expr.get_id())
+        if expr.decl().kind() == z3.Z3_OP_TO_REAL and z3.is_int(expr.arg(0)):
+            counterpart = _real_counterpart(expr.arg(0), context)
+            if counterpart is not None:
+                coerced.append((expr, counterpart))
+                continue
+        pending.extend(expr.children())
+    if not coerced:
+        return assertions
+    return [z3.substitute(assertion, *coerced) for assertion in assertions]
+
+
+def _real_counterpart(expr, context):
+    """The Real term QF_LRA reads for (to_real expr), or None unless expr is built from numerals.
+
+    Numerals become Real numerals of the same value, and sums, differences,
+    products, and negations over such terms the same operation over their
+    counterparts, so the statement keeps the input's structure. Any other
+    Int term (a variable, an application, an ite, div, mod, abs) has none.
+    """
+    counterparts = {}
+    pending = [(expr, False)]
+    while pending:
+        node, expanded = pending.pop()
+        if node.get_id() in counterparts:
+            continue
+        kind = node.decl().kind()
+        if kind == z3.Z3_OP_ANUM:
+            counterparts[node.get_id()] = z3.RealVal(node.as_long(), ctx=context)
+        elif kind not in _REAL_COUNTERPARTS:
+            counterparts[node.get_id()] = None
+        elif not expanded:
+            pending.append((node, True))
+            pending.extend((child, False) for child in node.children())
+        else:
+            children = [counterparts[child.get_id()] for child in node.children()]
+            if any(child is None for child in children):
+                counterparts[node.get_id()] = None
+            else:
+                array = (z3.Ast * len(children))(*(child.as_ast() for child in children))
+                counterparts[node.get_id()] = z3.ArithRef(
+                    _REAL_COUNTERPARTS[kind](context.ref(), len(children), array), context)
+    return counterparts[expr.get_id()]
+
+
 def _is_numeral(expr):
     return z3.is_app(expr) and expr.decl().kind() == z3.Z3_OP_ANUM
 
@@ -593,7 +670,7 @@ def _require_legacy_fragment(assertions, integer=False):
 
 def parse_legacy_assertions(source, context, integer=False, query=None):
     """Parse the assertion snapshot for the legacy proof object, with its fragment name."""
-    assertions = z3.parse_smt2_string(_assertion_commands(source, query), ctx=context)
+    assertions = _parse_snapshot(source, context, query)
     return assertions, _require_legacy_fragment(assertions, integer)
 
 
@@ -617,7 +694,7 @@ def parse_assertions(source, context, integer=False, query=None):
     reconstructor do; a harness that classifies input for other proof
     checkers keeps the previous fragments.
     """
-    assertions = z3.parse_smt2_string(_assertion_commands(source, query), ctx=context)
+    assertions = _parse_snapshot(source, context, query)
     fragment = classify_fragment(assertions)
     if fragment in _INTEGER_FRAGMENTS and not integer:
         raise ProofExportError("integer arithmetic (%s) is certified through the clause log and Lean alone; "

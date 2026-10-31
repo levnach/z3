@@ -1361,6 +1361,42 @@ class TestFragmentClassification(unittest.TestCase):
                "(assert (> (* 2.0 (ite (and p (< x 1.0)) x (ite p 1.0 (- x)))) 2.0))")
         self.assertEqual(self.classify(ite), "qf_lra")
 
+    def test_integer_numerals_coerced_to_real_read_as_under_qf_lra(self):
+        # Without a logic, or under ALL, Z3 reads an integer numeral where a
+        # Real is expected as an Int term under to_real, around the largest
+        # Int subterm ((to_real (- 5 1 (* 2 (- 1))))); the snapshot replaces
+        # each by the Real term QF_LRA reads, structure kept.
+        for source, logic, fragment in [
+            ("(declare-const x Real)(declare-const y Real)"
+             "(assert (<= (* 2 x) 1))(assert (> (+ x y) (/ 1 3)))(assert (< y (- 2)))", "QF_LRA", "qf_lra"),
+            ("(declare-const x Real)(declare-const y Real)(declare-const p Bool)"
+             "(assert (= y (ite (> x 1) 1 (ite p x (- 5 1 (* 2 (- 1)))))))"
+             "(assert (distinct x 1 (+ 1 2)))", "QF_LRA", "qf_lra"),
+            ("(set-logic ALL)(declare-fun f (Real) Real)(declare-const x Real)"
+             "(assert (= (f 1) 3))(assert (< (f x) (- x 2)))", "QF_UFLRA", "qf_uflra"),
+        ]:
+            with self.subTest(source=source):
+                context = z3.Context()
+                assertions, classified = proof_certificate.parse_assertions(source, context, integer=True)
+                self.assertEqual(classified, fragment)
+                expected = z3.parse_smt2_string("(set-logic %s)" % logic + source.replace("(set-logic ALL)", ""),
+                                                ctx=context)
+                self.assertEqual([assertion.sexpr() for assertion in assertions],
+                                 [assertion.sexpr() for assertion in expected])
+                self.assertNotIn("to_real", " ".join(assertion.sexpr() for assertion in assertions))
+        # to_real of an Int variable, of an application, of div, or of an
+        # Int ite still mixes the sorts and is rejected: the z3 executable
+        # keeps (to_real (ite p 1 2)) over an Int ite in its log.
+        for source, message in [
+            ("(declare-const x Real)(declare-const p Bool)(assert (= x (ite p 1 2)))", "operator: to_real"),
+            ("(declare-const x Real)(declare-const i Int)(assert (= x (+ i 1)))", "operator: to_real"),
+            ("(declare-const x Real)(assert (= x (div 7 2)))", "operator: to_real"),
+            ("(declare-fun g (Real) Int)(declare-const x Real)(assert (= x (g 1)))", "operator: to_real"),
+        ]:
+            with self.subTest(source=source):
+                with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
+                    self.classify(source)
+
     def test_linear_integer_inputs_are_classified(self):
         self.assertEqual(self.classify("(declare-const x Int)(assert (> x 1))"), "qf_lia")
         self.assertEqual(self.classify(_LIA), "qf_lia")
