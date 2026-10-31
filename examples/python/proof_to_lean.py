@@ -3327,6 +3327,60 @@ def _arith_ites(graph, nodes):
     return {node for node in nodes if graph.kind(node) == z3.Z3_OP_ITE and graph.is_arith(node)}
 
 
+def _numeral_ite(graph, term):
+    """Whether term is an arithmetic ite whose branches are, through nested ites, constant linear forms."""
+    if graph.kind(term) != z3.Z3_OP_ITE or not graph.is_arith(term):
+        return False
+    pending, seen = [term], set()
+    while pending:
+        node = pending.pop()
+        if node in seen:
+            continue
+        seen.add(node)
+        if graph.kind(node) == z3.Z3_OP_ITE:
+            pending.extend(graph.arguments(node)[1:])
+            continue
+        terms = {}
+        try:
+            _linear_term(graph, node, Fraction(1), terms)
+        except ReconstructionError:
+            return False
+        if any(terms.values()):
+            return False
+    return True
+
+
+# Rewrites that evaluate connectives and ites once their Boolean leaves are True or False.
+_LEAF_EVALUATION_LEMMAS = (
+    "not_true_eq_false, not_false_eq_true, and_true, true_and, and_false, false_and, or_true, true_or, "
+    "or_false, false_or, true_implies, false_implies, implies_true, true_iff, iff_true, false_iff, iff_false, "
+    "ite_true, ite_false")
+
+
+def _ite_leaf_split(graph, ites, atom_indices):
+    """A `first` alternative proving a goal over ites by cases on their conditions' Boolean variables.
+
+    Each case rewrites the variables to True or False; simp then evaluates
+    the conditions, decides comparisons of numerals (an evaluated atom of
+    _ite_table) and reduces the ites to their branches, and grind closes the
+    linear rest. Empty without Boolean variables or with more than
+    _ITE_TABLE_LEAVES of them (2^n cases).
+    """
+    variables = set()
+    for ite in ites:
+        variables |= {node for node in _reachable(graph, ite)[0]
+                      if graph.kind(node) == z3.Z3_OP_UNINTERPRETED and not graph.arguments(node)
+                      and not graph.is_term(node)}
+    indices = sorted({atom_indices[graph.nodes[node].declaration] for node in variables})
+    if not indices or len(indices) > _ITE_TABLE_LEAVES:
+        return []
+    cases = " <;> ".join("by_cases _c%d : _atoms %d" % (index, index) for index in indices)
+    names = ", ".join("_c%d" % index for index in indices)
+    return ["    | (%s <;>" % cases,
+            "        simp (config := { decide := true }) only [%s, %s] <;> grind)" % (
+                names, _LEAF_EVALUATION_LEMMAS)]
+
+
 def _ite_representatives(graph, atoms):
     """Map each ite term under the atoms that has a value table to the least ite of the same table.
 
@@ -3364,7 +3418,22 @@ def _ite_table(graph, ite, order):
     A leaf is a Boolean variable or the canonical key of a linear atom
     (_normalized_atom), so (< x 3) and (not (<= 3 x)) are one leaf. The
     leaves are treated as independent, which only makes fewer ites equal.
+    An atom over ite terms of numeral values alone (_numeral_ite), such as
+    (= (ite c 4 (ite d 3 0)) 4), is no leaf but evaluated: its leaves are
+    those of the inner ites' conditions. Z3's rewriter decides such atoms,
+    turning (ite (= (ite c 4 ...) 4) 20 ...) into (ite (or c ...) 20 ...)
+    (the sal/carpark QF_LRA benchmarks), which the two tables now key alike.
     """
+    numeral_atoms = {}
+
+    def evaluated(node):
+        """The constraint of an atom over numeral-valued ites, or None for a leaf."""
+        if node not in numeral_atoms:
+            relation, terms, constant = _atom_constraint(graph, node)
+            numeral = bool(terms) and all(_numeral_ite(graph, term) for term in terms)
+            numeral_atoms[node] = (relation, terms, constant) if numeral else None
+        return numeral_atoms[node]
+
     leaves, pending, seen = set(), [ite], set()
     while pending:
         node = pending.pop()
@@ -3380,7 +3449,11 @@ def _ite_table(graph, ite, order):
         elif kind == z3.Z3_OP_UNINTERPRETED and not arguments:
             leaves.add(("bool", graph.nodes[node].declaration))
         elif kind in _ARITH_PREDICATE_NAMES or (kind == z3.Z3_OP_EQ and graph.is_arith(arguments[0])):
-            leaves.add(_normalized_atom(graph, node, order)[0])
+            constraint = evaluated(node)
+            if constraint is None:
+                leaves.add(_normalized_atom(graph, node, order)[0])
+            else:
+                pending.extend(constraint[1])
         elif kind in _NORMALIZED_CONNECTIVES or (kind == z3.Z3_OP_EQ and len(arguments) == 2
                                                  and not graph.is_term(arguments[0])):
             pending.extend(arguments)
@@ -3395,8 +3468,13 @@ def _ite_table(graph, ite, order):
         if kind == z3.Z3_OP_UNINTERPRETED:
             return values[("bool", graph.nodes[node].declaration)]
         if kind in _ARITH_PREDICATE_NAMES or (kind == z3.Z3_OP_EQ and graph.is_arith(arguments[0])):
-            key, negated = _normalized_atom(graph, node, order)
-            return values[key] != negated
+            constraint = evaluated(node)
+            if constraint is None:
+                key, negated = _normalized_atom(graph, node, order)
+                return values[key] != negated
+            relation, terms, constant = constraint
+            constant += sum(coefficient * numeral_value(term, values) for term, coefficient in terms.items())
+            return constant == 0 if relation == "=" else constant <= 0 if relation == "<=" else constant < 0
         operands = [holds(argument, values) for argument in arguments]
         if kind == z3.Z3_OP_TRUE:
             return True
@@ -3415,6 +3493,12 @@ def _ite_table(graph, ite, order):
         if kind == z3.Z3_OP_XOR:
             return operands[0] != operands[1]
         return operands[1] if operands[0] else operands[2]  # a Boolean ite
+
+    def numeral_value(node, values):
+        while graph.kind(node) == z3.Z3_OP_ITE:
+            condition, then_branch, else_branch = graph.arguments(node)
+            node = then_branch if holds(condition, values) else else_branch
+        return _linear_term(graph, node, Fraction(1), {})
 
     def value(node, values):
         while graph.kind(node) == z3.Z3_OP_ITE:
@@ -3507,11 +3591,19 @@ def _normalized_rewrite(graph, node, reachable, atoms, atom_indices, variable_in
         rewrites.append(rewrite)
         # Over an ite term, grind alone fails to prove two ites equal whose
         # conditions are an iff or xor of an atom and a Boolean variable;
-        # splitting every ite of the goal first leaves linear goals.
-        tactic = (["  grind"] if not _arith_ites(graph, _reachable(graph, atom)[0])
-                  else ["  first", "    | grind", "    | ((repeat' split) <;> grind)"])
-        atom_lemmas.extend([
-            "", "set_option maxHeartbeats 1000000 in",
+        # splitting every ite of the goal first leaves linear goals. Nor
+        # does either prove an ite over (= (ite c 4 ...) 4) conditions equal
+        # to its counterpart over c (_ite_table evaluates such atoms): a case
+        # split on the Boolean variables of the conditions, after which simp
+        # evaluates every condition and ite over them, does.
+        ites = _arith_ites(graph, _reachable(graph, atom)[0])
+        tactic, split = ["  grind"], []
+        if ites:
+            split = _ite_leaf_split(graph, ites | {representatives.get(ite, ite) for ite in ites}, atom_indices)
+            tactic = ["  first", "    | grind"] + split + ["    | ((repeat' split) <;> grind)"]
+        # Not every case of the split uses every simp argument.
+        atom_lemmas.extend([""] + (["set_option linter.unusedSimpArgs false in"] if split else []) + [
+            "set_option maxHeartbeats 1000000 in",
             "private theorem normalized_atom_%d_%d (_atoms : Nat -> Prop)%s" % (
                 node, atom, _valuation_binder(graph)),
             "    : %s <-> %s := by" % (_formula(graph, atom), expanded),

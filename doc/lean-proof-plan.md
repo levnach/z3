@@ -1725,6 +1725,28 @@ from the start. The 600-operand implication chain checks in 6 s and
 operands), inline (150), and outlined with the conjunction's proof local to
 the eliminating lemma (80).
 
+### Ite value tables evaluate comparisons of numeral-valued ites (2026-10-31)
+
+`sal/carpark/Carpark2-ausgabe-6`, the last of the four rewrite failures
+below, verifies (15 s; it failed after 117 s with five heartbeat timeouts).
+Its rate is `(ite (= s 4) 20 (ite (= s 3) 10 ...))` over a selector `s`, an
+ite chain over four flags with numeral branches, and Z3's rewriter decides
+the comparisons, leaving an ite over disjunctions of the flags'
+conjunctions. `_ite_table` now evaluates an atom whose linear form ranges
+over such numeral-valued ites (`_numeral_ite`) instead of keeping it as an
+independent leaf: its leaves are the selector's condition leaves, so the
+two rate ites share a table. An atom over an ite with a non-numeral branch
+stays a leaf, as before. The atom lemma relating the two rate ites (grind
+and `repeat' split` both fail there) gets a third alternative: `by_cases`
+on each Boolean variable of the ites' conditions (at most eight), `simp
+only` with connective and `ite_true`/`ite_false` rewrites and `decide` to
+evaluate the conditions and comparisons, then grind. The matching remains a
+heuristic that only chooses which term is rendered; a wrong match fails in
+Lean. Tests: `test_rewrite_over_numeral_comparisons_of_selector_ites_verifies`
+(clause-log core: grind over the whole rewrite timed out after 60 s before)
+and `test_ite_value_tables_evaluate_comparisons_of_numeral_ites` in
+`test_proof_to_lean_arith.py`.
+
 ### Normalized rewrites over ite terms and wide flattenings (2026-10-30)
 
 Four QF_LRA smtlib-sample benchmarks failed Lean in a whole-assertion
@@ -1746,10 +1768,11 @@ constants, and double negation, children first (iff by `iff_congr`, the
 rest by its search), proves each direction by contradiction, and refutes
 the disjuncts of a false disjunction from tails bound every 32 operands
 (the mirror of the conjunction tails). mode_cntrl verifies in 6 s,
-current_frame in 8 s, clocksynchro_8clocks in 60 s. Still open:
-`sal/carpark/Carpark2-ausgabe-6`, whose rewriter evaluates `(= (ite ...) 4)`
-conditions inside other ites, which a table over independent leaves does
-not see. Tests: `test_rewrite_reshaping_ite_terms_verifies` (both cores),
+current_frame in 8 s, clocksynchro_8clocks in 60 s. Still open then (done
+2026-10-31, above): `sal/carpark/Carpark2-ausgabe-6`, whose rewriter
+evaluates `(= (ite ...) 4)` conditions inside other ites, which a table over
+independent leaves does not see. Tests:
+`test_rewrite_reshaping_ite_terms_verifies` (both cores),
 `test_rewrite_reshaping_ites_with_iff_and_xor_conditions_verifies`,
 `test_ite_value_tables_key_reshaped_ites_alike`, and
 `test_wide_clock_shaped_flattening_rewrite_verifies` (16 clocks; grind
