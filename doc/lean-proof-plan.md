@@ -2023,6 +2023,37 @@ binary successfully with the remaining checks unrun.
 
 ## Arithmetic proof infrastructure
 
+### Int cut lemmas proved by one split (2026-10-30)
+
+A `cut`, and an Int `farkas` or `bound` without coefficients, names the
+bounds it rests on but not the cut's derivation, so `omega` and `grind`
+redid the search: QF_LIA `cut_lemmas/20-vars/cut_lemma_02_002` (188 such
+lemmas over twenty variables) exhausted Lean's memory, single lemmas taking
+over a minute or six gigabytes. Every Gomory cut is a split cut, so
+`_split_combination` now proves such a lemma by one case split: z3, as an
+untrusted oracle (`_split_certificate`), solves for an integer form `s`, an
+integer `k`, and two sets of Farkas multipliers such that each side of
+`k < s` or `s <= k` refutes the lemma's bounds rationally (a mixed integer
+problem, the coefficients of `s` within [-1, 1] first, then unbounded, each
+within `_SPLIT_RLIMIT`); Python checks the combinations exactly, and Lean
+checks `Int.lt_or_le` and each side as in `_farkas_combination` below. The
+attempt comes first under `first`; a lemma without a certificate keeps the
+generalized and unfolded proofs. All 188 lattice lemmas of
+`cut_lemma_02_002` get a split within [-1, 1] (4 s of z3 in all). Its 25
+Farkas lemmas of 20 and 21 bounds with coefficients below 10000 were as
+costly through `omega`; a Farkas lemma of at least 16 bounds now gets its
+combination when a bound spans 8 atoms or more (`_FARKAS_COMBINATION_ATOMS`;
+the wide division seed's bounds span at most four). With serial elaboration
+from 5 MB (`_SERIAL_ELABORATION_CHARS`, was 8 MB), the input verifies in
+about 3 minutes at a 6.7 GB peak (`test_cut_lemmas_over_twenty_variables_verify`).
+The splits also replace `grind`'s cutsat search on 126 of the 129 lattice
+lemmas of the wide division seed, whose peak drops from 7.7 GB to 3.7 GB.
+`test_lattice_lemmas_are_proved_by_their_split_alone` checks the splits of
+the documented inputs (both cores) and pinned instances with no fallback.
+Still open: the cut of `lia_gomory` has no split over its listed bounds (a
+side needs the gcd rounding of a bound), so it keeps `grind`; each split
+costs Lean about 26 MB, mostly the two `omega` identities over dense forms.
+
 ### Int Farkas lemmas proved by their combination (2026-10-30)
 
 An Int `farkas` or `bound` th-lemma with coefficients was proved by `omega`
@@ -2053,7 +2084,7 @@ QF_UFLIA inputs through both cores is proved by the combination alone
 `test_wide_farkas_conflicts_with_large_coefficients_verify` in
 `test_proof_to_lean_lia.py`). Still open: Real Farkas lemmas keep `grind`,
 and `cut_lemma_02_002` of the same family still exhausts Lean's memory on its
-186 coefficient-free `cut` lemmas.
+186 coefficient-free `cut` lemmas (verified since, see above).
 
 ### Native checks of the arithmetic solver's axioms (2026-10-29)
 
