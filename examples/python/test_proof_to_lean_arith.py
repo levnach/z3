@@ -552,7 +552,7 @@ def flattening_rewrite_instance(variables=9):
     return "\n".join(lines) + "\n"
 
 
-def clock_shaped_rewrite_instance():
+def clock_shaped_rewrite_instance(clocks=3):
     """A disjunction with the Boolean skeleton of the clocksynchro_3clocks rewrite over fresh bounds.
 
     z3test's smtlib-sample QF_LRA clock_synchro/clocksynchro_3clocks.main_
@@ -562,7 +562,9 @@ def clock_shaped_rewrite_instance():
     constant atom, a re-nested conjunction), which Z3's rewriter flattens
     to 48 disjuncts; grind failed on the propositional lemma relating the
     two. Here every atom is a bound on its own variable, asserted as a
-    unit, so every disjunct is false and the input is unsat.
+    unit, so every disjunct is false and the input is unsat. More clocks
+    widen the groups (and the copies of the repeated literals) as in the
+    8-clock variant.
     """
     counter = [0]
 
@@ -573,14 +575,17 @@ def clock_shaped_rewrite_instance():
     def neg(formula):
         return "(not %s)" % formula
 
-    clocks = range(3)
+    clocks = range(clocks)
     a = [atom() for _ in range(13)]
     g, s, h = [atom() for _ in clocks], [atom() for _ in clocks], [atom() for _ in clocks]
     a61, a62, a63, a64, a65, a66 = (atom() for _ in range(6))
     k67, k74, k75, k82, k83, k84 = (atom() for _ in range(6))
     disjuncts = [neg(x) for x in a[:10]] + [neg(a[6])] + [neg(x) for x in a[10:13]] + [neg(a[6])]
     disjuncts += ["(and (or %s %s) %s)" % (neg(g[c]), neg(atom()), neg(s[c])) for c in clocks]
-    disjuncts.append("(and (and %s %s) %s)" % (neg(g[0]), neg(g[1]), neg(g[2])))
+    all_off = neg(g[0])
+    for c in clocks[1:]:
+        all_off = "(and %s %s)" % (all_off, neg(g[c]))
+    disjuncts.append(all_off)
     disjuncts += ["(and %s (or %s %s))" % (g[c], neg(atom()), neg(atom())) for c in clocks]
     disjuncts += ["(and (and %s %s) (or (or %s %s) %s))" % (g[c], neg(h[c]), neg(atom()), neg(atom()), neg(atom()))
                   for c in clocks]
@@ -606,6 +611,84 @@ def clock_shaped_rewrite_instance():
     lines += ["(assert (<= x%d 5))" % i for i in range(1, counter[0] + 1)]
     lines.append("(check-sat)")
     return "\n".join(lines) + "\n"
+
+
+def ite_reshaping_instance(groups=5):
+    """A disjunction of conjunctions over Real ite terms that Z3's rewriter reshapes, refuted by unit bounds.
+
+    The shape of the spider QF_LRA benchmarks (mode_cntrl, current_frame):
+    per group, y is (ite (not b) (ite (and (< x 3) c) (+ x 1) x) x), which
+    the rewriter merges into (ite (or b (not (and (not (<= 3 x)) c))) x
+    (+ 1 x)), and w is (ite (not (< z 3)) 3 z), rewritten to (ite (<= 3 z)
+    3 z), next to atoms the rewriter flattens and normalizes; with five
+    groups the rewrite has 50 atoms. Each disjunct requires (not (< z 3))
+    against the unit (< z 3).
+    """
+    names, disjuncts = [], []
+    for group in range(groups):
+        b, c, x, y, z, w = ("%s%d" % (name, group) for name in "bcxyzw")
+        names += [(b, "Bool"), (c, "Bool"), (x, "Real"), (y, "Real"), (z, "Real"), (w, "Real")]
+        disjuncts.append(
+            "(and (and (and (= %s (ite (not %s) (ite (and (< %s 3) %s) (+ %s 1) %s) %s))"
+            " (not (< %s 3))) (= %s (ite (not (< %s 3)) 3 %s))) (or (or %s (= %s 3)) (= %s 0)))"
+            % (y, b, x, c, x, x, x, z, w, z, z, c, y, w))
+    assertion = disjuncts[0]
+    for disjunct in disjuncts[1:]:
+        assertion = "(or %s %s)" % (assertion, disjunct)
+    lines = ["(set-logic QF_LRA)"] + ["(declare-const %s %s)" % pair for pair in names]
+    lines.append("(assert %s)" % assertion)
+    lines += ["(assert (< z%d 3))" % group for group in range(groups)]
+    lines.append("(check-sat)")
+    return "\n".join(lines) + "\n"
+
+
+class TestNormalizedRewriteLinks(unittest.TestCase):
+    """The prover of a normalized rewrite links the sides' structures equal up to flattening."""
+
+    def test_links_cover_swapped_iffs_double_negation_and_constants(self):
+        leaf = [("leaf", index, "_atom%d" % index) for index in range(6)]
+        left = ("and", ("iff", leaf[0], ("or", ("or", leaf[1], leaf[2]), leaf[3])),
+                ("not", ("not", leaf[4])), ("or", leaf[5], ("false",)))
+        right = ("and", leaf[5], leaf[4], ("iff", ("or", leaf[3], leaf[1], leaf[2]), leaf[0]))
+        prover = proof_to_lean._PropositionalProver(left, right, classical=True, links=True)
+        self.assertEqual(prover.representatives[left], prover.representatives[right])
+        lines = prover.equivalence(left, right)
+        self.assertIsNotNone(lines)
+        text = "\n".join(lines)
+        self.assertIn("(Iff.trans (iff_congr ", text)  # the iff with its sides swapped
+        self.assertIn(") iff_comm)", text)
+        self.assertIn("refine Classical.byContradiction (fun (_f", text)
+        source = ["theorem linked (_atoms : Nat -> Prop)%s" % "".join(" (%s : Prop)" % name for _, _, name in leaf),
+                  "    : %s := by" % proof_to_lean._render_structure(("iff", left, right))]
+        source += ["  " + line for line in lines]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "linked.lean"
+            path.write_text("\n".join(source) + "\n\n#print axioms linked\n")
+            result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(path)], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-3000:])
+
+    def test_disjuncts_of_a_wide_false_disjunction_are_refuted_from_tails(self):
+        # Refuting disjunct i from the disjunction itself took i steps of
+        # mt Or.inr; from the tail bound a stride before it, at most a stride.
+        width = 4 * proof_to_lean._AND_ELIM_STRIDE + 3
+        leaves = [("leaf", index, "_atom%d" % index) for index in range(width)]
+        # The last two disjuncts, assumed, are refuted from the negated disjunction.
+        negation, last = ("not", ("or",) + tuple(leaves)), ("or", leaves[-1], leaves[-2])
+        prover = proof_to_lean._PropositionalProver(last, negation, classical=True)
+        lines = prover.refutation(last, [(negation, "_h")])
+        self.assertIsNotNone(lines)
+        depths = [line.count("(mt (@Or.inr _ _)") for line in lines]
+        self.assertEqual(depths.count(proof_to_lean._AND_ELIM_STRIDE), 4)  # the tails
+        self.assertLessEqual(max(depths), proof_to_lean._AND_ELIM_STRIDE)
+        source = ["theorem refuted (_atoms : Nat -> Prop)%s" % "".join(" (%s : Prop)" % name for _, _, name in leaves),
+                  "    (_h : %s) : Not %s := by" % tuple(proof_to_lean._render_structure(structure)
+                                                      for structure in (negation, last))]
+        source += ["  " + line for line in lines]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "refuted.lean"
+            path.write_text("\n".join(source) + "\n")
+            result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(path)], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-3000:])
 
 
 @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
@@ -787,7 +870,11 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         lemma = self._normalized_lemma(source)
         self.assertIn("(Not True)", lemma)
         self.assertIn("  by first\n    | (let _s0 : Prop := ", lemma)
-        self.assertIn("\n       refine Iff.intro (fun (_f1 : _s", lemma)
+        # The sides' structures equal up to flattening are linked first,
+        # each link proved by contradiction (see _equivalent_structures).
+        self.assertRegex(lemma, r"\n       have _f\d+ : _s\d+ := by\n         refine Iff.intro ")
+        self.assertIn("refine Classical.byContradiction (fun (_f", lemma)
+        self.assertRegex(lemma, r"\n       refine Iff.intro \(fun \(_f\d+ : _s")
         self.assertTrue(lemma.endswith(")\n    | grind (splits := 64)"), lemma[-200:])
         self.assertNotIn("Classical.em", lemma)
         self.check(source)
@@ -813,6 +900,69 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         self.assertNotIn("Classical.em", lemma)
         self.assertLess(len(lemma), proof_to_lean._STRUCTURAL_REWRITE_CHARS // 2)
         self.check(source)
+
+    def test_wide_clock_shaped_flattening_rewrite_verifies(self):
+        # The same skeleton with 16 clocks (a 165-way flattened disjunction):
+        # the search alone exhausted its character budget (each case of one
+        # side's disjunction walked the other side's left-nested chain, and
+        # refuting disjunct i of a false disjunction took i steps), so the
+        # lemma was grind's, which failed after 106 s, as on the 250-way
+        # rewrite of clocksynchro_8clocks.main_invar. With the sides' equal
+        # structures linked and the false disjunction's tails bound, the
+        # proof is linear and checks in seconds.
+        source = clock_shaped_rewrite_instance(clocks=16)
+        lemma = self._normalized_lemma(source)
+        self.assertIn("  by first\n    | (let _s0 : Prop := ", lemma)
+        # Every disjunct is refuted from a tail at most a stride before it.
+        self.assertLessEqual(max(line.count("(mt (@Or.inr _ _)") for line in lemma.splitlines()),
+                             2 * proof_to_lean._AND_ELIM_STRIDE)
+        self.assertLess(len(lemma), proof_to_lean._STRUCTURAL_REWRITE_CHARS)
+        certificate, report = self.check(source)
+        self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_rewrite_reshaping_ite_terms_verifies(self):
+        # Z3's rewriter reshapes the ite terms of an assertion (see
+        # ite_reshaping_instance), so the two sides' ites differ and
+        # generalizing them apart fails; grind over the unfolded rewrite
+        # exhausted its heartbeats (as on the spider QF_LRA benchmarks
+        # mode_cntrl and current_frame). Keyed by their value tables, the
+        # ites of both sides are one opaque term per pair, each atom's lemma
+        # proves its ite equal to the representative, and the propositional
+        # lemma links the flattened structures.
+        source = ite_reshaping_instance()
+        for core in ("clause-log", "legacy"):
+            with self.subTest(core=core):
+                certificate = (proof_certificate.export_clause_log_certificate(source) if core == "clause-log"
+                               else proof_certificate.export_certificate(source))
+                text = proof_to_lean.reconstruct(source, certificate)
+                self.assertIn("private theorem normalized_rewrite_", text)
+                atom_lemmas = text.split("private theorem normalized_atom_")[1:]
+                self.assertTrue(any("(@ite Rat" in lemma.split(":= by", 1)[0] for lemma in atom_lemmas))
+                certificate, report = self.check(source, core)
+                self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_ite_value_tables_key_reshaped_ites_alike(self):
+        # Per group, the y ite (nested on the left, merged on the right)
+        # and the w ite (its condition negated on the left) each have one
+        # table for both shapes; the left's inner ite has a table of its own.
+        groups = 3
+        source = ite_reshaping_instance(groups)
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        rewrite = max((node for node in range(len(graph.nodes)) if graph.decl(node).name == "rewrite"),
+                      key=lambda node: len(proof_to_lean._reachable(graph, graph.conclusion(node))[0]))
+        conclusion = graph.conclusion(rewrite)
+        ites = proof_to_lean._arith_ites(graph, proof_to_lean._reachable(graph, conclusion)[0])
+        atoms = [formula for formula in proof_to_lean._reachable_outside(graph, conclusion, ites)
+                 if graph.kind(formula) == z3.Z3_OP_EQ and graph.is_arith(graph.arguments(formula)[0])]
+        representatives = proof_to_lean._ite_representatives(graph, atoms)
+        self.assertEqual(set(representatives), ites)
+        classes = {}
+        for ite, representative in representatives.items():
+            classes.setdefault(representative, []).append(ite)
+        self.assertEqual(sorted(len(members) for members in classes.values()), [1] * groups + [2] * 2 * groups)
+        for members in classes.values():  # one table, but the conditions differ
+            self.assertEqual(len({graph.arguments(ite)[0] for ite in members}), len(members))
 
     def test_euf_congruence_annotation_cannot_supply_a_missing_equality(self):
         source = ("(declare-const x Real)(declare-const y Real)"
