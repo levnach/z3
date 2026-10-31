@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #58: Certify abs over Real terms on both proof cores</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --note-bg: #fff8c5; --ok: #1a7f37; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --note-bg: #3b2e00; --ok: #3fb950; --warn: #d29922;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.6rem; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.82em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); margin: 0.2rem 0; }
+  .status { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 1rem; border: 1px solid var(--warn);
+            color: var(--warn); font-weight: 600; font-size: 0.85rem; }
+  .note { background: var(--note-bg); border-radius: 6px; padding: 0.6rem 0.8rem; margin: 0.8rem 0; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -0.4rem; color: var(--muted); }
+  dl dt { font-weight: 600; margin-top: 0.6rem; }
+  dl dd { margin-left: 1.2rem; }
+  footer { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify abs over Real terms on both proof cores</h1>
+  <p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/58">levnach/z3#58</a> &middot; loop iteration 58 &middot; opened 2026-10-31T10:52:52Z</p>
+  <p class="meta">State: <span class="status">OPEN</span> &mdash; this PR is <strong>not merged</strong>. The change is commit
+    <a href="https://github.com/levnach/z3/commit/03bf2598c95a52a1205d4af3c98af60d9954b073"><code>03bf2598c</code></a>, on top of base <code>8cd110b0a</code>.</p>
+</header>
+
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>This PR lets the pipeline certify inputs that use <a href="#g-abs"><code>abs</code></a> over terms of
+<a href="#g-sort">sort</a> Real. SMT-LIB defines <code>abs</code> on Int only, but Z3 also accepts it over Real.
+Z3 gives it the same meaning, the <a href="#g-ite">if-then-else term</a> <code>(ite (&gt;= t 0) t (- t))</code>.
+Before, every such input was rejected. Now both <a href="#g-proof-core">proof cores</a> export it, and the
+<a href="#g-reconstruction">reconstructor</a> states a Real <code>abs</code> as exactly that <code>ite</code> over
+<a href="#g-rat">rational numbers</a>. The Lean <a href="#g-kernel">kernel</a> still checks every
+<a href="#g-lemma">lemma</a> of the <a href="#g-refutation">refutation</a>. No new <a href="#g-axiom">axioms</a> appear,
+and the <a href="#g-trust-boundary">trust boundary</a> does not move. This matters because hand-written
+<a href="#g-lra">linear real arithmetic</a> inputs often use <code>abs</code> for distances and error bounds.</p>
+
+<h2 id="background">Background</h2>
+<p>Before this PR, the pipeline already certified <a href="#g-lra">linear real arithmetic</a>, with and without
+<a href="#g-uf">uninterpreted functions</a>. It also handled <code>abs</code> over Int. A Real <code>abs</code> stopped
+the <a href="#g-exporter">exporter</a> with the message "unsupported arithmetic operator: abs over Real". The
+reconstructor would have refused it too, because it accepted the <code>abs</code> <a href="#g-declaration">declaration</a>
+only over Int. Without a <a href="#g-logic">logic</a>, <code>(abs 3)</code> in a Real position became the
+<a href="#g-coercion">coercion</a> <code>(to_real (abs 3))</code>, which was rejected as well. A probe of 27 common
+hand-written constructs found that the other remaining gaps are mixed Int and Real, Int <code>rem</code>, and datatypes.
+The PR serves milestone 3 of the plan, "Equality and linear arithmetic".</p>
+
+<h2 id="what-changed">What changed</h2>
+<ul>
+  <li><strong>Exporter:</strong> you can now export a certificate for a Real <code>abs</code>, while a
+      <a href="#g-nonlinear">nonlinear</a> argument such as <code>(abs (* x y))</code> is still rejected.</li>
+  <li><strong>Coercions:</strong> an input with no logic can now use <code>(abs 3)</code> as a Real, and it is read exactly as QF_LRA reads it.</li>
+  <li><strong>Clause-log replay:</strong> a logged <code>(abs t)</code> is now rebuilt as the same <code>abs</code> term that the input contains, for Int and Real.</li>
+  <li><strong>Reconstructor:</strong> the Lean statement now contains a Real <code>abs</code> as the <code>ite</code> "if t &ge; 0 then t else &minus;t" over <code>Rat</code>, while <code>div</code> and <code>mod</code> stay Int only.</li>
+  <li><strong>Tests and docs:</strong> nine new inputs are checked in Lean on both cores, tampered declarations are shown to fail, and the README and plan describe the new case.</li>
+</ul>
+<table>
+  <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">13</td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">4</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">10</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Lean tests</td><td class="num">159</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests</td><td class="num">31</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">15</td><td class="num">9</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">29</td><td class="num">0</td></tr>
+    <tr><th colspan="2">Total (7 files, 3 commits)</th><th class="num">261</th><th class="num">25</th></tr>
+  </tbody>
+</table>
+<p>There is no C++ change. The three commits are <code>09c9d94aa</code> (the feature), <code>f3965a2f4</code> (replay fix after review), and <code>03bf2598c</code> (review nits).</p>
+
+<h2 id="example">Worked example</h2>
+<p>This is the "distance" input from the PR's new tests. It says x and y are less than 1 apart, yet x &gt; 3 and y &lt; 1.
+That is impossible, so the input is unsat. The runs below were made for this report on the PR's code and on its base.</p>
+
+<h3>(a) Input</h3>
+<pre><code>(declare-const x Real)
+(declare-const y Real)
+(assert (&lt; (abs (- x y)) 1.0))
+(assert (&gt; x 3.0))
+(assert (&lt; y 1.0))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the exporter at the base commit</h3>
+<pre><code>proof_certificate.py: error: unsupported arithmetic operator: abs over Real</code></pre>
+<p class="explain">The old exporter stopped at the first Real <code>abs</code>, so no certificate and no Lean file existed.</p>
+
+<h3>(c) After: the generated Lean file</h3>
+<p>The exporter chose the <a href="#g-clause-log">clause log</a> core. The reconstructor wrote a 171-line file. <code>scripts/check_lean.sh</code> printed "Lean checks passed."</p>
+<pre><code>-- Real variables are encoded as Rat; see the exporter documentation.
+-- Real abs, which Z3 accepts beyond SMT-LIB, is the ite (if t &gt;= 0 then t else -t).
+...</code></pre>
+<p class="explain">The header now says openly that the statement uses Z3's meaning of a Real <code>abs</code>.</p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 1
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((term_0 _atoms _vars) - (term_1 _atoms _vars))
+noncomputable def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat ((term_2 _atoms _vars) &gt;= ((0 : Rat))) (Classical.propDecidable _) (term_2 _atoms _vars) (-(term_2 _atoms _vars)))
+def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
+def formula_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_3 _atoms _vars) &lt; (term_4 _atoms _vars))
+...</code></pre>
+<p class="explain"><code>term_3</code> is the new feature: <code>(abs (- x y))</code> written as "if x &minus; y &ge; 0 then x &minus; y else &minus;(x &minus; y)" over <code>Rat</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_5 _atoms _vars))
+    (_h1 : (formula_7 _atoms _vars))
+    (_h2 : (formula_8 _atoms _vars))
+    : False :=
+...</code></pre>
+<p class="explain">The theorem says the three assertions together imply False, for every value of x and y.</p>
+<pre><code>private theorem rewrite_28 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_27 _atoms _vars) := by
+  unfold formula_27 formula_26 formula_25 formula_5 term_4
+  first
+    | (have _e17_3 : (term_17 _atoms _vars) = (term_3 _atoms _vars) := by unfold term_17 ... term_0; grind (splits := 64)
+       revert _e17_3
+       generalize (term_17 _atoms _vars) = _o0
+       generalize (term_3 _atoms _vars) = _o1
+       grind (splits := 64))
+    | ...</code></pre>
+<p class="explain">Z3's rewriter replaced the <code>abs</code> by its own <code>ite</code> (<code>term_17</code>), and this lemma proves that the rewritten <code>ite</code> equals the input's <code>abs</code>.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>In plain terms: every test suite that touches this code passed after review. All 18 runs of the new Lean tests failed before the PR.
+Random <code>abs</code> puzzles from a <a href="#g-fuzzing">fuzzer</a> all exported, and 134 of their runs were checked in Lean.
+Putting the old replay back made the new review tests fail, so the tests catch the old behavior.</p>
+<table>
+  <thead><tr><th>Check (as reported in the PR and review)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_proof_to_lean*.py</code> at <code>03bf2598c</code></td><td class="ok">334 tests OK (1426.3 s)</td></tr>
+    <tr><td><code>test_proof_certificate.py</code> at <code>03bf2598c</code></td><td class="ok">107 tests OK (13.2 s)</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+    <tr><td>z3test <code>scripts/proofs</code> tests</td><td class="ok">46 tests OK</td></tr>
+    <tr><td>New Lean tests at the base commit (before/after)</td><td>18 of 18 (input, core) pairs rejected before</td></tr>
+    <tr><td>Fuzzing with <code>random_abs_instance</code></td><td class="ok">88 QF_LRA and 46 QF_UFLRA runs verified in Lean</td></tr>
+    <tr><td><code>proof_matrix.py --lean</code></td><td class="ok">6/6 legacy Boolean, 8/8 clause-log <code>lra_*</code></td></tr>
+    <tr><td><a href="#g-mutation">Mutation check</a>: replay changed back to <code>z3.Abs</code></td><td>3 failures, as intended</td></tr>
+    <tr><td>Reviewer's edge-case probes (7 inputs, both cores)</td><td class="ok">14 of 14 passed, standard axioms only</td></tr>
+    <tr><td>Reviewer's tamper probes (6 kinds, both cores)</td><td class="ok">all rejected before Lean</td></tr>
+    <tr><td>This report's worked example</td><td class="ok">Lean accepted</td></tr>
+    <tr><td>Not run: <code>test-z3</code>, z3test <code>test_benchmarks.py</code>, <code>scripts/tests</code></td><td>skipped, no C++ or <code>scripts/</code> change</td></tr>
+  </tbody>
+</table>
+<div class="note"><strong>Local gate:</strong> not recorded yet. The gate run had only started when this report was written, so its result is unknown here.</div>
+<p>The CI status of this PR was not part of the report's inputs, so the results below are unknown. The PR body names the jobs that run the affected tests. There were no CI fix rounds recorded.</p>
+<table>
+  <thead><tr><th>Workflow / job</th><th>What it runs for this PR</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>ci.yml</code> &middot; Ubuntu build - cmake - releaseClang</td><td>Step "Check native Boolean proofs in Lean", including the new Lean tests (about 50 s more)</td><td class="warn">unknown</td></tr>
+    <tr><td><code>ci.yml</code> &middot; <code>manylinux-python-amd64</code></td><td>Step "Test Python wheel", including <code>test_proof_certificate.py</code></td><td class="warn">unknown</td></tr>
+    <tr><td><code>ci.yml</code> &middot; <code>manylinux-python-arm64</code></td><td>Same step on arm64</td><td class="warn">unknown</td></tr>
+  </tbody>
+</table>
+<p>Live results are on the <a href="https://github.com/levnach/z3/pull/58/checks">PR's checks page</a>.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blockers and no major findings.</p>
+<ul>
+  <li><strong>Minor, fixed in <code>f3965a2f4</code>.</strong> The reviewer traced how the replay rebuilds a logged <code>(abs t)</code>.
+    It used z3py's <code>Abs</code>, which builds <code>(ite (&gt; t 0) t (- t))</code>. That is a different term from the logged <code>abs</code>, and it even uses <code>&gt;</code> instead of <code>&gt;=</code>.
+    An untrimmed clause log that keeps the two <code>abs</code> case axioms would then be compared against the wrong term. Lean would still catch any error, so soundness was safe, but such inputs could fail for no good reason.
+    The fix builds the real <code>abs</code> application. A new test replays random seed 59 without <a href="#g-trimming">trimming</a>, which keeps that lemma, and checks it in Lean.</li>
+  <li><strong>Nit, fixed in <code>03bf2598c</code>.</strong> A dictionary whose values were never read became the set <code>_NUMERIC_KINDS</code>, which says what is meant.</li>
+  <li><strong>Nit, fixed in <code>03bf2598c</code>.</strong> One README line of about 110 characters was rewrapped.</li>
+</ul>
+<p>The reviewer also saw that running single test modules from the repository root can pick up stale copies of the tests. This is a local setup issue. The CI command is not affected.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The Lean statement now covers an operator that SMT-LIB does not define over Real. It uses Z3's meaning, <code>t &gt;= 0 ? t : -t</code>. A consumer that wants strict SMT-LIB can reject a Real <code>abs</code> declaration in the certificate.</li>
+  <li>An untrimmed clause log of a Real input with no logic can contain <code>(to_real &lt;numeral&gt;)</code>, which the replay rejects. This is older than the PR, and trimming normally hides it.</li>
+  <li>In seeds 0&ndash;149, plus 0&ndash;79 with functions, only two raw logs kept an <code>abs</code> lemma. So the untrimmed path is rare, and it is tested by one seed.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<p>The largest remaining gap is mixed Int and Real input, such as <code>to_real</code> of an Int variable. Lean's <code>grind</code> <a href="#g-tactic">tactic</a> does not reason through the cast from Int to <code>Rat</code>. So this needs explicit cast bridging. Int <code>rem</code> and datatypes are also still rejected. The Lean status of the large QF_IDL sample exports is still unmeasured.</p>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-abs">abs (absolute value)</dt>
+  <dd>The distance of a number from zero. <code>(abs (- 2.5))</code> is 2.5. SMT-LIB defines it only for Int.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. These Lean files use only Lean's three standard axioms, and the PR adds none.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A record of every clause a solver learns, with a hint for each.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction ("or") of literals, such as <code>(or p (not q))</code>.</dd>
+  <dt id="g-coercion">coercion</dt>
+  <dd>A conversion from one sort to another. <code>(to_real n)</code> turns the Int <code>n</code> into a Real.</dd>
+  <dt id="g-declaration">declaration</dt>
+  <dd>The name, argument sorts, and result sort of a function symbol, such as <code>abs : Real -&gt; Real</code>.</dd>
+  <dt id="g-exporter">exporter</dt>
+  <dd>The step that turns a Z3 proof into a JSON certificate. Here it is <code>proof_certificate.py</code>.</dd>
+  <dt id="g-fuzzing">fuzzing</dt>
+  <dd>Testing with many randomly generated inputs to find cases nobody thought of.</dd>
+  <dt id="g-ite">if-then-else term (ite)</dt>
+  <dd>A term that picks one of two values by a condition. <code>(ite (&gt;= t 0) t (- t))</code> is t when t &ge; 0, else &minus;t.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small core of Lean that checks every proof. Only the kernel has to be trusted.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A small proved statement used as a step toward a larger theorem.</dd>
+  <dt id="g-lra">linear real arithmetic (QF_LRA)</dt>
+  <dd>Constraints over Real variables using +, &minus;, and multiplication by constants, like <code>2x + y &lt; 3</code>. QF_UFLRA adds uninterpreted functions.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>p</code> or <code>(not (&lt; x 3))</code>.</dd>
+  <dt id="g-logic">logic</dt>
+  <dd>The SMT-LIB fragment an input declares with <code>set-logic</code>, such as QF_LRA. It fixes which sorts and operators may appear.</dd>
+  <dt id="g-mutation">mutation check</dt>
+  <dd>Putting a known bug back on purpose to confirm that the tests fail.</dd>
+  <dt id="g-nonlinear">nonlinear term</dt>
+  <dd>A term that multiplies two variables, such as <code>(* x y)</code>. The pipeline does not support these.</dd>
+  <dt id="g-proof-core">proof core</dt>
+  <dd>One of Z3's two proof sources: the legacy proof object or the clause log.</dd>
+  <dt id="g-rat">rational number (Rat)</dt>
+  <dd>A fraction of two integers, like 3/2. The Lean files use Lean's <code>Rat</code> for Real values.</dd>
+  <dt id="g-reconstruction">reconstruction</dt>
+  <dd>Turning a certificate into a Lean file that proves the same result. Here it is <code>proof_to_lean.py</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to False, so they cannot all hold.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>grind</code> is one.</dd>
+  <dt id="g-trimming">trimming</dt>
+  <dd>Removing clauses from a clause log that the final refutation does not need.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The line between what must be trusted, here the Lean kernel and the statement of the input, and what is checked.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning, only that equal arguments give equal results. Example: <code>(declare-fun f (Real) Real)</code>.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-10-31.
+</footer>
+
+</body>
+</html>
