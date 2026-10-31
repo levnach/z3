@@ -60,12 +60,12 @@ _REAL_ARITY = {z3.Z3_OP_UNINTERPRETED: 0, z3.Z3_OP_ANUM: 0, z3.Z3_OP_UMINUS: 1, 
 # _integer_divisor), abs is the ite SMT-LIB defines it as. All three are
 # opaque atoms of the linear forms; omega reads / and % by a positive
 # numeral and grind proves the axioms of a negative divisor. abs is also a
-# Real operator (_NUMERIC_NAMES): SMT-LIB defines it on Int only, but Z3
+# Real operator (_NUMERIC_KINDS): SMT-LIB defines it on Int only, but Z3
 # accepts it over Real with the same definition, (ite (>= t 0) t (- t)), and
 # its rewriter replaces it by that ite before solving.
 _INT_NAMES = {z3.Z3_OP_IDIV: "div", z3.Z3_OP_MOD: "mod", z3.Z3_OP_ABS: "abs"}
 _INT_ARITY = {z3.Z3_OP_IDIV: 2, z3.Z3_OP_MOD: 2, z3.Z3_OP_ABS: 1}
-_NUMERIC_NAMES = {z3.Z3_OP_ABS: "abs"}
+_NUMERIC_KINDS = {z3.Z3_OP_ABS}
 # An ite is the one arithmetic or uninterpreted-sort term with a Boolean
 # argument; Lean's ite needs a decidability instance, which the classical one
 # provides. Every theory slice already depends on the standard axioms.
@@ -450,7 +450,7 @@ def _declaration(raw, sorts):
                 raise ReconstructionError("unsupported arithmetic function declaration: %s" % name)
             return _Declaration(kind, name, domain, raw["range"], parameters)
         elif kind in _INT_NAMES:
-            if _INT_NAMES[kind] != name or (numeric != "Int" and kind not in _NUMERIC_NAMES):
+            if _INT_NAMES[kind] != name or (numeric != "Int" and kind not in _NUMERIC_KINDS):
                 raise ReconstructionError("unsupported arithmetic declaration: %s" % name)
         elif _REAL_NAMES.get(kind) != name or (kind == z3.Z3_OP_DIV and numeric == "Int"):
             raise ReconstructionError("unsupported arithmetic declaration: %s" % name)
@@ -4498,7 +4498,7 @@ def reconstruct(source, certificate):
             lines.append("-- Int div and mod by a numeral are Lean's Euclidean / and %; abs is the ite SMT-LIB defines.")
     elif graph.arithmetic:
         lines.append("-- Real variables are encoded as Rat; see the exporter documentation.")
-        if any(decl.kind in _NUMERIC_NAMES for decl in graph.declarations):
+        if any(decl.kind in _NUMERIC_KINDS for decl in graph.declarations):
             lines.append("-- Real abs, which Z3 accepts beyond SMT-LIB, is the ite (if t >= 0 then t else -t).")
     if graph.arithmetic and graph.uninterpreted:
         lines.append("-- %s arguments of functions and predicates are injected into _m.U by %s;"
