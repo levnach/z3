@@ -50,13 +50,13 @@ footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--bord
 <h1>Evaluate comparisons of numeral-valued ites in ite value tables</h1>
 <p class="meta">
 Pull request <a href="https://github.com/levnach/z3/pull/57">levnach/z3#57</a> &middot;
-state <span class="badge">OPEN</span> &middot; opened 2026-10-31T08:52:45Z &middot; loop iteration 57
+state <span class="badge">MERGED</span> &middot; 2026-10-31T09:16:41Z &middot; loop iteration 57
 </p>
 <p class="meta">
-This pull request is open and <strong>not merged</strong>. It contains two commits.
-The change commit is
-<a href="https://github.com/levnach/z3/commit/43d90c864b397939ff27e586da741aa7ad86df05"><code>43d90c864</code></a>,
+Merged on 2026-10-31T09:16:41Z as commit
+<a href="https://github.com/levnach/z3/commit/ddcb12378ef07280c4db0b41552ac565b5b54a44"><code>ddcb12378</code></a>,
 on top of base <code>c4658bdcd</code>.
+The PR's two commits were combined into this one commit, with the same file contents.
 </p>
 </header>
 
@@ -151,8 +151,9 @@ Hint: Additional diagnostic information may be available using the `set_option d
 Lean checking failed; no proof was published.</code></pre>
 <p>Line 324 is the old proof of the whole rewrite step, one <code>grind (splits := 64)</code> call that ran out of heartbeats.</p>
 
-<h3>(c) After: the change commit <code>43d90c864</code></h3>
-<p>Lean accepted the new file. <code>check_lean.sh</code> printed &ldquo;Lean checks passed.&rdquo;</p>
+<h3>(c) After: the merged commit <code>ddcb12378</code></h3>
+<p>Lean accepted the new file. <code>check_lean.sh</code> printed &ldquo;Lean checks passed.&rdquo;
+The reviewed PR head produced the identical file.</p>
 <pre><code>-- Atom 0: "a0"
 -- Atom 1: "b0"
 ...
@@ -211,18 +212,32 @@ Some runs used the pre-review commit <code>dd0f60369</code> and were not repeate
 <tr><td>Test input, new tables without the split</td><td>ablation</td><td class="bad">six &ldquo;grind failed&rdquo;</td></tr>
 <tr><td>Test input, new code</td><td><code>dd0f60369</code></td><td class="ok">1.2 s</td></tr>
 <tr><td>Test input, split moved after <code>repeat' split</code></td><td>ablation</td><td>3.2 s</td></tr>
-<tr><td>Worked example above, new code</td><td>final</td><td class="ok">Lean accepted</td></tr>
+<tr><td>Worked example above, new code</td><td>merged <code>ddcb12378</code></td><td class="ok">Lean accepted</td></tr>
 </tbody>
 </table>
 <p>
-The loop's local gate had not recorded a result when this was written. No CI status was recorded either, so CI results are unknown here.
+The change touches only Python and documentation, so the loop merged it on its local gate.
+The gate repeats the parts of the Ubuntu CI job that exercise this work, on the loop machine. Every step passed.
+</p>
+<table>
+<thead><tr><th>Local gate step (Darwin arm64)</th><th>Result</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">14 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">1391 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">15 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">6 s</td></tr>
+</tbody>
+</table>
+<p>
+GitHub CI runs on <code>master</code> after the merge. No CI status was recorded for this page, so CI results are unknown here.
 There were no CI fix rounds.
 </p>
 <table>
 <thead><tr><th>CI workflow / job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
 <tbody>
 <tr><td>Ubuntu build - cmake - releaseClang (<code>ubuntu-cmake</code>)</td><td>Check native Boolean proofs in Lean</td>
-<td class="warn">not recorded; see <a href="https://github.com/levnach/z3/pull/57/checks">PR checks</a></td></tr>
+<td class="warn">not recorded; see <a href="https://github.com/levnach/z3/commit/ddcb12378ef07280c4db0b41552ac565b5b54a44">merge commit checks</a></td></tr>
 <tr><td>All other workflows</td><td>&mdash;</td>
 <td class="warn">not recorded; see <a href="https://github.com/levnach/z3/pull/57/checks">PR checks</a></td></tr>
 </tbody>
@@ -253,7 +268,8 @@ so a slow failing split could starve the old fallback. No such case appeared, an
 <ul>
 <li>More ites now share a table. If a lemma cannot prove an equality the table claims, Lean fails where grind once ran. No such case appeared.</li>
 <li>The split is exponential in the number of flags. It is capped at 8 flags, so at most 256 cases per lemma.</li>
-<li>CI and local gate results were not available for this page.</li>
+<li>The PR was merged on the local gate, before GitHub CI results were recorded. CI results on <code>master</code> are unknown here.</li>
+<li>Some benchmark and matrix runs used the pre-review commit and were not repeated after the small review fix.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
