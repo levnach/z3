@@ -398,8 +398,9 @@ def _parse_snapshot(source, context, query=None):
     (_real_counterpart) before anything else reads the assertions: the
     fragment, the exporter's solver and replay, and the reconstructor's
     statement all see the input as QF_LRA reads it, and the z3 executable's
-    rewriter folds such a coercion to a Real numeral before logging. to_real
-    of any other Int term (a variable, an application, an ite, whose
+    rewriter folds such a coercion to a Real numeral before logging. A
+    to_real of such a term written explicitly, under any logic, is read the
+    same way. to_real of any other Int term (a variable, an application, an ite, whose
     coercion the log keeps) stays and is rejected: Int never mixes with Real.
     """
     assertions = list(z3.parse_smt2_string(_assertion_commands(source, query), ctx=context))

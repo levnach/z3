@@ -2037,6 +2037,7 @@ replaces `(to_real t)` of a term built from numerals, sums, differences,
 products, and negations by the same term over Real numerals, which is what
 QF_LRA reads (SMT-LIB defines `to_real` as the injection of the integers
 into the reals); the z3 executable folds the same coercions before logging.
+An explicit `(to_real (+ 2 1))` is read the same way under any logic.
 `to_real` of a variable, an application, `div`/`mod`/`abs`, or an Int `ite`
 (`(ite p 1 2)` in a Real position is `(to_real (ite p 1 2))`, which the
 clause log keeps over an Int `ite`) is still rejected. Tests:

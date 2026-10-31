@@ -1384,6 +1384,12 @@ class TestFragmentClassification(unittest.TestCase):
                 self.assertEqual([assertion.sexpr() for assertion in assertions],
                                  [assertion.sexpr() for assertion in expected])
                 self.assertNotIn("to_real", " ".join(assertion.sexpr() for assertion in assertions))
+        # An explicit to_real of numerals is read the same way under any logic.
+        assertions, classified = proof_certificate.parse_assertions(
+            "(set-logic QF_LIRA)(declare-const x Real)(assert (> x (to_real (+ 2 1))))(assert (< x 1.0))",
+            z3.Context(), integer=True)
+        self.assertEqual(classified, "qf_lra")
+        self.assertEqual([assertion.sexpr() for assertion in assertions], ["(> x (+ 2.0 1.0))", "(< x 1.0)"])
         # to_real of an Int variable, of an application, of div, or of an
         # Int ite still mixes the sorts and is rejected: the z3 executable
         # keeps (to_real (ite p 1 2)) over an Int ite in its log.
