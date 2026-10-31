@@ -125,12 +125,15 @@ _FARKAS_COMBINATION_COEFFICIENT = 10000
 # cut_lemma_02_002, whose bounds span 19 atoms each; the wide division
 # seed's bounds span at most four.
 _FARKAS_COMBINATION_ATOMS = 8
-# Resource limit of each search z3 makes for the split of an Int lattice
+# Resource limits of the searches z3 makes for the split of an Int lattice
 # lemma (_split_certificate), first with the split's coefficients bounded by
 # one, then unbounded (_SPLIT_MAGNITUDES). Bounded, each of the 188
 # lattice lemmas of QF_LIA cut_lemma_02_002 has one within 3 million (4 s of
-# z3 for all of them); unbounded, two of them needed 50 million and over
-# 400 million (a minute of z3).
+# z3 for all of them), so the bounded limit leaves rlimit accounting on
+# other platforms and builds a margin of six; a bounded search that fails
+# costs at most about 3 s. Unbounded, two of them needed 50 million and
+# over 400 million (a minute of z3).
+_SPLIT_BOUNDED_RLIMIT = 20000000
 _SPLIT_RLIMIT = 5000000
 _SPLIT_MAGNITUDES = (1, None)
 # The formulas a normalized rewrite's propositional lemma states over its
@@ -1701,7 +1704,8 @@ def _combination_sum(bounds, multipliers):
 
     Returns the sum, the proof that it is nonnegative, its constant (the
     multipliers scaled to integers), and the term nodes to delta in its
-    identity, or None unless the constant is negative.
+    identity, or None unless the constant is negative and every negative
+    multiplier is an equality's.
     """
     scale = functools.reduce(math.lcm, (multiplier.denominator for multiplier in multipliers), 1)
     summands, proofs, sides, total = [], [], set(), Fraction(0)
@@ -1711,6 +1715,8 @@ def _combination_sum(bounds, multipliers):
         total += multiplier * constant
         if multiplier < 0:
             # Only an equality takes a negative multiplier: use it the other way round.
+            if not equality:
+                return None
             lower, upper, proof, multiplier = upper, lower, "(Eq.symm %s)" % proof, -multiplier
         if equality:
             proof = "(Int.le_of_eq %s)" % proof
@@ -1740,7 +1746,7 @@ def _split_combination(graph, node):
     integer k, each side of s <= k or k + 1 <= s, with the bounds
     (_lemma_bounds), has a rational combination refuting it. z3 searches
     for s, k, and both combinations as one mixed integer problem
-    (_split_certificate) within _SPLIT_RLIMIT, the coefficients of s
+    (_split_certificate) within a resource limit, the coefficients of s
     bounded first (_SPLIT_MAGNITUDES); nothing it returns is
     trusted: Python checks the combinations, and Lean checks the case
     split on Int.lt_or_le and each combination as in _farkas_combination.
@@ -1790,11 +1796,12 @@ def _split_certificate(forms, equalities, magnitude=None):
     k - s >= 0 to a negative constant with every atom cancelled, above the
     same for the facts and s - k - 1 >= 0. The model is checked here, so a
     wrong one gives None, as does a problem z3 does not solve within
-    _SPLIT_RLIMIT (deterministic, unlike a timeout).
+    _SPLIT_BOUNDED_RLIMIT, or _SPLIT_RLIMIT when unbounded (deterministic,
+    unlike a timeout).
     """
     context = z3.Context()
     solver = z3.Solver(ctx=context)
-    solver.set("rlimit", _SPLIT_RLIMIT)
+    solver.set("rlimit", _SPLIT_RLIMIT if magnitude is None else _SPLIT_BOUNDED_RLIMIT)
     keys = sorted({key for terms, _ in forms for key in terms})
     split = {key: z3.Int("s%d" % key, context) for key in keys}
     if magnitude is not None:

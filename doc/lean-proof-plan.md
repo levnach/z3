@@ -2034,8 +2034,8 @@ over a minute or six gigabytes. Every Gomory cut is a split cut, so
 untrusted oracle (`_split_certificate`), solves for an integer form `s`, an
 integer `k`, and two sets of Farkas multipliers such that each side of
 `k < s` or `s <= k` refutes the lemma's bounds rationally (a mixed integer
-problem, the coefficients of `s` within [-1, 1] first, then unbounded, each
-within `_SPLIT_RLIMIT`); Python checks the combinations exactly, and Lean
+problem, the coefficients of `s` within [-1, 1] first, within
+`_SPLIT_BOUNDED_RLIMIT`, then unbounded, within `_SPLIT_RLIMIT`); Python checks the combinations exactly, and Lean
 checks `Int.lt_or_le` and each side as in `_farkas_combination` below. The
 attempt comes first under `first`; a lemma without a certificate keeps the
 generalized and unfolded proofs. All 188 lattice lemmas of

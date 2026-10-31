@@ -1121,6 +1121,12 @@ class TestIntegerValidation(unittest.TestCase):
         # Nor is there one when z3 runs out of its budget.
         with patch.object(proof_to_lean, "_SPLIT_RLIMIT", 1):
             self.assertIsNone(certificate([({x: 2}, -1), ({x: -2}, 1)], [False, False]))
+        with patch.object(proof_to_lean, "_SPLIT_BOUNDED_RLIMIT", 1):
+            self.assertIsNone(certificate([({x: 2}, -1), ({x: -2}, 1)], [False, False], 1))
+        # Only an equality's fact may be summed with a negative multiplier.
+        bound = ("x", "y", False, "_h", False, ({x: -1, y: 1}, 1), set())
+        self.assertIsNone(proof_to_lean._combination_sum([bound], [Fraction(-1)]))
+        self.assertIsNotNone(proof_to_lean._combination_sum([bound[:4] + (True,) + bound[5:]], [Fraction(-1)]))
 
     def test_lattice_lemmas_over_twenty_variables_get_a_split(self):
         # QF_LIA cut_lemma_02_002 (z3test smtlib-sample, 2.6 KB): 188 cut,
