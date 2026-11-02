@@ -1645,9 +1645,11 @@ def _floor_shift_facts(graph, floors, atom_indices, variable_indices):
     (numerals, and Int atoms through to_real) with integer coefficients;
     the core lemma Rat.floor_add_intCast moves it out of the floor, and the
     equation is cast into Rat for the Real atoms over the floors.
+
+    A floored term a that is itself such an integer D, as in (is_int
+    (to_real n)), gets floor a = D through the core lemma
+    Rat.floor_intCast; these facts are one per floor and are not capped.
     """
-    if len(floors) > _FLOOR_SHIFT_LIMIT:
-        return []
     forms = {}
     for argument in floors:
         terms = {}
@@ -1657,6 +1659,17 @@ def _floor_shift_facts(graph, floors, atom_indices, variable_indices):
             continue
         forms[argument] = ({atom: value for atom, value in terms.items() if value}, constant)
     facts = []
+    for argument, (terms, constant) in sorted(forms.items()):
+        if (any(not graph.is_int(atom) or value.denominator != 1 for atom, value in terms.items())
+                or constant.denominator != 1):
+            continue
+        value = _scaled_form(graph, terms, constant, 1, atom_indices, variable_indices, True)
+        side = _inline(graph, argument, atom_indices, variable_indices)
+        facts.append("have _z%d := congrArg (fun (_t : Int) => ((_t : Int) : Rat)) ((congrArg Rat.floor "
+                     "(show (%s) = (((%s) : Int) : Rat) by push_cast; grind)).trans (Rat.floor_intCast _))" % (
+                         argument, side, value))
+    if len(floors) > _FLOOR_SHIFT_LIMIT:
+        return facts
     for first, second in itertools.combinations(sorted(forms), 2):
         (first_terms, first_constant), (second_terms, second_constant) = forms[first], forms[second]
         difference = {atom: first_terms.get(atom, 0) - second_terms.get(atom, 0)

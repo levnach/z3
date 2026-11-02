@@ -709,12 +709,14 @@ _int_cast_lt, _int_cast_eq, from core's Rat.intCast_le_intCast and its
 siblings), and every Real atom over Int terms alone is stated equivalent to
 the Int atom of its integer-scaled form; push_cast then distributes the
 casts. to_int is Rat.floor, an Int atom of the linear forms like div,
-and (is_int t) is t = ((Rat.floor t : Int) : Rat), SMT-LIB's definition; a
+and (is_int t) is ((Rat.floor t : Int) : Rat) = t, SMT-LIB's definition; a
 lemma reaching either gets the floor bounds of each floored term a from
 core's Rat.floor_le and Rat.lt_floor_add_one (Z3's two arith axioms for
-to_int), and floor a = floor b + D (core's Rat.floor_add_intCast) for two
-floored terms differing by an integer D, which Z3's rewriter uses to move
-integer summands out of a floor. A cut that rounds a Real atom over a Real
+to_int), floor a = D (core's Rat.floor_intCast) when a is itself an
+integer D over Int terms, and floor a = floor b + D (core's
+Rat.floor_add_intCast) for two floored terms differing by an integer D,
+which Z3's rewriter uses to move integer summands out of a floor (these
+pairs only up to 12 floors per lemma). A cut that rounds a Real atom over a Real
 variable through a floor (x and x/2 both integers) is still rejected.
 Rewrites, which may span both sorts, are proved by first | omega |
 grind (splits := 64). The Rat encoding of the Real variables stays sound

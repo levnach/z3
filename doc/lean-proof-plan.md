@@ -2157,9 +2157,11 @@ the linear forms, like `div`) and `is_int t` as
 either is a conversion step like one reaching `to_real`, and its fallback
 proof also states, per floored term `a`, the core lemmas
 `Rat.floor_le a` and `Rat.lt_floor_add_one a` (the two `arith` axioms Z3
-adds for `to_int`), and `floor a = floor b + D` through
-`Rat.floor_add_intCast` for floored terms differing by an integer `D`
-(Z3 rewrites `(is_int (+ x 1.0))` to `(is_int x)`). The clause log's
+adds for `to_int`), `floor a = D` through `Rat.floor_intCast` when `a` is
+itself an integer `D` over Int terms (`(is_int (to_real n))`), and
+`floor a = floor b + D` through `Rat.floor_add_intCast` for floored terms
+differing by an integer `D` (Z3 rewrites `(is_int (+ x 1.0))` to
+`(is_int x)`; these pairs only up to 12 floors per step). The clause log's
 `arith` hints may carry `is_int` atoms (its definition axioms). A Real atom
 over Int terms alone is now also cast back into Rat after its integrality
 fact, so `(not (<= 3.0 (to_real (to_int x))))` bounds `x` by 2. The legacy
@@ -2168,7 +2170,7 @@ rejected: a cut rounding a Real atom over a Real variable (`x` and `x/2`
 both integral gives `(= (* 0.5 x) (to_real (to_int (* 0.5 x))))`), by the
 exporter ("cut hint over Real atoms") or the reconstructor; the legacy core
 emits such lemmas as farkas steps that Lean then fails to prove. Tests:
-`test_proof_to_lean_lira.py` (seven documented floor inputs, one of them
+`test_proof_to_lean_lira.py` (nine documented floor inputs, one of them
 z3test `issue-1608.smt2`, and four
 `random_floor_instance` seeds on both cores, the encoding, the floor and
 shift facts, the `is_int` axioms, invalid declarations, and the rejected
