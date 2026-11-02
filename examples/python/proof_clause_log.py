@@ -678,6 +678,13 @@ def _integer_valued(expr):
     return False
 
 
+def _mentions_int(expr):
+    """Whether an arithmetic term has an Int subterm: an Int term, or a Real one through to_real or to_int."""
+    if z3.is_int(expr):
+        return True
+    return z3.is_app(expr) and any(z3.is_arith(child) and _mentions_int(child) for child in expr.children())
+
+
 def check_linear_hint(name, pairs):
     """Check Farkas combinations and the shapes of implied-equality and cut hints.
 
@@ -688,7 +695,8 @@ def check_linear_hint(name, pairs):
     cut"), so a farkas or bound whose coefficients do not refute the
     tightened and, for bound, rounded literals is kept without coefficients,
     and a cut hint never carries any: the clause is shape-checked here
-    (integer linear atoms) and proved by Lean alone, as for euf.
+    (linear atoms, some reaching an Int term) and proved by Lean alone, as
+    for euf.
     """
     if name == "implied-eq":
         atom, polarity = _strip(pairs[-1][1])
@@ -704,7 +712,12 @@ def check_linear_hint(name, pairs):
     if name == "cut":
         if not pairs:
             raise ProofExportError("cut hint without literals")
-        if not integer:
+        # A cut rounds by integrality, so some literal must reach an Int
+        # term: an Int atom, or a Real one through to_real or to_int, whose
+        # floor is an Int term over a Real one (x = 5 against (/ x 2.0) =
+        # (to_real (to_int (/ x 2.0))), see proof_to_lean's _projection_facts).
+        if not integer and not any(_mentions_int(side) for _, literal in pairs
+                                   for side in _strip(literal)[0].children()):
             raise ProofExportError("cut hint over Real atoms")
         return False
     if name == "implied-eq":
