@@ -32,7 +32,7 @@
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .meta { color: var(--muted); font-size: 0.95rem; }
-  .state { display: inline-block; font-weight: 600; color: var(--warn); border: 1px solid var(--warn);
+  .state { display: inline-block; font-weight: 600; color: var(--ok); border: 1px solid var(--ok);
            border-radius: 4px; padding: 0 0.4rem; }
   .ok { color: var(--ok); font-weight: 600; }
   .unknown { color: var(--warn); font-weight: 600; }
@@ -48,13 +48,13 @@
 <h1>Certify to_real of Int terms in qf_lira proofs on both cores</h1>
 <p class="meta">
   Pull request <a href="https://github.com/levnach/z3/pull/62">levnach/z3#62</a> &middot;
-  State: <span class="state">OPEN</span> &middot;
-  Opened 2026-11-02T20:34:14Z &middot; Loop iteration 62
+  State: <span class="state">MERGED</span> &middot;
+  2026-11-02T21:00:01Z &middot; Loop iteration 62
 </p>
-<p class="note">This pull request is open and <strong>not merged</strong>.
-The change described here is commit
-<a href="https://github.com/levnach/z3/commit/d607fadec59ec8c9c49f448bfcaaa479735f4e54"><code>d607fadec</code></a>,
-on top of an earlier commit in the same pull request.</p>
+<p class="note">This pull request is <strong>merged</strong> into <code>master</code>.
+Merge commit: <a href="https://github.com/levnach/z3/commit/fd77ec6ad370357fc493fd56191c442db01c72d1"><code>fd77ec6ad</code></a>,
+merged on 2026-11-02T21:00:01Z.
+It combines the PR's two commits: the main change and the review fix.</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
@@ -101,7 +101,7 @@ which asks for real and integer <a href="#g-linear-arithmetic">linear arithmetic
     <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>tests</td><td class="num">32</td><td class="num">23</td></tr>
     <tr><td><code>examples/python/README</code></td><td>docs</td><td class="num">32</td><td class="num">17</td></tr>
     <tr><td><code>doc/lean-proof-plan.md</code></td><td>docs</td><td class="num">40</td><td class="num">0</td></tr>
-    <tr><th colspan="2">Total (2 commits)</th><th class="num">628</th><th class="num">106</th></tr>
+    <tr><th colspan="2">Total (merge commit <code>fd77ec6ad</code>)</th><th class="num">628</th><th class="num">106</th></tr>
   </tbody>
 </table>
 <p>There is no C++ change.</p>
@@ -127,7 +127,7 @@ The old reconstructor was therefore never reached.</p>
 <pre><code>proof_certificate.py: error: unsupported arithmetic operator: to_real</code></pre>
 
 <h3>(c) After this PR</h3>
-<p>The current exporter and reconstructor were run on the same file, with the exporter's default core.
+<p>The exporter and reconstructor at the merge commit were run on the same file, with the exporter's default core.
 The reconstructor reported "Lean checked the refutation", and <code>scripts/check_lean.sh</code>
 printed <span class="ok">"Lean checks passed."</span></p>
 
@@ -171,7 +171,8 @@ The <code>have</code> line adds the fact that <code>n &gt; 0</code> means <code>
 
 <h2 id="verification">How it was verified</h2>
 <p>In plain terms: every Lean test suite passed after the review fix, including a new test for the reviewer's bug.
-The implementer also checked about two hundred random inputs; every unsat one verified in Lean on both cores.
+The implementer also checked about two hundred random inputs.
+Every unsat one verified in Lean on both cores.
 Removing either kind of bridging fact made grind fail, which shows the facts are really needed.
 The counts below come from the PR description, except the last row, which is this report's own run.</p>
 <table>
@@ -188,10 +189,27 @@ The counts below come from the PR description, except the last row, which is thi
     <tr><td>This report's worked example</td><td class="ok">Lean accepted the file</td></tr>
   </tbody>
 </table>
-<p>The loop's own local gate summary has <span class="unknown">not been recorded</span> for this iteration.
-<code>scripts/tests</code>, <code>test-z3</code> and <code>test_benchmarks.py</code> were not run, since no C++ or <code>scripts/</code> file changed.</p>
+<p><code>scripts/tests</code>, <code>test-z3</code> and <code>test_benchmarks.py</code> were not run, since no C++ or <code>scripts/</code> file changed.</p>
 
-<p>No CI status files were provided to this report, so the results of the PR's checks are unknown here.
+<h3>The loop's local gate</h3>
+<p>The change touched only Python examples and documentation.
+So the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate repeats the steps of the Ubuntu releaseClang CI job that exercise this work.
+It ran on the loop's macOS arm64 machine, and every step passed.</p>
+<table>
+  <thead><tr><th>Gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">14 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">1499 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">15 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+
+<h3>GitHub CI</h3>
+<p>No CI status files were provided to this report, so the results of GitHub's checks are unknown here.
+CI still runs on <code>master</code> after the merge.
 The PR names the CI steps that cover this change:</p>
 <table>
   <thead><tr><th>Workflow job</th><th>Step</th><th>What it covers</th><th>Status</th></tr></thead>
@@ -200,7 +218,8 @@ The PR names the CI steps that cover this change:</p>
     <tr><td>Python wheel jobs</td><td>Test Python wheel</td><td>classification and replay tests</td><td class="unknown">not recorded</td></tr>
   </tbody>
 </table>
-<p>Live results are on the <a href="https://github.com/levnach/z3/pull/62/checks">PR's checks page</a>.
+<p>Live results are on the <a href="https://github.com/levnach/z3/pull/62/checks">PR's checks page</a>
+and on the <a href="https://github.com/levnach/z3/commit/fd77ec6ad370357fc493fd56191c442db01c72d1">merge commit</a>.
 No CI fix rounds were recorded.</p>
 
 <h2 id="review">Review</h2>
@@ -227,7 +246,7 @@ and limiting the cast facts to the atoms of each clause.</p>
   <li>The bridging facts go only into the general grind fallback. A long lemma over many <code>to_real</code> atoms may be slow, and tested inputs are small.</li>
   <li>A normalized rewrite that pairs a Real atom with an Int atom needs Lean to bridge the cast. If it cannot, the proof fails safely.</li>
   <li>Some <a href="#g-farkas">Farkas lemma</a> hints without coefficients are now left for Lean to prove, where they used to be rejected earlier.</li>
-  <li>CI results for this PR are not known to this report.</li>
+  <li>The PR merged on the local gate, before GitHub CI results were in. Those results are not known to this report.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
