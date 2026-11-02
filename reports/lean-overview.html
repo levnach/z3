@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Certifying Z3 unsat results with Lean: overview</title>
+<style>
+:root { color-scheme: light dark; --fg: #1b1f23; --bg: #ffffff; --muted: #57606a; --line: #d0d7de; --link: #0a5bd6; --code: #f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e6edf3; --bg: #0d1117; --muted: #9da7b3; --line: #30363d; --link: #74b0ff; --code: #161b22; } }
+body { font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; padding: 2rem 1rem; }
+main { max-width: 60rem; margin: 0 auto; }
+h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+h2 { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: .9rem; }
+code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: .1em .3em; border-radius: 4px; }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+nav { font-size: .9rem; margin-bottom: 1rem; }
+</style></head><body><main>
+<nav><a href="../index.html">&larr; All PR reports</a></nav>
+<h1>Certifying Z3 unsat results with Lean: overview</h1>
+<p><em>Status as of 2026-11-02</em></p>
+<h2>Goal</h2>
+<p>When Z3 reports <strong>unsat</strong>, produce a certificate that an independent Lean
+checker accepts, so the result does not depend on trusting the solver. Proof
+certification is opt-in, so users who do not request proofs see no change.
+Z3's proof format is a means to that end, not something to preserve: the
+exporter is a thin adapter, and the Lean rules follow the meaning of each
+inference rather than its encoding. The plan lives in
+<code>doc/lean-proof-plan.md</code> in Z3Prover/z3.</p>
+<h2>Pipeline</h2>
+<ol>
+<li>
+<code>examples/python/proof_certificate.py</code> runs Z3 and exports its native proof
+as JSON from one of two proof cores:
+<ul>
+<li>the <strong>clause log</strong> of the new <code>sat.smt</code> core, with theory hints such as
+Farkas coefficients, euf, Tseitin and cuts;</li>
+<li>the <strong>legacy proof object</strong> of the classic SMT core.</li>
+</ul>
+</li>
+<li>
+<code>examples/python/proof_clause_log.py</code> replays and trims the clause log.</li>
+<li>
+<code>examples/python/proof_to_lean.py</code> translates the certificate into Lean
+source. Long proofs are split into bounded lemmas, and steps are proved by
+direct terms, <code>grind</code>, or propagation tactics.</li>
+<li>The <code>lean/</code> project (<code>Z3Proofs</code>) checks the generated proof with
+<code>scripts/check_lean.sh</code>.</li>
+<li>In C++, the native proof checkers in <code>src/sat/smt/*_checker*</code> (arith,
+euf, Tseitin, distinct) check more hint kinds directly, so that fewer steps
+fall back to "trust an SMT call".</li>
+</ol>
+<p><code>scripts/proofs/proof_matrix.py</code> in Z3Prover/z3test runs inputs under different
+proof settings. In CI, the <code>releaseClang</code> job requires Lean to accept every
+Boolean regression (<code>lean-verified</code>). The loop's local gate also runs a
+Lean-certified QF_LRA matrix.</p>
+<h2>Coverage today</h2>
+<p><strong>new</strong> marks support that did not exist before the loop's first PR
+(Z3Prover/z3#11143, 2026-10-12).</p>
+<table>
+<thead>
+<tr>
+<th>Fragment</th>
+<th>Clause log</th>
+<th>Legacy proof</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Propositional / Boolean</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Wide n-ary and/or connectives</td>
+<td>✓ <strong>new</strong>¹</td>
+<td>✓ <strong>new</strong>¹</td>
+</tr>
+<tr>
+<td>QF_UF (many sorts, ite over sorts, Bool arguments)</td>
+<td>✓ <strong>new</strong>
+</td>
+<td>✓ <strong>new</strong>
+</td>
+</tr>
+<tr>
+<td>QF_LRA, linear terms only</td>
+<td>✓</td>
+<td>✓ <strong>new</strong>
+</td>
+</tr>
+<tr>
+<td>QF_LRA with ite and abs</td>
+<td>✓ <strong>new</strong>
+</td>
+<td>✓ <strong>new</strong>
+</td>
+</tr>
+<tr>
+<td>QF_UFLRA</td>
+<td>✓ <strong>new</strong>
+</td>
+<td>✓ <strong>new</strong>
+</td>
+</tr>
+<tr>
+<td>QF_LIA / QF_UFLIA (div, mod, abs, rem by a numeral, cuts)</td>
+<td>✓ <strong>new</strong>
+</td>
+<td>✓ <strong>new</strong>
+</td>
+</tr>
+<tr>
+<td>QF_LIRA with disjoint Int and Real variables</td>
+<td>in progress (iteration 61)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>¹ Contributed from <code>elefthei/z3</code> and forwarded upstream by the loop
+(Z3Prover/z3#11247), not written by the loop.</p>
+<p><strong>New:</strong> incremental SMT-LIB scripts (<code>push</code>/<code>pop</code>, <code>reset</code>, several
+<code>check-sat</code> calls, <code>check-sat-assuming</code>). Previously only files with exactly
+one <code>check-sat</code> were accepted. A certificate covers one selected query: the
+assertions in scope at that <code>check-sat</code>, plus its assumptions, are unsat.
+This works through both proof cores.</p>
+<p>The loop also added native C++ checks for xor, alldiff and distinct gate
+clauses, and split long proofs into bounded Lean lemmas.</p>
+<p>Inputs with unsupported constructs are rejected explicitly, so an
+unsupported proof is never counted as accepted.</p>
+<h2>How the work is done: the lean-loop</h2>
+<p>An unattended loop (<a href="https://github.com/levnach/Lean-loop">levnach/Lean-loop</a>) runs one pull request per iteration on
+the fork <code>levnach/z3</code>. Each iteration has these steps:</p>
+<ol>
+<li>
+<strong>Rebase</strong> onto upstream and <strong>build</strong> Z3.</li>
+<li>
+<strong>Implementer</strong> agent: picks the next item from the plan or backlog,
+implements it, and tests it.</li>
+<li>
+<strong>Reviewer</strong> agent: reviews the change read-only, with soundness of the
+trust boundary first.</li>
+<li>
+<strong>Integrator</strong> agent: fixes what the review found and writes the PR.</li>
+<li>
+<strong>Driver</strong>: opens the PR and publishes an HTML report
+(<code>https://levnach.github.io/z3/reports/pr-N.html</code>).</li>
+<li>
+<strong>Gate</strong> (the check a fork PR must pass before the loop merges it): changes to Python, docs, or Lean only use a local gate; C++
+changes use full GitHub CI, with a <code>ci_fixer</code> agent if CI fails.</li>
+<li>
+<strong>Merge</strong> the PR into the fork.</li>
+</ol>
+<p>Changes to Python, docs, and Lean collect on the fork. The first change to C++
+stops the loop (<code>run_until_cpp.sh</code>). The collected commits then go to
+Z3Prover/z3 as one batched PR.</p>
+<h2>Progress</h2>
+<ul>
+<li>
+<strong>60 iterations</strong> from 2026-10-11 to 2026-10-31 (fork PRs #1–#60). Two
+iterations failed on the first try and succeeded on a retry.</li>
+<li>
+<strong>19 upstream PRs merged</strong> into Z3Prover/z3, from #11143 (2026-10-12) to
+#11451 (2026-10-30). Two of them were contributions forwarded from
+<code>elefthei/z3</code>: define-sort aliases and wide n-ary connectives.</li>
+<li>
+<strong>Open:</strong> <a href="https://github.com/Z3Prover/z3/pull/11519">Z3Prover/z3#11519</a>
+covers iterations 45–60 (16 commits): rem, Real abs, coerced numerals,
+scaling to deep and wide inputs, and native rem axiom checks.</li>
+<li>
+<strong>Running now:</strong> iteration 61 (QF_LIRA).</li>
+</ul>
+<p>Milestones:</p>
+<ul>
+<li>QF_UF and QF_LRA certified through the clause log (iterations 1–2)</li>
+<li>Lemma outlining for long proofs (iteration 3)</li>
+<li>Legacy proof object certified for UF, LRA and Bool (iterations 7–9)</li>
+<li>QF_LIA and QF_UFLIA, including div, mod and abs (iterations 12–16)</li>
+<li>Native checks for xor, alldiff and distinct (iterations 23–26)</li>
+<li>Fixes to the proof trimmer (iterations 33, 36, 41–42)</li>
+<li>Time and memory limits on exports and the Lean check (iterations 40, 49–50)</li>
+<li>Int Farkas lemmas and cut lemmas (iterations 51, 54)</li>
+</ul>
+<h2>Next steps (from the loop's backlog)</h2>
+<ul>
+<li>QF_LIRA conversions (<code>to_real</code>, <code>to_int</code>, <code>is_int</code>). These need cast
+lemmas, because Lean's <code>grind</code> does not reason through <code>Int.cast</code> and the
+project does not use Mathlib.</li>
+<li>Mixing Int and Real arithmetic with uninterpreted functions.</li>
+<li>Native checks of <code>cut</code> steps. These are the last native fallbacks in the
+test generators and need the cut's derivation from the C++ cut generators.</li>
+<li>Quantified logics (UF, UFLIA) and the jreeves3/SMT-Skeleton-Check benchmark
+collections, which are still planned.</li>
+<li>Measuring Lean on large QF_IDL inputs (41–84 MB of generated Lean).</li>
+</ul>
+<h2>Known operational issues</h2>
+<ul>
+<li>Upstream CI tests the PR merged with upstream master. Solver changes on
+master have broken a Lean test with a fixed random seed (#11276, fixed by a
+larger heartbeat budget).</li>
+<li>The local gate's slowest step, the Lean reconstruction tests, has grown
+from about 6 minutes per iteration (iteration 9) to about 23 minutes
+(iteration 59), so each local-gate iteration waits longer before it merges.</li>
+</ul>
+
+</main></body></html>
