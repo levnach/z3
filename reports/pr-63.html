@@ -7,302 +7,283 @@
 <style>
 :root {
   color-scheme: light dark;
-  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
-  --code-bg: #f6f8fa; --link: #0969da; --accent: #8250df;
-  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --box: #f6f8fa;
+  --bg: #ffffff; --fg: #1d2127; --muted: #5a6370; --accent: #0a58ca;
+  --card: #f5f7fa; --border: #d5dbe3; --code-bg: #f0f2f5;
+  --pass: #157347; --warn: #9a6700; --fail: #b02a37;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d;
-    --code-bg: #161b22; --link: #4493f8; --accent: #ab7df8;
-    --ok: #3fb950; --warn: #d29922; --bad: #f85149; --box: #161b22;
+    --bg: #14171c; --fg: #e3e7ed; --muted: #9aa4b1; --accent: #6ea8fe;
+    --card: #1c2027; --border: #343b45; --code-bg: #1f242c;
+    --pass: #4cc38a; --warn: #e3b341; --fail: #f47174;
   }
 }
-body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  line-height: 1.6; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
-a { color: var(--link); }
-h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
-h2 { border-bottom: 1px solid var(--border); padding-bottom: .25rem; margin-top: 2.2rem; font-size: 1.3rem; }
-h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-code { background: var(--code-bg); padding: .1em .3em; border-radius: 4px; font-size: .9em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
-  overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; line-height: 1.45; }
-pre code { background: none; padding: 0; }
-table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
-th, td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; vertical-align: top; }
-th { background: var(--box); }
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin: 0 0 .5rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
+a { color: var(--accent); }
+.meta { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: .8rem 1rem; }
+.meta dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1rem; margin: 0; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; }
+.badge { display: inline-block; padding: 0 .5rem; border-radius: 999px; font-weight: 600; font-size: .85rem; border: 1px solid currentColor; }
+.merged { color: #8250df; }
+@media (prefers-color-scheme: dark) { .merged { color: #b392f0; } }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .75rem 1rem; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: .85rem; }
+table { border-collapse: collapse; width: 100%; margin: .6rem 0 1rem; font-size: .93rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--card); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.meta { color: var(--muted); font-size: .95rem; }
-.badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; font-size: .85rem; font-weight: 600;
-  border: 1px solid currentColor; }
-.open { color: var(--ok); }
-.ok { color: var(--ok); font-weight: 600; }
+.pass { color: var(--pass); font-weight: 600; }
 .warn { color: var(--warn); font-weight: 600; }
-.bad { color: var(--bad); font-weight: 600; }
-.note { background: var(--box); border-left: 4px solid var(--accent); padding: .6rem .9rem; border-radius: 4px; }
-.explain { margin-top: -.4rem; color: var(--muted); }
-dl dt { font-weight: 700; margin-top: .7rem; }
-dl dd { margin-left: 1.2rem; }
-footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+.fail { color: var(--fail); font-weight: 600; }
+.note { color: var(--muted); font-size: .93rem; }
+dl.glossary dt { font-weight: 600; margin-top: .6rem; }
+dl.glossary dd { margin: .1rem 0 0 1.2rem; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
 <h1>Certify to_int and is_int in qf_lira proofs on both cores</h1>
-<p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/63">levnach/z3 #63</a> ·
-State: <span class="badge open">OPEN</span> ·
-Date: 2026-11-02T22:29:24Z ·
-Loop iteration 63
-</p>
-<p class="note">This pull request is open and <strong>not merged</strong>.
-The change under review is commit
-<a href="https://github.com/levnach/z3/commit/5aaa8537304dee23ddfa61c0a3886ea96e87ef48"><code>5aaa853</code></a>.
-The PR holds two commits, and this page describes both.</p>
+<div class="meta">
+<dl>
+<dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/63">levnach/z3 #63</a></dd>
+<dt>State</dt><dd><span class="badge merged">MERGED</span></dd>
+<dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/011a7409b474434b9c0e84239b139014a92ab414"><code>011a7409b</code></a></dd>
+<dt>Merged on</dt><dd>2026-11-02T22:57:30Z</dd>
+<dt>Loop iteration</dt><dd>63</dd>
+</dl>
+</div>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
 <p>
-Z3 can now produce <a href="#g-certificate">proof certificates</a> for inputs that use <a href="#g-to-int">to_int</a> and <a href="#g-is-int">is_int</a>.
-These two operators take the <a href="#g-floor">floor</a> of a <a href="#g-real">Real</a> term and test whether it is an integer.
-They live in the <a href="#g-qf-lira">qf_lira</a> <a href="#g-fragment">fragment</a>, where <a href="#g-int">Int</a> and Real <a href="#g-sort">sorts</a> meet.
-Both <a href="#g-proof-core">proof cores</a> are covered.
-In Lean, <code>to_int t</code> becomes <code>Rat.floor t</code>.
-Each <a href="#g-theory-lemma">theory lemma</a> that touches a floor gets extra facts.
-These facts are instances of <a href="#g-lemma">lemmas</a> from Lean's core library, checked by the <a href="#g-kernel">kernel</a>.
-No new <a href="#g-axiom">axiom</a> and no <code>sorry</code> were added.
-So a <a href="#g-refutation">refutation</a> that reasons about floors can now be checked end to end.
+This PR lets the pipeline certify inputs that use <code>to_int</code> and <code>is_int</code>.
+These are the two conversions out of Real in the <a href="#g-qf-lira">qf_lira</a> <a href="#g-fragment">fragment</a>.
+In Lean, <code>to_int t</code> becomes the <a href="#g-floor">floor</a> <code>Rat.floor t</code>.
+<code>is_int t</code> becomes SMT-LIB's own definition, "the floor of <code>t</code> equals <code>t</code>".
+Every <a href="#g-theory-lemma">theory lemma</a> that touches a floor now gets two bounds on it, taken from <a href="#g-lemma">lemmas</a> in Lean's core library.
+Lean's <a href="#g-kernel">kernel</a> checks these instances, so no new <a href="#g-axiom">axiom</a> and no <code>sorry</code> appear.
+The change works on both <a href="#g-proof-core">proof cores</a>.
+It turns a hard rejection into a checked <a href="#g-refutation">refutation</a> for a whole family of inputs with a single floor.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-PR #62 let qf_lira certificates use <a href="#g-to-real">to_real</a>, the conversion from Int into Real.
-The two conversions out of Real were still rejected by the exporter on both cores.
-So a single <code>to_int</code> or <code>is_int</code> <a href="#g-atom">atom</a> meant no certificate at all.
-One such input is the z3test regression <code>issue-1608.smt2</code>.
-Inputs that mix the conversions with <a href="#g-uninterpreted-function">uninterpreted functions</a> were rejected then and still are.
-This PR serves Milestone 3 of the project plan, "Equality and linear arithmetic".
-It completes the conversions of the Int and Real <a href="#g-linear">linear arithmetic</a> fragment.
+PR #62 taught <a href="#g-qf-lira">qf_lira</a> to relate Int and Real <a href="#g-atom">atoms</a> through <code>to_real</code>.
+The opposite direction was still missing.
+The <a href="#g-exporter">exporter</a> stopped with "unsupported arithmetic operator: to_int" or "unsupported propositional operator: is_int".
+So even <code>n = (to_int x)</code> had no certificate on either <a href="#g-proof-core">proof core</a>.
+One real example is the z3test regression <code>issue-1608.smt2</code>.
+This work serves milestone 3 of the plan, "Equality and linear arithmetic".
+That milestone asks to finish each arithmetic <a href="#g-fragment">fragment</a> end to end before adding another.
 </p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-<li>The exporter now accepts <code>to_int</code> and <code>is_int</code> applied to linear Real terms, and labels such input qf_lira.</li>
-<li>The reconstructor writes <code>to_int t</code> as <code>Rat.floor t</code>, and <code>is_int t</code> as "the floor of <code>t</code>, cast back to a rational, equals <code>t</code>", which is the SMT-LIB definition.</li>
-<li>Every theory step that reaches a floor now gets the two floor bounds, <code>⌊a⌋ ≤ a &lt; ⌊a⌋ + 1</code>, as proved facts.</li>
-<li>Floors of terms that differ by an integer are now related, so <code>⌊x + 1⌋ = ⌊x⌋ + 1</code> is available to the proof. Think of moving a ruler by one whole mark: the reading moves by exactly one.</li>
-<li>The floor of a term that is already an integer, such as <code>to_real n</code>, is now stated to equal that integer. This was added after review.</li>
-<li><a href="#g-congruence">Congruence</a> steps through <code>to_int</code> and <code>is_int</code> on the legacy core now have Lean proofs.</li>
+<li><strong>Exporter.</strong> You can now export a <code>qf_lira</code> certificate for an input that applies <code>to_int</code> or <code>is_int</code> to a <a href="#g-linear-term">linear term</a> of <a href="#g-sort">sort</a> Real, on both cores.</li>
+<li><strong>Exporter.</strong> Next to an <a href="#g-uninterpreted-function">uninterpreted function</a>, these conversions are still rejected.</li>
+<li><strong>Reconstructor.</strong> A theory lemma that reaches a floor now proves itself from two library facts: the floor is at most its argument, and less than it plus one.</li>
+<li><strong>Reconstructor.</strong> When two floored terms differ by an integer, the proof now states that their floors differ by that integer, so Z3's <a href="#g-rewriting">rewrite</a> of <code>is_int (x + 1)</code> to <code>is_int x</code> checks.</li>
+<li><strong>Tests and docs.</strong> Nine documented inputs and four random seeds are now checked by Lean on both cores, and the README and plan describe the encoding.</li>
 </ul>
+<p>
+An analogy for the shift fact: if you raise a whole staircase by exactly one step, every step number goes up by one.
+The floor of <code>x + 1</code> is the floor of <code>x</code>, plus one.
+</p>
 
 <table>
-<thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+<thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
 <tbody>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">139</td><td class="num">26</td></tr>
-<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Exporter, clause-log core</td><td class="num">23</td><td class="num">8</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">139</td><td class="num">26</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td>Lean tests</td><td class="num">294</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log reader</td><td class="num">23</td><td class="num">8</td></tr>
 <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">16</td><td class="num">11</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td>Tests</td><td class="num">294</td><td class="num">1</td></tr>
-<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests</td><td class="num">15</td><td class="num">8</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests</td><td class="num">15</td><td class="num">8</td></tr>
 <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">17</td><td class="num">6</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">30</td><td class="num">0</td></tr>
-<tr><th colspan="2">Total, 7 files</th><th class="num">534</th><th class="num">60</th></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan</td><td class="num">30</td><td class="num">0</td></tr>
+<tr><th>Total, 7 files</th><th></th><th class="num">534</th><th class="num">60</th></tr>
 </tbody>
 </table>
-<p>There is no C++ change. The commits are <code>96df67e4a</code>, the main change, and <code>5aaa85373</code>, the review fix.</p>
+<p class="note">Python and documentation only. There is no C++ change.</p>
 
 <h2 id="example">Worked example</h2>
-<p>This input is the PR's <code>is_int_shift</code> test, taken from z3test <code>issue-1608.smt2</code>.
-If <code>x</code> is an integer, then <code>x + 1</code> must be one too, so the assertions contradict each other.
-The example was run for this report with the exporter's default settings, which use the legacy proof-object core.</p>
+<p>
+This input is the <code>floor_bounds</code> case from the PR's new tests, with <code>(check-sat)</code> added.
+Since <code>x</code> is above 2.5, its floor is at least 2, but <code>n</code> is said to be below 2.
+All output below comes from real runs, and this certificate came from the legacy proof object core.
+</p>
 
-<h3>(a) Input</h3>
+<h3>(a) The input</h3>
 <pre><code>(declare-const x Real)
-(assert (is_int x))
-(assert (not (is_int (+ x 1))))
+(declare-const n Int)
+(assert (= n (to_int x)))
+(assert (&gt; x 2.5))
+(assert (&lt; n 2))
 (check-sat)</code></pre>
 
-<h3>(b) Before this PR</h3>
-<p>The exporter scripts from the base commit stop at the first step.</p>
-<pre><code>proof_certificate.py: error: unsupported propositional operator: is_int</code></pre>
-<p class="explain">The old reconstructor was never reached, because no certificate was produced.</p>
+<h3>(b) Before</h3>
+<pre><code>proof_certificate.py: error: unsupported arithmetic operator: to_int</code></pre>
+<p>The old exporter stopped at once with exit code 2, so the old reconstructor never got a certificate to read.</p>
 
-<h3>(c) After this PR</h3>
-<p>The new exporter produced a qf_lira certificate. The reconstructor printed "Lean checked the refutation", and <code>scripts/check_lean.sh</code> reported "Lean checks passed." for the generated file.</p>
+<h3>(c) After</h3>
 <pre><code>-- Real variables are encoded as Rat (_vars) and Int variables as Int (_ivars), to_real is Int.cast into Rat, to_int is Rat.floor; ...
 ...
-def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Rat := _vars 0
-def formula_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Prop := (((Rat.floor (term_0 _atoms _vars _ivars) : Int) : Rat) = (term_0 _atoms _vars _ivars))
-...
-def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Rat := ((term_0 _atoms _vars _ivars) + (term_2 _atoms _vars _ivars))
-def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Prop := (((Rat.floor (term_3 _atoms _vars _ivars) : Int) : Rat) = (term_3 _atoms _vars _ivars))
-def formula_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Prop := (Not (formula_4 _atoms _vars _ivars))
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Int := (Rat.floor (term_1 _atoms _vars _ivars))
+def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars _ivars) = (term_2 _atoms _vars _ivars))
 ...</code></pre>
-<p class="explain"><code>formula_1</code> is <code>(is_int x)</code>: the floor of <code>x</code>, cast back to a rational, equals <code>x</code>. <code>formula_5</code> is the second assertion, the same test for <code>x + 1</code>, negated.</p>
-
-<pre><code>private theorem th_lemma_25 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
-    : (formula_24 _atoms _vars _ivars) := by
-  unfold formula_24 formula_23 formula_22 formula_5 formula_4 term_3 term_2 formula_1 term_0
-  have _f0 := Rat.floor_le (_vars 0)
-  have _u0 := Rat.lt_floor_add_one (_vars 0)
-  have _f3 := Rat.floor_le (((_vars 0) + (((1 : Rat)))))
-  have _u3 := Rat.lt_floor_add_one (((_vars 0) + (((1 : Rat)))))
-  have _d0_3 := congrArg (fun (_t : Int) =&gt; ((_t : Int) : Rat)) ((congrArg Rat.floor (show (_vars 0) = (((_vars 0) + (((1 : Rat))))) + (((((-1 : Int))) : Int) : Rat) by push_cast; grind)).trans Rat.floor_add_intCast)
-  push_cast at *
-  first | omega | grind (splits := 64)</code></pre>
-<p class="explain">This theory lemma states the <a href="#g-clause">clause</a> "<code>x</code> is not an integer, or <code>x + 1</code> is one". It uses the four floor bounds and the new shift fact <code>_d0_3</code>, which says <code>⌊x⌋ = ⌊x + 1⌋ − 1</code>.</p>
+<p>The input's <code>(to_int x)</code> becomes <code>Rat.floor</code> of <code>x</code>, and the first assertion says <code>n</code> equals it.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
-    (_h0 : (formula_1 _atoms _vars _ivars))
+    (_h0 : (formula_3 _atoms _vars _ivars))
     (_h1 : (formula_5 _atoms _vars _ivars))
+    (_h2 : (formula_7 _atoms _vars _ivars))
     : False :=
   ...</code></pre>
-<p class="explain">The final theorem says the two assertions, taken as <a href="#g-hypothesis">hypotheses</a>, imply <code>False</code> for every value of <code>x</code>.</p>
+<p>The theorem says that the three assertions together imply <code>False</code>.</p>
 
-<h2 id="verification">How it was verified</h2>
-<p>All Lean reconstruction and exporter tests passed on the final branch head.
-About 150 random floor puzzles verified in Lean, and the 11 others hit the known gap under risks.
-A negative control showed the review fix is what makes its new inputs pass.</p>
-<p>The formal local gate has <strong>not been recorded</strong> yet for this iteration. Its log had only started when this page was written.</p>
+<pre><code>private theorem th_lemma_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
+    : (formula_11 _atoms _vars _ivars) := by
+  unfold formula_11 term_10 term_9 term_8 term_2 term_1
+  have _f1 := Rat.floor_le (_vars 1)
+  have _u1 := Rat.lt_floor_add_one (_vars 1)
+  push_cast at *
+  first | omega | grind (splits := 64)
+...
+private theorem th_lemma_36 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
+    : (formula_35 _atoms _vars _ivars) := by
+  ...
+  have _f1 := Rat.floor_le (_vars 1)
+  have _u1 := Rat.lt_floor_add_one (_vars 1)
+  have _c3 := _int_cast_eq (_ivars 0) ((Rat.floor (_vars 1)))
+  ...
+  first | omega | grind (splits := 64)</code></pre>
+<p>Each <a href="#g-theory-lemma">theory lemma</a> gets the two floor bounds as library facts, then a <a href="#g-tactic">tactic</a> finishes the arithmetic.</p>
 
+<p><strong>Result:</strong> <code>./scripts/check_lean.sh</code> accepted the file and printed "Lean checks passed."</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+Every local test suite passed.
+About nine in ten random floor puzzles verified in Lean. The rest hit the known integrality <a href="#g-cut">cut</a> gap.
+The loop merged this Python-and-docs PR on its local gate.
+GitHub CI runs on <code>master</code> afterwards, and its results are not recorded here.
+</p>
+
+<h3>Local gate (loop machine, Darwin arm64)</h3>
 <table>
-<thead><tr><th>Local check</th><th>Who ran it</th><th>Result</th></tr></thead>
+<thead><tr><th>Step</th><th>Result</th><th>Time</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>Final head</td><td><span class="ok">OK</span>, 360 tests in 1547 s</td></tr>
-<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td>Final head</td><td><span class="ok">OK</span>, 109 tests</td></tr>
-<tr><td><code>scripts/check_lean.sh</code></td><td>Final head</td><td><span class="ok">Passed</span></td></tr>
-<tr><td>z3test proof tests</td><td>Final head</td><td><span class="ok">OK</span>, 46 tests</td></tr>
-<tr><td>Review-fix probe, 3 inputs on both cores</td><td>Final head</td><td><span class="ok">All verify</span>. Without the fix, 2 of 3 fail.</td></tr>
-<tr><td><code>proof_matrix.py --lean</code>, legacy core, Boolean inputs</td><td>Implementer, before the review fix</td><td><span class="ok">6/6</span> verified</td></tr>
-<tr><td><code>proof_matrix.py --lean</code>, clause-log core, <code>lra_*</code> inputs</td><td>Implementer, before the review fix</td><td><span class="ok">8/8</span> verified</td></tr>
-<tr><td>Random floor sweep, seeds 1 to 200</td><td>Implementer, before the review fix</td><td>81 unsat seeds, 162 runs: <span class="ok">151</span> verify, <span class="warn">11</span> integrality cuts</td></tr>
-<tr><td>Worked example above, legacy core</td><td>This report</td><td><span class="ok">Lean checks passed</span></td></tr>
-<tr><td><code>test-z3</code>, <code>test_benchmarks.py</code></td><td>—</td><td>Not run, because there is no C++ change</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">13 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">1638 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">18 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
 </tbody>
 </table>
 
-<h3>CI</h3>
-<p>No CI status was recorded for this report, so the results below are unknown.
-Do not read the local results as CI results.
-See the <a href="https://github.com/levnach/z3/pull/63/checks">PR checks page</a> for the live state.
-No CI fix rounds were recorded.</p>
+<h3>Implementer and reviewer runs</h3>
 <table>
-<thead><tr><th>Workflow</th><th>Job and step</th><th>What it runs</th><th>Status</th></tr></thead>
+<thead><tr><th>Run</th><th>Result</th></tr></thead>
 <tbody>
-<tr><td>CI</td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td>The new Lean tests, via <code>scripts/ci_lean_proofs.sh</code></td><td>Unknown</td></tr>
-<tr><td>Lean proofs, on demand</td><td>The same step</td><td>The same script</td><td>Unknown</td></tr>
-<tr><td>CI</td><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td>The updated <code>test_proof_certificate.py</code> cases</td><td>Unknown</td></tr>
+<tr><td><code>test_proof_to_lean*.py</code></td><td class="pass">360 tests OK</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td class="pass">109 tests OK</td></tr>
+<tr><td>z3test <code>test_proof*.py</code></td><td class="pass">46 tests OK</td></tr>
+<tr><td><code>check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+<tr><td><code>proof_matrix.py --lean</code>, legacy core, Boolean inputs</td><td class="pass">6 / 6 verified</td></tr>
+<tr><td><code>proof_matrix.py --lean</code>, clause log, <code>lra_*</code> inputs</td><td class="pass">8 / 8 verified</td></tr>
+<tr><td>Random floor sweep, seeds 1 to 200: 81 unsat seeds, 162 runs on two cores</td><td class="warn">151 verified, 11 integrality cuts</td></tr>
+<tr><td>z3test <code>issue-1608.smt2</code></td><td class="pass">verified on both cores</td></tr>
+<tr><td>Review fix probe, 3 inputs, both cores</td><td class="pass">all verified, and 2 failed with the fix removed</td></tr>
 </tbody>
 </table>
+<p class="note">Not run: <code>test-z3</code> and <code>test_benchmarks.py</code>, since there is no C++ change. The sweep ran before the review fix.</p>
+
+<h3>GitHub CI</h3>
+<table>
+<thead><tr><th>Workflow and check</th><th>What it runs for this PR</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>CI / Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td>The new Lean tests</td><td class="warn">not recorded</td></tr>
+<tr><td>Lean proofs (on demand)</td><td>The same Lean step</td><td class="warn">not recorded</td></tr>
+<tr><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td>The exporter tests</td><td class="warn">not recorded</td></tr>
+</tbody>
+</table>
+<p class="note">No CI status files and no CI fix rounds exist for this iteration. Check results on <code>master</code> are listed on the <a href="https://github.com/levnach/z3/commit/011a7409b474434b9c0e84239b139014a92ab414">merge commit page</a>.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved the PR. There were no blockers and no major findings. The reviewer found no change to the trust boundary.</p>
-<table>
-<thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
-<tbody>
-<tr><td>minor</td><td>Floor of an integer-valued term not stated</td><td><span class="ok">Fixed</span></td></tr>
-<tr><td>nit</td><td>README wrote the <code>is_int</code> equation with sides reversed</td><td><span class="ok">Fixed</span></td></tr>
-<tr><td>nit</td><td>No test reached the 12-floor cap</td><td><span class="warn">Partly fixed</span></td></tr>
-</tbody>
-</table>
-<p><strong>Minor: the floor of an integer.</strong>
-The reviewer tried <code>(not (is_int (to_real n)))</code>, where <code>n</code> is an Int.
-This is plainly contradictory, since an integer is always an integer.
-The exporter accepted it, but Lean failed on both cores.
-The floor bounds alone only placed the floor within one of <code>n</code>.
-So Lean's <code>grind</code> found a "model" where the floor was 2 and <code>n</code> was 3.
-That is not unsound, but an accepted input should not then fail.
-The fix adds the fact <code>⌊n⌋ = n</code> through <code>Rat.floor_intCast</code>.
-Two new test inputs cover it, and a negative control confirmed they failed before.</p>
-<p><strong>Nit: reversed sides.</strong>
-The README wrote the <code>is_int</code> equation with its sides swapped, which would confuse a reader comparing it with generated Lean.
-It now matches.</p>
-<p><strong>Nit: the cap.</strong>
-Pairwise floor facts stop at 12 floors per step, but no test reached that cap.
-A new test now checks the behavior with 13 floors.
-The Lean cost just below the cap was not measured.</p>
+<p>The reviewer approved, with no blocker and no major finding.</p>
+<p>
+<strong>Minor: the floor of an integer was not stated.</strong>
+The reviewer tried <code>(not (is_int (to_real n)))</code> with <code>n</code> an Int.
+Both cores accepted it, but Lean then failed to prove it.
+The two floor bounds alone leave room for the floor of <code>n</code> to be <code>n - 1</code>.
+This was not unsound, but an accepted input should not fail later.
+The fix adds the fact "the floor of an integer is itself", through <code>Rat.floor_intCast</code>.
+Two new test inputs failed without the fix and pass with it.
+</p>
+<p>
+<strong>Nit: the README had the sides reversed.</strong>
+It wrote <code>t = floor t</code> where the generated Lean says <code>floor t = t</code>. It now matches.
+</p>
+<p>
+<strong>Nit: the 12-floor cap was untested.</strong>
+A new test now reaches the cap. Its Lean cost just below the cap stays unmeasured.
+</p>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li><strong>Integrality <a href="#g-cut">cuts</a> through floors are still unsupported.</strong> An example is <code>x</code> and <code>x/2</code> both being integers. This caused the 11 failing sweep runs. The clause-log core rejects these explicitly. The legacy core instead emits them as <a href="#g-farkas">Farkas</a> steps, which Lean then fails to prove.</li>
-<li><strong>Pure-Int steps over floors take the slower path.</strong> They are proved by the <code>grind</code> <a href="#g-tactic">tactic</a> instead of <code>omega</code>. Sweep inputs were small, so the cost at scale is unknown.</li>
-<li><strong>Extra facts on <code>to_real</code> steps.</strong> Each integrality fact now adds a <a href="#g-cast">cast</a> fact, which also touches PR #62 inputs. The full suite still passes.</li>
-<li><strong>Cut shape mismatch.</strong> The exporter and reconstructor check cut shapes differently. Both reject.</li>
-<li><strong>Cost near the 12-floor cap</strong> is unmeasured.</li>
+<li>Integrality <a href="#g-cut">cuts</a> through a floor of a Real variable are unsupported. The clause log rejects them. The legacy core emits them as <a href="#g-farkas-lemma">Farkas lemma</a> steps that Lean fails to prove.</li>
+<li>All-Int steps over floors are proved by <code>grind</code>, not <code>omega</code>. Cost on larger inputs is unknown.</li>
+<li>Integrality facts add one extra cast fact each, also on <code>to_real</code> steps from PR #62.</li>
+<li>The exporter and reconstructor check cut shapes differently. Both reject explicitly.</li>
+<li>GitHub CI results on <code>master</code> are unknown to this report.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-<li>Support integrality cuts through floors with <a href="#g-branch-and-bound">branch-and-bound</a> facts taken from an untrusted LP value of each floor.</li>
-<li>Reject those cuts explicitly on the legacy core, so both cores behave the same.</li>
-<li>Align the cut shape checks of the exporter and the reconstructor.</li>
-<li>Measure the Lean cost of a step just below the floor cap.</li>
-<li>Try z3test regression 6196, which has several queries, with the <code>--query</code> option.</li>
+<li>Support integrality cuts through floors with <a href="#g-branch-and-bound">branch-and-bound</a> facts.</li>
+<li>Reject those cuts explicitly on the legacy core too, so both cores agree.</li>
+<li>Align the two cut shape checks, and measure the cost near the 12-floor cap.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
-<dt id="g-atom">atom</dt>
-<dd>The smallest true-or-false statement in a formula, such as <code>x &lt;= 3</code> or <code>(is_int x)</code>.</dd>
-<dt id="g-axiom">axiom</dt>
-<dd>A statement accepted without proof. Adding one to a Lean proof means trusting it.</dd>
-<dt id="g-branch-and-bound">branch and bound</dt>
-<dd>A way to handle integers: if a value <code>v</code> is fractional, split into the cases "at most ⌊v⌋" and "at least ⌊v⌋ + 1".</dd>
-<dt id="g-cast">cast</dt>
-<dd>A conversion of a value from one sort to another, such as the Int 3 to the Real 3.0.</dd>
-<dt id="g-clause">clause</dt>
-<dd>A disjunction of <a href="#g-literal">literals</a>, for example "<code>p</code> or not <code>q</code>". At least one literal must hold.</dd>
-<dt id="g-congruence">congruence</dt>
-<dd>The rule that equal inputs give equal outputs: if <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
-<dt id="g-cut">cut</dt>
-<dd>A step that uses the fact that a value is an integer to tighten a bound. From <code>2n &lt; 3</code> it concludes <code>n &lt;= 1</code>.</dd>
-<dt id="g-farkas">Farkas lemma</dt>
-<dd>A proof that linear inequalities clash: multiply each by a non-negative number, add them, and get something false such as <code>0 &lt; 0</code>.</dd>
-<dt id="g-floor">floor</dt>
-<dd>The largest integer not above a number. The floor of 2.7 is 2, and the floor of −0.5 is −1. Written <code>⌊a⌋</code>.</dd>
-<dt id="g-fragment">fragment</dt>
-<dd>A restricted part of the input language that a tool supports, such as linear arithmetic without quantifiers.</dd>
-<dt id="g-hypothesis">hypothesis</dt>
-<dd>An assumption a theorem starts from. Here each input assertion is one hypothesis.</dd>
-<dt id="g-int">Int</dt>
-<dd>The sort of mathematical integers, with no size limit.</dd>
-<dt id="g-is-int">is_int</dt>
-<dd>The SMT-LIB test of whether a Real value is a whole number. <code>(is_int 2.0)</code> is true.</dd>
-<dt id="g-kernel">kernel</dt>
-<dd>The small, trusted core of Lean that checks every proof step. Tactics only propose proofs, and the kernel accepts or rejects them.</dd>
-<dt id="g-lemma">lemma</dt>
-<dd>A proved helper statement used inside a larger proof.</dd>
-<dt id="g-linear">linear arithmetic</dt>
-<dd>Arithmetic where variables are only added and multiplied by constants, as in <code>2x + 3y &lt;= 5</code>, never <code>x * y</code>.</dd>
-<dt id="g-literal">literal</dt>
-<dd>An atom or its negation, such as <code>x &lt;= 3</code> or <code>not (x &lt;= 3)</code>.</dd>
-<dt id="g-certificate">proof certificate</dt>
-<dd>A file that records how the solver reached its answer, so another program can check each step.</dd>
-<dt id="g-proof-core">proof core</dt>
-<dd>One of Z3's two internal sources of proofs. The legacy proof object records rules such as rewrite and unit resolution. The clause log records each learned clause with a hint.</dd>
-<dt id="g-qf-lira">qf_lira</dt>
-<dd>Quantifier-free linear arithmetic with both Int and Real variables.</dd>
-<dt id="g-real">Real</dt>
-<dd>The sort of real numbers. These proofs encode Real values as rationals, Lean's <code>Rat</code>.</dd>
-<dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of assertions leads to <code>False</code>, so they can never hold together.</dd>
-<dt id="g-sort">sort</dt>
-<dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
-<dt id="g-tactic">tactic</dt>
-<dd>A Lean command that searches for a proof. <code>omega</code> handles integer arithmetic, and <code>grind</code> is a general-purpose search.</dd>
-<dt id="g-theory-lemma">theory lemma</dt>
-<dd>A clause the solver derives from a theory such as arithmetic, rather than from pure logic. Example: "<code>x &lt; 1</code> or <code>x &gt;= 1</code>".</dd>
-<dt id="g-to-int">to_int</dt>
-<dd>The SMT-LIB operator that maps a Real to its floor, an Int. <code>(to_int 2.7)</code> is 2.</dd>
-<dt id="g-to-real">to_real</dt>
-<dd>The SMT-LIB operator that casts an Int to the equal Real. <code>(to_real 3)</code> is 3.0.</dd>
-<dt id="g-uninterpreted-function">uninterpreted function</dt>
-<dd>A function symbol with no fixed meaning, only a name and a signature. The solver may pick any meaning that fits the assertions.</dd>
+<dl class="glossary">
+<dt id="g-atom">atom</dt><dd>The smallest true-or-false piece of a formula, such as <code>x &gt; 2.5</code>. A literal is an atom or its negation.</dd>
+<dt id="g-axiom">axiom</dt><dd>A statement accepted without proof. Adding one to Lean would mean trusting it blindly.</dd>
+<dt id="g-branch-and-bound">branch and bound</dt><dd>Splitting a problem on a value, for example "n ≤ 2 or n ≥ 3", to handle integer constraints.</dd>
+<dt id="g-cut">cut</dt><dd>A derived constraint that uses integrality to tighten a bound, for example from <code>2n &lt; 3</code> to <code>n ≤ 1</code>.</dd>
+<dt id="g-exporter">exporter</dt><dd>The step that turns Z3's proof into a certificate file for the reconstructor.</dd>
+<dt id="g-farkas-lemma">Farkas lemma</dt><dd>A proof that some linear inequalities clash: adding them with nonnegative weights gives <code>0 &lt; 0</code> or similar.</dd>
+<dt id="g-floor">floor</dt><dd>The largest integer not above a number. The floor of 2.7 is 2, and of −1.5 it is −2.</dd>
+<dt id="g-fragment">fragment</dt><dd>A restricted set of formulas the pipeline supports, named after an SMT-LIB logic.</dd>
+<dt id="g-kernel">kernel</dt><dd>The small core of Lean that checks every proof term. It is the part that must be trusted.</dd>
+<dt id="g-lemma">lemma</dt><dd>A proved helper statement used inside a larger proof.</dd>
+<dt id="g-linear-term">linear term</dt><dd>A sum of variables times constants, plus a constant, such as <code>2x + 3y − 1</code>.</dd>
+<dt id="g-proof-core">proof core</dt><dd>One of Z3's two ways of recording a proof here: the legacy proof object or the clause log.</dd>
+<dt id="g-qf-lira">qf_lira</dt><dd>Quantifier-free linear arithmetic over Int and Real together.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+<dt id="g-rewriting">rewrite</dt><dd>Replacing a term by an equal, simpler one, for example <code>is_int (x + 1)</code> by <code>is_int x</code>.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> or <code>grind</code>.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that holds by arithmetic alone, which Z3 adds during solving.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning, only that equal inputs give equal outputs.</dd>
 </dl>
 
 <footer>
 Generated by the Lean certificate improvement loop on 2026-11-02.
 </footer>
+
+</main>
 </body>
 </html>
