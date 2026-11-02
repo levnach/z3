@@ -14,7 +14,7 @@ predicates over argument lists; grind's congruence closure proves euf lemmas.
 
 import argparse
 from collections import Counter, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 import functools
 import hashlib
@@ -323,6 +323,8 @@ class _Graph:
     # arguments are injected into the otherwise unused carrier).
     uninterpreted: bool = False
     numeric: str = "Real"  # the arithmetic sort of the certificate: Real, Int, or _MIXED (qf_lira)
+    # The arithmetic sort of each qf_lira theory step, by node (_lemma_numeric).
+    lemma_sorts: dict = field(default_factory=dict, compare=False, repr=False)
 
     @property
     def fragment(self):
@@ -1624,17 +1626,21 @@ def _lemma_numeric(graph, node):
 
     Z3 never combines atoms of the two sorts in one arithmetic lemma (no
     conversion relates them), and the Int and Real treatments (rounding,
-    tightening, omega) differ, so a step over both is rejected.
+    tightening, omega) differ, so a step over both is rejected. Several
+    checks ask about one step, so the answer is kept per node.
     """
     if graph.numeric != _MIXED:
         return graph.numeric
+    if node in graph.lemma_sorts:
+        return graph.lemma_sorts[node]
     formulas = [graph.conclusion(premise) for premise in graph.arguments(node)[:-1]] + [graph.conclusion(node)]
     sorts = set()
     for formula in formulas:
         sorts.update(graph.decl(term).range for term in _reachable(graph, formula)[0] if graph.is_arith(term))
     if len(sorts) > 1:
         raise ReconstructionError("arithmetic step over both Int and Real atoms at node %d" % node)
-    return sorts.pop() if sorts else "Real"
+    graph.lemma_sorts[node] = sorts.pop() if sorts else "Real"
+    return graph.lemma_sorts[node]
 
 
 def _lattice_step(graph, node):
@@ -3472,7 +3478,8 @@ def _ite_representatives(graph, atoms):
             table = _ite_table(graph, ite, order)
         except ReconstructionError:
             continue
-        representatives[ite] = tables.setdefault(table, ite)
+        # By sort too: in qf_lira an Int and a Real ite over numerals tabulate alike.
+        representatives[ite] = tables.setdefault((graph.decl(ite).range, table), ite)
     return representatives
 
 

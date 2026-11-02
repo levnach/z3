@@ -120,22 +120,33 @@ def random_mixed_instance(seed, variables=3, constraints=12):
     return source if solver.check() == z3.unsat else None
 
 
-def wide_mixed_rewrite_instance(variables=5):
+def wide_mixed_rewrite_instance(variables=5, ites=False):
     """Int and Real variables bounded, and one clause asking for one of them outside.
 
     The clause is a single rewrite over 4 * variables linear atoms of both
     sorts, more than proof_to_lean._NORMALIZED_REWRITE_ATOMS for five
     variables of each, so it takes the normalized-rewrite path, where each
     atom keeps its own sort (a strict Int atom keyed as the complement of
-    the bound it contradicts, a strict Real one as it is).
+    the bound it contradicts, a strict Real one as it is). With ites, every
+    atom adds (ite p 1 2) over Int or (ite p 1.0 2.0) over Real, and the
+    bounds shift so that both values of p stay inside: the two ites have
+    one value table, but each sort keeps its own representative
+    (proof_to_lean._ite_representatives).
     """
-    lines = ["(set-logic QF_LIRA)"] + ["(declare-const n%d Int)" % i for i in range(variables)]
+    lines = ["(set-logic QF_LIRA)"] + ["(declare-const p Bool)"] * ites
+    lines += ["(declare-const n%d Int)" % i for i in range(variables)]
     lines += ["(declare-const x%d Real)" % i for i in range(variables)]
+
+    def term(variable, ite):
+        return "(+ %s %s)" % (variable, ite) if ites else variable
+
+    low, high, real_low, real_high = ("4", "5", "(- 0.5)", "5.5") if ites else ("5", "7", "0.5", "7.5")
     atoms, bounds = [], []
     for i in range(variables):
-        atoms += ["(< n%d 5)" % i, "(> n%d 7)" % i, "(< x%d 0.5)" % i, "(> x%d 7.5)" % i]
-        bounds += ["(assert (>= n%d 5))" % i, "(assert (<= n%d 7))" % i,
-                   "(assert (>= x%d 0.5))" % i, "(assert (<= x%d 7.5))" % i]
+        integer, real = term("n%d" % i, "(ite p 1 2)"), term("x%d" % i, "(ite p 1.0 2.0)")
+        atoms += ["(< %s 5)" % integer, "(> %s 7)" % integer, "(< %s 0.5)" % real, "(> %s 7.5)" % real]
+        bounds += ["(assert (>= n%d %s))" % (i, low), "(assert (<= n%d %s))" % (i, high),
+                   "(assert (>= x%d %s))" % (i, real_low), "(assert (<= x%d %s))" % (i, real_high)]
     lines.append("(assert (or %s))" % " ".join(atoms))
     lines += bounds
     lines.append("(check-sat)")
@@ -222,6 +233,20 @@ class TestMixedValidation(unittest.TestCase):
                                             "arithmetic step over both Int and Real atoms at node %d" % lemma):
                     check(graph, lemma)
 
+    def test_ites_of_one_table_keep_their_sort_in_normalized_rewrites(self):
+        # (ite p 1 2) over Int and (ite p 1.0 2.0) over Real tabulate alike;
+        # each atom's linear form must still range over the ite of its sort.
+        source = wide_mixed_rewrite_instance(ites=True)
+        text = proof_to_lean.reconstruct(source, _export(source, "clause-log"))
+        self.assertIn("private theorem normalized_rewrite_", text)
+        atoms = [line for line in text.splitlines() if "let _atom" in line]
+        self.assertTrue(any("@ite Int" in line for line in atoms))
+        self.assertTrue(any("@ite Rat" in line for line in atoms))
+        for line in atoms:
+            with self.subTest(atom=line):
+                self.assertFalse("@ite Int" in line and ": Rat" in line, line)
+                self.assertFalse("@ite Rat" in line and ": Int" in line, line)
+
     def test_clause_log_numerals_are_read_by_their_spelling(self):
         # The log prints numerals without a sort: in an input over both sorts
         # a decimal point marks a Real numeral, its absence an Int one.
@@ -281,6 +306,10 @@ class TestMixedLeanIntegration(unittest.TestCase):
         self.assertIn("private theorem normalized_rewrite_", text)
         self.assertIn("_ivars 0", text)
         self.assertIn("_vars 5", text)
+        # Int and Real ites of one value table, each keyed by its own sort.
+        source = wide_mixed_rewrite_instance(ites=True)
+        text = proof_to_lean.reconstruct(source, self.check(source, "clause-log"))
+        self.assertIn("private theorem normalized_rewrite_", text)
 
     def test_pinned_random_instances_verify_on_both_cores(self):
         for seed in MIXED_SEEDS:

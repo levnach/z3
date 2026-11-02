@@ -694,6 +694,12 @@ each th-lemma's sort off its atoms: an Int lemma takes the integer path
 (tightening, the generalized attempt, the combination and split proofs), a
 Real one the Real path, and a lemma over both sorts is rejected. Rewrites,
 which may span both sorts, are proved by first | omega | grind (splits := 64).
+The Rat encoding of the Real variables stays sound next to Int ones: fix the
+Int values and the truth value of every atom and ite condition, and the Real
+constraints left are a linear system with rational coefficients, which has a
+rational solution if it has a real one. Int and Real ites with the same value
+table are kept apart in normalized rewrites, so each atom's form ranges over
+terms of its own sort.
 
 For qf_lia certificates the second argument is _vars : Nat -> Int, numerals
 are Int literals, an Int ite is Lean's ite over Int with the classical
