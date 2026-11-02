@@ -456,7 +456,8 @@ def _declaration(raw, sorts):
     parameters = _parameters(kind, name, raw["parameters"])
     # Functions and predicates take arguments of any uninterpreted sort, Bool,
     # Real, or Int (the last three injected into the carrier; a certificate
-    # never mixes Real with Int, see _validate_graph); Proof is never an argument.
+    # with uninterpreted functions has Int or Real, not both, see
+    # classify_fragment); Proof is never an argument.
     argument_sorts = sorts + ("Bool", "Real", "Int")
     if raw["range"] in sorts:
         # Constants, functions, and ite inhabit an uninterpreted sort: no definitions.
@@ -3497,6 +3498,13 @@ def _normalizable_rewrite(graph, node, reachable, atoms):
     return all(kind == 0 for _, ordered, _ in left ^ right for (kind, _), _ in ordered)
 
 
+def _int_atom(graph, atom):
+    """Whether an arithmetic atom, under any negations, compares Int terms (and is tightened, _polarity_constraint)."""
+    while graph.kind(atom) == z3.Z3_OP_NOT:
+        atom = graph.arguments(atom)[0]
+    return graph.is_int(graph.arguments(atom)[0])
+
+
 def _normalized_atom(graph, atom, order):
     """The canonical key of an arithmetic atom's linear form, and whether the atom is its negation.
 
@@ -3507,9 +3515,20 @@ def _normalized_atom(graph, atom, order):
     t <= 0, whose complement is -t + 1 <= 0: a form with a negative leading
     coefficient is keyed as the negation of its complement, so that (< x 5)
     and (>= x 5) share one atom (the replay's _Normalizer does the same)
-    and the propositional lemma sees them as complementary.
+    and the propositional lemma sees them as complementary. A Real atom
+    whose form ranges over Int terms alone (through to_real, qf_lira) is
+    not tightened by _atom_constraint, so it is tightened here first:
+    scaled to integer coefficients and constant, a strict t < 0 made
+    t + 1 <= 0, and rounded to the lattice (_rounded), after which it keys
+    like the equivalent Int atom and the complement step is valid.
     """
     relation, terms, constant = _atom_constraint(graph, atom)
+    if relation != "=" and terms and graph.integer_form(terms) and not _int_atom(graph, atom):
+        scale = _common_denominator(terms, constant)
+        terms, constant = {var: value * scale for var, value in terms.items()}, constant * scale
+        if relation == "<":
+            relation, constant = "<=", constant + 1
+        terms, constant = _rounded(terms, constant)
     negated = relation == "<"
     if negated:
         terms, constant, relation = {var: -value for var, value in terms.items()}, -constant, "<="
@@ -4389,10 +4408,10 @@ def _check_th_lemma(graph, node):
         # coefficient count check below.) Through to_real the same holds
         # for the integer lattice of the Int terms (_CAST): a cut there
         # rounds Real atoms over Int terms alone (their linear forms are
-        # integer, see _integrality_facts) and Int atoms, nothing else.
+        # integer, see _integrality_fact) and Int atoms, nothing else.
         if parameters[0] == "cut" and (numeric not in ("Int", _CAST) or coefficients or premises):
-            raise ReconstructionError("cut th-lemma requires an Int certificate, no premises, and no coefficients "
-                                      "at node %d" % node)
+            raise ReconstructionError("cut th-lemma requires an Int certificate or a to_real step, no premises, "
+                                      "and no coefficients at node %d" % node)
         for premise in premises:
             _atom_constraint(graph, premise)
         for literal in literals:

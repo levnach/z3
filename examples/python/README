@@ -689,8 +689,11 @@ ite, in which case these are the only facts tying the ite to its branches.
 A qf_lira certificate takes both valuations, (_vars : Nat -> Rat)
 (_ivars : Nat -> Int): a Real variable is _vars i and an Int one _ivars i
 (one numbering for both), numerals, ite, and abs take the type of their
-node, and every atom is over one sort, a Real one as for qf_lra and an Int
-one as for qf_lia below. to_real is Lean's Int.cast into Rat. Without it, Z3
+node, and every atom compares two terms of one sort, a Real one as for
+qf_lra and an Int one as for qf_lia below. to_real is Lean's Int.cast into
+Rat, through which a Real atom's linear form can range over Int terms;
+such an atom keys like the equivalent tightened Int atom when atoms are
+matched up in normalized rewrites and ite tables. Without to_real, Z3
 relates no atoms of the two sorts in one arithmetic lemma, so the
 reconstructor reads each th-lemma's sort off its atoms: an Int lemma takes
 the integer path (tightening, the generalized attempt, the combination and
@@ -710,8 +713,8 @@ next to Int ones: fix the Int values and the truth value of every atom and
 ite condition, and the Real constraints left (to_real terms now integer
 constants) are a linear system with rational coefficients, which has a
 rational solution if it has a real one. Int and Real ites with the same value
-table are kept apart in normalized rewrites, so each atom's form ranges over
-terms of its own sort.
+table are kept apart in normalized rewrites, so an ite term of one sort never
+stands for one of the other.
 
 For qf_lia certificates the second argument is _vars : Nat -> Int, numerals
 are Int literals, an Int ite is Lean's ite over Int with the classical

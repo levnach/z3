@@ -479,6 +479,40 @@ class TestCastValidation(unittest.TestCase):
         self.assertRegex(text, r"have _r\d+ : .* <-> \(\(.*\) = \(\(0 : Int\)\)\) := "
                                r"Iff\.trans \(by push_cast; grind\) Rat\.intCast_inj")
 
+    def test_real_atoms_over_int_terms_key_by_their_meaning(self):
+        # A Real atom over to_real alone is not tightened like an Int atom:
+        # its key (_normalized_atom, used by wide normalized rewrites and ite
+        # tables) must tighten it before taking the integer complement, so
+        # -2n + 1/2 <= 0 keys as not (n <= 0), like the Int atom n >= 1.
+        source = ("(set-logic QF_LIRA)\n(declare-const n Int)\n(declare-const x Real)\n"
+                  "(assert (or (<= (+ (* (- 2.0) (to_real n)) 0.5) 0.0) (> x 1.0)))\n"
+                  "(assert (< n 1))\n(assert (<= x 1.0))\n(assert (or (< (to_real n) 2.5) (> x 0.0)))\n"
+                  "(check-sat)\n")
+        for core in ("clause-log", "legacy"):
+            graph = proof_to_lean._validate_graph(source, _export(source, core))
+            checked = 0
+            for node in range(len(graph.nodes)):
+                kind, arguments = graph.kind(node), graph.arguments(node)
+                if graph.is_term(node) or kind not in proof_to_lean._CAST_ATOMS or kind == z3.Z3_OP_EQ:
+                    continue
+                if not graph.is_arith(arguments[0]):
+                    continue
+                relation, terms, constant = proof_to_lean._atom_constraint(graph, node)
+                if len(terms) != 1 or not graph.is_int(next(iter(terms))):
+                    continue
+                (relation_key, ordered, constant_key), negated = proof_to_lean._normalized_atom(
+                    graph, node, lambda variable: (0, variable))
+                (_, coefficient), = ordered
+                for value in range(-4, 5):
+                    exact = sum(c * value for c in terms.values()) + constant
+                    expected = exact <= 0 if relation == "<=" else exact < 0
+                    keyed = coefficient * value + constant_key
+                    keyed = keyed <= 0 if relation_key == "<=" else keyed < 0
+                    with self.subTest(core=core, node=node, n=value):
+                        self.assertEqual(keyed != negated, expected)
+                checked += 1
+            self.assertGreater(checked, 0)
+
     def test_invalid_to_real_declarations_are_rejected(self):
         for domain, range_ in ((["Real"], "Real"), (["Int"], "Int"), (["Int", "Int"], "Real")):
             tampered = copy.deepcopy(self.certificate)

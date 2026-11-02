@@ -2135,7 +2135,10 @@ therefore first states two kinds of facts, then runs `push_cast at *` and
 Removing either kind of fact makes `grind` fail on a lemma that needs it.
 The legacy core's congruence through `to_real` is `congrArg Int.cast`. The
 legacy core's coefficient-free farkas lemmas over both sorts take the
-lattice path, proved by Lean alone. Tests: `test_proof_to_lean_lira.py`
+lattice path, proved by Lean alone. A Real atom over Int terms alone is
+tightened (scaled to integer coefficients, rounded to the lattice) before
+it is keyed for normalized rewrites and ite tables, so it shares its key
+with the equivalent Int atom. Tests: `test_proof_to_lean_lira.py`
 (four documented `to_real` inputs with farkas, cut, bound, and arith hints,
 four `random_cast_instance` seeds on both cores, the encoding, the cast and
 integrality facts, invalid `to_real` declarations, and a cut over a Real
