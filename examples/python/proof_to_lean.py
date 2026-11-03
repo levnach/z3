@@ -633,8 +633,8 @@ def _validate_graph(source, certificate):
             raise ReconstructionError("%s certificates contain both Int and Real arithmetic" % certificate["fragment"])
         # The uninterpreted symbols agree with the label (checked above), so
         # the label names the other arithmetic sort.
-        raise ReconstructionError("only qf_lia and qf_uflia certificates contain Int arithmetic, "
-                                  "and they contain no other")
+        raise ReconstructionError("only qf_lia and qf_uflia certificates contain Int arithmetic alone, "
+                                  "and qf_lira and qf_uflira contain both sorts")
     if any(graph.decl(arg).range != "Bool" for arg in assertions):
         raise ReconstructionError("assertion roots must be Boolean expressions")
     # The theorem states the assertions, so every div, mod, and rem they contain
@@ -2496,6 +2496,9 @@ def _real_argument_helpers(graph, reachable, atom_indices, variable_indices):
     reachable numeric arguments with one normal form (_real_argument_key)
     gets an explicit equality, which the theory tactic proves on its own
     (splitting the ite conditions) and grind then uses for congruence.
+    The groups are per sort: in a qf_uflira certificate an Int and a Real
+    argument may share a linear form ((ite c 1 0) and (ite c 1.0 0.0)), and
+    they are injected by different maps, so no helper relates them.
     """
     groups = {}
     for node in sorted(reachable):
@@ -2503,7 +2506,8 @@ def _real_argument_helpers(graph, reachable, atom_indices, variable_indices):
             continue
         for argument in graph.arguments(node):
             if graph.is_arith(argument):
-                members = groups.setdefault(_real_argument_key(graph, argument), [])
+                key = (graph.decl(argument).range, _real_argument_key(graph, argument))
+                members = groups.setdefault(key, [])
                 if argument not in members:
                     members.append(argument)
     helpers = []

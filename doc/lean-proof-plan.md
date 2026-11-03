@@ -2210,15 +2210,26 @@ with `f : Int -> Real` is a Real lemma, and `_farkas_combination` checks
 the hint before asking for the sort, so an `euf` congruence relating
 `(= 3 n)` to `(= (f n) (f 3))` is not mistaken for an arithmetic step over
 both sorts; a coefficient step over atoms of both sorts without a
-conversion is still rejected. Tests: `test_proof_to_lean_uflira.py` (four
-documented inputs and four `random_uflira_instance` seeds with farkas,
+conversion is still rejected. The argument-equality helpers
+(`_real_argument_helpers`) group function arguments by sort as well as by
+linear form: review found that an Int `(ite c 1 0)` and a Real
+`(ite c 1.0 0.0)` got an ill-sorted `Int = Rat` helper that failed Lean.
+Tests: `test_proof_to_lean_uflira.py` (five
+documented inputs and five `random_uflira_instance` seeds, one with ite
+arguments of both sorts, with farkas,
 implied-eq, cut, bound, and euf hints on both cores, the encoding, label
-tampering, the per-lemma sort), classification cases in
+tampering, the per-lemma sort, no helper across sorts), classification cases in
 `test_proof_certificate.py`. Sweeps of `random_uflira_instance` (with and
 without `to_real`, 2-3 variables of each sort, depth 2-3): all 392 runs on
 both cores of 196 unsatisfiable seeds verified in Lean, plus hand probes
 with `to_int` under a function argument, `is_int` next to a predicate, and
-the floor of an application.
+the floor of an application. With ite arguments (`ites=True`, seeds 1-300,
+2/10/3) all 168 runs of 84 unsatisfiable seeds verify; 42 of them have Int
+and Real arguments with one linear form, and three of those (105, 128, 279)
+failed Lean before the per-sort grouping. Known gap, shared with
+`qf_lira`: an Int ite whose condition compares Reals (or the reverse),
+outside a function argument, makes its theory step "over both Int and Real
+atoms", which is rejected.
 
 ### Native checks of the rem axioms (2026-10-31)
 

@@ -486,7 +486,8 @@ th-lemma whose hint is none of these (nla, gomory-cut, gcd-test) is rejected
 at export, and so is a bare (_ th-lemma arith) over Real, which records no
 evidence.
 
-Integer input (qf_lia, qf_uflia, opt-in as for the clause log) is certified
+Integer input (qf_lia, qf_uflia, qf_lira, qf_uflira, opt-in as for the
+clause log) is certified
 on this path too, since 2026-10-16. theory_lra emits the same farkas, bound,
 implied-eq, and triangle-eq steps over Int, and three shapes of its own: a
 bare (_ th-lemma arith) with premises is a cut (the bound literal a Gomory
@@ -914,7 +915,9 @@ argument is injected by _m.int and a Real one by _m.real, an application
 with an Int result is _m.ifuns i [...] and one with a Real result
 _m.rfuns i [...] (one numbering for both families), and each theory lemma
 takes the sort of its atoms as in qf_lira, an application being one atom
-whatever the sorts of its arguments. Nothing
+whatever the sorts of its arguments. The argument-equality helpers relate
+arguments of one sort only: an Int (ite c 1 0) and a Real (ite c 1.0 0.0)
+share a linear form but are injected by different maps. Nothing
 states that _m.real is injective and no inference needs it: euf lemmas use
 only the congruence x = y -> _m.real x = _m.real y, and a model of the input is
 again one instance (its Real carrier is the Rat component). grind compares

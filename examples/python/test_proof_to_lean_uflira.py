@@ -14,6 +14,7 @@ import copy
 import hashlib
 from pathlib import Path
 import random
+import re
 import subprocess
 import sys
 import tempfile
@@ -84,10 +85,23 @@ UFLIRA_INPUTS = {
 (assert (< (r n) (to_real (k (to_real n)))))
 (check-sat)
 """,
+    # An Int and a Real function applied to the same ite of numerals, one
+    # per sort: the two arguments share a linear form but no helper may
+    # equate them (they are injected by _m.int and _m.real).
+    "ite_arguments_of_both_sorts": """(set-logic QF_UFLIRA)
+(declare-fun f (Int) Real)
+(declare-fun g (Real) Real)
+(declare-const x Real)
+(declare-const y Real)
+(assert (> (f (ite (> x 0.0) 1 0)) y))
+(assert (> (g (ite (> x 0.0) 1.0 0.0)) y))
+(assert (< (+ (f (ite (> x 0.0) 1 0)) (g (ite (> x 0.0) 1.0 0.0))) (* 2.0 y)))
+(check-sat)
+""",
 }
 
 
-def random_uflira_instance(seed, variables=2, constraints=10, depth=2, casts=False):
+def random_uflira_instance(seed, variables=2, constraints=10, depth=2, casts=False, ites=False):
     """A random QF_UFLIRA instance, or None when it is satisfiable.
 
     Int variables n_i and Real variables x_i, functions in both directions
@@ -95,6 +109,11 @@ def random_uflira_instance(seed, variables=2, constraints=10, depth=2, casts=Fal
     (k : Int Real -> Int), a predicate over both (q), and an uninterpreted
     sort reached from Int and read back as Real (h, r). Atoms compare terms
     of one sort, and with casts Real terms include to_real of Int terms.
+    With ites, a function or predicate argument of either sort may be an
+    ite of the numerals 0 and 1 over a condition of either sort from a
+    small pool, so that Int and Real arguments share linear forms ((ite c
+    1 0) and (ite c 1.0 0.0)). Without either option the random sequence
+    is the one the pinned seeds were drawn from.
     """
     rng = random.Random(seed)
     lines = ["(set-logic QF_UFLIRA)", "(declare-sort U 0)", "(declare-const a U)", "(declare-const b U)"]
@@ -103,28 +122,37 @@ def random_uflira_instance(seed, variables=2, constraints=10, depth=2, casts=Fal
     lines += ["(declare-fun f (Int) Real)", "(declare-fun g (Real) Int)", "(declare-fun k (Int Real) Int)",
               "(declare-fun q (Int Real) Bool)", "(declare-fun h (Int) U)", "(declare-fun r (U) Real)"]
 
-    def int_term(d=depth):
+    def ite_argument(numerals):
+        condition = rng.choice(["(> x%d 0.0)", "(<= n%d 0)"]) % rng.randrange(variables)
+        then_branch = rng.randrange(2)
+        return "(ite %s %s %s)" % (condition, numerals[then_branch], numerals[1 - then_branch])
+
+    def int_term(d=depth, argument=False):
+        if ites and argument and rng.random() < 0.3:
+            return ite_argument(("0", "1"))
         roll = rng.random()
         if d == 0 or roll < 0.35:
             return "n%d" % rng.randrange(variables)
         if roll < 0.5:
             return str(rng.choice([0, 1, 2, -1]))
         if roll < 0.65:
-            return "(g %s)" % real_term(d - 1)
+            return "(g %s)" % real_term(d - 1, True)
         if roll < 0.75:
-            return "(k %s %s)" % (int_term(d - 1), real_term(d - 1))
+            return "(k %s %s)" % (int_term(d - 1, True), real_term(d - 1, True))
         return "(+ %s %s)" % (int_term(d - 1), int_term(d - 1))
 
-    def real_term(d=depth):
+    def real_term(d=depth, argument=False):
+        if ites and argument and rng.random() < 0.3:
+            return ite_argument(("0.0", "1.0"))
         roll = rng.random()
         if d == 0 or roll < 0.35:
             return "x%d" % rng.randrange(variables)
         if roll < 0.5:
             return rng.choice(["0.0", "1.0", "0.5", "(- 1.5)"])
         if roll < 0.65:
-            return "(f %s)" % int_term(d - 1)
+            return "(f %s)" % int_term(d - 1, True)
         if roll < 0.75:
-            return "(r %s)" % rng.choice(["a", "b", "(h %s)" % int_term(d - 1)])
+            return "(r %s)" % rng.choice(["a", "b", "(h %s)" % int_term(d - 1, True)])
         if casts and roll < 0.85:
             return "(to_real %s)" % int_term(d - 1)
         return "(+ %s %s)" % (real_term(d - 1), real_term(d - 1))
@@ -136,8 +164,8 @@ def random_uflira_instance(seed, variables=2, constraints=10, depth=2, casts=Fal
         if roll < 0.7:
             return "(%s %s %s)" % (rng.choice(["<=", "<", "="]), real_term(), real_term())
         if roll < 0.85:
-            return "(q %s %s)" % (int_term(), real_term())
-        return "(= %s %s)" % (rng.choice(["a", "b"]), "(h %s)" % int_term())
+            return "(q %s %s)" % (int_term(argument=True), real_term(argument=True))
+        return "(= %s %s)" % (rng.choice(["a", "b"]), "(h %s)" % int_term(argument=True))
 
     def formula():
         roll = rng.random()
@@ -159,9 +187,13 @@ def random_uflira_instance(seed, variables=2, constraints=10, depth=2, casts=Fal
 
 # Pinned seeds whose clause logs carry theory lemmas over functions of both
 # sorts: (keyword arguments, seed). 16 and 54 (a cut over Int applications
-# of Real terms) with the defaults; 3 and 40 (a bound step) with to_real.
+# of Real terms) with the defaults; 3 and 40 (a bound step) with to_real;
+# 105 with ite arguments, whose Int (ite c 0 1) and Real (ite c 0.0 1.0)
+# arguments share a linear form (an Int = Rat helper failed Lean there
+# before the helpers were grouped per sort).
 _CASTS = {"variables": 3, "constraints": 14, "depth": 3, "casts": True}
-UFLIRA_SEEDS = (({}, 16), ({}, 54), (_CASTS, 3), (_CASTS, 40))
+_ITES = {"variables": 2, "constraints": 10, "depth": 3, "ites": True}
+UFLIRA_SEEDS = (({}, 16), ({}, 54), (_CASTS, 3), (_CASTS, 40), (_ITES, 105))
 
 
 def _export(source, core):
@@ -240,6 +272,29 @@ class TestUFLIRAValidation(unittest.TestCase):
         self.assertNotIn(proof_to_lean._CAST, sorts.values())
         proof_to_lean.reconstruct(source, certificate)
 
+    def test_argument_helpers_never_equate_terms_of_two_sorts(self):
+        # The Int argument (ite c 1 0) of f and the Real argument (ite c 1.0
+        # 0.0) of g have one linear form; the normal-form helpers
+        # (_real_argument_helpers) group arguments per sort, so none states
+        # an Int term equal to a Real one.
+        source = UFLIRA_INPUTS["ite_arguments_of_both_sorts"]
+        for core in ("clause-log", "legacy"):
+            with self.subTest(core=core):
+                certificate = _export(source, core)
+                graph = proof_to_lean._validate_graph(source, certificate)
+                arguments = {argument for node in range(len(graph.nodes))
+                             if graph.kind(node) == z3.Z3_OP_UNINTERPRETED
+                             for argument in graph.arguments(node) if graph.is_arith(argument)}
+                keys = {}
+                for argument in arguments:
+                    keys.setdefault(proof_to_lean._real_argument_key(graph, argument), set()).add(
+                        graph.decl(argument).range)
+                self.assertIn({"Int", "Real"}, keys.values())
+                text = proof_to_lean.reconstruct(source, certificate)
+                for first, second in re.findall(r"have _r(\d+)_(\d+) :", text):
+                    self.assertEqual(graph.decl(int(first)).range, graph.decl(int(second)).range,
+                                     "helper _r%s_%s equates terms of two sorts" % (first, second))
+
     def test_a_lemma_over_both_sorts_without_a_conversion_is_still_rejected(self):
         # Retarget the Real farkas lemma (f n) > x, (f 3) < x - 1, ... at an
         # Int atom next to its Real ones: no sort is guessed.
@@ -306,7 +361,7 @@ class TestUFLIRALeanIntegration(unittest.TestCase):
             source = random_uflira_instance(seed, **arguments)
             self.assertIsNotNone(source, "seed %d is no longer unsatisfiable" % seed)
             for core in ("clause-log", "legacy"):
-                with self.subTest(seed=seed, casts=bool(arguments), core=core):
+                with self.subTest(seed=seed, options=sorted(arguments), core=core):
                     certificate = _check_in_lean(self, source, core)
                     if core == "clause-log":
                         hints |= _hints(certificate)
