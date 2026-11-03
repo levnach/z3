@@ -41,7 +41,7 @@ _TOKEN = re.compile(
 )
 _ASSERTION_COMMANDS = {
     "set-logic", "set-info", "declare-sort", "define-sort", "declare-const", "declare-fun", "define-fun",
-    "assert",
+    "assert", "declare-datatype", "declare-datatypes",
 }
 # The queries a certificate can be about; a script may have several (see
 # query_snapshot), and Z3 reads the arguments of check-sat as assumptions.
@@ -123,8 +123,11 @@ _COEFFICIENT_HINTS = ("farkas", "bound", "implied-eq", "cut")
 _INTEGER_FRAGMENTS = ("qf_lia", "qf_uflia", "qf_lira", "qf_uflira")
 # arith is the hint of the arithmetic solver's own axioms (the div and mod
 # definitions): like euf it lists jointly contradictory literals, and like cut
-# it is shape-checked here and proved by Lean alone.
-_LITERAL_HINTS = ("euf", "tseitin", "smt", "alldiff", "arith")
+# it is shape-checked here and proved by Lean alone. datatype is the hint of
+# the datatype solver over an enumeration: jointly contradictory equalities
+# between its terms and constructors (a value that is none of the
+# constructors), proved by Lean from the enumeration's fields.
+_LITERAL_HINTS = ("euf", "tseitin", "smt", "alldiff", "arith", "datatype")
 # Synthesized by the exporter, not logged by Z3: an original assertion implies
 # one of the clauses it was split into.
 _CNF_HINT = "cnf"
@@ -365,6 +368,10 @@ def query_snapshot(source, query=None):
                 raise ProofExportError("only uninterpreted sorts of arity 0 are supported")
             if name == "define-sort":
                 _check_sort_definition(tokens)
+            if name in ("declare-datatype", "declare-datatypes") and "par" in tokens:
+                # An instance of a parametric datatype keeps the datatype's own
+                # name, so (E Int) and (E Bool) would share one certificate sort.
+                raise ProofExportError("parametric datatypes are not supported")
             scopes[-1].append((name, text))
         else:
             raise ProofExportError("unsupported SMT-LIB command: %s" % name)
@@ -552,17 +559,45 @@ def is_uninterpreted_sort(sort):
     return sort.kind() == z3.Z3_UNINTERPRETED_SORT
 
 
+def is_enumeration_sort(sort):
+    """Whether a sort is a datatype all of whose constructors are nullary (an enumeration)."""
+    return (sort.kind() == z3.Z3_DATATYPE_SORT
+            and all(sort.constructor(i).arity() == 0 for i in range(sort.num_constructors())))
+
+
+# The recognizer of a constructor: (_ is c) (OP_DT_IS) and SMT-LIB 2.5's is-c
+# (OP_DT_RECOGNISER) are two declarations of one predicate; the certificate
+# and the replay keys write both as OP_DT_IS, named by the constructor.
+RECOGNIZER_KINDS = (z3.Z3_OP_DT_IS, z3.Z3_OP_DT_RECOGNISER)
+
+
+def is_carrier_sort(sort):
+    """Whether Lean renders a sort's values in the carrier _m.U: an uninterpreted sort or an enumeration.
+
+    An enumeration is one more sort of the disjoint union: its constructors
+    are distinct elements and every value is one of them, which the Lean
+    encoding states as fields of the interpretation (see proof_to_lean).
+    """
+    return is_uninterpreted_sort(sort) or is_enumeration_sort(sort)
+
+
+def enumeration_constructors(sort):
+    """The constructor declarations of an enumeration sort, in declaration order."""
+    return [sort.constructor(i) for i in range(sort.num_constructors())]
+
+
 def _require_uninterpreted_sort(candidate, sorts):
     """Check an uninterpreted sort's name and record it in sorts.
 
     Any number of uninterpreted sorts is accepted: the Lean encoding renders
     them all as one type, which is sound for unsatisfiability (see the
     exporter README), while the certificate keeps every sort name so the
-    reconstructor can check that the proof is well-sorted.
+    reconstructor can check that the proof is well-sorted. An enumeration
+    joins them (see is_carrier_sort); sorts maps each name to its sort.
     """
     if candidate.name() in _RESERVED_SORTS:
         raise ProofExportError("unsupported uninterpreted sort name: %s" % candidate.name())
-    sorts.add(candidate.name())
+    sorts[candidate.name()] = candidate
 
 
 def _require_uninterpreted_signature(decl, sorts):
@@ -585,7 +620,7 @@ def _require_uninterpreted_signature(decl, sorts):
         if candidate.kind() == z3.Z3_INT_SORT:
             integer = True
             continue
-        if not is_uninterpreted_sort(candidate):
+        if not is_carrier_sort(candidate):
             raise ProofExportError("uninterpreted functions over %s are not supported: %s" % (
                 candidate, decl.name()))
         _require_uninterpreted_sort(candidate, sorts)
@@ -608,9 +643,11 @@ def classify_fragment(assertions):
     """Return the fragment name, rejecting everything else.
 
     The fragments are "propositional", "qf_lra", "qf_lia", "qf_lira", "qf_uf",
-    "qf_uflra", "qf_uflia", and "qf_uflira".
+    "qf_uflra", "qf_uflia", and "qf_uflira". An enumeration datatype counts as
+    an uninterpreted sort (with its constructors as elements), so an input
+    with one is in a UF fragment.
     """
-    pending, seen, real, integer, sorts, symbols = list(assertions), set(), False, False, set(), {}
+    pending, seen, real, integer, sorts, symbols = list(assertions), set(), False, False, {}, {}
     functions = False  # whether any uninterpreted function or predicate is applied
     while pending:
         expr = pending.pop()
@@ -632,6 +669,11 @@ def classify_fragment(assertions):
             elif decl.kind() == z3.Z3_OP_IS_INT:
                 # (is_int t) is (= (to_real (to_int t)) t) by SMT-LIB's definition.
                 real = integer = True
+            elif decl.kind() in RECOGNIZER_KINDS:
+                # ((_ is c) t) over an enumeration is (= t c).
+                if not is_enumeration_sort(expr.arg(0).sort()):
+                    raise ProofExportError("only enumeration datatypes (nullary constructors) are supported: %s"
+                                           % expr.arg(0).sort())
             elif decl.kind() not in _ARITH_PREDICATES and decl.kind() not in _BOOLEAN_OPERATORS:
                 raise ProofExportError("unsupported propositional operator: %s" % decl.name())
             if decl.kind() in _ARITH_PREDICATES or decl.kind() in (z3.Z3_OP_EQ, z3.Z3_OP_DISTINCT):
@@ -640,16 +682,28 @@ def classify_fragment(assertions):
         elif z3.is_arith(expr):
             real, integer = real or z3.is_real(expr), integer or z3.is_int(expr)
             _require_linear_arithmetic(expr)
-        elif is_uninterpreted_sort(expr.sort()):
+        elif is_carrier_sort(expr.sort()):
             # Constants, function applications, and ite, whose branches are
-            # terms of the sort and whose condition is any formula.
-            if decl.kind() in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE):
+            # terms of the sort and whose condition is any formula, and the
+            # constructors of an enumeration.
+            if decl.kind() in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE) or (
+                    decl.kind() == z3.Z3_OP_DT_CONSTRUCTOR and is_enumeration_sort(expr.sort())):
                 _require_uninterpreted_sort(expr.sort(), sorts)
             else:
                 raise ProofExportError("unsupported operator over an uninterpreted sort: %s" % decl.name())
+        elif expr.sort().kind() == z3.Z3_DATATYPE_SORT:
+            raise ProofExportError("only enumeration datatypes (nullary constructors) are supported: %s"
+                                   % expr.sort())
         else:
             raise ProofExportError("unsupported sort: %s" % expr.sort())
         pending.extend(expr.children())
+    for sort in list(sorts.values()):
+        if is_enumeration_sort(sort):
+            # Every constructor is a symbol of the input, used or not: the
+            # certificate and the clause log name them, and the Lean encoding
+            # states that the sort has exactly these values.
+            for constructor in enumeration_constructors(sort):
+                _require_unique_symbol(constructor, symbols)
     if integer:
         # Linear integer arithmetic: the Lean encoding values the variables in
         # Int and the integer solver's rounding steps are proved there, on its
@@ -689,7 +743,24 @@ def _require_legacy_fragment(assertions, integer=False):
     if fragment in _INTEGER_FRAGMENTS and not integer:
         raise ProofExportError("integer arithmetic (%s) is certified by Lean alone; "
                                "the consumer must accept the fragment explicitly" % fragment)
+    if _mentions_enumeration(assertions):
+        # The legacy proof object's datatype steps (theory_datatype's case
+        # splits and conflicts) are not encoded; the clause log's datatype
+        # hints are.
+        raise ProofExportError("enumeration datatypes are certified through the clause log only")
     return fragment
+
+
+def _mentions_enumeration(assertions):
+    pending, seen = list(assertions), set()
+    while pending:
+        expr = pending.pop()
+        if expr.get_id() not in seen:
+            seen.add(expr.get_id())
+            if is_enumeration_sort(expr.sort()):
+                return True
+            pending.extend(expr.children())
+    return False
 
 
 def parse_legacy_assertions(source, context, integer=False, query=None):
@@ -873,7 +944,7 @@ def _encode_proof(assertions, proof, integer=False):
             return "Int"
         if sort.eq(proof_sort):
             return "Proof"
-        if is_uninterpreted_sort(sort) and sort.name() not in _RESERVED_SORTS:
+        if is_carrier_sort(sort) and sort.name() not in _RESERVED_SORTS:
             return sort.name()  # The certificate keeps the input's own sort name.
         raise ProofExportError("unsupported native proof sort: %s" % sort)
 
@@ -899,7 +970,8 @@ def _encode_proof(assertions, proof, integer=False):
             if integer and parameters[0] in ("farkas", "bound") and len(parameters) > 1 and \
                     not _integer_coefficients_certify(expr, parameters[0], [Fraction(c) for c in parameters[1:]]):
                 parameters = parameters[:1]  # One declaration per step shape: Lean alone proves this one.
-        elif decl.params():
+        elif decl.params() and decl.kind() != z3.Z3_OP_DT_CONSTRUCTOR:
+            # (A constructor's parameter is the constructor itself, named by the declaration.)
             raise ProofExportError("native declaration parameters are not supported: %s" % decl.name())
         key = (decl.get_id(), tuple(parameters))
         if key not in declaration_ids:
@@ -948,7 +1020,7 @@ class DagBuilder:
 
     def sort_name(self, sort):
         name = self._SORTS.get(sort.kind())
-        if name is None and is_uninterpreted_sort(sort) and sort.name() not in _RESERVED_SORTS:
+        if name is None and is_carrier_sort(sort) and sort.name() not in _RESERVED_SORTS:
             name = sort.name()  # The certificate keeps the input's own sort name.
         if name is None:
             raise ProofExportError("unsupported native proof sort: %s" % sort)
@@ -996,10 +1068,14 @@ class DagBuilder:
             name = str(decl.name())
             if decl.kind() == z3.Z3_OP_ANUM:
                 name = str(numeral_value(expr))  # The numeral is the declaration's parameter.
-            elif decl.params():
+            elif decl.kind() in RECOGNIZER_KINDS:
+                name = str(decl.params()[0].name())  # A recognizer is named by its constructor.
+            elif decl.params() and decl.kind() != z3.Z3_OP_DT_CONSTRUCTOR:
+                # (A constructor's parameter is the constructor itself, named by the declaration.)
                 raise ProofExportError("native declaration parameters are not supported: %s" % decl.name())
             domain = tuple(self.sort_name(decl.domain(i)) for i in range(decl.arity()))
-            declaration = self.declaration(decl.kind(), name, domain, self.sort_name(expr.sort()))
+            kind = z3.Z3_OP_DT_IS if decl.kind() in RECOGNIZER_KINDS else decl.kind()
+            declaration = self.declaration(kind, name, domain, self.sort_name(expr.sort()))
             arguments = [self._expression_nodes[child.get_id()] for child in expr.children()]
             self._expression_nodes[expr.get_id()] = self.node(declaration, arguments)
         return self._expression_nodes[root.get_id()]

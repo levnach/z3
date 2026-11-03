@@ -2231,6 +2231,38 @@ failed Lean before the per-sort grouping. Known gap, shared with
 outside a function argument, makes its theory step "over both Int and Real
 atoms", which is rejected.
 
+### Enumeration datatypes through the clause log (2026-11-03)
+
+Every `declare-datatype(s)` was rejected by the frontend. Enumerations
+(all constructors nullary, not parametric) are now accepted as sorts of the
+UF fragments, through the clause log only (the legacy core rejects them
+explicitly; its datatype steps are not encoded); any other datatype is
+rejected. In Lean an enumeration joins the carrier `_m.U`, its constructors
+are `_m.ctors k`, a recognizer `((_ is c) t)` is `t = _m.ctors k`, and the
+`Interpretation` gains fields read from the input's declarations:
+`enum_distinct` (constructors of one enumeration differ) and, per constant
+or function of an enumeration sort, `enum_cases_i` / `enum_fcases_j` (its
+value is one of the sort's constructors, all of them, for every argument
+list). The clause log's `datatype` hints become th-lemmas over enumeration
+equalities and recognizers, proved by grind with those fields instantiated;
+the reconstructor checks every constructor and recognizer against the
+input's enumeration and interns constructors by name. Two defects found on
+the way: the z3 executable crashed (exit 139) writing the clause log of a
+root `distinct` with more arguments than the sort has values (the
+`add_distinct_axiom` shortcut logged an empty clause with an empty
+`tseitin` hint; with proofs the pairwise clauses are now added and the
+datatype solver refutes them), and the replay's structural keys ignored
+constructor names, so `(= x red)` and `(= x blue)` shared a key (Lean
+rejected the resulting proofs). A datatype hint may state an equality the
+other way around from its logged clause, so the lemma is the logged clause.
+z3test `regressions/smt2/t198.smt2` (recognizers) and the second query of
+`z3.14.smt2` (the crashing `distinct`) now certify; SMT-LIB 2.5's `is-c`
+recognizers (`OP_DT_RECOGNISER`) are written as `(_ is c)` (`OP_DT_IS`) by
+the certificate and the replay keys. Tests:
+`test_proof_to_lean_enum.py` (eleven documented inputs, z3.14, seven
+`random_enum_instance` seeds, the encoding, constructor tampering, the
+crash, the keys, a dropped enumeration fact failing Lean).
+
 ### Native checks of the rem axioms (2026-10-31)
 
 Z3's own replay of a clause log checked only the `rem` axiom whose guard

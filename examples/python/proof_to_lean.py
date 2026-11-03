@@ -31,8 +31,9 @@ import tempfile
 import z3
 
 from proof_certificate import (
-    ProofExportError, _rounded, bound_combination_refutes, integer_tightened, is_uninterpreted_sort,
-    linear_combination_refutes, numeral_value, parse_assertions, query_snapshot,
+    RECOGNIZER_KINDS, ProofExportError, _rounded, bound_combination_refutes, enumeration_constructors, integer_tightened,
+    is_carrier_sort, is_enumeration_sort, linear_combination_refutes, numeral_value, parse_assertions,
+    query_snapshot,
 )
 
 
@@ -86,7 +87,10 @@ _COEFFICIENT_HINTS = ("farkas", "bound", "implied-eq", "cut")
 # inequalities, proved by grind like every other theory tautology. arith: the
 # sat.smt arithmetic solver's own axioms (the div, mod, and rem definitions), a
 # clause of linear arithmetic atoms without coefficients, proved by Lean.
-_HINTS = _COEFFICIENT_HINTS + ("euf", "tseitin", "smt", "cnf", "triangle-eq", "arith")
+# datatype: the case splits of the datatype solver over an enumeration, a
+# clause of equalities between its terms and constructors, proved by Lean from
+# the enumeration fields of the interpretation (_enumeration_helpers).
+_HINTS = _COEFFICIENT_HINTS + ("euf", "tseitin", "smt", "cnf", "triangle-eq", "arith", "datatype")
 _FRAGMENTS = ("propositional", "qf_lra", "qf_lia", "qf_lira", "qf_uf", "qf_uflra", "qf_uflia", "qf_uflira")
 # The arithmetic sorts and their Lean carriers: Real variables are valued in
 # Rat (see the exporter README for the soundness argument), Int variables in
@@ -336,6 +340,19 @@ class _Graph:
     numeric: str = "Real"  # the arithmetic sort of the certificate: Real, Int, or _MIXED (qf_lira, qf_uflira)
     # The arithmetic sort of each qf_lira theory step, by node (_lemma_numeric).
     lemma_sorts: dict = field(default_factory=dict, compare=False, repr=False)
+    # The input's enumeration sorts among the sorts, by name: their constructor
+    # names in declaration order (read from the input by _bind_input, never
+    # from the certificate).
+    enumerations: dict = field(default_factory=dict, compare=False, repr=False)
+
+    def constructor_index(self, name):
+        """The index of a constructor in _m.ctors: the enumerations by sort name, each in declaration order."""
+        index = 0
+        for sort in sorted(self.enumerations):
+            if name in self.enumerations[sort]:
+                return index + self.enumerations[sort].index(name)
+            index += len(self.enumerations[sort])
+        raise ReconstructionError("not a constructor of the input: %s" % name)
 
     @property
     def fragment(self):
@@ -470,6 +487,11 @@ def _declaration(raw, sorts):
         if kind == z3.Z3_OP_ITE:
             if name != "if" or domain != ("Bool", raw["range"], raw["range"]):
                 raise ReconstructionError("invalid uninterpreted-sort ite declaration")
+        elif kind == z3.Z3_OP_DT_CONSTRUCTOR:
+            # A constructor of an enumeration; _bind_input checks that the
+            # input declares it, nullary, for this sort.
+            if domain or not name:
+                raise ReconstructionError("invalid enumeration constructor declaration: %s" % name)
         elif kind != z3.Z3_OP_UNINTERPRETED or any(argument not in argument_sorts for argument in domain):
             raise ReconstructionError("unsupported uninterpreted-sort declaration: %s" % name)
     elif raw["range"] in _ARITH_SORTS:
@@ -513,7 +535,12 @@ def _declaration(raw, sorts):
         if len(domain) != expected:
             raise ReconstructionError("invalid arithmetic declaration arity: %s" % name)
     elif raw["range"] == "Bool":
-        if kind == z3.Z3_OP_IS_INT:
+        if kind == z3.Z3_OP_DT_IS:
+            # The recognizer ((_ is c) t) of an enumeration, named by its
+            # constructor c; _bind_input checks c against the input.
+            if len(domain) != 1 or domain[0] not in sorts or not name:
+                raise ReconstructionError("invalid enumeration recognizer declaration: %s" % name)
+        elif kind == z3.Z3_OP_IS_INT:
             # (is_int t) is (= (to_real (to_int t)) t), qf_lira only.
             if name != "is_int" or domain != ("Real",):
                 raise ReconstructionError("invalid is_int declaration")
@@ -711,6 +738,7 @@ def _bind_input(source, graph, fragment=None, query=0):
         raise ReconstructionError("the input is in fragment %s, not %s" % (original_fragment, fragment))
     interned, terms = {}, {}
     tables = {table: {} for table in _SYMBOL_TABLES.values()}
+    constructors = {}  # certificate constructor name -> its sort
 
     def intern(kind, name, range_name, children):
         key = (kind, name, range_name, tuple(children))
@@ -734,11 +762,19 @@ def _bind_input(source, graph, fragment=None, query=0):
             if any(name in other for key, other in tables.items() if key != table):
                 raise ReconstructionError("symbol used with two sorts: %s" % name)
             tables[table][name] = node.declaration
+        elif decl.kind in (z3.Z3_OP_DT_CONSTRUCTOR, z3.Z3_OP_DT_IS):
+            # Constructors, and recognizers by their constructor, are told
+            # apart by name (their interned identity), and each must be one
+            # of the input's (checked below).
+            name = decl.name
+            sort = decl.range if decl.kind == z3.Z3_OP_DT_CONSTRUCTOR else decl.domain[0]
+            if constructors.setdefault(name, sort) != sort:
+                raise ReconstructionError("constructor used with two sorts: %s" % name)
         elif decl.kind == z3.Z3_OP_ANUM:
             name = str(Fraction(decl.name))
         terms[index] = intern(decl.kind, name, decl.range, (terms[arg] for arg in node.arguments))
 
-    original_terms, original_sorts = {}, set()
+    original_terms, original_sorts, enumerations = {}, set(), {}
     original_symbols = {table: {} for table in tables}  # name -> (domain, range)
     pending = [(expr, False) for expr in reversed(list(original))]
     while pending:
@@ -750,8 +786,11 @@ def _bind_input(source, graph, fragment=None, query=0):
             pending.extend((child, False) for child in reversed(expr.children()))
             continue
         decl, name, range_name = expr.decl(), "", _sort_name(expr.sort())
-        if is_uninterpreted_sort(expr.sort()):
+        if is_carrier_sort(expr.sort()):
             original_sorts.add(range_name)
+            if is_enumeration_sort(expr.sort()):
+                enumerations[range_name] = [str(constructor.name())
+                                            for constructor in enumeration_constructors(expr.sort())]
         if decl.kind() == z3.Z3_OP_UNINTERPRETED:
             name = str(decl.name())
             table = _symbol_table(range_name, decl.arity(), graph.sorts)
@@ -760,12 +799,27 @@ def _bind_input(source, graph, fragment=None, query=0):
             signature = (tuple(_sort_name(decl.domain(i)) for i in range(decl.arity())), range_name)
             if original_symbols[table].setdefault(name, signature) != signature:
                 raise ReconstructionError("symbol declared with several signatures: %s" % name)
+        elif decl.kind() == z3.Z3_OP_DT_CONSTRUCTOR:
+            name = str(decl.name())
+        elif decl.kind() in RECOGNIZER_KINDS:
+            name = str(decl.params()[0].name())
         elif decl.kind() == z3.Z3_OP_ANUM:
             name = str(numeral_value(expr))
+        kind = z3.Z3_OP_DT_IS if decl.kind() in RECOGNIZER_KINDS else decl.kind()  # as the certificate writes it
         original_terms[expr.get_id()] = intern(
-            decl.kind(), name, range_name, (original_terms[child.get_id()] for child in expr.children()))
+            kind, name, range_name, (original_terms[child.get_id()] for child in expr.children()))
     if original_sorts != set(graph.sorts):
         raise ReconstructionError("certificate sort does not match the original input")
+    for name, sort in constructors.items():
+        # The certificate may name constructors the assertions do not (the
+        # datatype solver splits over all of them), so each is looked up in
+        # the input's own declaration of its enumeration.
+        if name not in enumerations.get(sort, ()):
+            raise ReconstructionError("not a constructor of the input's enumeration %s: %s" % (sort, name))
+        if any(name in table for table in tables.values()):
+            raise ReconstructionError("symbol used with two sorts: %s" % name)
+    graph.enumerations.clear()
+    graph.enumerations.update(enumerations)
     if any(set(tables[table]) != set(original_symbols[table]) for table in tables):
         raise ReconstructionError("certificate assertions do not match the original input")
     for table, symbols in tables.items():
@@ -802,12 +856,84 @@ def _valuation_binder(graph):
             "qf_uflira": _UFLIRA_BINDERS}.get(graph.fragment, "")
 
 
-def _interpretation_structure(graph):
-    """Declare the structure whose one argument _m interprets the uninterpreted symbols (none outside the UF fragments)."""
+def _interpretation_structure(graph, tables=None, variable_indices=None):
+    """Declare the structure whose one argument _m interprets the uninterpreted symbols (none outside the UF fragments).
+
+    With enumerations, tables and variable_indices (the symbols of the
+    certificate and their indices) give the enumeration fields
+    (_enumeration_fields).
+    """
     if not graph.uninterpreted:
         return []
     fields = _UF_FIELDS + (_NUMERIC_FIELDS[graph.numeric] if graph.arithmetic else ())
+    if graph.enumerations:
+        fields += _enumeration_fields(graph, tables, variable_indices)
     return ["structure Interpretation where"] + ["  %s : %s" % field for field in fields] + [""]
+
+
+def _enumeration_fields(graph, tables, variable_indices):
+    """The fields stating what an enumeration is: distinct constructors, and every value one of them.
+
+    The constructors of every enumeration of the input, in its declaration
+    order, are the family ctors (graph.constructor_index), all of them
+    whether the proof mentions them or not. enum_distinct states that two
+    constructors of one enumeration differ, and for every constant of an
+    enumeration sort (enum_cases_i, i its index in elems) and every
+    function with an enumeration result (enum_fcases_j, over every argument
+    list) that its value is one of the constructors of that sort. A model of
+    the input is still an instance (see _UF_FIELDS): the enumeration's values
+    join the disjoint union _m.U as the constructors' own values, and a
+    function is valued outside its domain by a constructor of its range. The
+    statement is about the input's symbols only, so it is as strong as the
+    input's datatype declarations and no stronger.
+    """
+    fields, offset, pairs = [("ctors", "Nat -> U")], 0, []
+    for sort in sorted(graph.enumerations):
+        count = len(graph.enumerations[sort])
+        pairs.extend("(Not (ctors %d = ctors %d))" % (offset + i, offset + j)
+                     for i in range(count) for j in range(i + 1, count))
+        offset += count
+    if pairs:
+        fields.append(("enum_distinct", _fold("And", pairs, "True")))
+    for table, field, binder, applied in (("elements", "enum_cases", "", "elems %d"),
+                                         ("functions", "enum_fcases", "forall _args : List U, ", "funs %d _args")):
+        for name, declaration in sorted(tables[table].items(), key=lambda item: variable_indices[item[1]]):
+            sort = graph.declarations[declaration].range
+            if sort in graph.enumerations:
+                index = variable_indices[declaration]
+                value = applied % index
+                fields.append(("%s_%d" % (field, index), binder + _fold("Or", [
+                    "(%s = ctors %d)" % (value, graph.constructor_index(constructor))
+                    for constructor in graph.enumerations[sort]], "False")))
+    return tuple(fields)
+
+
+def _enumeration_helpers(graph, reachable, atom_indices, variable_indices):
+    """State the enumeration facts a theory step over enumeration terms needs: the fields, instantiated.
+
+    grind knows nothing about the constructors: it gets their distinctness
+    and, for every constant and application of an enumeration sort the step
+    reaches, the disjunction of its possible values, on which it splits.
+    """
+    nodes = [node for node in sorted(reachable)
+             if graph.is_term(node) and graph.decl(node).range in graph.enumerations]
+    if not nodes:
+        return []
+    helpers = []
+    if any(len(constructors) > 1 for constructors in graph.enumerations.values()):
+        helpers.append("  have _ed := _m.enum_distinct")
+    def child(sub):
+        return "(%s)" % _inline(graph, sub, atom_indices, variable_indices)
+    for node in nodes:
+        if graph.kind(node) != z3.Z3_OP_UNINTERPRETED:
+            continue
+        index = variable_indices[graph.nodes[node].declaration]
+        if graph.arguments(node):
+            helpers.append("  have _ec%d := _m.enum_fcases_%d %s" % (
+                node, index, _application_arguments(graph, graph.arguments(node), child, child)))
+        else:
+            helpers.append("  have _ec%d := _m.enum_cases_%d" % (node, index))
+    return helpers
 
 
 def _infix(operator, arguments):
@@ -861,6 +987,8 @@ def _term_body(graph, node, variable_indices, term=None, formula=None):
                              _application_arguments(graph, arguments, term, formula))
     if kind == z3.Z3_OP_ANUM:
         return _numeral(graph.decl(node).range, Fraction(graph.decl(node).name))
+    if kind == z3.Z3_OP_DT_CONSTRUCTOR:
+        return "_m.ctors %d" % graph.constructor_index(graph.decl(node).name)
     if kind == z3.Z3_OP_ITE:
         # The instance's proposition is inferred from the condition.
         return "(@ite %s %s (Classical.propDecidable _) %s %s)" % (
@@ -895,6 +1023,9 @@ def _formula_body(graph, node, atom_indices, term=None, formula=None):
     formula = (lambda child: _formula(graph, child)) if formula is None else formula
     kind = graph.kind(node)
     arguments = graph.arguments(node)
+    if kind == z3.Z3_OP_DT_IS:
+        # SMT-LIB's recognizer of a nullary constructor c: (= t c).
+        return "(%s = _m.ctors %d)" % (term(arguments[0]), graph.constructor_index(graph.decl(node).name))
     if kind == z3.Z3_OP_UNINTERPRETED and arguments:
         return "_m.preds %d %s" % (atom_indices[graph.nodes[node].declaration],
                                    _application_arguments(graph, arguments, term, formula))
@@ -1888,6 +2019,8 @@ def _theory_helpers(graph, reachable, atom_indices, variable_indices):
         helpers.extend(_ite_gate_helpers(graph, reachable, atom_indices, variable_indices))
     if graph.uninterpreted:
         helpers.extend(_boolean_argument_helpers(graph, reachable, atom_indices, variable_indices))
+    if graph.enumerations:
+        helpers.extend(_enumeration_helpers(graph, reachable, atom_indices, variable_indices))
     if graph.arithmetic and graph.uninterpreted:
         helpers.extend(_real_argument_helpers(graph, reachable, atom_indices, variable_indices))
     return helpers
@@ -4630,6 +4763,20 @@ def _check_th_lemma(graph, node):
     if parameters[0] == "triangle-eq":
         _check_triangle_eq(graph, node, premises, literals)
         return
+    if parameters[0] == "datatype":
+        # The datatype solver's clauses over an enumeration: equalities
+        # between its terms (constructors included), proved by Lean.
+        if premises or not literals:
+            raise ReconstructionError("datatype th-lemma must be a clause without premises at node %d" % node)
+        for literal in literals:
+            atom = literal
+            while graph.kind(atom) == z3.Z3_OP_NOT:
+                atom = graph.arguments(atom)[0]
+            if (graph.kind(atom) not in (z3.Z3_OP_EQ, z3.Z3_OP_DT_IS)
+                    or graph.decl(graph.arguments(atom)[0]).range not in graph.enumerations):
+                raise ReconstructionError("datatype th-lemma literal is not an enumeration equality at node %d"
+                                          % node)
+        return
     if parameters[0] == "arith":
         # The arithmetic solver's own axioms (div and mod definitions), a
         # clause of linear arithmetic atoms without premises, and the legacy
@@ -5010,16 +5157,24 @@ def reconstruct(source, certificate):
                          " functions with %s result are the family %s." % (
                              sort, _INJECTIONS[sort], {"Real": "a Real", "Int": "an Int"}[sort],
                              _NUMERIC_FUNCTIONS[sort]))
-    if len(graph.sorts) == 1:
+    plain = [sort for sort in graph.sorts if sort not in graph.enumerations]
+    if len(plain) == 1:
         lines.append("-- Uninterpreted sort %s is the type _m.U; functions and predicates take argument lists."
-                     % json.dumps(graph.sorts[0], ensure_ascii=True))
-    elif graph.sorts:
+                     % json.dumps(plain[0], ensure_ascii=True))
+    elif plain:
         # One carrier for every sort is sound: a many-sorted model is an instance
         # of the theorem over the disjoint union of its carriers.
         lines.append("-- Uninterpreted sorts %s are the one type _m.U; functions and predicates take argument lists."
-                     % ", ".join(json.dumps(sort, ensure_ascii=True) for sort in graph.sorts))
-    elif graph.uninterpreted:
+                     % ", ".join(json.dumps(sort, ensure_ascii=True) for sort in plain))
+    elif graph.uninterpreted and not graph.enumerations:
         lines.append("-- No uninterpreted sort: the type _m.U carries only the Boolean arguments of the predicates.")
+    for sort in sorted(graph.enumerations):
+        first = graph.constructor_index(graph.enumerations[sort][0])
+        lines.append("-- Enumeration %s is part of _m.U with constructors %s, _m.ctors %d to %d (enum_distinct, "
+                     "enum_cases_*, enum_fcases_*)." % (
+                         json.dumps(sort, ensure_ascii=True),
+                         ", ".join(json.dumps(name, ensure_ascii=True) for name in graph.enumerations[sort]),
+                         first, first + len(graph.enumerations[sort]) - 1))
     if any(decl.kind == z3.Z3_OP_UNINTERPRETED and "Bool" in decl.domain for decl in graph.declarations):
         lines.append("-- Boolean arguments of functions and predicates are injected into _m.U by _m.bool.")
     # Formulas over wide n-ary connectives render as right-nested And/Or chains
@@ -5028,7 +5183,7 @@ def reconstruct(source, certificate):
     # recursion limit, scoped to this namespace. This is not a trust setting.
     lines.extend(["namespace " + namespace, "", "set_option maxRecDepth 100000", ""])
     options = len(lines) - 1
-    lines.extend(_interpretation_structure(graph))
+    lines.extend(_interpretation_structure(graph, tables, variable_indices))
     if any(decl.kind in _CONVERSION_KINDS for decl in graph.declarations):
         lines.extend(_CAST_LEMMAS + [""])
     signature = "(_atoms : Nat -> Prop)" + _valuation_binder(graph)
