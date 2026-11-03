@@ -856,12 +856,11 @@ def _valuation_binder(graph):
             "qf_uflira": _UFLIRA_BINDERS}.get(graph.fragment, "")
 
 
-def _interpretation_structure(graph, tables=None, variable_indices=None):
+def _interpretation_structure(graph, tables, variable_indices):
     """Declare the structure whose one argument _m interprets the uninterpreted symbols (none outside the UF fragments).
 
-    With enumerations, tables and variable_indices (the symbols of the
-    certificate and their indices) give the enumeration fields
-    (_enumeration_fields).
+    tables and variable_indices (the symbols of the certificate and their
+    indices) give the enumeration fields (_enumeration_fields).
     """
     if not graph.uninterpreted:
         return []

@@ -279,13 +279,32 @@ class TestEnumerationExport(unittest.TestCase):
             "(assert (not (= x nil)))\n(assert (= x nil))": "only enumeration datatypes",
             "(declare-datatypes ((E 1)) ((par (T) ((e1) (e2)))))\n(declare-const x (E Int))\n"
             "(assert (= x (as e1 (E Int))))": "parametric datatypes are not supported",
+            # SMT-LIB 2.5 lists the parameters first, without par.
+            "(declare-datatypes (T) ((E A B)))\n(declare-const x (E Int))\n"
+            "(assert (= x (as B (E Int))))": "parametric datatypes are not supported",
             "(declare-datatypes ((P 0)) (((pair (fst Int) (snd Int)))))\n(declare-const x P)\n"
             "(assert ((_ is pair) x))": "only enumeration datatypes",
+            # An accessor into an enumeration: the record is not one.
+            _COLOR + "(declare-datatypes ((P 0)) (((mk (fst Color)))))\n(declare-const p P)\n"
+            "(assert (= (fst p) red))": "only enumeration datatypes",
+            # A pigeonhole over eight constructors: with proofs Z3 searches it
+            # exponentially (see _PIGEONHOLE_MAX_CONSTRUCTORS).
+            "(declare-datatypes () ((E c0 c1 c2 c3 c4 c5 c6 c7)))\n"
+            + "".join("(declare-const v%d E)\n" % i for i in range(9))
+            + "(assert (distinct %s))" % " ".join("v%d" % i for i in range(9)):
+            "pigeonhole search under proofs",
         }
         for source, message in cases.items():
             with self.subTest(source=source):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
                     proof_certificate.parse_assertions(source + "\n(check-sat)\n", z3.Context(), integer=True)
+
+    def test_pigeonholes_up_to_seven_constructors_are_accepted(self):
+        source = ("(declare-datatypes () ((E c0 c1 c2 c3 c4 c5 c6)))\n"
+                  + "".join("(declare-const v%d E)\n" % i for i in range(32))
+                  + "(assert (distinct %s))\n(check-sat)\n" % " ".join("v%d" % i for i in range(32)))
+        _, found = proof_certificate.parse_assertions(source, z3.Context(), integer=True)
+        self.assertEqual(found, "qf_uf")
 
     def test_the_legacy_core_rejects_enumerations_explicitly(self):
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "through the clause log only"):

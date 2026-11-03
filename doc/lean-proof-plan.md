@@ -2258,7 +2258,14 @@ other way around from its logged clause, so the lemma is the logged clause.
 z3test `regressions/smt2/t198.smt2` (recognizers) and the second query of
 `z3.14.smt2` (the crashing `distinct`) now certify; SMT-LIB 2.5's `is-c`
 recognizers (`OP_DT_RECOGNISER`) are written as `(_ is c)` (`OP_DT_IS`) by
-the certificate and the replay keys. Tests:
+the certificate and the replay keys. That pigeonhole search grows
+exponentially (with 32 arguments, 7 constructors log 8 MB in 0.7 s and 8
+constructors 96 MB in 8 s), so the exporter rejects a `distinct` with more
+arguments than an enumeration of over seven constructors has values;
+parametric datatypes are rejected in both the SMT-LIB 2.6 (`par`) and 2.5
+(`(declare-datatypes (T) ...)`) syntax, and accessors with the enumeration
+message. Follow-up: a counting lemma for the `distinct` shortcut, so the
+search is not needed. Tests:
 `test_proof_to_lean_enum.py` (eleven documented inputs, z3.14, seven
 `random_enum_instance` seeds, the encoding, constructor tampering, the
 crash, the keys, a dropped enumeration fact failing Lean).

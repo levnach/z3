@@ -368,9 +368,13 @@ def query_snapshot(source, query=None):
                 raise ProofExportError("only uninterpreted sorts of arity 0 are supported")
             if name == "define-sort":
                 _check_sort_definition(tokens)
-            if name in ("declare-datatype", "declare-datatypes") and "par" in tokens:
+            if name in ("declare-datatype", "declare-datatypes") and (
+                    "par" in tokens or (name == "declare-datatypes" and tokens[3:4] not in (["("], [")"]))):
                 # An instance of a parametric datatype keeps the datatype's own
                 # name, so (E Int) and (E Bool) would share one certificate sort.
+                # SMT-LIB 2.6 writes the parameters with par; 2.5 lists them
+                # first, (declare-datatypes (T) ((E A B))), where the
+                # non-parametric form starts with () and 2.6 with ((E 0) ...).
                 raise ProofExportError("parametric datatypes are not supported")
             scopes[-1].append((name, text))
         else:
@@ -586,6 +590,24 @@ def enumeration_constructors(sort):
     return [sort.constructor(i) for i in range(sort.num_constructors())]
 
 
+# The most constructors of an enumeration under a distinct with more
+# arguments than constructors. Z3 refutes such a distinct by counting, which
+# no clause hint carries, so with proofs it searches the pigeonhole instead
+# (src/sat/smt/euf_internalize.cpp, add_distinct_axiom), and the search grows
+# exponentially: with 32 arguments, 7 constructors log 8 MB in 0.7 s and 8
+# constructors 96 MB in 8 s.
+_PIGEONHOLE_MAX_CONSTRUCTORS = 7
+
+
+def _require_small_pigeonhole(distinct):
+    """Reject a distinct over an enumeration whose refutation by proof is an expensive pigeonhole search."""
+    count = distinct.arg(0).sort().num_constructors()
+    if distinct.num_args() > count > _PIGEONHOLE_MAX_CONSTRUCTORS:
+        raise ProofExportError("a distinct of %d terms over an enumeration of %d constructors is a pigeonhole "
+                               "search under proofs; at most %d constructors are supported"
+                               % (distinct.num_args(), count, _PIGEONHOLE_MAX_CONSTRUCTORS))
+
+
 def _require_uninterpreted_sort(candidate, sorts):
     """Check an uninterpreted sort's name and record it in sorts.
 
@@ -657,6 +679,12 @@ def classify_fragment(assertions):
         if not z3.is_app(expr):
             raise ProofExportError("only quantifier-free expressions are supported")
         decl = expr.decl()
+        if decl.kind() in (z3.Z3_OP_DT_ACCESSOR, z3.Z3_OP_DT_UPDATE_FIELD):
+            # An enumeration has no fields, so this datatype is not one.
+            raise ProofExportError("only enumeration datatypes (nullary constructors) are supported: %s"
+                                   % expr.arg(0).sort())
+        if decl.kind() == z3.Z3_OP_DISTINCT and is_enumeration_sort(expr.arg(0).sort()):
+            _require_small_pigeonhole(expr)
         if decl.kind() == z3.Z3_OP_UNINTERPRETED:
             _require_unique_symbol(decl, symbols)
             if decl.arity() != 0:
