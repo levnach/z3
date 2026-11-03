@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #65: Certify pseudo-Boolean constraints in Lean through the legacy core</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1d2127; --muted: #5a6370; --accent: #0b5cad;
+    --code-bg: #f3f5f8; --border: #d9dee5; --note-bg: #fff7e0; --note-border: #e0c060;
+    --ok: #1a7f37; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181d; --fg: #e3e6ea; --muted: #9aa3ad; --accent: #6cb6ff;
+      --code-bg: #1f242b; --border: #343b45; --note-bg: #2a2416; --note-border: #7a6420;
+      --ok: #57c26a; --warn: #d6a73a;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; }
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; background: var(--code-bg); padding: .05em .3em; border-radius: 3px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: .85em; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); margin: 0; }
+  .note { background: var(--note-bg); border-left: 4px solid var(--note-border); padding: .6rem .9rem; border-radius: 4px; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -.4rem; color: var(--muted); }
+  dt { font-weight: 600; margin-top: .7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .9em; border-top: 1px solid var(--border); padding-top: .8rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Certify pseudo-Boolean constraints in Lean through the legacy core</h1>
+  <p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/65">levnach/z3#65</a> · loop iteration 65 · 2026-11-03T03:19:17Z</p>
+  <p class="meta">State: <strong>OPEN</strong>. This PR is not merged. Change commit:
+    <a href="https://github.com/levnach/z3/commit/c7730e75fbc85c3dd8a685e7d86831734fb86beb"><code>c7730e75f</code></a>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Input that uses <a href="#g-pb">pseudo-Boolean constraints</a> can now be certified in Lean.
+This covers <a href="#g-cardinality">cardinality constraints</a> such as <code>at-most</code> and <code>at-least</code>, and weighted ones such as <code>pble</code>, <code>pbge</code> and <code>pbeq</code>.
+Their arguments must be <a href="#g-boolean">Boolean</a> variables or single <a href="#g-negation">negations</a> of them, which makes each one a <a href="#g-literal">literal</a>.
+Lean states each constraint as an integer comparison: a weighted sum of 0/1 literal values against a <a href="#g-bound">bound</a>.
+The pseudo-Boolean <a href="#g-theory-lemma">theory lemmas</a> and <a href="#g-rewrite">rewrites</a> in Z3's <a href="#g-refutation">refutation</a> are proved with the <a href="#g-omega"><code>omega</code></a> <a href="#g-tactic">tactic</a>.
+No new <a href="#g-axiom">axioms</a> are added.
+Lean's <a href="#g-kernel">kernel</a> also exposed two places where Z3 itself emitted theory lemmas that do not hold on their own.
+The PR fixes both, only when proofs are enabled.</p>
+
+<h2 id="background">Background</h2>
+<p>Before this PR, the exporter rejected every pseudo-Boolean constraint with "unsupported propositional operator".
+So no <a href="#g-propositional">propositional</a> input with a cardinality bound could be certified, not even the two unsat queries of the z3test file <code>pb.smt2</code>.
+The pipeline already handled plain <a href="#g-clause">clauses</a> and Boolean structure on the legacy core.
+This PR widens that kernel-checked Boolean slice (milestone 2 of the plan) with the first theory that lives next to it, a step toward milestone 4, broader theories.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>You can now certify propositional input that contains <code>at-most</code>, <code>at-least</code>, <code>pble</code>, <code>pbge</code> or <code>pbeq</code> with integer parameters.</li>
+  <li>Lean now proves Z3's pseudo-Boolean theory lemmas and rewrites by turning each literal into an integer that is 0 or 1 and handing the arithmetic to <code>omega</code>.</li>
+  <li>A certificate whose bound or coefficients differ from the input is now rejected, because the parameters are part of how a constraint is matched to the input.</li>
+  <li>Z3 with proofs enabled no longer emits pseudo-Boolean lemmas that silently rely on unstated facts.</li>
+  <li>Inputs outside the supported shape now get a clear rejection: compound or doubly negated arguments, constraints next to arithmetic or <a href="#g-uf">uninterpreted functions</a>, and the clause-log core.</li>
+</ul>
+<p>Think of a pseudo-Boolean constraint as a budget.
+Each true literal costs its coefficient, and the total must stay within the bound.
+The first C++ defect was like subtracting money already spent from the budget without keeping the receipt.
+At the <a href="#g-base-level">base level</a>, Z3 folded known variable values into the bound.
+It then stated the shrunken constraint as if it held alone.
+With proofs enabled, Z3 now leaves the bound alone and reads those values later.
+The second defect was in <a href="#g-conflict">conflict</a> resolution.
+Z3 combined several constraints into a <a href="#g-cutting-plane">cutting-plane</a> <a href="#g-resolvent">resolvent</a>, but its justification cited only some of them.
+With proofs enabled, Z3 now learns the plain <a href="#g-conflict-clause">conflict clause</a> instead, which is a valid theory lemma.</p>
+
+<table>
+  <thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/smt/theory_pb.cpp</code></td><td>Z3 pseudo-Boolean solver</td><td class="num">23</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">79</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">149</td><td class="num">4</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_pb.py</code></td><td>New tests</td><td class="num">303</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests</td><td class="num">6</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Documentation</td><td class="num">14</td><td class="num">4</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan</td><td class="num">40</td><td class="num">0</td></tr>
+    <tr><th>Total (7 files, 3 commits)</th><th></th><th class="num">614</th><th class="num">12</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This input is the PR's test case <code>pb_at_most_pairs</code>.
+At most one of three variables may be true, yet every pair must contain a true one.
+It was run through the old and the new scripts for this report.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const a Bool)
+(declare-const b Bool)
+(declare-const c Bool)
+(assert ((_ at-most 1) a b c))
+(assert (or a b))
+(assert (or b c))
+(assert (or a c))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the exporter at the PR base</h3>
+<pre><code>proof_certificate.py: error: unsupported propositional operator: at-most</code></pre>
+<p class="explain">The old exporter stopped at the first constraint, so no Lean file was produced.</p>
+
+<h3>(c) After: the generated Lean file, trimmed</h3>
+<pre><code>private theorem _pb_bit (p : Prop) :
+    (0 &lt;= (@ite Int p (Classical.propDecidable p) 1 0) /\ (@ite Int p (Classical.propDecidable p) 1 0) &lt;= 1)
+      /\ (p &lt;-&gt; (@ite Int p (Classical.propDecidable p) 1 0) = 1) := by
+  by_cases _h : p &lt;;&gt; simp [_h]</code></pre>
+<p class="explain">A helper proved once per file: a literal's value is between 0 and 1, and the literal is true exactly when its value is 1.</p>
+
+<pre><code>def formula_3 (_atoms : Nat -&gt; Prop) : Prop := ((((@ite Int (formula_0 _atoms) (Classical.propDecidable _) 1 0) + (@ite Int (formula_1 _atoms) (Classical.propDecidable _) 1 0)) + (@ite Int (formula_2 _atoms) (Classical.propDecidable _) 1 0)) &lt;= ((1 : Int)))
+...
+def formula_12 (_atoms : Nat -&gt; Prop) : Prop := ((((@ite Int (formula_9 _atoms) (Classical.propDecidable _) 1 0) + (@ite Int (formula_10 _atoms) (Classical.propDecidable _) 1 0)) + (@ite Int (formula_11 _atoms) (Classical.propDecidable _) 1 0)) &gt;= ((2 : Int)))</code></pre>
+<p class="explain"><code>formula_3</code> is the input's <code>at-most 1</code>, written as "value of a + value of b + value of c is at most 1", and <code>formula_12</code> is Z3's rewritten form, "at least two of the negations are true".</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
+    (_h0 : (formula_3 _atoms))
+    (_h1 : (formula_4 _atoms))
+    (_h2 : (formula_5 _atoms))
+    (_h3 : (formula_6 _atoms))
+    : False :=
+...</code></pre>
+<p class="explain">The main theorem says that the four assertions together imply <code>False</code>.</p>
+
+<pre><code>private theorem th_lemma_24 (_atoms : Nat -&gt; Prop)
+    : (formula_12 _atoms) -&gt; (formula_1 _atoms) -&gt; (formula_9 _atoms) := by
+  unfold formula_12 formula_11 formula_10 formula_9 formula_2 formula_1 formula_0
+  (try simp only [_pb_not])
+  have _r0 := (_pb_bit (_atoms 0)).1
+  have _e0 := (_pb_bit (_atoms 0)).2
+  generalize (@ite Int (_atoms 0) (Classical.propDecidable (_atoms 0)) 1 0) = _x0 at _r0 _e0 |-
+  ...
+  (try simp only [_e0, _e1, _e2]) &lt;;&gt; omega</code></pre>
+<p class="explain">This is one of Z3's pseudo-Boolean theory lemmas: if at least two negations hold and <code>b</code> is true, then <code>a</code> is false, and <code>omega</code> checks the arithmetic.</p>
+<p class="ok">Lean accepted the file: <code>./scripts/check_lean.sh</code> printed "Lean checks passed."</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>In plain terms, every test suite the implementer ran passed after the review fixes.
+The new pseudo-Boolean tests check about a dozen hand-written and random inputs in Lean.
+Four sweeps of random pseudo-Boolean puzzles reconstructed every unsat instance with none rejected.
+Before the C++ fix, about half of the small random unsat instances failed Lean.
+The reviewer rebuilt the base commit and confirmed that the new guard test fails there.
+The reviewer also compared solver answers with and without proofs and found no mismatch.
+Exact counts are below.</p>
+
+<table>
+  <thead><tr><th>Check (after the review fixes)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Build with CMake</td><td class="ok">OK</td></tr>
+    <tr><td>C++ unit tests <code>theory_pb</code>, <code>api_pb</code>, <code>pb2bv</code>, <code>sorting_network</code>, <code>proof_replay</code>, <code>smt_proof_checker</code></td><td class="ok">6 passed, 0 failed</td></tr>
+    <tr><td>Exporter tests <code>test_proof_certificate.py</code></td><td class="ok">109 OK</td></tr>
+    <tr><td>New tests <code>test_proof_to_lean_pb.py</code></td><td class="ok">10 OK</td></tr>
+    <tr><td>All reconstructor tests <code>test_proof_to_lean*.py</code></td><td class="ok">373 OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+    <tr><td>z3test proof tests</td><td class="ok">46 OK</td></tr>
+    <tr><td>Four random sweeps, one-negation rule</td><td class="ok">277 reconstructed, 0 rejected, 53 sat</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>Earlier check (implementer's commits, before review fixes)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>All C++ unit tests <code>test-z3 /a</code></td><td class="ok">126 passed, 0 failed</td></tr>
+    <tr><td>z3test <code>regressions/smt2</code> benchmarks</td><td class="ok">960 files, exit 0</td></tr>
+    <tr><td>Proof matrix, Boolean legacy cells in Lean</td><td class="ok">6/6</td></tr>
+    <tr><td>Proof matrix, <code>lra_*</code> clause-log cells in Lean</td><td class="ok">8/8</td></tr>
+    <tr><td>Lean sweeps: 5×5, 10×12, 16×9, 24×14 variables × constraints</td><td class="ok">113 + 77 + 50 + 37 unsat, all verified</td></tr>
+    <tr><td>Pigeonhole in Lean</td><td class="ok">up to 6 pigeons in 5 holes</td></tr>
+    <tr><td>Theory lemmas checked by z3 on their own</td><td class="ok">0 invalid of 906 random + 7,190 pigeonhole</td></tr>
+    <tr><td>Before the C++ fix: first 31 unsat 5×5 seeds in Lean</td><td class="warn">16 failed</td></tr>
+    <tr><td>Reviewer: random solves with vs. without proofs</td><td class="ok">1,680 solves, 0 mismatches</td></tr>
+  </tbody>
+</table>
+<p>The review-fix commit touches C++ only in a comment, so the earlier C++ results still apply to its binary.
+No local gate result was recorded for this iteration when this report was written.</p>
+
+<h3>CI</h3>
+<p class="note">No CI status was recorded when this report was written, and there were no CI fix rounds.
+The results below are therefore unknown. See the <a href="https://github.com/levnach/z3/pull/65/checks">PR's checks page</a> for the live state.</p>
+<table>
+  <thead><tr><th>Workflow job</th><th>Step that runs this PR's tests</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean, which runs <code>test_proof_to_lean_pb.py</code></td><td>not recorded</td></tr>
+    <tr><td>Python bindings (manylinux …) build</td><td>Test Python wheel, which runs <code>test_proof_certificate.py</code></td><td>not recorded</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR with no blockers and no major findings.
+The reviewer confirmed there are no new axioms and no <code>sorry</code>.</p>
+<ul>
+  <li><strong>Minor: double negation slipped through.</strong>
+    The reviewer fed in <code>((_ at-least 2) (not (not a)) b)</code> with <code>(not a)</code>.
+    The exporter accepted it, but the reconstructor then failed with "unsupported Boolean <a href="#g-congruence">congruence</a>".
+    That was a clean failure, not a soundness bug.
+    Still, the accepted inputs were wider than what could be certified.
+    Both scripts now accept at most one negation per argument, and the input became a rejection test.</li>
+  <li><strong>Nit: a test checked too loosely.</strong>
+    The <a href="#g-sat">satisfiable</a>-query test matched any error containing "sat", which also matches "unsat".
+    An unrelated error would have passed it.
+    The pattern now matches the exporter's exact message.</li>
+  <li><strong>Nit: negative numbers were untested.</strong>
+    No test used negative coefficients or bounds, although the API can produce them.
+    A new Lean end-to-end input, <code>pb_negative_coefficients</code>, now covers them.</li>
+  <li><strong>Suggestion: explain why learning is off.</strong>
+    A comment in <code>theory_pb.cpp</code> now says why conflict learning is disabled under proofs.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>With proofs enabled, Z3 loses some early <a href="#g-propagation">propagation</a> and no longer learns cutting-plane resolvents. Solving could be slower on pseudo-Boolean-heavy input. The reviewer measured no difference on pigeonhole 6 to 8 or on 40×60 random instances. Solving without proofs is unchanged.</li>
+  <li>Each pseudo-Boolean lemma restates three lines per variable it touches, so very wide constraints give large Lean files.</li>
+  <li>z3test's legacy matrix cell now classifies pseudo-Boolean input as propositional. None of its inputs use such constraints today.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Certify these constraints on the clause-log core, whose pseudo-Boolean solver would first need to log the constraints and a <code>pb</code> hint.</li>
+  <li>Support compound arguments, and constraints next to arithmetic or uninterpreted functions.</li>
+  <li>Re-enable cardinality conflict learning under proofs, once the justification cites every constraint it combines.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-axiom">axiom</dt><dd>A statement accepted without proof. A trustworthy certificate adds none beyond Lean's standard ones.</dd>
+  <dt id="g-base-level">base level</dt><dd>The solver's state before it has made any guess. Values fixed here follow directly from the input.</dd>
+  <dt id="g-boolean">Boolean</dt><dd>A value that is either true or false. In SMT-LIB its sort is <code>Bool</code>.</dd>
+  <dt id="g-bound">bound</dt><dd>The number a weighted sum is compared with. In <code>((_ at-most 1) a b c)</code> the bound is 1.</dd>
+  <dt id="g-cardinality">cardinality constraint</dt><dd>A pseudo-Boolean constraint where every coefficient is 1, so it counts true literals. Example: <code>((_ at-least 2) a b c)</code>.</dd>
+  <dt id="g-clause">clause</dt><dd>A disjunction of literals, true when at least one literal is true. Example: <code>(or a (not b))</code>.</dd>
+  <dt id="g-conflict">conflict</dt><dd>A moment in search where the current assignment makes some constraint false.</dd>
+  <dt id="g-conflict-clause">conflict clause</dt><dd>A clause the solver learns from a conflict so it never repeats the same mistake.</dd>
+  <dt id="g-congruence">congruence</dt><dd>The rule that equal inputs give equal results. If <code>x</code> equals <code>y</code>, then <code>(not x)</code> equals <code>(not y)</code>.</dd>
+  <dt id="g-cutting-plane">cutting plane</dt><dd>A way to combine linear inequalities into a new one that every 0/1 solution still satisfies.</dd>
+  <dt id="g-ite">if-then-else term</dt><dd>A term that picks one of two values by a condition, written <code>ite</code>. Here <code>ite l 1 0</code> gives a literal's 0/1 value.</dd>
+  <dt id="g-kernel">kernel</dt><dd>The small trusted core of Lean that checks every proof step.</dd>
+  <dt id="g-literal">literal</dt><dd>A Boolean variable or its negation, such as <code>a</code> or <code>(not a)</code>.</dd>
+  <dt id="g-negation">negation</dt><dd>The opposite of a Boolean, written <code>(not a)</code>. It is true exactly when <code>a</code> is false.</dd>
+  <dt id="g-omega"><code>omega</code></dt><dd>A Lean tactic that decides linear arithmetic over integers and natural numbers.</dd>
+  <dt id="g-pigeonhole">pigeonhole problem</dt><dd>Putting n+1 pigeons into n holes with at most one per hole. It is always unsat, and it is a standard hard test.</dd>
+  <dt id="g-propagation">propagation</dt><dd>Deriving a forced value from the current assignment, such as concluding <code>a</code> is false.</dd>
+  <dt id="g-propositional">propositional</dt><dd>Built only from Boolean variables and connectives like <code>and</code>, <code>or</code>, <code>not</code>, with no arithmetic or functions.</dd>
+  <dt id="g-pb">pseudo-Boolean constraint</dt><dd>A linear inequality or equation over literals counted as 0 or 1. Example: <code>((_ pble 6 2 3) a b)</code> means 2·a + 3·b ≤ 6.</dd>
+  <dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to false, so they cannot all hold.</dd>
+  <dt id="g-resolvent">resolvent</dt><dd>The new constraint obtained by combining two constraints to eliminate a variable.</dd>
+  <dt id="g-rewrite">rewrite</dt><dd>A proof step stating that a term equals a simpler or normalized one. Example: <code>at-most 1</code> of three becomes <code>at-least 2</code> of their negations.</dd>
+  <dt id="g-sat">satisfiable</dt><dd>Having at least one assignment that makes all assertions true. Such input has no refutation.</dd>
+  <dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically, such as <code>simp</code> or <code>omega</code>.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt><dd>A clause that a theory solver claims is valid by its own reasoning. Z3 writes it <code>th-lemma</code>, and here its hint is <code>pb</code>.</dd>
+  <dt id="g-uf">uninterpreted function</dt><dd>A function symbol with no fixed meaning, only that equal arguments give equal results.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-02.
+</footer>
+
+</main>
+</body>
+</html>
