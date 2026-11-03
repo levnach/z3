@@ -3,155 +3,156 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>PR #64: Certify integrality cuts through floors of Real terms in qf_lira</title>
 <style>
   :root {
-    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --accent-bg: #ddf4ff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --accent-bg: #0c2d6b;
     }
   }
   html { background: var(--bg); color: var(--fg); }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; margin-top: 2.2rem; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6;
+         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  a { color: var(--link); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
   h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-  a { color: var(--accent); }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
-         background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
   pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
-        padding: .8rem; overflow-x: auto; line-height: 1.4; }
-  pre code { background: none; padding: 0; font-size: .8rem; }
-  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
-  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+        padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.82em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93em; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .meta { color: var(--muted); font-size: .95rem; }
-  .meta p { margin: .2rem 0; }
-  .badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; font-size: .85rem;
-           font-weight: 600; border: 1px solid currentColor; }
-  .open { color: var(--ok); }
+  .meta { color: var(--muted); font-size: 0.95em; }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+  .meta dd { margin-left: 9rem; }
+  .badge { display: inline-block; padding: 0.05em 0.6em; border-radius: 1em; font-weight: 600;
+           font-size: 0.85em; border: 1px solid var(--ok); color: var(--ok); }
   .pass { color: var(--ok); font-weight: 600; }
   .unknown { color: var(--warn); font-weight: 600; }
-  .note { color: var(--muted); font-size: .92rem; }
-  dt { font-weight: 600; margin-top: .6rem; }
-  dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem;
-           color: var(--muted); font-size: .88rem; }
+  .note { background: var(--accent-bg); border-radius: 6px; padding: 0.6rem 0.9rem; }
+  .explain { margin-top: -0.4rem; margin-bottom: 1.2rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9em; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Certify integrality cuts through floors of Real terms in qf_lira</h1>
-  <div class="meta">
-    <p>Pull request: <a href="https://github.com/levnach/z3/pull/64">levnach/z3#64</a>
-       &middot; State: <span class="badge open">OPEN</span> &middot; Opened 2026-11-03T01:07:09Z
-       &middot; Loop iteration 64</p>
-    <p>This pull request is open and <strong>not merged</strong>.
-       The change commit is
-       <a href="https://github.com/levnach/z3/commit/022e4eda9d2e5d80cde19aaf1c675d6f7b92e264"><code>022e4eda9</code></a>.
-       It sits on top of the base commit <code>011a7409b</code>.</p>
-  </div>
+<h1>Certify integrality cuts through floors of Real terms in qf_lira</h1>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/64">levnach/z3 #64</a></dd>
+  <dt>State</dt><dd><span class="badge">MERGED</span></dd>
+  <dt>Merged</dt><dd>2026-11-03T01:33:52Z</dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/19f266244aacfdfd59c9ea1266bfab1a0379711d"><code>19f266244</code></a></dd>
+  <dt>Loop iteration</dt><dd>64</dd>
+</dl>
 </header>
 
-<h2 id="summary">In one paragraph</h2>
-<p>Some <a href="#g-refutation">refutations</a> in the <a href="#g-qf-lira">QF_LIRA</a> logic
-need an <a href="#g-cut">integrality cut</a> that goes through the <a href="#g-floor">floor</a>
-of a <a href="#g-real">Real</a> term. An example is <code>x = 5</code> with <code>x/2</code>
-an integer. Neither proof core could certify such a step before. Now the exporter and the
-reconstructor accept these cuts. The reconstructor
-also computes a <a href="#g-projection">projection</a> of the step onto its
-<a href="#g-int">Int</a> <a href="#g-atom">atoms</a>. It removes every Real atom exactly, using
-substitution and <a href="#g-fourier-motzkin">Fourier–Motzkin elimination</a>. Each resulting
-constraint is handed to Lean as an instance of a <a href="#g-lemma">lemma</a> that Lean has
-already checked. Lean's <a href="#g-tactic">tactic</a> <code>grind</code> then finds the integer
-contradiction. The PR adds no <a href="#g-axiom">axiom</a> and no <a href="#g-sorry">sorry</a>.
-A wrong projection can only make Lean fail, never make it accept.</p>
+<h2 id="one-paragraph">In one paragraph</h2>
+<p>
+Some <a href="#g-qf-lira">QF_LIRA</a> <a href="#g-refutation">refutations</a> rest on an
+<a href="#g-cut">integrality cut</a> through the <a href="#g-floor">floor</a> of a Real term.
+An example is <code>x = 5</code> while <code>x/2</code> must be an integer.
+Before this PR, both proof cores failed on such steps.
+Now the reconstructor computes a <a href="#g-projection">projection</a> of the step onto its Int
+<a href="#g-atom">atoms</a>.
+It removes every Real atom exactly, by substitution and <a href="#g-fourier-motzkin">Fourier–Motzkin elimination</a>.
+Each remaining constraint is stated over Int through an existing <a href="#g-cast">cast</a>
+<a href="#g-lemma">lemma</a>, so Lean's <a href="#g-tactic">tactic</a> can see the integer contradiction.
+No new <a href="#g-axiom">axiom</a>, no new lemma, and no <a href="#g-sorry">sorry</a> were added.
+A wrong projection can only make Lean fail, never accept a false claim.
+On 400 random floor puzzles, every unsat run now verifies in Lean.
+</p>
 
 <h2 id="background">Background</h2>
-<p>PR #63 taught both proof cores to certify <code>to_int</code> and
-<a href="#g-is-int">is_int</a> in QF_LIRA. After it, 11 of 162 runs on random floor puzzles still
-had no verified <a href="#g-certificate">certificate</a>. Every one of them needed a
-<a href="#g-cut">cut</a> through the floor of a Real term. The clause-log exporter rejected
-these with "cut hint over Real atoms". On the legacy core, a
-<a href="#g-farkas">Farkas lemma</a> step without coefficients reached Lean, and
-<code>grind</code> could not prove it. The <a href="#g-relaxation">rational relaxation</a> of the step has a solution, so only
-integer reasoning finds the contradiction. This work serves Milestone 3 of the plan, "Equality and linear
-arithmetic", which asks that each arithmetic fragment be complete end to end.</p>
+<p>
+After PR #63, the pipeline certified <code>to_int</code> and <code>is_int</code> in QF_LIRA on both cores.
+It still missed one shape of <a href="#g-theory-lemma">theory lemma</a>: a cut whose
+<a href="#g-literal">literals</a> mention a Real variable under a floor.
+The clause-log exporter rejected such a cut outright.
+On the legacy core, the step became a <a href="#g-farkas">Farkas</a> step without coefficients, and Lean's
+<code>grind</code> could not close it.
+The reason is that the <a href="#g-rational-relaxation">rational relaxation</a> of these steps has a solution.
+Of 162 runs over the unsat seeds 1–200, 11 had no verified certificate.
+This work serves Milestone 3 of the plan, "Equality and linear arithmetic", which completes each
+arithmetic fragment end to end.
+</p>
 
-<h2 id="changes">What changed</h2>
+<h2 id="what-changed">What changed</h2>
 <ul>
-  <li>The clause-log exporter now accepts a cut whenever some <a href="#g-literal">literal</a>
-      reaches an Int atom, and a floor counts as one. A cut over Real atoms alone is still rejected.</li>
-  <li>The reconstructor applies the same rule, so the two shape checks now agree on which cuts are allowed.</li>
-  <li>For such a cut, the reconstructor adds "projection facts": the step's constraints with every
-      Real atom eliminated, restated over Int so that <code>grind</code> can reason about whole numbers.</li>
-  <li>Legacy-core Farkas and bound steps without coefficients get the same projection facts, which closes the three legacy failures.</li>
-  <li>New test inputs, random seeds, and validation tests pin the behavior, and the docs describe it.</li>
+  <li>The clause-log exporter now accepts a cut when some literal reaches an Int atom, and a floor counts as one.</li>
+  <li>The reconstructor applies the same rule, so the two shape checks now agree.</li>
+  <li>For a cut or a coefficient-free Farkas or bound step, the reconstructor now adds projection facts that tell Lean the integer consequence of the step.</li>
+  <li>The projection skips constraints it cannot read as linear, stays within a size limit, and states at most 16 facts per step.</li>
+  <li>New tests pin two hand-written inputs, two random seeds, and the new rejection and limit rules.</li>
 </ul>
-<p>An analogy: solve a system of equations for its one fractional unknown and plug it in everywhere.
-What remains talks only about whole numbers, so a whole-number solver can see that nothing fits.
-The elimination is capped at 200 constraints and 16 facts per step.</p>
-
+<p>
+Think of the projection as a shadow. The Real variables are flattened away.
+The shadow keeps exactly the integer points that some real values can extend.
+The change is Python only. The C++ code of Z3 is untouched.
+</p>
 <table>
-  <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+  <thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">139</td><td class="num">10</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: shape check, projection facts</td><td class="num">139</td><td class="num">10</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td>Tests</td><td class="num">127</td><td class="num">31</td></tr>
-    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log exporter</td><td class="num">28</td><td class="num">2</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">14</td><td class="num">0</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">7</td><td class="num">2</td></tr>
-    <tr><th>Total, 2 commits</th><th></th><th class="num">315</th><th class="num">45</th></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log exporter: cut shape check</td><td class="num">28</td><td class="num">2</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan update</td><td class="num">14</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>QF_LIRA paragraph</td><td class="num">7</td><td class="num">2</td></tr>
+    <tr><th>Total</th><td></td><th class="num">315</th><th class="num">45</th></tr>
   </tbody>
 </table>
-<p class="note">The PR has two commits. <code>91a829c46</code> holds the feature. <code>022e4eda9</code> holds the review fixes.</p>
 
-<h2 id="example">Worked example</h2>
-<p>This is the PR's new test <code>is_int_parity</code>. Here <code>x</code> and <code>x/2</code>
-are whole numbers, so <code>x</code> is even, yet it must be 3 or 5.</p>
+<h2 id="worked-example">Worked example</h2>
+<p>
+The input is the PR's new test <code>is_int_parity</code>, with a <code>check-sat</code> line added.
+I ran it through the exporter and reconstructor at the merged commit, and through the scripts of the base commit.
+</p>
+
 <h3>(a) The input</h3>
 <pre><code>(set-logic QF_LIRA)
 (declare-const x Real)
 (assert (is_int x))
 (assert (is_int (/ x 2.0)))
-(assert (or (= x 3.0) (= x 5.0)))</code></pre>
+(assert (or (= x 3.0) (= x 5.0)))
+(check-sat)</code></pre>
+<p class="explain">If <code>x</code> and <code>x/2</code> are both integers, <code>x</code> is even, so it cannot be 3 or 5.</p>
 
-<h3>(b) Before: the pre-PR exporter</h3>
+<h3>(b) Before: the base commit's exporter</h3>
 <pre><code>proof_certificate.py: error: cut hint over Real atoms</code></pre>
-<p>The base-commit exporter stopped here, so the old reconstructor had nothing to run on.</p>
+<p class="explain">The old exporter refused the cut, so no certificate was produced and Lean was never reached.</p>
 
-<h3>(c) After: the generated Lean file</h3>
-<p>The current exporter and reconstructor both succeeded. Running <code>check_lean.sh</code> on the
-file printed "Lean checks passed." Lean accepted it.</p>
-<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Rat := _vars 0
+<h3>(c) After: the generated Lean, trimmed</h3>
+<pre><code>-- Variable 0: "x"
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Rat := _vars 0
 ...
 def term_27 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Rat := ((term_26 _atoms _vars _ivars) * (term_0 _atoms _vars _ivars))
 def term_28 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Int := (Rat.floor (term_27 _atoms _vars _ivars))
-def term_29 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Rat := (((term_28 _atoms _vars _ivars) : Int) : Rat)
-...
-def formula_58 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Prop := ((term_27 _atoms _vars _ivars) = (term_29 _atoms _vars _ivars))
-def formula_59 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Prop := (Not (formula_58 _atoms _vars _ivars))
-def formula_60 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Prop := (Or (formula_50 _atoms _vars _ivars) (Or (formula_50 _atoms _vars _ivars) (Or (formula_59 _atoms _vars _ivars) (formula_59 _atoms _vars _ivars))))</code></pre>
-<p><code>term_0</code> is <code>x</code> as a rational number. <code>term_28</code> is the floor of
-<code>x/2</code>, an Int. <code>formula_60</code> is the cut's <a href="#g-clause">clause</a>:
-either <code>x</code> is not 5, or <code>x/2</code> is not equal to its own floor.</p>
+...</code></pre>
+<p class="explain"><code>x</code> becomes a rational number, <code>term_27</code> is <code>x/2</code> written as <code>(1/2)·x</code>, and <code>term_28</code> is its floor, an Int.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
     (_h0 : (formula_1 _atoms _vars _ivars))
     (_h1 : (formula_4 _atoms _vars _ivars))
     (_h2 : (formula_9 _atoms _vars _ivars))
     : False :=
-  ...</code></pre>
-<p>The theorem says that the three assertions together imply <code>False</code>, for every value of <code>x</code>.</p>
+...</code></pre>
+<p class="explain">The theorem says the three assertions together imply <code>False</code>, for every value of <code>x</code>.</p>
 
-<pre><code>set_option maxHeartbeats 1000000 in
-private theorem th_lemma_61 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
+<pre><code>private theorem th_lemma_61 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
     : (formula_60 _atoms _vars _ivars) := by
   unfold formula_60 formula_59 formula_58 formula_50 formula_44 term_29 term_28 term_27 term_26 term_16 term_7 term_2 term_0
   ...
@@ -162,127 +163,131 @@ private theorem th_lemma_61 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_
   have _p61_2 := _int_cast_lt (((-2 : Int)) * (Rat.floor (((((((1 : Rat))) / (((2 : Rat))))) * (_vars 0)))) + ((3 : Int))) ((0 : Int))
   push_cast at *
   first | omega | grind (splits := 64)</code></pre>
-<p>This is the cut lemma, and the three <code>_p61_*</code> lines are the new projection facts.
-Substituting <code>x = 5</code> into "<code>x/2</code> equals its floor <code>f</code>" leaves
-<code>-2f + 5 = 0</code>. The fact <code>_p61_0</code> links that Int equation to its rational
-copy, and <code>grind</code> sees that no integer <code>f</code> solves it.</p>
+<p class="explain">
+This is the cut. Its <a href="#g-clause">clause</a> says <code>x = 5</code> and "<code>x/2</code> equals its floor" cannot both hold.
+The new <code>_p61_*</code> lines are the projection facts: with <code>x</code> eliminated, they relate <code>2·floor(x/2)</code> to 5 over Int.
+<code>grind</code> then sees that no integer doubles to 5.
+</p>
+<p class="note"><strong>Lean accepted the file.</strong> The reconstructor printed "Lean checked the refutation", and
+<code>scripts/check_lean.sh</code> printed "Lean checks passed."
+A second cut, <code>th_lemma_74</code>, does the same for <code>x = 3</code>.</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>In plain terms: every test suite passed on the final branch head, and a few hundred random
-floor puzzles all verified in Lean on both cores. The automated local gate had not recorded a
-result when this report was written.</p>
-
+<p>
+In plain terms: every unsat random floor puzzle from seeds 1–400 now checks in Lean on both cores, each in under two seconds.
+With the projection facts switched off, most new test runs fail again.
+The loop merged this PR on its local gate, which mirrors the relevant CI job. All five gate steps passed.
+</p>
 <table>
-  <thead><tr><th>Check, final head unless noted</th><th>Result</th></tr></thead>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td>Lean reconstruction unit tests, <code>test_proof_to_lean*.py</code></td><td class="pass">363 tests, OK, 1561 s</td></tr>
-    <tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">109 tests, OK</td></tr>
-    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
-    <tr><td>External proof tests in z3test</td><td class="pass">46 tests, OK</td></tr>
-    <tr><td>Floor sweep, seeds 1–400, both cores</td><td class="pass">330 / 330 verified in Lean, at most 1.8 s each</td></tr>
-    <tr><td>Reviewer sweep, seeds 201–400, first commit</td><td class="pass">168 / 168 verified in Lean</td></tr>
-    <tr><td>Implementer negative control, projection facts removed, first commit</td><td>6 of 8 new Lean runs fail, as expected</td></tr>
-    <tr><td><code>proof_matrix.py --lean</code>, <a href="#g-boolean">Boolean</a> and <code>lra_*</code> regressions, first commit</td><td class="pass">6 / 6 and 8 / 8 verified</td></tr>
-    <tr><td><code>test-z3</code>, <code>test_benchmarks.py</code>, <code>scripts/tests</code></td><td>Not run. No C++ or <code>scripts/</code> change.</td></tr>
+    <tr><td>Local gate: certificate exporter tests</td><td class="pass">pass (13 s)</td></tr>
+    <tr><td>Local gate: Lean reconstruction tests</td><td class="pass">pass (1557 s)</td></tr>
+    <tr><td>Local gate: z3test proof script tests</td><td class="pass">pass (16 s)</td></tr>
+    <tr><td>Local gate: Lean-certified Boolean matrix, legacy proof object</td><td class="pass">pass (4 s)</td></tr>
+    <tr><td>Local gate: Lean-certified QF_LRA matrix, clause log</td><td class="pass">pass (7 s)</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code>, final head</td><td class="pass">363 tests OK</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="pass">109 tests OK</td></tr>
+    <tr><td>z3test <code>test_proof*.py</code></td><td class="pass">46 tests OK</td></tr>
+    <tr><td><code>check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>Floor sweep, seeds 1–400, both cores</td><td class="pass">330 / 330 lean-ok, at most 1.8 s each; 17 runs carry projection facts</td></tr>
+    <tr><td>Before this PR, seeds 1–200</td><td>11 of 162 runs failed</td></tr>
+    <tr><td>Reviewer sweep, seeds 201–400</td><td class="pass">168 / 168 lean-ok</td></tr>
+    <tr><td>Negative control, projection facts stubbed out</td><td>6 of 8 new Lean runs fail, as expected</td></tr>
+    <tr><td>Worked example above, rerun for this report</td><td class="pass">Lean checks passed</td></tr>
   </tbody>
 </table>
-
-<h3>GitHub CI</h3>
-<p>No CI status was recorded when this report was written, so the results are unknown. There were no CI fix rounds.</p>
+<p>
+No GitHub CI status files were recorded for this PR, and there were no CI fix rounds.
+The loop notes that GitHub CI still runs on <code>master</code> after the merge. Its result is unknown to this report.
+</p>
 <table>
-  <thead><tr><th>Workflow</th><th>Job or step that runs the new tests</th><th>Status</th></tr></thead>
+  <thead><tr><th>CI workflow / check</th><th>Status</th><th>Link</th></tr></thead>
   <tbody>
-    <tr><td><code>ci.yml</code></td><td><code>ubuntu-cmake</code>, matrix <code>releaseClang</code>, step "Check native proofs in Lean"</td>
-        <td class="unknown">Unknown. See <a href="https://github.com/levnach/z3/pull/64/checks">PR checks</a></td></tr>
-    <tr><td><code>lean-proofs.yml</code></td><td>On-demand run of the same script</td><td class="unknown">Not recorded</td></tr>
+    <tr><td><code>ci.yml</code>, Ubuntu build cmake <code>releaseClang</code>, step "Check native proofs in Lean"</td>
+        <td class="unknown">not recorded</td>
+        <td><a href="https://github.com/levnach/z3/commit/19f266244aacfdfd59c9ea1266bfab1a0379711d">merge commit checks</a></td></tr>
+    <tr><td><code>lean-proofs.yml</code>, on demand, same script</td><td class="unknown">not recorded</td><td>none</td></tr>
   </tbody>
 </table>
+<p><code>test-z3</code> and <code>test_benchmarks.py</code> were not run, because there is no C++ change.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved. They found no blocker, major, or minor issues, and three nits. All three were fixed in the second commit.</p>
+<p>The reviewer approved. There were no blocker, major, or minor findings, only three nits. All three were fixed before merge.</p>
 <ul>
-  <li><strong>Nit: the size limit came too late.</strong> The reviewer pictured a step with 300 <a href="#g-premise">premises</a> on one Real atom.
-      Its first round would build about 22,000 rows before the limit applied. That wastes time but is never wrong.
-      Now the limit is checked before each round, and a test pins it.</li>
-  <li><strong>Nit: the two shape checks disagreed.</strong> The exporter read raw syntax. The reconstructor read the
-      <a href="#g-linear-form">linear form</a>. So an Int term under an <a href="#g-ite">if-then-else term</a> of
-      <a href="#g-sort">sort</a> Real passed export and failed later. The exporter now follows the linear form too.
-      Int atoms that cancel out are still counted, but the reconstructor rejects them clearly.</li>
-  <li><strong>Nit: one bad constraint dropped all facts.</strong> A premise without a linear form made the whole projection give up.
-      That costs completeness only. Now such a premise is left out, and a test checks that facts remain.</li>
-  <li><strong>Suggestion, not done:</strong> an end-to-end test of a cut mixing a Real variable with an Int term. It is a follow-up.</li>
+  <li><strong>Nit: the size limit came too late.</strong>
+    The reviewer imagined a step with hundreds of bounds on one Real atom.
+    Fourier–Motzkin pairs every lower bound with every upper bound, so thousands of rows were built before the limit applied.
+    This only wasted time.
+    The fix checks the limit before each round builds its rows, and a new test pins it.</li>
+  <li><strong>Nit: the exporter and reconstructor disagreed.</strong>
+    The exporter looked at raw syntax, so it counted an Int term hidden under a Real <code>ite</code> as an Int atom.
+    The reconstructor then rejected the same cut later, with a less precise error.
+    The fix makes the exporter follow the linear form, and Int numerals no longer count.
+    Int atoms that cancel out still pass the exporter, but the reconstructor rejects them.</li>
+  <li><strong>Nit: one bad constraint dropped all facts.</strong>
+    If a single premise had no linear form, the projection gave up on the whole step.
+    That cost completeness, not soundness.
+    Now such a premise is left out, and the rest is still projected. A test breaks each premise of seed 5 in turn.</li>
+  <li><strong>Suggestion, not done:</strong> pin an end-to-end test of a cut mixing a Real variable with an Int term. It is a listed follow-up.</li>
 </ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>The cut shape check is looser. Lean, not the exporter, now catches an invalid cut. Soundness is unchanged.</li>
-  <li>Steps that already verified now also get projection facts. No slowdown showed up in the tests.</li>
-  <li>Completeness depends on how far <code>grind</code>'s integer reasoning reaches.</li>
-  <li>GitHub CI results and the local gate result are not known yet.</li>
+  <li>The cut shape check is looser. An invalid cut is now caught by Lean instead of at export time. Soundness is unchanged, because Lean still proves every clause.</li>
+  <li>Some steps that verified before now carry extra projection facts. No slowdown showed up, but larger inputs were not measured.</li>
+  <li>Success depends on <code>grind</code>'s Int module solving the projected problem. Every sweep case closed.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
   <li>Larger floor sweeps, with more variables, unbounded Real variables, and floors of sums.</li>
-  <li>A pinned test for <code>to_real</code> cuts that mix Real variables and Int terms.</li>
-  <li>Projection facts on the other proof paths, such as the generalized, combination, and split paths, which get none today.</li>
+  <li>A pinned test for cuts that mix Real variables with <code>to_real</code> of Int terms.</li>
+  <li>Projection facts on the generalized, combination, and split proof paths, which get none today.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
+<dl class="glossary">
   <dt id="g-atom">atom</dt>
-  <dd>A smallest unit that a formula or linear sum is built from, such as a variable <code>x</code> or the floor of <code>x/2</code>.</dd>
+  <dd>A smallest term a linear constraint treats as one unknown, such as the variable <code>x</code> or the floor <code>floor(x/2)</code>.</dd>
   <dt id="g-axiom">axiom</dt>
-  <dd>A statement Lean accepts without proof. Adding one would mean trusting it blindly.</dd>
-  <dt id="g-boolean">Boolean</dt>
-  <dd>The sort with the two values true and false, written <code>Bool</code> in SMT-LIB.</dd>
-  <dt id="g-certificate">certificate</dt>
-  <dd>A file of proof steps that an independent checker can verify.</dd>
+  <dd>A statement Lean accepts without proof. Adding one would weaken the trust in a certificate.</dd>
+  <dt id="g-cast">cast</dt>
+  <dd>A conversion of a value from one sort to another, such as <code>to_real</code> turning the Int 3 into the Real 3.</dd>
   <dt id="g-clause">clause</dt>
-  <dd>An "or" of literals, such as <code>x ≠ 5 ∨ x/2 ≠ ⌊x/2⌋</code>.</dd>
+  <dd>A disjunction of literals: at least one of them must be true. Example: <code>not (x = 5) or not (x = 3)</code>.</dd>
   <dt id="g-cut">cut (integrality cut)</dt>
-  <dd>A lemma that is true only because some values are integers. Example: if <code>x = 5</code>, then <code>x/2</code> cannot be an integer.</dd>
+  <dd>A step that uses the fact that some quantity must be an integer to rule out fractional solutions. Example: from <code>2f = 5</code> with <code>f</code> an integer, conclude a contradiction.</dd>
   <dt id="g-farkas">Farkas lemma</dt>
-  <dd>A proof that some linear inequalities cannot all hold, shown by adding them with nonnegative multipliers until you get <code>0 &lt; 0</code>.</dd>
+  <dd>The rule that a set of linear inequalities has no solution exactly when some nonnegative combination of them adds up to an obvious falsehood like <code>0 &lt; 0</code>. The multipliers are the "coefficients".</dd>
   <dt id="g-floor">floor</dt>
-  <dd>The largest integer not above a number. <code>to_int</code> in SMT-LIB, <code>Rat.floor</code> in Lean. The floor of 2.5 is 2.</dd>
+  <dd>The largest integer not above a number, written <code>to_int</code> in SMT-LIB. Example: the floor of 2.5 is 2.</dd>
   <dt id="g-fourier-motzkin">Fourier–Motzkin elimination</dt>
-  <dd>A way to remove a variable from inequalities. Each lower bound is paired with each upper bound, and the variable cancels.</dd>
-  <dt id="g-ite">if-then-else term</dt>
-  <dd>A term that picks one of two values by a Boolean condition, written <code>ite</code> in SMT-LIB.</dd>
-  <dt id="g-int">Int</dt>
-  <dd>The sort of integers: …, -1, 0, 1, 2, ….</dd>
-  <dt id="g-is-int">is_int</dt>
-  <dd>The SMT-LIB test that a Real value is a whole number. <code>(is_int 2.0)</code> is true.</dd>
+  <dd>A method that removes a variable from linear inequalities by pairing each lower bound with each upper bound on it.</dd>
   <dt id="g-lemma">lemma</dt>
-  <dd>A proved statement used as a step inside a larger proof.</dd>
-  <dt id="g-linear-form">linear form</dt>
-  <dd>A term rewritten as a sum of atoms times numbers, plus a constant. <code>x/2 + 1</code> has the form <code>0.5·x + 1</code>.</dd>
+  <dd>A small proved statement used as a step inside a larger proof.</dd>
   <dt id="g-literal">literal</dt>
   <dd>An atomic formula or its negation, such as <code>x = 5</code> or <code>not (x = 5)</code>.</dd>
-  <dt id="g-premise">premise</dt>
-  <dd>A fact that a proof step takes as input.</dd>
   <dt id="g-projection">projection</dt>
-  <dd>What a set of constraints says about some variables once the others are eliminated. Like the shadow of a shape on a wall.</dd>
+  <dd>The constraints that remain on some variables after the others are eliminated. Any solution of the projection extends to a solution of the original system.</dd>
   <dt id="g-qf-lira">QF_LIRA</dt>
-  <dd>The SMT-LIB logic of quantifier-free linear arithmetic over Int and Real together.</dd>
-  <dt id="g-relaxation">rational relaxation</dt>
-  <dd>The same problem with the integer requirement dropped, so fractions are allowed. It can have a solution even when the integer problem has none.</dd>
-  <dt id="g-real">Real</dt>
-  <dd>The sort of real numbers. The Lean encoding here uses rational numbers, <code>Rat</code>.</dd>
+  <dd>The SMT-LIB logic of quantifier-free linear arithmetic over both Int and Real values.</dd>
+  <dt id="g-rational-relaxation">rational relaxation</dt>
+  <dd>The same constraints solved over rational numbers, ignoring which values must be integers. It can have a solution even when the integer problem has none.</dd>
   <dt id="g-refutation">refutation</dt>
   <dd>A proof that a set of assertions leads to <code>False</code>.</dd>
   <dt id="g-sort">sort</dt>
   <dd>The type of a value, such as Int, Real, or Bool.</dd>
   <dt id="g-sorry">sorry</dt>
-  <dd>A Lean placeholder that skips a proof. A trusted proof must contain none.</dd>
+  <dd>A Lean placeholder that skips a proof. A certificate containing it proves nothing.</dd>
   <dt id="g-tactic">tactic</dt>
   <dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> or <code>grind</code>.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that holds because of the rules of a theory, such as arithmetic, rather than by Boolean logic alone.</dd>
 </dl>
 
 <footer>
-  Generated by the Lean certificate improvement loop on 2026-11-02.
-  Source: <a href="https://github.com/levnach/z3/pull/64">levnach/z3#64</a>.
+Generated by the Lean certificate improvement loop on 2026-11-02.
 </footer>
 
 </body>
