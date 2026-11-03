@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #66: Certify uninterpreted functions next to Int and Real (qf_uflira)</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1d1f23; --muted: #5b616b; --accent: #0b5cad;
+  --code-bg: #f3f4f6; --border: #d6d9de; --ok: #1a7f37; --warn: #9a6700; --bad: #c62828;
+  --tag-bg: #eef4fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --fg: #e4e6ea; --muted: #a0a6b0; --accent: #6cb6ff;
+    --code-bg: #20242a; --border: #353a42; --ok: #57c76e; --warn: #e3b341; --bad: #ff7b72;
+    --tag-bg: #1d2836;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: .95rem; }
+.status { display: inline-block; background: var(--tag-bg); border: 1px solid var(--border); border-radius: 4px;
+  padding: .05rem .5rem; font-weight: 600; }
+code { background: var(--code-bg); border-radius: 3px; padding: .05rem .25rem; font-size: .92em; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+  overflow-x: auto; font-size: .85rem; line-height: 1.45; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.explain { margin-top: -.3rem; color: var(--muted); }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify uninterpreted functions next to Int and Real (qf_uflira)</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/66">#66 on levnach/z3</a> ·
+state <span class="status">OPEN</span> · 2026-11-03T19:06:02Z · loop iteration 66
+</p>
+<p>This pull request is <strong>open and not merged</strong>.
+The change it proposes is commit
+<a href="https://github.com/levnach/z3/commit/aafcbbb65d888780276e0020c77922ccc1d46829"><code>aafcbbb65</code></a>.
+The PR contains two commits on top of base <code>0bac76fe1</code>: the feature itself and a fix found in review.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Z3 inputs that mix <a href="#g-uninterpreted-function">uninterpreted functions</a> with both the Int and the Real
+<a href="#g-sort">sort</a> can now be certified in Lean.
+Before this PR the exporter stopped at the first such input.
+Now these inputs form a new <a href="#g-fragment">fragment</a> called <code>qf_uflira</code>.
+The Lean theorem gets one <a href="#g-valuation">valuation</a> per number sort, and its
+<a href="#g-interpretation">interpretation</a> gets one <a href="#g-injection">injection</a> per number sort.
+A function application now counts as a single <a href="#g-atom">atom</a>.
+So a <a href="#g-farkas">Farkas lemma</a> or <a href="#g-congruence">congruence</a> step over <code>(f n)</code> is no longer mistaken for mixed-sort arithmetic.
+Every <a href="#g-lemma">lemma</a> is still checked by the Lean <a href="#g-kernel">kernel</a>, so the
+<a href="#g-trust-boundary">trust boundary</a> does not move.</p>
+
+<h2 id="background">Background</h2>
+<p>The previous three PRs (#62 to #64) certified <code>qf_lira</code>, where Int and Real terms sit side by side,
+linked by <code>to_real</code>, <code>to_int</code>, and <code>is_int</code>.
+Uninterpreted functions were also certified, but only next to one number sort at a time
+(<code>qf_uflia</code> or <code>qf_uflra</code>).
+An input with a function such as <code>f : Int -&gt; Real</code>, or a
+<a href="#g-predicate">predicate</a> over both sorts, was rejected.
+The Lean encoding had room for only one numeric injection and one function family.
+This PR serves milestone 3, "Equality and linear arithmetic", whose rule is to finish each fragment end to end
+before adding another.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>The exporter now labels inputs with <a href="#g-uninterpreted-sort">uninterpreted sorts</a> or functions next to both Int and Real as <code>qf_uflira</code>
+instead of rejecting them, and the fragment is opt-in like the other integer fragments.</li>
+<li>Both proof cores, the <a href="#g-clause-log">clause log</a> and the legacy
+<a href="#g-proof-object">proof object</a>, can now be turned into Lean for this fragment.</li>
+<li>Each function argument enters the shared <a href="#g-carrier">carrier</a> through the injection of its own sort,
+and each result is valued by the function family of its own sort.</li>
+<li>Arithmetic lemmas treat <code>(f n)</code> as one atom whatever its argument sorts are.
+Think of a sealed envelope: arithmetic sees the envelope, not the letter inside.</li>
+<li>Helpers that equate two function arguments now group them by sort, so an Int
+<a href="#g-ite">if-then-else term</a> is never equated with a Real one.</li>
+<li>A new test file covers five documented inputs, a random generator, and checks that run without Lean.</li>
+</ul>
+
+<table>
+<thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">12</td><td class="num">10</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">72</td><td class="num">44</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflira.py</code></td><td>Tests (new)</td><td class="num">372</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests</td><td class="num">28</td><td class="num">27</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Tests (error text)</td><td class="num">3</td><td class="num">3</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Tests (error text)</td><td class="num">3</td><td class="num">3</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td>Tests (error text)</td><td class="num">2</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">27</td><td class="num">11</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">39</td><td class="num">0</td></tr>
+<tr><th>Total (9 files)</th><th></th><th class="num">558</th><th class="num">100</th></tr>
+</tbody>
+</table>
+<p>There is no C++ change.</p>
+
+<h2 id="example">Worked example</h2>
+<p>This input is the PR's documented test <code>int_argument_real_result</code>.
+From <code>n = m + 1</code> and <code>m = 2</code> we get <code>n = 3</code>.
+Congruence then gives <code>(f n) = (f 3)</code>, which contradicts the two Real bounds.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UFLIRA)
+(declare-fun f (Int) Real)
+(declare-const n Int)
+(declare-const m Int)
+(declare-const x Real)
+(assert (= n (+ m 1)))
+(assert (= m 2))
+(assert (&gt; (f n) x))
+(assert (&lt; (f 3) (- x 1.0)))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the exporter at base <code>0bac76fe1</code></h3>
+<pre><code>proof_certificate.py: error: mixing integer and real arithmetic with uninterpreted functions is not supported</code></pre>
+<p class="explain">The old exporter exited with code 2, so no certificate and no Lean file existed.</p>
+
+<h3>(c) After: the Lean file the reconstructor now writes</h3>
+<p>The exporter's default core produced a legacy proof object certificate, labelled <code>qf_uflira</code>.
+<span class="ok">Lean accepted the 179-line file:</span> the check printed "Lean checks passed."</p>
+
+<pre><code>-- Real function 0: "f"
+...
+-- Real arguments of functions and predicates are injected into _m.U by _m.real; functions with a Real result are the family _m.rfuns.
+-- Int arguments of functions and predicates are injected into _m.U by _m.int; functions with an Int result are the family _m.ifuns.
+...
+structure Interpretation where
+  U : Type
+  ...
+  real : Rat -&gt; U
+  rfuns : Nat -&gt; List U -&gt; Rat
+  int : Int -&gt; U
+  ifuns : Nat -&gt; List U -&gt; Int</code></pre>
+<p class="explain">The interpretation now carries both injections and both function families, one pair per number sort.</p>
+
+<pre><code>def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Rat := _m.rfuns 0 [(_m.int (term_0 _atoms _vars _ivars _m))]
+...
+def term_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Rat := _m.rfuns 0 [(_m.int (term_10 _atoms _vars _ivars _m))]</code></pre>
+<p class="explain"><code>(f n)</code> and <code>(f 3)</code> inject their Int argument with <code>_m.int</code> and read a Real result from <code>_m.rfuns</code>.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_4 _atoms _vars _ivars _m))
+    (_h1 : (formula_6 _atoms _vars _ivars _m))
+    (_h2 : (formula_9 _atoms _vars _ivars _m))
+    (_h3 : (formula_14 _atoms _vars _ivars _m))
+    : False :=</code></pre>
+<p class="explain">This is the <a href="#g-refutation">refutation</a>: for any Real valuation, Int valuation, and interpretation, the four assertions together imply False.</p>
+
+<pre><code>def formula_49 ... : Prop := (Or (formula_39 _atoms _vars _ivars _m) (formula_48 _atoms _vars _ivars _m))
+...
+private theorem th_lemma_50 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_49 _atoms _vars _ivars _m) := by
+  unfold formula_49 formula_48 formula_45 formula_39 term_11 term_10 term_7 term_0
+  first | omega | grind (splits := 64)</code></pre>
+<p class="explain">This congruence step over an Int argument is a <a href="#g-clause">clause</a> of two <a href="#g-literal">literals</a>, <code>(f n) = (f 3)</code> or <code>not (3 = n)</code>, proved by a <a href="#g-tactic">tactic</a>.</p>
+
+<pre><code>private theorem th_lemma_42 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_41 _atoms _vars _ivars _m) := by
+  unfold formula_41 formula_40 formula_39 formula_34 term_33 formula_27 term_12 term_11 term_10 term_8 term_7 term_0
+  first | omega | grind (splits := 64)
+...</code></pre>
+<p class="explain">This Real <a href="#g-theory-lemma">theory lemma</a> treats <code>(f n)</code> and <code>(f 3)</code> as Real atoms, even though their arguments are Int.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>All Python test suites passed on the final commit, and a few hundred random puzzles all verified in Lean on both cores.
+The tests exercise Farkas, <a href="#g-cut">cut</a>, bound, implied-equality, and congruence hints.
+Some sweeps ran before the review fix and were not rerun after it.</p>
+
+<table>
+<thead><tr><th>Check</th><th>When</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests (<code>test_proof_to_lean*.py</code>)</td><td>Final commit</td><td class="ok">370 tests, OK (1594 s)</td></tr>
+<tr><td>Exporter tests (<code>test_proof_certificate.py</code>)</td><td>Final commit</td><td class="ok">110 tests, OK</td></tr>
+<tr><td><code>check_lean.sh</code> on the Lean library</td><td>Final commit</td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td>Final commit</td><td class="ok">48 tests, OK</td></tr>
+<tr><td>Random sweep with if-then-else arguments, seeds 1–300</td><td>Final commit</td><td class="ok">168 of 168 runs verified (84 unsat seeds, both cores)</td></tr>
+<tr><td>Same sweep without the review fix</td><td>Regression evidence</td><td class="bad">3 seeds failed in Lean (105, 128, 279)</td></tr>
+<tr><td>Random sweeps, four settings</td><td>Before review fix</td><td class="ok">392 of 392 runs verified (196 unsat seeds)</td></tr>
+<tr><td>Hand probes</td><td>Before review fix</td><td class="ok">16 of 16 Lean-OK</td></tr>
+<tr><td>Proof matrix, legacy core and clause-log core</td><td>Before review fix</td><td class="ok">6/6 and 8/8 lean-verified</td></tr>
+<tr><td>Tamper test: change a numeral in a generated file</td><td>Before review fix</td><td class="ok">Lean rejected it, as it should</td></tr>
+</tbody>
+</table>
+
+<p><strong>Local gate.</strong> The local gate result was not recorded when this report was written.
+Its log showed the exporter tests passing and the Lean reconstruction tests still running.</p>
+
+<p><strong>CI.</strong> No CI status was available when this report was written, so pass or fail is unknown.
+No CI fix rounds were recorded.</p>
+<table>
+<thead><tr><th>Workflow</th><th>Job / check</th><th>What it runs</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>CI</td><td>Ubuntu build - cmake - releaseClang / "Lean reconstruction tests"</td><td><code>scripts/ci_lean_proofs.sh</code>, including the new test file</td><td class="warn">Unknown at report time</td></tr>
+<tr><td>Python wheel jobs</td><td>exporter tests</td><td>New classification cases in <code>test_proof_certificate.py</code></td><td class="warn">Unknown at report time</td></tr>
+</tbody>
+</table>
+<p>See the <a href="https://github.com/levnach/z3/pull/66/checks">PR checks page</a> for current results.</p>
+
+<h2 id="review">Review</h2>
+<p><strong>Major: an ill-sorted helper.</strong>
+The reviewer wrote an input where <code>f</code> takes an Int and <code>g</code> takes a Real.
+Both were applied to the same condition, as <code>(ite c 1 0)</code> and <code>(ite c 1.0 0.0)</code>.
+The two arguments share one <a href="#g-linear-form">linear form</a>, so the reconstructor grouped them and wrote a helper claiming an Int equals a Real.
+Lean could not prove that helper, and the check failed on both cores.
+This was <a href="#g-fail-closed">fail-closed</a>, so nothing false was certified, but a simple input could not be certified at all.
+The fix adds the sort to the grouping key.
+The reviewer's input became a test, next to a check that no helper equates terms of two sorts.</p>
+<p><strong>Nit: an incomplete error message.</strong>
+A message listed only <code>qf_lia</code> and <code>qf_uflia</code> as Int fragments.
+It now also names <code>qf_lira</code> and <code>qf_uflira</code>.</p>
+<p><strong>Nit: README drift.</strong>
+The legacy-core paragraph listed two opt-in integer fragments instead of four.
+It now lists all four.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>A known gap, shared with <code>qf_lira</code>: an Int if-then-else term whose condition compares Reals, or the reverse, still gets its theory step rejected.
+This is fail-closed and was not introduced here.</li>
+<li>Most random inputs are refuted by preprocessing and congruence, so wider arithmetic shapes are untested.</li>
+<li>No z3test regression file is in this fragment, so the proof matrix does not exercise it.</li>
+<li>Nothing states that the Int and Real injections have disjoint images. The PR argues that nothing needs it.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Treat if-then-else conditions as their own sort when classifying a step, to close the known gap.</li>
+<li>Write a QF_UFLIRA generator that needs more theory reasoning.</li>
+<li>Handle other operators that are still rejected, such as <code>^</code> of numerals, enumeration datatypes,
+and unary <code>+</code> in the clause log.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-atom">atom</dt>
+<dd>The smallest unit an arithmetic step reasons about, such as a variable <code>x</code> or an application <code>(f n)</code>.</dd>
+<dt id="g-carrier">carrier</dt>
+<dd>The set of values an interpretation works over. Here it is the Lean type <code>_m.U</code>.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of literals, such as <code>a or not b or c</code>.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>One of Z3's two proof cores. It records each clause the solver learns, with a hint about why it holds.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that equal arguments give equal results. If <code>n = 3</code>, then <code>(f n) = (f 3)</code>.</dd>
+<dt id="g-cut">cut</dt>
+<dd>An Int step that uses the fact that integers have no values between them. Example: from <code>2k = 1</code> conclude False.</dd>
+<dt id="g-fail-closed">fail-closed</dt>
+<dd>A failure that rejects a valid proof rather than accepting a false one. It costs coverage, not soundness.</dd>
+<dt id="g-farkas">Farkas lemma</dt>
+<dd>A proof that some linear inequalities contradict each other. Multiply each by a nonnegative number and add them to get <code>0 &lt; 0</code>.</dd>
+<dt id="g-fragment">fragment</dt>
+<dd>A family of inputs defined by which sorts and operators they use, such as <code>qf_lira</code> or <code>qf_uflira</code>.</dd>
+<dt id="g-ite">if-then-else term</dt>
+<dd>A term whose value depends on a condition. <code>(ite c 1 0)</code> is 1 when <code>c</code> holds and 0 otherwise.</dd>
+<dt id="g-injection">injection</dt>
+<dd>A map that sends different values to different values. Here it turns an Int or Real argument into a carrier value.</dd>
+<dt id="g-interpretation">interpretation</dt>
+<dd>A choice of meaning for every uninterpreted sort, function, and predicate. In the Lean file it is the structure <code>_m</code>.</dd>
+<dt id="g-kernel">kernel</dt>
+<dd>The small core of Lean that checks every proof step. Tactics only suggest steps, and the kernel accepts or rejects them.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A helper fact proved separately and then used in a larger proof.</dd>
+<dt id="g-linear-form">linear form</dt>
+<dd>A sum of atoms times numbers, such as <code>2x + 3y - 1</code>.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atom or its negation, such as <code>(= n 3)</code> or <code>(not (= n 3))</code>.</dd>
+<dt id="g-predicate">predicate</dt>
+<dd>An uninterpreted function whose result sort is <code>Bool</code>, the sort of true and false.</dd>
+<dt id="g-proof-object">proof object</dt>
+<dd>The legacy proof core of Z3. It builds a tree of named rules such as <code>mp</code>, <code>th-lemma</code>, and <code>unit-resolution</code>.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions implies False.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, Bool, or a declared sort <code>U</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that searches for a proof, such as <code>omega</code> or <code>grind</code>.</dd>
+<dt id="g-theory-lemma">theory lemma</dt>
+<dd>A clause justified by a theory such as arithmetic or equality, not by Boolean reasoning alone.</dd>
+<dt id="g-trust-boundary">trust boundary</dt>
+<dd>The line between what must be trusted and what is checked. Here only the Lean kernel and the input encoding are trusted.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt>
+<dd>A function with a declared signature but no definition, such as <code>(declare-fun f (Int) Real)</code>. Only congruence is known about it.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+<dd>A sort declared with no structure, such as <code>(declare-sort U 0)</code>.</dd>
+<dt id="g-valuation">valuation</dt>
+<dd>An assignment of a value to every variable. Here <code>_vars</code> values Real variables and <code>_ivars</code> values Int ones.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-03.
+</footer>
+</body>
+</html>
