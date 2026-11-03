@@ -1661,34 +1661,43 @@ def _projection_facts(graph, node, atom_indices, variable_indices):
     bound over the casts, which after push_cast is the projection grind's
     Rat module derives; grind's Int module then refutes the Int problem
     (2f = 5, 8b - 12a = 15). The facts are theorems whatever the projection
-    is, so a wrong one makes Lean fail, never accept. Other steps, steps
-    over atoms without a linear form, projections over _PROJECTION_LIMIT
+    is, so a wrong one makes Lean fail, never accept. Other steps,
+    projections whose elimination rounds would exceed _PROJECTION_LIMIT
     constraints, and constraints that never mentioned a Real atom (their
-    own facts are _cast_facts') get none; at most _PROJECTION_FACTS are
-    stated.
+    own facts are _cast_facts') get none; premises, literals and floors
+    without a linear form are left out of the projection; at most
+    _PROJECTION_FACTS are stated.
     """
     decl = graph.decl(node)
     if (decl.name != "th-lemma" or len(decl.parameters) != 1 or decl.parameters[0] not in ("farkas", "bound", "cut")
             or _lemma_numeric(graph, node) != _CAST):
         return []
-    try:
-        constraints = [_atom_constraint(graph, graph.conclusion(premise)) for premise in graph.arguments(node)[:-1]]
-        constraints += [_linear_constraint(graph, literal) for literal in graph.clause(graph.conclusion(node))]
-        pending, floors = [atom for _, terms, _ in constraints for atom in terms], set()
-        while pending:
-            atom = pending.pop()
-            if graph.kind(atom) != z3.Z3_OP_TO_INT or atom in floors:
-                continue
-            floors.add(atom)
-            terms = {}
+    # A premise, literal or floor without a linear form is left out: the
+    # projection of the others is still implied by the step (and the facts
+    # are theorems in any case).
+    constraints = []
+    for literal, holds in ([(graph.conclusion(premise), True) for premise in graph.arguments(node)[:-1]]
+                           + [(literal, False) for literal in graph.clause(graph.conclusion(node))]):
+        try:
+            constraints.append(_polarity_constraint(graph, literal, holds))
+        except ReconstructionError:
+            continue
+    pending, floors = [atom for _, terms, _ in constraints for atom in terms], set()
+    while pending:
+        atom = pending.pop()
+        if graph.kind(atom) != z3.Z3_OP_TO_INT or atom in floors:
+            continue
+        floors.add(atom)
+        terms = {}
+        try:
             constant = _linear_term(graph, graph.arguments(atom)[0], Fraction(-1), terms)
-            terms[atom] = terms.get(atom, 0) + 1
-            constraints.append(("<=", dict(terms), constant))  # f - a <= 0
-            constraints.append(("<", {key: -value for key, value in terms.items() if value},
-                                -constant - 1))  # a - f - 1 < 0
-            pending.extend(terms)
-    except ReconstructionError:
-        return []
+        except ReconstructionError:
+            continue
+        terms[atom] = terms.get(atom, 0) + 1
+        constraints.append(("<=", dict(terms), constant))  # f - a <= 0
+        constraints.append(("<", {key: -value for key, value in terms.items() if value},
+                            -constant - 1))  # a - f - 1 < 0
+        pending.extend(terms)
     # (relation, terms, constant, whether a Real atom was eliminated from it)
     system = [(relation, {atom: value for atom, value in terms.items() if value}, constant,
                any(not graph.is_int(atom) for atom in terms))
@@ -1706,6 +1715,11 @@ def _projection_facts(graph, node, atom_indices, variable_indices):
         else:
             pairs = [(lower, upper) for lower in users if lower[1][atom] < 0
                      for upper in users if upper[1][atom] > 0]
+        # Checked before the round builds its rows, so that no round, the
+        # first included, outgrows the limit (n lower and n upper bounds
+        # make n * n rows).
+        if len(rest) + len(pairs) > _PROJECTION_LIMIT:
+            return []
         for first, second in pairs:
             # second - (second's coefficient / first's) * first, with a
             # nonnegative multiplier unless first is an equality.
@@ -1725,8 +1739,6 @@ def _projection_facts(graph, node, atom_indices, variable_indices):
                 system.append((relation, terms, constant, derived))
             elif not {"<=": constant <= 0, "<": constant < 0, "=": constant == 0}[relation]:
                 return []  # Refuted over the rationals: grind's Rat module needs no facts.
-        if len(system) > _PROJECTION_LIMIT:
-            return []
     facts, seen = [], set()
     for relation, terms, constant, derived in system:
         if not derived:

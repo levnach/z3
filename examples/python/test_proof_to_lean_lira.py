@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import z3
 
@@ -716,6 +717,14 @@ class TestCastValidation(unittest.TestCase):
         self.assertFalse(proof_clause_log.check_linear_hint("cut", [(1, half == z3.ToReal(z3.ToInt(half)))]))
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "cut hint over Real atoms"):
             proof_clause_log.check_linear_hint("cut", [(1, x == quarter), (1, x <= 2 * x + quarter)])
+        # As in the reconstructor, an Int term under a Real ite is opaque,
+        # and an Int numeral is a constant, not an Int atom.
+        p = z3.Bool("p", ctx=context)
+        ite = z3.If(p, z3.ToReal(n), z3.RealVal("1/2", ctx=context))
+        for literal in (x < ite, x + z3.ToReal(z3.IntVal(1, ctx=context)) == quarter):
+            with self.subTest(literal=literal), self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                                                       "cut hint over Real atoms"):
+                proof_clause_log.check_linear_hint("cut", [(1, literal)])
 
 
 class TestFloorValidation(unittest.TestCase):
@@ -866,6 +875,40 @@ class TestFloorValidation(unittest.TestCase):
                 self.assertTrue(any(re.search(r"\(\(-?8 : Int\)\) \* .*\(\(-?12 : Int\)\) \* .*"
                                               r"\(\(-?15 : Int\)\)\) \(\(0 : Int\)\)$", fact)
                                     for fact in facts), facts)
+
+    def test_projection_leaves_out_constraints_without_linear_form(self):
+        # A premise without a linear form is left out rather than dropping
+        # every fact: seed 5's legacy farkas still gets the projection of
+        # its other premises with any one of them unreadable.
+        source = random_floor_instance(5)
+        certificate = _export(source, "legacy")
+        graph = proof_to_lean._validate_graph(source, certificate)
+        indices = collections.defaultdict(int)
+        node = next(node for node in _th_lemma_nodes(certificate)
+                    if proof_to_lean._projection_facts(graph, node, indices, indices))
+        premises = [graph.conclusion(premise) for premise in graph.arguments(node)[:-1]]
+        self.assertTrue(premises)
+        original = proof_to_lean._polarity_constraint
+        for broken in premises:
+            def unreadable(graph, literal, polarity, broken=broken):
+                if literal == broken:
+                    raise proof_to_lean.ReconstructionError("no linear form")
+                return original(graph, literal, polarity)
+            with self.subTest(premise=broken), mock.patch.object(proof_to_lean, "_polarity_constraint", unreadable):
+                self.assertTrue(proof_to_lean._projection_facts(graph, node, indices, indices))
+
+    def test_projection_limit_stops_elimination_rounds(self):
+        # The limit is checked before a round builds its rows, the first
+        # round included: below the size of the parity cut's first round,
+        # no fact is stated.
+        source = FLOOR_INPUTS["is_int_parity"]
+        certificate = _export(source, "clause-log")
+        graph = proof_to_lean._validate_graph(source, certificate)
+        indices = collections.defaultdict(int)
+        cut = next(node for node in _th_lemma_nodes(certificate) if _parameters(certificate, node) == ["cut"])
+        self.assertTrue(proof_to_lean._projection_facts(graph, cut, indices, indices))
+        with mock.patch.object(proof_to_lean, "_PROJECTION_LIMIT", 1):
+            self.assertEqual(proof_to_lean._projection_facts(graph, cut, indices, indices), [])
 
 
 class TestFloorLeanIntegration(unittest.TestCase):

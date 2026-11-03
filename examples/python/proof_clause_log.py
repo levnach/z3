@@ -679,10 +679,23 @@ def _integer_valued(expr):
 
 
 def _mentions_int(expr):
-    """Whether an arithmetic term has an Int subterm: an Int term, or a Real one through to_real or to_int."""
+    """Whether an arithmetic term's linear form (see _linear) has an Int atom.
+
+    That is an Int term, or a Real one reaching an Int term through sums,
+    numeral products and quotients, and to_real; an ite, a variable, or any
+    other atom of Real sort has none, whatever it contains (an Int term
+    under a Real ite is opaque to the cut, as in proof_to_lean). Atoms that
+    cancel are still counted; the reconstructor rejects such a cut.
+    Numerals, Int ones included, are constants, not atoms.
+    """
+    if constant_value(expr) is not None:
+        return False
     if z3.is_int(expr):
         return True
-    return z3.is_app(expr) and any(z3.is_arith(child) and _mentions_int(child) for child in expr.children())
+    if expr.decl().kind() in (z3.Z3_OP_ADD, z3.Z3_OP_SUB, z3.Z3_OP_UMINUS, z3.Z3_OP_MUL, z3.Z3_OP_DIV,
+                              z3.Z3_OP_TO_REAL):
+        return any(_mentions_int(child) for child in expr.children())
+    return False
 
 
 def check_linear_hint(name, pairs):
