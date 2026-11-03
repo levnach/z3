@@ -590,7 +590,9 @@ def _require_pseudo_boolean(expr):
     """
     pseudo_boolean_parameters(expr.decl())
     for argument in expr.children():
-        while z3.is_not(argument):
+        # One negation at most: the legacy core rewrites (not (not a)) inside
+        # the constraint by a congruence step the reconstruction does not take.
+        if z3.is_not(argument):
             argument = argument.arg(0)
         if not (z3.is_const(argument) and argument.decl().kind() == z3.Z3_OP_UNINTERPRETED):
             raise ProofExportError("pseudo-Boolean arguments must be Boolean variables or their negations: %s" % expr)

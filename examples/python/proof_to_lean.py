@@ -974,7 +974,7 @@ def _formula_body(graph, node, atom_indices, term=None, formula=None):
 
 def _pseudo_boolean_literal(graph, node):
     """Whether a node is a Boolean variable or a negation of one, the arguments a pseudo-Boolean constraint takes."""
-    while graph.kind(node) == z3.Z3_OP_NOT:
+    if graph.kind(node) == z3.Z3_OP_NOT:
         node = graph.arguments(node)[0]
     return graph.kind(node) == z3.Z3_OP_UNINTERPRETED and not graph.arguments(node)
 

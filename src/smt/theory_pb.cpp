@@ -1826,6 +1826,9 @@ namespace smt {
             // literal's justification cites the antecedent literals only, not
             // the constraints they were resolved from: its th-lemma would not
             // hold on its own. The conflict clause is a valid th-lemma.
+            // Learning under proofs would need that justification to cite
+            // every resolved constraint (doc/lean-proof-plan.md, "Pseudo-Boolean
+            // constraints through the legacy core").
             return false;
         }
 

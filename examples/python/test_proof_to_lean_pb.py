@@ -73,6 +73,18 @@ PB_INPUTS = {
 (assert ((_ pbge 1 6 7) p3 (not p3)))
 (check-sat)
 """,
+    # Negative coefficients and bounds, as the API writes PbLe and PbGe with
+    # them: 2c + d >= 1 + 3a rules a out, then 3b + 2d <= c - 1 rules out b
+    # and d, which the clause needs.
+    "pb_negative_coefficients": """(declare-const a Bool)
+(declare-const b Bool)
+(declare-const c Bool)
+(declare-const d Bool)
+(assert ((_ pble -1 -2 3 -1 2) a b c d))
+(assert ((_ pbge 1 -3 2 1) a c d))
+(assert (or b d))
+(check-sat)
+""",
 }
 
 # Seeds of random_pseudo_boolean_instance(seed, 16, 9) whose refutations
@@ -163,6 +175,9 @@ class TestPseudoBooleanValidation(unittest.TestCase):
             "(declare-const a Bool)(declare-const b Bool)(assert ((_ at-most 1) (and a b) a))":
                 "pseudo-Boolean arguments must be Boolean variables",
             "(declare-const a Bool)(declare-const x Int)(assert ((_ at-most 1) a (> x 0)))":
+                "pseudo-Boolean arguments must be Boolean variables",
+            # The legacy core would rewrite (not (not a)) inside the constraint by congruence.
+            "(declare-const a Bool)(declare-const b Bool)(assert ((_ at-least 2) (not (not a)) b))(assert (not a))":
                 "pseudo-Boolean arguments must be Boolean variables",
             "(declare-const a Bool)(declare-const x Int)(assert ((_ at-most 1) a))(assert (> x 0))":
                 "propositional input only",
@@ -276,7 +291,7 @@ class TestPseudoBooleanLeanIntegration(unittest.TestCase):
         for query, satisfiable in enumerate((True, True, False, True)):
             with self.subTest(query=query):
                 if satisfiable:
-                    with self.assertRaisesRegex(proof_certificate.ProofExportError, "sat"):
+                    with self.assertRaisesRegex(proof_certificate.ProofExportError, "^sat: no unsat proof exists$"):
                         proof_certificate.export_certificate(source, query=query)
                     continue
                 certificate = proof_certificate.export_certificate(source, query=query)
