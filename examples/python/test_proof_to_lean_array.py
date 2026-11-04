@@ -91,6 +91,14 @@ ARRAY_INPUTS = {
 (assert (not (= (select (store c j k) i) k)))
 (check-sat)
 """,
+    # A predicate over arrays (injected into the carrier by _m.arrs_inj):
+    # Z3 proves it by a th-lemma cnf step, not a rewrite, whose lemma needs
+    # the store identity _store_select.
+    "predicate_over_arrays": "(set-logic QF_AUF)\n" + _DECLARATIONS + """(declare-fun p ((Array Index Element)) Bool)
+(assert (p a))
+(assert (not (p (store a i (select a i)))))
+(check-sat)
+""",
     # Arrays next to integer arithmetic over an element function (qf_uflia).
     "arrays_with_integer_weights": "(set-logic QF_AUFLIA)\n" + _DECLARATIONS + """(declare-fun w (Element) Int)
 (assert (= (select (store a i e) j) f))
@@ -187,6 +195,22 @@ ARITHMETIC_ARRAY_INPUTS = {
     "function_over_arrays": "(set-logic QF_AUFLIA)\n" + _INT_ARRAYS + """(declare-fun sk ((Array Int Int) (Array Int Int)) Int)
 (assert (= b (store a i (select a i))))
 (assert (not (= (sk a b) (sk a a))))
+(check-sat)
+""",
+    # A predicate over an uninterpreted and an Int array: each Lean array
+    # type has its own injection, and the cnf lemma needs _store_select.
+    "predicate_over_two_array_types": "(set-logic QF_AUFLIA)\n" + _DECLARATIONS + """(declare-fun c () (Array Int Int))
+(declare-fun p ((Array Index Element) (Array Int Int)) Bool)
+(declare-fun n () Int)
+(assert (p a c))
+(assert (not (p (store a i (select a i)) (store c n (select c n)))))
+(check-sat)
+""",
+    # A predicate over an overwritten Int array: the cnf lemma needs
+    # _store_store.
+    "predicate_over_overwritten_array": "(set-logic QF_AUFLIA)\n" + _INT_ARRAYS + """(declare-fun p ((Array Int Int)) Bool)
+(assert (p (store a i 3)))
+(assert (not (p (store (store a i 2) i 3))))
 (check-sat)
 """,
     # z3test regressions/smt2/z3.20.smt2: a store that leaves its array
@@ -347,7 +371,18 @@ class TestArrayValidation(unittest.TestCase):
                                              self.certificates["function_over_arrays"])
         self.assertIn("  arrs_ii_inj : (Int -> Int) -> U", function)
         self.assertIn("_m.ifuns 0 [(_m.arrs_ii_inj (term_", function)
-        for each in (text, mixed, real, lira, function):
+        # A predicate over arrays of two Lean types: one injection each, and
+        # its th-lemma cnf step (not a rewrite) is offered the store
+        # identities.
+        predicate = proof_to_lean.reconstruct(ARRAY_INPUTS["predicate_over_two_array_types"],
+                                              self.certificates["predicate_over_two_array_types"])
+        for field in ("  arrs_inj : (U -> U) -> U", "  arrs_ii_inj : (Int -> Int) -> U"):
+            self.assertIn(field, predicate)
+        self.assertIn("_m.preds 0 [(_m.arrs_inj (term_", predicate)
+        self.assertIn("private theorem th_lemma_", predicate)
+        self.assertNotIn("private theorem rewrite_", predicate)
+        self.assertIn("simp only [", predicate)
+        for each in (text, mixed, real, lira, function, predicate):
             self.assertNotIn("sorry", each)
             self.assertNotIn("axiom ", each)
 

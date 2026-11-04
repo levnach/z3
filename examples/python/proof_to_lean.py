@@ -296,6 +296,23 @@ _ARRAY_NAME = re.compile(r"\(Array ([^\s()|]+) ([^\s()|]+)\)")
 _ARRAY_REWRITE_TACTIC = "try (set_option linter.unusedSimpArgs false in simp only [%s_store_store, _store_select] at *)"
 
 
+def _store_identity_instance(graph, nodes):
+    """Whether a store among nodes is the left side of _store_store or _store_select.
+
+    That is (store (store a i v) i w) or (store a i (select a i)), with the
+    same index and array nodes (the certificate's terms are shared).
+    """
+    for node in nodes:
+        if graph.kind(node) != z3.Z3_OP_STORE:
+            continue
+        array, index, value = graph.arguments(node)
+        if graph.kind(array) == z3.Z3_OP_STORE and graph.arguments(array)[1] == index:
+            return True
+        if graph.kind(value) == z3.Z3_OP_SELECT and tuple(graph.arguments(value)) == (array, index):
+            return True
+    return False
+
+
 def _array_components(name):
     """The index and element sort names of a certificate array sort name, None for any other sort name."""
     match = _ARRAY_NAME.fullmatch(name)
@@ -326,8 +343,12 @@ def _array_injection(name):
     """The interpretation's map injecting an array argument of a function or predicate into the carrier.
 
     Like _m.real and _m.int, nothing states that it is injective and nothing
-    needs it: lemmas only use congruence, a = b -> inj a = inj b. A model
-    gives an instance over a carrier large enough to embed its arrays.
+    needs it: lemmas only use congruence, a = b -> inj a = inj b. No map
+    from U -> U or U -> Int into U is injective (Cantor), but a model is
+    still an instance: only finitely many array values are denoted by the
+    input's terms, so U is the model's carriers plus one fresh point per
+    such value, the injection sends each denoted array to its point, and
+    the functions and predicates read their array arguments back from them.
     """
     return _array_family(name) + "_inj"
 
@@ -1905,11 +1926,16 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     fallback.extend(_cast_facts(graph, reachable, atom_indices, variable_indices, node))
     fallback.append(_theory_tactic(graph))
     alternatives.append(fallback)
-    if prefix == "rewrite" and any(graph.kind(term) == z3.Z3_OP_STORE for term in reachable):
+    if (any(graph.kind(term) == z3.Z3_OP_STORE for term in reachable) if prefix == "rewrite"
+            else _store_identity_instance(graph, reachable)):
         # Z3's rewriter may have applied the store identities: the folded
         # array terms rewritten into their stores (the _t facts of
         # _array_helpers) and normalized by them first; simp may close the
-        # goal.
+        # goal. Not only rewrite steps: a th-lemma cnf over a predicate of an
+        # array, p(c) \/ not p(store c n (select c n)), needs them too. The
+        # alternative is tried only after the others fail; it repeats the
+        # fallback's facts, so other steps get it only when one of their
+        # stores is an instance of an identity.
         names = [line.split()[1] for line in fallback if line.startswith("have _t")]
         alternatives.append(fallback[:-1] + [_ARRAY_REWRITE_TACTIC % "".join(name + ", " for name in names),
                                              "all_goals " + fallback[-1]])

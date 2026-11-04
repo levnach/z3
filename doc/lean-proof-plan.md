@@ -1607,7 +1607,13 @@ array terms, and an extensionality witness over Int or Rat chooses with
 `Nonempty.intro 0`. An `array` lemma may compare Int or Real terms only if
 some array of the certificate has that sort. Functions and predicates may
 take arrays: an array argument is injected into the carrier by one field per
-Lean array type (`_m.arrs_ii_inj`), as Int and Real arguments are. The
+Lean array type (`_m.arrs_ii_inj`), as Int and Real arguments are. No map
+from `U -> U` or `U -> Int` into `U` is injective, so a model is an instance
+because only finitely many array values are denoted: `U` gets one fresh
+point per denoted array, which the injection picks and the functions read
+back. Any theory step reaching a store, not only a rewrite, is offered the
+store identities as a last alternative: a `th-lemma cnf` over a predicate
+of `(store c n (select c n))` needs `_store_select`. The
 unused-simp-argument lint is off for the one store-identity `simp` (it is an
 error under `warningAsError` when simp needs only one identity). Result: of
 the 13 QF_AUFLIA files with arrays, 8 verify (the largest, a 9.2 MB file,
