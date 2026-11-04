@@ -5,108 +5,121 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PR #68: Certify arrays over uninterpreted sorts (QF_AX) in Lean via clause log</title>
 <style>
-:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--accent:#0969da;--code-bg:#f6f8fa;--border:#d1d9e0;--ok:#1a7f37;--warn:#9a6700;--bad:#cf222e}
-@media (prefers-color-scheme: dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--accent:#4493f8;--code-bg:#161b22;--border:#3d444d;--ok:#3fb950;--warn:#d29922;--bad:#f85149}}
-body{background:var(--bg);color:var(--fg);font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.6}
-a{color:var(--accent)}
-h1{font-size:1.6rem;line-height:1.3;margin-bottom:.4rem}
-h2{border-bottom:1px solid var(--border);padding-bottom:.25rem;margin-top:2.2rem}
-h3{margin-top:1.4rem}
-.meta{color:var(--muted);font-size:.95rem}
-.badge{display:inline-block;padding:.05rem .55rem;border-radius:1rem;border:1px solid var(--ok);color:var(--ok);font-weight:600;font-size:.85rem}
-code{background:var(--code-bg);padding:.1rem .3rem;border-radius:4px;font-size:.9em}
-pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:.8rem;overflow-x:auto;line-height:1.4}
-pre code{background:none;padding:0;font-size:.85rem}
-table{border-collapse:collapse;margin:.8rem 0;width:100%}
-th,td{border:1px solid var(--border);padding:.35rem .6rem;text-align:left;vertical-align:top}
-th{background:var(--code-bg)}
-td.n{text-align:right;font-variant-numeric:tabular-nums}
-.ok{color:var(--ok);font-weight:600}.warn{color:var(--warn);font-weight:600}.bad{color:var(--bad);font-weight:600}
-dt{font-weight:700;margin-top:.6rem}
-dd{margin-left:1.2rem}
-.note{color:var(--muted);font-size:.92rem}
-footer{margin-top:3rem;border-top:1px solid var(--border);padding-top:.8rem;color:var(--muted);font-size:.9rem}
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --accent: #0b5cad;
+  --border: #d1d9e0;
+  --code-bg: #f4f6f8;
+  --pass: #1a7f37;
+  --fail: #c62828;
+  --warn: #9a6700;
+  --badge-bg: #8250df;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --accent: #58a6ff;
+    --border: #3d444d;
+    --code-bg: #161b22;
+    --pass: #3fb950;
+    --fail: #f85149;
+    --warn: #d29922;
+    --badge-bg: #8957e5;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+}
+main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.05em 0.3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+.meta dd { margin: 0 0 0.2rem 9rem; }
+.badge { display: inline-block; background: var(--badge-bg); color: #fff; border-radius: 1rem; padding: 0.05rem 0.7rem; font-size: 0.85rem; font-weight: 600; }
+.pass { color: var(--pass); font-weight: 600; }
+.fail { color: var(--fail); font-weight: 600; }
+.unknown { color: var(--warn); font-weight: 600; }
+.explain { margin-top: -0.4rem; color: var(--muted); }
+dl.glossary dt { font-weight: 600; margin-top: 0.8rem; }
+dl.glossary dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.88rem; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
 <h1>Certify arrays over uninterpreted sorts (QF_AX) in Lean via clause log</h1>
-<p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/68">levnach/z3#68</a> ·
-State: <span class="badge">OPEN</span> ·
-Opened 2026-11-04T02:24:45Z ·
-Loop iteration 68
-</p>
-<p>This pull request is open and <strong>not merged</strong>.
-The change under review is commit
-<a href="https://github.com/levnach/z3/commit/6cc300a442411139cc86f8553f9ebb3f2015c6ac"><code>6cc300a</code></a>,
-which sits on top of one earlier commit in the same PR.</p>
+<p><span class="badge">MERGED</span></p>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/68">levnach/z3#68</a></dd>
+  <dt>State</dt><dd>Merged into <code>master</code></dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/c4fc7ed367c4978e4a0b353424c1f7a36a2bda63"><code>c4fc7ed36</code></a></dd>
+  <dt>Merge date</dt><dd>2026-11-04T02:52:39Z</dd>
+  <dt>Loop iteration</dt><dd>68</dd>
+</dl>
 </header>
 
-<h2 id="summary">In one paragraph</h2>
-<p>This PR lets the pipeline certify problems that use <a href="#g-array">arrays</a>
-whose index and element <a href="#g-sort">sorts</a> are both
-<a href="#g-uninterpreted-sort">uninterpreted sorts</a>. That is the
-<a href="#g-qf-ax">QF_AX</a> <a href="#g-fragment">fragment</a>.
-The <a href="#g-refutation">refutation</a> travels through the
-<a href="#g-clause-log">clause log</a>.
-Each array <a href="#g-axiom">axiom</a> instance Z3 used becomes a
-<a href="#g-lemma">lemma</a> that Lean's <a href="#g-grind"><code>grind</code></a>
-<a href="#g-tactic">tactic</a> must prove.
-In Lean an array is a plain function.
-<a href="#g-select">select</a> is function application, and
-<a href="#g-store">store</a> is a one-point update.
-The <a href="#g-extensionality">extensionality</a> <a href="#g-witness">witness</a>
-is a <a href="#g-choice">choice</a>.
-All four array facts are theorems proved inside each generated file.
-No <a href="#g-sorry"><code>sorry</code></a> and no new axioms are added.
-On z3test's 25 QF_AX sample benchmarks, 23 now pass in Lean. None did before.</p>
+<section id="summary">
+<h2>In one paragraph</h2>
+<p>This PR lets the pipeline certify inputs that use <a href="#g-array">arrays</a> whose index and element <a href="#g-sort">sorts</a> are both <a href="#g-uninterpreted-sort">uninterpreted sorts</a>. This is the QF_AX <a href="#g-fragment">fragment</a>. Z3's array solver already wrote each <a href="#g-axiom">axiom</a> instance it used into the <a href="#g-clause-log">clause log</a>. The exporter, the replay, and the Lean reconstructor now read those array <a href="#g-lemma">lemmas</a>. Lean sees an array as a function, <a href="#g-store">store</a> as a function update, and the <a href="#g-extensionality">extensionality</a> <a href="#g-witness">witness</a> as a choice. Every array fact the <a href="#g-refutation">refutation</a> uses is a <a href="#g-theorem">theorem</a> proved inside the generated file. So the <a href="#g-trust-boundary">trust boundary</a> does not move. In a sweep, 23 of z3test's 25 QF_AX benchmarks now verify in Lean. Before this PR, none did.</p>
+</section>
 
-<h2 id="background">Background</h2>
-<p>Before this PR, the <a href="#g-certificate">certificate</a> exporter stopped at
-any array <a href="#g-sort">sort</a>. Every QF_AX input failed with
-"unsupported sort". The pipeline already handled <a href="#g-boolean">Boolean</a>
-structure, <a href="#g-uninterpreted-function">uninterpreted functions</a> with
-<a href="#g-congruence">congruence</a>, and linear Int and Real arithmetic.
-Z3's array solver was already writing each axiom instance into the
-<a href="#g-clause-log">clause log</a> with an <code>array</code>
-<a href="#g-hint">hint</a>. The pipeline did not read those hints yet.
-This PR serves Milestone 4 of the project plan, "Broader theories and integration".
-That milestone names arrays as one of the separate extensions.</p>
+<section id="background">
+<h2>Background</h2>
+<p>Before this PR, the pipeline certified Boolean inputs, linear arithmetic over Int and Real, and <a href="#g-uninterpreted-function">uninterpreted functions</a> next to them. It rejected any array sort at the very first step. So the 25 QF_AX samples in z3test (storecomm, storeinv, swap) could not be certified, although Z3 solves all of them. This work serves milestone 4 of the plan, "Broader theories and integration", which lists arrays as a distinct extension. It covers only arrays over uninterpreted sorts. Arrays over Int, Real, or <a href="#g-boolean">Boolean</a> values are still out of scope.</p>
+</section>
 
-<h2 id="changes">What changed</h2>
+<section id="changes">
+<h2>What changed</h2>
+<p>The change is Python only. No C++ file changed.</p>
 <ul>
-<li>You can now export a certificate for a QF_AX input with array constants,
-<code>select</code>, <code>store</code>, an <a href="#g-ite">if-then-else term</a> over arrays,
-and equality between arrays.</li>
-<li>The clause-log reader now understands array terms, including the extensionality witness <code>(_ array-ext 0)</code>.</li>
-<li>The Lean reconstructor now turns each array lemma into a theorem that <code>grind</code> proves from facts stated in the same file.</li>
-<li>Long chains of stores now stay as short named terms in each lemma.
-Think of a footnote instead of copying a paragraph each time.
-Copying them out made files grow up to 28 MB and exhaust the Lean <a href="#g-kernel">kernel</a>.</li>
-<li>Z3 sometimes <a href="#g-rewrite">rewrites</a> stores before solving, for example
-two writes at one index become one. Those rewrite steps now also check in Lean.</li>
-<li>Unsupported shapes are rejected with a clear message: arrays over Int, Real, Bool or arrays, multi-index arrays, constant arrays, and functions over arrays.</li>
+  <li><strong>Exporter.</strong> You can now export a certificate for an input that uses <a href="#g-select">select</a>, store, <a href="#g-ite">ite</a> over arrays, and equality between arrays.</li>
+  <li><strong>Clear rejections.</strong> Unsupported array shapes, such as arrays over Int, constant arrays, or functions over arrays, now fail with a named error.</li>
+  <li><strong>Clause-log replay.</strong> The replay now reads array terms and turns each <code>array</code> hint into a <a href="#g-clause">clause</a>, the store axiom included.</li>
+  <li><strong>Lean encoding.</strong> Each generated file now defines select, store, and the witness, and proves four facts about them before using them.</li>
+  <li><strong>Size control.</strong> Long chains of stores stay folded under one name, so large benchmarks no longer produce 28 MB files.</li>
 </ul>
-<p>The code changes are all in Python. No C++ file changed.</p>
+<p>An analogy for store: think of a phone book where you correct one entry. The result is a new book that agrees with the old one on every line but that one. The extensionality witness is the reverse idea. If two books differ, it points at one line where they differ.</p>
+<p>Inside the generated file, the <a href="#g-tactic">tactic</a> <code>grind</code> proves each array lemma. The reconstructor hands it only the few facts that lemma needs. If those facts are removed, grind fails. A new test checks exactly that.</p>
+
 <table>
-<thead><tr><th>File</th><th>Component</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<thead><tr><th>File</th><th>What it is</th><th>Lines added</th><th>Lines removed</th></tr></thead>
 <tbody>
-<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="n">75</td><td class="n">6</td></tr>
-<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="n">55</td><td class="n">4</td></tr>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="n">233</td><td class="n">22</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>New tests</td><td class="n">370</td><td class="n">0</td></tr>
-<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="n">32</td><td class="n">2</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="n">27</td><td class="n">0</td></tr>
-<tr><th>Total (2 commits)</th><th></th><th class="n">792</th><th class="n">34</th></tr>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">75</td><td class="num">6</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">55</td><td class="num">4</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">233</td><td class="num">22</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>New tests (12)</td><td class="num">370</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Documentation</td><td class="num">32</td><td class="num">2</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, new dated section</td><td class="num">27</td><td class="num">0</td></tr>
+<tr><th>Total</th><th>6 files</th><th class="num">792</th><th class="num">34</th></tr>
 </tbody>
 </table>
+</section>
 
-<h2 id="example">Worked example</h2>
-<p>This input is the PR's <code>store_commutes</code> test with one unused declaration removed.
-Writing at two different indices gives the same array in either order.
-The input claims the opposite, so it is unsatisfiable.</p>
+<section id="example">
+<h2>Worked example</h2>
+<p>This input is one of the PR's documented tests, "write back what was read", with unused declarations removed. Read entry <code>i</code> of <code>a</code>, write it back, and the array must be unchanged. The input claims the opposite.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(set-logic QF_AX)
@@ -114,215 +127,188 @@ The input claims the opposite, so it is unsatisfiable.</p>
 (declare-sort Element 0)
 (declare-fun a () (Array Index Element))
 (declare-fun i () Index)
-(declare-fun j () Index)
 (declare-fun e () Element)
-(declare-fun f () Element)
-(assert (not (= i j)))
-(assert (not (= (store (store a i e) j f) (store (store a j f) i e))))
+(assert (= e (select a i)))
+(assert (not (= (store a i e) a)))
 (check-sat)</code></pre>
 
-<h3>(b) Before: the exporter at the PR's base</h3>
+<h3>(b) Before: the exporter at the PR's base commit</h3>
 <pre><code>proof_certificate.py: error: unsupported sort: Array(Index, Element)</code></pre>
-<p>The exporter stopped here, so the old reconstructor never ran.</p>
+<p class="explain">The old exporter stopped at the declaration of <code>a</code>, so no certificate and no Lean file existed.</p>
 
-<h3>(c) After: the Lean file the reconstructor now writes</h3>
-<p>The generated file has 399 lines. Lean accepted it: <code>check_lean.sh</code> printed
-"Lean checks passed." The file contains no <code>sorry</code> and no <code>axiom</code>.</p>
+<h3>(c) After: the generated Lean file (148 lines, trimmed)</h3>
+<pre><code>-- Uninterpreted sorts "Element", "Index" are the one type _m.U; ...
+-- Array sorts "(Array Index Element)" are functions _m.U -&gt; _m.U (_m.arrs); ...
 
-<pre><code>structure Interpretation where
+structure Interpretation where
   U : Type
   elems : Nat -&gt; U
   ...
   arrs : Nat -&gt; U -&gt; U
   nonempty : Nonempty U</code></pre>
-<p>A model now also supplies the array constants as functions, and a promise that <code>U</code> is not empty.</p>
+<p class="explain">The model gains a family of array constants, each a function from <code>U</code> to <code>U</code>, and a promise that <code>U</code> is not empty.</p>
 
-<pre><code>noncomputable def _store {U : Type} (a : U -&gt; U) (i v : U) : U -&gt; U :=
+<pre><code>def _select {U : Type} (a : U -&gt; U) (i : U) : U := a i
+
+noncomputable def _store {U : Type} (a : U -&gt; U) (i v : U) : U -&gt; U :=
   fun _j =&gt; @ite U (_j = i) (Classical.propDecidable _) v (a _j)
 
 private theorem _store_apply {U : Type} (a : U -&gt; U) (i v j : U) :
-    _select (_store a i v) j = @ite U (j = i) (Classical.propDecidable _) v (_select a j) := rfl
+    _select (_store a i v) j = @ite U (j = i) (Classical.propDecidable _) v (_select a j) := rfl</code></pre>
+<p class="explain">Select is function application, and store is a function that returns <code>v</code> at <code>i</code> and the old value elsewhere.</p>
 
-noncomputable def _array_diff {U : Type} (h : Nonempty U) (a b : U -&gt; U) : U :=
+<pre><code>noncomputable def _array_diff {U : Type} (h : Nonempty U) (a b : U -&gt; U) : U :=
   @Classical.epsilon U h (fun _j =&gt; Not (a _j = b _j))
 
 private theorem _array_ext {U : Type} (h : Nonempty U) (a b : U -&gt; U) :
     a = b \/ Not (_select a (_array_diff h a b) = _select b (_array_diff h a b)) := by
   ...</code></pre>
-<p>A store returns <code>v</code> at index <code>i</code> and the old value elsewhere.
-Two arrays are equal, or they differ at the index the choice picks.</p>
+<p class="explain">The witness picks an index where two arrays differ, and the theorem says two arrays are equal or differ at that index.</p>
 
-<pre><code>noncomputable def term_8 ... : (_m.U -&gt; _m.U) := (_store (term_6 _atoms _m) (term_1 _atoms _m) (term_7 _atoms _m))
-...
-noncomputable def term_10 ... : (_m.U -&gt; _m.U) := (_store (term_9 _atoms _m) (term_0 _atoms _m) (term_5 _atoms _m))
-def formula_11 ... : Prop := ((term_8 _atoms _m) = (term_10 _atoms _m))
-...
-noncomputable def term_13 ... : _m.U := (_array_diff _m.nonempty (term_8 _atoms _m) (term_10 _atoms _m))
+<pre><code>private theorem th_lemma_16 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_15 _atoms _m) := by
+  unfold formula_15 formula_14 formula_13 term_12 term_11 term_10 formula_6
+  have _t5 : (term_5 _atoms _m) = (_store ((term_1 _atoms _m)) (_m.elems 1) (_m.elems 0)) := rfl
+  have _x10 := _array_ext _m.nonempty ((term_5 _atoms _m)) ((term_1 _atoms _m))
+  have _s11 := _store_apply ((term_1 _atoms _m)) (_m.elems 1) (_m.elems 0) ...
+  grind (splits := 64)
 ...
 theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
-    (_h0 : (formula_3 _atoms _m))
-    (_h1 : (formula_12 _atoms _m))
+    (_h0 : (formula_4 _atoms _m))
+    (_h1 : (formula_7 _atoms _m))
     : False :=
   ...</code></pre>
-<p>The two store chains are named <code>term_8</code> and <code>term_10</code>.
-The main theorem says the two assertions together prove <code>False</code>.</p>
+<p class="explain">One array lemma from the clause log, proved by grind from exactly the facts it needs, and the final theorem: the two assertions together imply <code>False</code>.</p>
 
-<pre><code>private theorem th_lemma_46 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
-    : (formula_45 _atoms _m) := by
-  unfold formula_45 formula_44 formula_19 term_18 term_14 term_13 formula_11
-  have _t6 : (term_6 _atoms _m) = (_store ((term_4 _atoms _m)) (_m.elems 0) (_m.elems 2)) := rfl
-  ...
-  have _x13 := _array_ext _m.nonempty ((term_8 _atoms _m)) ((term_10 _atoms _m))
-  have _s14 := _store_apply ((term_9 _atoms _m)) (_m.elems 0) (_m.elems 2) ((_array_diff _m.nonempty ((term_8 _atoms _m)) ((term_10 _atoms _m))))
-  have _s18 := _store_apply ((term_6 _atoms _m)) (_m.elems 1) (_m.elems 3) ((_array_diff _m.nonempty ((term_8 _atoms _m)) ((term_10 _atoms _m))))
-  grind (splits := 64)
+<p>Result: <code>scripts/check_lean.sh</code> printed "Lean checks passed." The file was produced and checked for this report with the merged code.</p>
+</section>
 
-private theorem th_lemma_77 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
-    : (formula_70 _atoms _m) := by
-  unfold formula_70 term_69 term_5 term_0
-  have _t6 : (term_6 _atoms _m) = (_store ((term_4 _atoms _m)) (_m.elems 0) (_m.elems 2)) := rfl
-  have _s69 := _store_apply ((term_4 _atoms _m)) (_m.elems 0) (_m.elems 2) (_m.elems 0)
-  grind (splits := 64)</code></pre>
-<p>Lemma 46 is an extensionality step, and lemma 77 says reading index <code>i</code> right after writing <code>e</code> there gives <code>e</code>.
-In both, <code>grind</code> gets only the facts that lemma needs.</p>
-
-<h2 id="verification">How it was verified</h2>
-<p>In plain terms, every Python and Lean test suite the PR author ran passed.
-The new array tests include a negative test.
-It deletes the array facts from a file and checks that <code>grind</code> then fails.
-A sweep over all 25 z3test QF_AX samples verified 23 in Lean.
-The reviewer also checked one extra benchmark that is not in the tests, and it passed.</p>
+<section id="verification">
+<h2>How it was verified</h2>
+<p>The loop merged this PR on its local gate rather than waiting for GitHub CI. The gate repeats the Lean steps of the Linux CI job on the loop machine. All five steps passed, including the full Lean reconstruction suite, which took about 27 minutes.</p>
 <table>
-<thead><tr><th>Check (run on the PR head)</th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
 <tbody>
-<tr><td>All <code>test_proof_to_lean*.py</code> suites</td><td class="ok">392 tests, OK (1629 s)</td></tr>
-<tr><td>New <code>test_proof_to_lean_array</code>, with Lean checks</td><td class="ok">12 tests, OK</td></tr>
-<tr><td><code>test_proof_certificate.py</code></td><td class="ok">110 tests, OK</td></tr>
-<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
-<tr><td>z3test <code>scripts/proofs</code> tests</td><td class="ok">48 tests, OK</td></tr>
-<tr><td>Proof matrix, Boolean inputs, legacy core (first commit)</td><td class="ok">6 / 6 Lean-verified</td></tr>
-<tr><td>Proof matrix, <code>lra_*</code> inputs, clause log (first commit)</td><td class="ok">8 / 8 Lean-verified</td></tr>
-<tr><td>z3test QF_AX sweep, 25 files (first commit)</td><td class="warn">23 verified, 2 kernel memory failures</td></tr>
-<tr><td>Reviewer spot check, <code>storeinv_t3_np_sf_ai_00010_001</code></td><td class="ok">Passed, about 6 s</td></tr>
-<tr><td>Worked example above, for this page</td><td class="ok">Lean checks passed</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">13 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">1627 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">18 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
 </tbody>
 </table>
-<p>The driver's local gate was still running when this page was written.
-Its results had not been recorded, so this page reports none.</p>
-
-<h3>CI</h3>
-<p>No CI status files were available when this page was written.
-The driver noted that the change touches only paths its local gate covers, so it did not wait for GitHub CI.
-There were no CI fix rounds.</p>
+<p>The PR author and reviewer also ran these checks.</p>
 <table>
-<thead><tr><th>Workflow / job / step</th><th>State</th></tr></thead>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
 <tbody>
-<tr><td><code>ci.yml</code> · Ubuntu build - cmake - releaseClang · Check native proofs in Lean (runs the new tests)</td>
-<td>Unknown at time of writing. See the <a href="https://github.com/levnach/z3/pull/68/checks">PR checks page</a>.</td></tr>
+<tr><td>All <code>test_proof_to_lean*</code> tests, branch head</td><td class="pass">392 tests OK</td></tr>
+<tr><td>New array module, with Lean checks</td><td class="pass">12 tests OK</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td class="pass">110 tests OK</td></tr>
+<tr><td>z3test proof scripts</td><td class="pass">48 tests OK</td></tr>
+<tr><td>z3test QF_AX sweep, first commit only</td><td>23 of 25 verified, 2 <span class="fail">kernel memory</span></td></tr>
+<tr><td>Reviewer spot check, <code>storeinv_t3_np_sf_ai_00010_001</code></td><td class="pass">Lean passed in about 6 s</td></tr>
 </tbody>
 </table>
+<p>GitHub CI: the inputs contain no CI status records for this PR, and there were no CI fix rounds. GitHub CI runs on <code>master</code> after the merge. Its result is unknown to this report.</p>
+<table>
+<thead><tr><th>Workflow / check</th><th>Result</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>CI on the PR</td><td class="unknown">not recorded</td><td><a href="https://github.com/levnach/z3/pull/68/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+<p>The new module runs in CI's "Check native proofs in Lean" step of the <code>releaseClang</code> job. The QF_AX benchmarks are not part of any CI gate.</p>
+</section>
 
-<h2 id="review">Review</h2>
-<p>The reviewer approved. There were no blockers and no major findings.</p>
+<section id="review">
+<h2>Review</h2>
+<p>The reviewer approved, with no blocker and no major finding.</p>
 <ul>
-<li><strong>Minor: a contradictory comment in every UF file.</strong>
-The reviewer reconstructed a plain QF_UF input with no arrays.
-The Lean header said the sort was <code>_m.U</code> and also said "No uninterpreted sort".
-A code split had broken one if/elif chain into two.
-Lean ignores comments, but people read these published certificates.
-The chain is whole again, and a new test checks the header lines.</li>
-<li><strong>Nit: an unused parameter.</strong> A helper took an <code>arrays</code> flag that no caller passed. It was removed.
-While fixing it, the author saw that the helper's walk could leave the set of terms it was given.
-That could only make Lean fail, never accept something false. The walk now stays inside the set.</li>
-<li><strong>Nit: a weak negative test.</strong> The test only checked that Lean failed.
-It would also pass if Lean failed for an unrelated reason, like a missing name.
-It now requires every error to be a <code>grind</code> failure.</li>
-<li><strong>Suggestion, not done:</strong> reject an <code>array</code> lemma that mentions no array term.
-Today a plain equality <a href="#g-clause">clause</a> could be relabeled <code>array</code>.
-That is harmless because <code>grind</code> must still prove it. It is left as a follow-up.</li>
-<li><strong>Suggestion, noted:</strong> the slow storecomm files take 60 to 90 s, close to the probe's 120 s timeout.</li>
+  <li><strong>Minor: a contradictory comment.</strong> The reviewer exported a plain QF_UF input with one uninterpreted sort. The Lean file said the sort was the type <code>U</code>, and also said "No uninterpreted sort". A split chain of conditions printed both lines. This touched every published UF certificate, not just arrays. Lean ignores comments, but people read these files. The fix restored one chain, and a new test checks the header lines.</li>
+  <li><strong>Nit: an unused parameter.</strong> A helper had an <code>arrays</code> option that no caller used. It was removed. While fixing it, the author found that the helper's walk could leave the set of terms it was given. That could only make Lean fail, never accept a false lemma. The walk now stays inside its set.</li>
+  <li><strong>Nit: a weak negative test.</strong> The test that removes the array facts only checked that Lean failed. It could have failed for an unrelated reason. It now requires every Lean error to be a grind failure. On that file there are four, all from grind.</li>
+  <li><strong>Suggestion, not done: a tighter lemma check.</strong> An ordinary equality clause could be relabeled as an <code>array</code> lemma. This is harmless because grind must still prove it. The check is left as a follow-up.</li>
+  <li><strong>Suggestion, noted: slow files.</strong> Some storecomm files take 60 to 90 s in Lean. That is close to the 120 s probe timeout.</li>
 </ul>
+</section>
 
-<h2 id="risks">Risks and open questions</h2>
+<section id="risks">
+<h2>Risks and open questions</h2>
 <ul>
-<li>Two QF_AX benchmarks still exhaust kernel memory. This happens in outlined <a href="#g-resolution">resolution</a> steps, not in array lemmas.
-Lean rejects them, so no certificate is published.</li>
-<li>Large storecomm files need 60 to 90 s each in Lean. They would likely time out if added to a probe corpus.</li>
-<li>The replay recognizes the store axiom by its shape. A wrong match can only make Lean fail.</li>
-<li>Open PR #67 edits the same functions. A textual merge conflict is likely, though the features are independent.</li>
-<li>CI results for this PR were unknown when this page was written.</li>
+  <li>Two QF_AX benchmarks still fail in the Lean <a href="#g-kernel">kernel</a> with "(kernel) excessive memory consumption". The failure is in outlined <a href="#g-resolution">resolution</a> steps, not in array lemmas. No certificate is published for them.</li>
+  <li>Storecomm files with 40 or more stores take 60 to 90 s each. If QF_AX joins a probe corpus, expect timeouts.</li>
+  <li>The replay recognizes the store axiom by its shape. A wrong match can only make Lean fail.</li>
+  <li>Open PR #67, on enumeration datatypes, edits the same functions. A merge conflict is likely, though the features are independent.</li>
+  <li>The sweep of all 25 files ran on the first commit only. The review fixes were not re-swept.</li>
 </ul>
+</section>
 
-<h2 id="next">What comes next</h2>
+<section id="next">
+<h2>What comes next</h2>
+<p>These items are listed in the backlog:</p>
 <ul>
-<li>Arrays over Int, Real or Bool. z3test has 13 QF_AUFLIA samples waiting.</li>
-<li>Constant arrays, nested arrays, multi-index arrays, and functions over arrays.</li>
-<li>Arrays on the legacy proof core.</li>
-<li>The two kernel memory failures, and the tighter <code>array</code> lemma check.</li>
+  <li>Arrays over Int, Real, or Boolean values. z3test has 13 QF_AUFLIA samples waiting.</li>
+  <li>Constant arrays, nested arrays, arrays with several indices, and functions over arrays.</li>
+  <li>Arrays on the legacy core.</li>
+  <li>The two kernel-memory failures.</li>
+  <li>The tighter shape check for <code>array</code> lemmas.</li>
 </ul>
+</section>
 
-<h2 id="glossary">Glossary</h2>
-<dl>
-<dt id="g-array">array</dt>
-<dd>A value that maps each index to an element, like a table with one row per index. Its sort is written <code>(Array Index Element)</code>.</dd>
-<dt id="g-axiom">axiom</dt>
-<dd>A fact accepted without proof. Z3's array solver uses array axioms, but here each instance is proved in Lean instead.</dd>
-<dt id="g-boolean">Boolean</dt>
-<dd>The sort with exactly two values, true and false.</dd>
-<dt id="g-certificate">certificate</dt>
-<dd>A file that records how the solver reached its answer, so another program can check it.</dd>
-<dt id="g-choice">choice (epsilon)</dt>
-<dd>An operator that picks some value with a given property, if one exists. Lean's version is <code>Classical.epsilon</code>.</dd>
-<dt id="g-clause">clause</dt>
-<dd>A disjunction of literals. Example: <code>i = j or (select b j) = (select a j)</code>.</dd>
-<dt id="g-clause-log">clause log</dt>
-<dd>The list of clauses the SAT/SMT core added or derived while solving, each with a hint saying why.</dd>
-<dt id="g-congruence">congruence</dt>
-<dd>The rule that equal arguments give equal results: if <code>x = y</code> then <code>f(x) = f(y)</code>.</dd>
-<dt id="g-extensionality">extensionality</dt>
-<dd>The rule that two arrays are equal if they agree at every index.</dd>
-<dt id="g-fragment">fragment</dt>
-<dd>A restricted family of formulas, named by an SMT-LIB logic such as QF_UF or QF_AX.</dd>
-<dt id="g-grind">grind</dt>
-<dd>A Lean tactic that searches for a proof using equalities, case splits and given facts.</dd>
-<dt id="g-hint">hint</dt>
-<dd>A label on a logged clause that says which solver part produced it, such as <code>euf</code>, <code>farkas</code> or <code>array</code>.</dd>
-<dt id="g-ite">if-then-else term</dt>
-<dd>A term that picks one of two values by a condition, written <code>(ite c x y)</code> in SMT-LIB.</dd>
-<dt id="g-kernel">kernel</dt>
-<dd>The small core of Lean that finally checks every proof.</dd>
-<dt id="g-lemma">lemma</dt>
-<dd>A helper fact proved on the way to the main result. A theory lemma is a clause justified by one theory, such as arrays.</dd>
-<dt id="g-literal">literal</dt>
-<dd>An atomic formula or its negation, such as <code>i = j</code> or <code>not (i = j)</code>.</dd>
-<dt id="g-qf-ax">QF_AX</dt>
-<dd>The SMT-LIB logic of quantifier-free formulas over arrays with uninterpreted index and element sorts.</dd>
-<dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of assertions leads to false, so the assertions cannot all hold.</dd>
-<dt id="g-resolution">resolution</dt>
-<dd>The rule that combines two clauses with opposite literals into one clause without them.</dd>
-<dt id="g-rewrite">rewrite</dt>
-<dd>A step that replaces a term by an equal, simpler one. Example: <code>(store (store a i v) i w)</code> becomes <code>(store a i w)</code>.</dd>
-<dt id="g-select">select</dt>
-<dd>Reading an array: <code>(select a i)</code> is the element of <code>a</code> at index <code>i</code>.</dd>
-<dt id="g-sort">sort</dt>
-<dd>The type of a value, such as Int, Real, Bool, or an array sort.</dd>
-<dt id="g-sorry">sorry</dt>
-<dd>A Lean placeholder that skips a proof. A trusted certificate must not contain it.</dd>
-<dt id="g-store">store</dt>
-<dd>Writing an array: <code>(store a i v)</code> is a new array equal to <code>a</code> except that index <code>i</code> holds <code>v</code>.</dd>
-<dt id="g-tactic">tactic</dt>
-<dd>A Lean command that builds part of a proof automatically.</dd>
-<dt id="g-uninterpreted-function">uninterpreted function</dt>
-<dd>A function symbol with no fixed meaning. Only congruence constrains it.</dd>
-<dt id="g-uninterpreted-sort">uninterpreted sort</dt>
-<dd>A sort with no fixed meaning, declared with <code>declare-sort</code>. Only equality is known about its values.</dd>
-<dt id="g-witness">witness</dt>
-<dd>A concrete value that shows a claim holds. Here, an index where two unequal arrays differ.</dd>
+<section id="glossary">
+<h2>Glossary</h2>
+<dl class="glossary">
+  <dt id="g-array">array</dt>
+  <dd>A map from index values to element values. <code>(Array Index Element)</code> maps each <code>Index</code> to an <code>Element</code>.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A rule accepted without proof. Here, a rule of the array theory, such as "reading what you just wrote gives back the written value".</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort with exactly two values, true and false. Written <code>Bool</code> in SMT-LIB.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>a = b or not (p)</code>. It holds if at least one literal holds.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>The record Z3's SAT-based core writes while solving. Each line is a clause it learned or used, often with a hint saying why.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results. If <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+  <dt id="g-extensionality">extensionality</dt>
+  <dd>The rule that two arrays are equal when they agree at every index.</dd>
+  <dt id="g-fragment">fragment</dt>
+  <dd>A restricted class of inputs, named after an SMT-LIB logic. QF_AX means quantifier-free formulas over arrays.</dd>
+  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+  <dd>A term that picks one of two values by a condition. <code>(ite p a b)</code> is <code>a</code> when <code>p</code> holds, else <code>b</code>.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small core of Lean that checks every proof step. Its memory limit is what the two failing benchmarks exceed.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A helper fact proved on the way to the main result. Here, each clause a theory solver contributes.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>i = j</code> or <code>not (i = j)</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+  <dt id="g-resolution">resolution</dt>
+  <dd>The step that combines two clauses with opposite literals into one clause without them.</dd>
+  <dt id="g-select">select</dt>
+  <dd>Reading an array. <code>(select a i)</code> is the element stored at index <code>i</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, Bool, or a declared sort like <code>Index</code>.</dd>
+  <dt id="g-store">store</dt>
+  <dd>Writing an array. <code>(store a i e)</code> is a new array equal to <code>a</code> except that index <code>i</code> holds <code>e</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>grind</code> and <code>simp</code> are tactics.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that Lean's kernel has checked.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>What must be believed without a check. Here, only Lean's kernel and its three standard axioms, with no <code>sorry</code> and no added axioms.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. Only congruence is known about it.</dd>
+  <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+  <dd>A sort declared by name only, with <code>declare-sort</code>. Nothing is known about its values except equality.</dd>
+  <dt id="g-witness">witness</dt>
+  <dd>A concrete value that shows a claim holds. The extensionality witness is an index where two different arrays differ.</dd>
 </dl>
+</section>
 
 <footer>
 Generated by the Lean certificate improvement loop on 2026-11-03.
 </footer>
+
+</main>
 </body>
 </html>
