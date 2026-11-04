@@ -511,6 +511,7 @@ class TestArrayValidation(unittest.TestCase):
         self.assertIn(":= _default_store _int_unbounded ((term_", text)
         self.assertIn(":= _default_const (I := Int) _int_unbounded (((1 : Int)))", text)
         self.assertIn("private theorem _int_unbounded", text)
+        self.assertNotIn("_rat_unbounded", text)  # only the index sorts present
         hints = [d["parameters"] for d in self.certificates["z3test_2549"]["declarations"] if d["name"] == "th-lemma"]
         self.assertIn(["array"], hints)
         read = proof_to_lean.reconstruct(ARRAY_INPUTS["read_constant"], self.certificates["read_constant"])
@@ -534,6 +535,7 @@ class TestArrayValidation(unittest.TestCase):
         self.assertIn(":= _default_store _rat_unbounded ((term_", real)
         self.assertIn(":= _default_const (I := Rat) _rat_unbounded (((1 : Int)))", real)
         self.assertIn("private theorem _rat_unbounded", real)
+        self.assertNotIn("_int_unbounded", real)
         real_read = proof_to_lean.reconstruct(ARRAY_INPUTS["real_index_read"], self.certificates["real_index_read"])
         self.assertIn(":= _select_const (I := Rat) (((5 : Rat)))", real_read)
         real_chains = proof_to_lean.reconstruct(ARRAY_INPUTS["real_index_comparison"],
@@ -569,8 +571,27 @@ class TestArrayValidation(unittest.TestCase):
                         d["range"] = "(Array Element Element)"
             return tamper
 
-        def const_of_int(certificate):
+        def const_value_of_int(certificate):
+            # The const's value (the element), not its index, relabelled to Int.
             declaration(certificate, z3.Z3_OP_CONST_ARRAY)["domain"] = ["Int"]
+
+        def relabelled_sort(old, new):
+            # One array sort renamed in every string of the certificate: the
+            # certificate stays consistent, so only the comparison with the
+            # input's own declarations catches it.
+            def relabel(value):
+                if isinstance(value, str):
+                    return value.replace(old, new)
+                if isinstance(value, list):
+                    return [relabel(item) for item in value]
+                if isinstance(value, dict):
+                    return {key: relabel(item) for key, item in value.items()}
+                return value
+
+            def tamper(certificate):
+                self.assertIn(old, repr(certificate))
+                certificate.update(relabel(certificate))
+            return tamper
 
         self._rejects("z3test_2549", const_of_real, "invalid constant array declaration")
         self._rejects("z3test_2549", renamed_const, "invalid constant array declaration")
@@ -580,7 +601,12 @@ class TestArrayValidation(unittest.TestCase):
         self._rejects("real_index_elements", uninterpreted_indices("Real"),
                       "invalid (constant array|default) declaration")
         self._rejects("real_index_2549", default_into_real, "invalid default declaration")
-        self._rejects("real_index_read", const_of_int, "invalid constant array declaration")
+        self._rejects("real_index_read", const_value_of_int, "invalid constant array declaration")
+        # Real indices relabelled to Int (or the element sort changed) consistently.
+        self._rejects("real_index_2549", relabelled_sort("(Array Real Int)", "(Array Int Int)"),
+                      "certificate source does not match the original input")
+        self._rejects("real_index_read", relabelled_sort("(Array Real Real)", "(Array Int Real)"),
+                      "certificate source does not match the original input")
 
     def test_the_replay_reads_constant_arrays(self):
         context = z3.Context()

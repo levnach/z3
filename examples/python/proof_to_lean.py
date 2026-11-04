@@ -304,7 +304,11 @@ _CONSTANT_ARRAY_DEFINITIONS = """
 def _const_array (I : Type) {E : Type} (v : E) : I -> E := fun _ => v
 
 private theorem _select_const {I E : Type} (v : E) (i : I) : _select (_const_array I v) i = v := rfl
-
+""".strip("\n").split("\n")
+# The proofs that no finite list exhausts the index type, one per index sort
+# of _UNBOUNDED; a file proves those of its array sorts' indices
+# (_constant_array_definitions).
+_UNBOUNDED_THEOREMS = {"Int": """
 private theorem _int_unbounded : forall l : List Int, Exists (fun x : Int => Not (List.Mem x l)) := by
   intro l
   have _b : Exists (fun b : Int => forall y : Int, List.Mem y l -> y < b) := by
@@ -318,7 +322,7 @@ private theorem _int_unbounded : forall l : List Int, Exists (fun x : Int => Not
       | tail _ h => have := hb y h; omega
   obtain ⟨b, hb⟩ := _b
   exact Exists.intro b (fun h => Int.lt_irrefl b (hb b h))
-
+""".strip("\n").split("\n"), "Real": """
 private theorem _rat_unbounded : forall l : List Rat, Exists (fun x : Rat => Not (List.Mem x l)) := by
   intro l
   have _b : Exists (fun b : Rat => forall y : Rat, List.Mem y l -> y < b) := by
@@ -332,7 +336,8 @@ private theorem _rat_unbounded : forall l : List Rat, Exists (fun x : Rat => Not
       | tail _ h => have := hb y h; grind
   obtain ⟨b, hb⟩ := _b
   exact Exists.intro b (fun h => Rat.lt_irrefl (hb b h))
-
+""".strip("\n").split("\n")}
+_DEFAULT_DEFINITIONS = """
 noncomputable def _default {I E : Type} (h : forall l : List I, Exists (fun x : I => Not (List.Mem x l)))
     (a : I -> E) : E :=
   @dite E (Exists (fun e : E => Exists (fun l : List I => forall x : I, Not (List.Mem x l) -> a x = e)))
@@ -436,6 +441,16 @@ def _unbounded(graph, node, explicit=False):
     if explicit:
         return "(I := %s) %s" % (_component_type(index), _UNBOUNDED[index])
     return _UNBOUNDED[index]
+
+
+def _constant_array_definitions(graph):
+    """The constant-array prelude with the unboundedness theorems of the graph's array index sorts only."""
+    indices = {_array_components(sort)[0] for sort in graph.arrays}
+    lines = list(_CONSTANT_ARRAY_DEFINITIONS)
+    for index in _UNBOUNDED:  # Int before Real, a fixed order
+        if index in indices:
+            lines.extend([""] + _UNBOUNDED_THEOREMS[index])
+    return lines + [""] + _DEFAULT_DEFINITIONS
 
 
 def _array_family(name):
@@ -5709,7 +5724,7 @@ def reconstruct(source, certificate):
     if graph.arrays:
         lines.extend(_ARRAY_DEFINITIONS + [""])
     if any(decl.kind in (z3.Z3_OP_CONST_ARRAY, z3.Z3_OP_ARRAY_DEFAULT) for decl in graph.declarations):
-        lines.extend(_CONSTANT_ARRAY_DEFINITIONS + [""])
+        lines.extend(_constant_array_definitions(graph) + [""])
     if any(decl.kind in _CONVERSION_KINDS for decl in graph.declarations):
         lines.extend(_CAST_LEMMAS + [""])
     if any(decl.kind in _PSEUDO_BOOLEAN for decl in graph.declarations):
