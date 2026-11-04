@@ -297,8 +297,10 @@ private theorem _store_select {I E : Type} (a : I -> E) (i : I) : _store a i (_s
 # that a store does not change (Classical.choice of a Nonempty proof, and
 # proofs are irrelevant). Over a finite index sort no such function exists (a
 # store at every index turns one constant array into another), so the
-# exporter and the reconstructor admit constant arrays and defaults over Int
-# indices only.
+# exporter and the reconstructor reject uninterpreted index sorts. Real
+# indices are infinite as well but not implemented yet (they need an
+# unboundedness lemma over Rat), so constant arrays and defaults are admitted
+# over Int indices only.
 _CONSTANT_ARRAY_DEFINITIONS = """
 def _const_array (I : Type) {E : Type} (v : E) : I -> E := fun _ => v
 
@@ -2463,8 +2465,8 @@ def _constant_array_comparisons(graph, reachable, atom_indices, variable_indices
     for node in arrays:
         if graph.kind(node) == z3.Z3_OP_STORE:
             indices.setdefault(graph.decl(node).range, set()).add(graph.arguments(node)[1])
-    reads = sum(len(indices.get(graph.decl(node if node in arrays else graph.arguments(node)[0]).range, ()))
-                for node in arrays + equalities)
+    reads = sum(len(indices.get(graph.decl(node).range, ())) for node in arrays) + sum(
+        len(indices.get(graph.decl(graph.arguments(node)[0]).range, ())) for node in equalities)
     if reads > _COMPARISON_READS:
         indices = {}
     helpers = []

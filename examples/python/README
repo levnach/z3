@@ -1027,8 +1027,10 @@ not change (Classical.choice of a Nonempty proof, which is proof-
 irrelevant). _default_const and _default_store are theorems over any index
 type that no finite list exhausts. Over a finite index sort no such function
 exists (storing at every index turns one constant array into another), so
-constant arrays and default terms over uninterpreted or Real indices are
-rejected by the exporter and by the reconstructor. Z3's rewriter decides an
+constant arrays and default terms over uninterpreted indices are rejected
+by the exporter and by the reconstructor. Real indices are infinite too,
+but are not implemented yet (they need an unboundedness lemma over Rat like
+_int_unbounded) and are rejected as well. Z3's rewriter decides an
 equality between stores over constant arrays by their default values or
 their values at the stored indices; a rewrite step reaching a constant
 array gets those facts for its array equalities.

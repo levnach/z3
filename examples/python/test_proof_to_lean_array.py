@@ -16,6 +16,7 @@
 import copy
 import hashlib
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -747,6 +748,27 @@ class TestArrayLeanIntegration(unittest.TestCase):
                 self.assertTrue(errors, report)
                 for error in errors:
                     self.assertIn("`grind` failed", error)
+
+    def test_comparison_reads_are_needed(self):
+        """Without the read facts of _constant_array_comparisons grind cannot prove the rewrite of array.smt2's q2."""
+        source = ARRAY_INPUTS["z3test_array_q2"]
+        text = proof_to_lean.reconstruct(source, _export(source))
+        # The reads at the stored indices: _e<n>_<i> (congruence of an array
+        # equality), _ds<n>_<i> (_store_apply), _dc<n>_<i> (_select_const).
+        read = re.compile(r"^\s*have _(e|ds|dc)\d+_\d+ ")
+        lines = text.split("\n")
+        self.assertTrue({match.group(1) for match in map(read.match, lines) if match} >= {"e", "ds", "dc"}, text)
+        stripped = "\n".join(line for line in lines if not read.match(line))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "stripped.lean"
+            output.write_text(stripped)
+            result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(output)], text=True, capture_output=True)
+        report = result.stdout + result.stderr
+        self.assertNotEqual(result.returncode, 0, report)
+        errors = [line for line in report.split("\n") if "error:" in line]
+        self.assertTrue(errors, report)
+        for error in errors:
+            self.assertIn("`grind` failed", error)
 
 
 if __name__ == "__main__":

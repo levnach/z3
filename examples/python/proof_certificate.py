@@ -805,7 +805,9 @@ def classify_fragment(assertions):
                 # array takes at all but finitely many indices), which Lean
                 # proves over an infinite index type, Int (see
                 # proof_to_lean._default); a finite uninterpreted index sort
-                # would make those axioms unsound.
+                # would make those axioms unsound. Real indices are infinite
+                # too but not implemented yet (they need an unboundedness
+                # lemma over Rat like _int_unbounded).
                 if expr.sort().domain().kind() != z3.Z3_INT_SORT:
                     raise ProofExportError("constant arrays are supported over Int indices only: %s" % expr.sort())
             elif decl.kind() not in (z3.Z3_OP_UNINTERPRETED, z3.Z3_OP_ITE, z3.Z3_OP_STORE):
