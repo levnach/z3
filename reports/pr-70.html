@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-  --code-bg: #f6f8fa; --border: #d1d9e0; --note-bg: #fff8c5; --ok: #1a7f37; --unk: #9a6700;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --note-bg: #dafbe1; --ok: #1a7f37; --unk: #9a6700;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-    --code-bg: #151b23; --border: #3d444d; --note-bg: #3b2e0a; --ok: #3fb950; --unk: #d29922;
+    --code-bg: #151b23; --border: #3d444d; --note-bg: #12261a; --ok: #3fb950; --unk: #d29922;
   }
 }
 body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -38,85 +38,74 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 p.explain { margin-top: -0.4rem; color: var(--muted); }
 dt { font-weight: 600; margin-top: 0.7rem; }
 dd { margin-left: 1.2rem; }
-footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.6rem; color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
 
 <header>
 <h1>Certify constant arrays over Int indices in Lean via the clause log</h1>
-<p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/70">levnach/z3 #70</a> ·
-State: <strong>OPEN</strong> · Date: 2026-11-04T06:58:19Z · Loop iteration 70</p>
-<p class="status">This pull request is open and <strong>not merged</strong>. The change it proposes ends at commit
-<a href="https://github.com/levnach/z3/commit/1f463436a63673da3dbbc19386332260f5608d69"><code>1f463436a</code></a>.
-The PR has two commits: the feature and a round of review fixes.</p>
+<p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/70">levnach/z3#70</a> · loop iteration 70</p>
+<p class="status"><strong>State: MERGED</strong> on 2026-11-04T07:26:30Z into <code>master</code>.
+Merge commit: <a href="https://github.com/levnach/z3/commit/17223c30fcebffaa4e51a9bba42bc503735db8a9"><code>17223c30f</code></a>.</p>
 </header>
 
-<h2>In one paragraph</h2>
-<p>This PR lets the pipeline certify inputs that contain a
-<a href="#g-constant-array">constant array</a> whose <a href="#g-index-sort">index sort</a> is Int.
-Before, the <a href="#g-exporter">exporter</a> rejected every such input.
-Now the <a href="#g-clause-log">clause log</a> <a href="#g-replay">replay</a> reads constant arrays and their
-<a href="#g-default-value">default values</a>.
-The <a href="#g-reconstructor">reconstructor</a> turns the array solver's
-<a href="#g-axiom">axioms</a> about them into <a href="#g-theorem">theorems</a> that Lean proves in each generated file.
-The <a href="#g-element-sort">element sort</a> may be Int, Real, or an
-<a href="#g-uninterpreted-sort">uninterpreted sort</a>.
-Two z3test regressions that failed before now pass the Lean check: <code>2549.smt2</code> and all six queries of
-<code>array.smt2</code>.
-The change adds no Lean axiom and no <a href="#g-sorry">sorry</a>, so the
-<a href="#g-trust-boundary">trust boundary</a> does not move.</p>
+<h2 id="summary">In one paragraph</h2>
+<p>This PR lets the pipeline certify inputs that contain
+<a href="#g-constant-array">constant arrays</a> whose <a href="#g-sort">index sort</a> is Int.
+The element sort may be Int, Real, or an <a href="#g-uninterpreted-sort">uninterpreted sort</a>.
+Z3's array solver reasons about these arrays through <a href="#g-default-value">default values</a>.
+It records three array <a href="#g-axiom">axioms</a> as <a href="#g-hint">hints</a> in the
+<a href="#g-clause-log">clause log</a>.
+The exporter, the replay, and the Lean reconstructor now all understand these axioms.
+In Lean, each axiom becomes a <a href="#g-theorem">theorem</a> that is proved in every generated file.
+So nothing new is assumed, and the <a href="#g-trust-boundary">trust boundary</a> stays the same.
+As a result, the z3test regression <code>2549.smt2</code> and all six queries of <code>array.smt2</code> now end in a
+<a href="#g-refutation">refutation</a> that Lean accepts.</p>
 
-<h2>Background</h2>
-<p>The two previous iterations certified <a href="#g-array">arrays</a> over uninterpreted
-<a href="#g-sort">sorts</a> (PR #68) and over Int and Real (PR #69).
-Those PRs covered <a href="#g-select">select</a> and <a href="#g-store">store</a>.
-Every other array operator was still rejected.
-So any input with <code>((as const (Array Int Int)) 0)</code> stopped at the exporter with
+<h2 id="background">Background</h2>
+<p>The two previous PRs taught the pipeline about <a href="#g-array">arrays</a>.
+<a href="https://github.com/levnach/z3/pull/68">PR #68</a> covered arrays over uninterpreted sorts.
+<a href="https://github.com/levnach/z3/pull/69">PR #69</a> covered arrays over Int and Real.
+Both handled <a href="#g-select">select</a> and <a href="#g-store">store</a>.
+A constant array, written <code>((as const (Array Int Int)) 0)</code>, was still refused with
 "unsupported array operator: const".
-This work serves milestone 4 of the plan, "Broader theories and integration", which names arrays as one of the
-extensions.</p>
+This work belongs to milestone 4 of the project plan, "Broader theories and integration", which lists arrays as one of the theories to add.</p>
 
-<h2>What changed</h2>
-<p>A helpful picture: think of an array as a canvas with a background color. A constant array is a canvas painted
-in one color. Each store paints one pixel. The default value is the background color, and painting a few pixels
-never changes it. Z3 uses exactly this idea to tell arrays apart.</p>
+<h2 id="changes">What changed</h2>
 <ul>
-<li><strong>Exporter.</strong> You can now export an unsat input with a constant array over Int indices. Other
-index sorts get the clear message "constant arrays are supported over Int indices only".</li>
-<li><strong>Replay.</strong> The replay can now read <code>as const</code> terms and <code>default</code> terms, and it
-recognizes the three array axioms about them in the clause log. Each such hint is a one-<a href="#g-literal">literal</a>
-<a href="#g-clause">clause</a> that states the equality.</li>
-<li><strong>Lean encoding.</strong> A generated file now defines a constant array as a constant function and proves
-the two default-value axioms, starting from the fact that no finite list contains every Int.</li>
-<li><strong>Rewriter steps.</strong> When Z3's <a href="#g-rewriter">rewriter</a> decides an equality between stores
-over constant arrays, the <a href="#g-lemma">lemma</a> for that step now receives the default and read facts it
-needs, plus <a href="#g-congruence">congruence</a> facts for equal arrays.</li>
-<li><strong>Tests and docs.</strong> Six new inputs are checked in Lean, including a read under a
-<a href="#g-farkas">Farkas lemma</a>, and new tests show that tampered
-certificates are rejected and that the new facts are really needed.</li>
+<li>You can now export an unsat input that uses a constant array over Int indices. Other index sorts get a clear rejection.</li>
+<li>The clause-log replay can now read <code>as const</code> terms and <code>default</code> terms, and it accepts the three new array axioms.</li>
+<li>Lean now has a constant array, the constant function <code>_const_array</code>, and a proved notion of default value, <code>_default</code>.</li>
+<li>When Z3's <a href="#g-rewriter">rewriter</a> decides an equality between stores over constant arrays, the Lean lemma for that step now gets default facts, read facts, and <a href="#g-congruence">congruence</a> implications.</li>
+<li>Six new test inputs are Lean-checked, and new tests show that tampered certificates fail and that the new facts are really needed.</li>
 </ul>
-<p>Why only Int? Over a finite index sort you could paint every pixel. Then no background would remain, and the
-default-value axioms would be false. An uninterpreted sort might be finite, so it stays rejected. Real is infinite,
-but the matching Lean lemma over rationals is not written yet.</p>
+<p>Think of a default value as the background color of a canvas.
+A constant array is a canvas painted one color everywhere.
+A store paints one pixel, and the background color stays the same.
+That is the axiom <code>(default (store a i v)) = (default a)</code>.
+It only works when the canvas has infinitely many pixels.
+Over a finite index sort, enough stores could repaint the whole canvas.
+That is why uninterpreted index sorts, which may be finite, are rejected.
+Real indices are infinite, but they are not implemented yet.</p>
 
 <table>
 <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
 <tbody>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">14</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">36</td><td class="num">7</td></tr>
 <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">188</td><td class="num">11</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">171</td><td class="num">9</td></tr>
-<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">36</td><td class="num">7</td></tr>
 <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">27</td><td class="num">5</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan</td><td class="num">27</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">14</td><td class="num">1</td></tr>
-<tr><th colspan="2">Total, 6 files</th><th class="num">463</th><th class="num">33</th></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">27</td><td class="num">0</td></tr>
+<tr><th>Total, 6 files</th><th></th><th class="num">463</th><th class="num">33</th></tr>
 </tbody>
 </table>
 <p>There is no C++ change.</p>
 
-<h2>Worked example</h2>
-<p>This is z3test <code>regressions/smt2/2549.smt2</code>, one of the PR's new test inputs. I ran it through the old
-and new scripts for this report.</p>
+<h2 id="example">Worked example</h2>
+<p>The input is z3test <code>regressions/smt2/2549.smt2</code>, which is also the test input <code>z3test_2549</code>.
+Two different constant arrays receive the same store, and the input claims the results are equal.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(declare-const A0 (Array Int Int))
@@ -125,55 +114,59 @@ and new scripts for this report.</p>
 (assert (= A1 ((as const (Array Int Int)) 1)))
 (assert (= (store A0 2 3) (store A1 2 3)))
 (check-sat)</code></pre>
-<p class="explain">A0 is all zeros and A1 is all ones. Writing 3 at index 2 into both cannot make them equal.</p>
 
-<h3>(b) Before: the exporter at the base commit</h3>
+<h3>(b) Before</h3>
+<p>The exporter at the base commit <code>eed358594</code> stopped right away, with exit code 2:</p>
 <pre><code>proof_certificate.py: error: unsupported array operator: const</code></pre>
-<p class="explain">The old exporter stopped at the first constant array, so no certificate was produced.</p>
 
-<h3>(c) After: the generated Lean file, trimmed</h3>
+<h3>(c) After</h3>
+<p>The current exporter and reconstructor produced a 219-line Lean file.
+The reconstructor reported "Lean checked the refutation", and <code>scripts/check_lean.sh</code> printed "Lean checks passed."
+Here are the key pieces.</p>
+
 <pre><code>def _const_array (I : Type) {E : Type} (v : E) : I -&gt; E := fun _ =&gt; v
 
-private theorem _select_const {I E : Type} (v : E) (i : I) : _select (_const_array I v) i = v := rfl</code></pre>
-<p class="explain">A constant array is the function that ignores its index and always returns <code>v</code>.</p>
+private theorem _select_const {I E : Type} (v : E) (i : I) : _select (_const_array I v) i = v := rfl
 
-<pre><code>private theorem _int_unbounded : forall l : List Int, Exists (fun x : Int =&gt; Not (List.Mem x l)) := by
-  ...
-noncomputable def _default {I E : Type} (h : forall l : List I, Exists (fun x : I =&gt; Not (List.Mem x l)))
+private theorem _int_unbounded : forall l : List Int, Exists (fun x : Int =&gt; Not (List.Mem x l)) := by
+  ...</code></pre>
+<p class="explain">A constant array is a function that ignores its index. No finite list contains every Int.</p>
+
+<pre><code>noncomputable def _default {I E : Type} (h : forall l : List I, Exists (fun x : I =&gt; Not (List.Mem x l)))
     (a : I -&gt; E) : E :=
   ...
 private theorem _default_const {I E : Type} (h : forall l : List I, Exists (fun x : I =&gt; Not (List.Mem x l)))
     (v : E) : _default h (_const_array I v) = v :=
-  ...
+  _default_spec h _ v [] (fun _ _ =&gt; rfl)
+
 private theorem _default_store {I E : Type} (h : forall l : List I, Exists (fun x : I =&gt; Not (List.Mem x l)))
     (a : I -&gt; E) (i : I) (v : E) : _default h (_store a i v) = _default h a := by
   ...</code></pre>
-<p class="explain">The default value is the value an array takes outside some finite list of indices, and the two
-theorems say a constant array's default is its value and a store leaves the default unchanged.</p>
+<p class="explain">The default value is a definition, and the two default axioms are theorems proved from it, not assumptions.</p>
 
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := _m.arrs_ii 0
-def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((0 : Int))
 def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (@_const_array Int Int (term_1 _atoms _vars _m))
 ...
-noncomputable def term_24 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (_default _int_unbounded (term_2 _atoms _vars _m))</code></pre>
-<p class="explain">The input's terms become Lean definitions: <code>A0</code>, the number 0, the constant array of 0,
-and its default value.</p>
+noncomputable def term_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_0 _atoms _vars _m) (term_8 _atoms _vars _m) (term_9 _atoms _vars _m))
+...
+noncomputable def term_24 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (_default _int_unbounded (term_2 _atoms _vars _m))
+def formula_25 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_1 _atoms _vars _m) = (term_24 _atoms _vars _m))</code></pre>
+<p class="explain">The declarations name <code>A0</code>, the constant array of 0, the store into <code>A0</code>, and its default value.</p>
 
-<pre><code>private theorem th_lemma_23 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
-    : (formula_22 _atoms _vars _m) := by
-  unfold formula_22 term_21 term_20
-  have _t10 : (term_10 _atoms _vars _m) = (_store ((term_0 _atoms _vars _m)) (((2 : Int))) (((3 : Int)))) := rfl
-  have _d20 := _default_store _int_unbounded ((term_0 _atoms _vars _m)) (((2 : Int))) (((3 : Int)))
-  first | omega | grind (splits := 64)
-
-private theorem th_lemma_26 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+<pre><code>private theorem th_lemma_26 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     : (formula_25 _atoms _vars _m) := by
   unfold formula_25 term_24 term_1
   have _t2 : (term_2 _atoms _vars _m) = (@_const_array Int Int (((0 : Int)))) := rfl
   have _d24 := _default_const (I := Int) _int_unbounded (((0 : Int)))
+  first | omega | grind (splits := 64)
+...
+private theorem th_lemma_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_18 _atoms _vars _m) := by
+  unfold formula_18 term_17 term_16
+  have _t11 : (term_11 _atoms _vars _m) = (_store ((term_4 _atoms _vars _m)) (((2 : Int))) (((3 : Int)))) := rfl
+  have _d16 := _default_store _int_unbounded ((term_4 _atoms _vars _m)) (((2 : Int))) (((3 : Int)))
   first | omega | grind (splits := 64)</code></pre>
-<p class="explain">These two lemmas replay Z3's array axioms: the default of <code>(store A0 2 3)</code> equals the
-default of <code>A0</code>, and the default of the zero array is 0.</p>
+<p class="explain">Each array hint becomes one <a href="#g-lemma">lemma</a>. It is closed by a <a href="#g-tactic">tactic</a> using one instance of a default theorem.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     (_h0 : (formula_3 _atoms _vars _m))
@@ -181,147 +174,114 @@ default of <code>A0</code>, and the default of the zero array is 0.</p>
     (_h2 : (formula_12 _atoms _vars _m))
     : False :=
   ...</code></pre>
-<p class="explain">The main theorem is the <a href="#g-refutation">refutation</a>: the three assertions together imply
-False, for every interpretation. Each lemma above closes with the <a href="#g-tactic">tactics</a> <code>omega</code>
-or <code>grind</code>.</p>
+<p class="explain">The three assertions together imply False. The proof chains the lemmas: the default of the left store is 0, the default of the right store is 1, and equal arrays have equal defaults.</p>
 
-<p><strong>Result:</strong> Lean accepted the file. The reconstructor printed "Lean checked the refutation", and a
-separate run of <code>scripts/check_lean.sh</code> printed "Lean checks passed."</p>
+<h2 id="verification">How it was verified</h2>
+<p>All of the Python and Lean tests for the reconstructor passed, including the six new constant-array inputs.
+The loop merged this PR on its local gate, because the change touches only Python examples and docs.
+The gate repeats the Lean-related steps of the GitHub CI job on the loop machine, a Darwin arm64 computer.
+Every step passed.</p>
 
-<h2>How it was verified</h2>
-<p>In plain terms: the whole Lean test suite, about 400 tests, passed on the implementer's machine. All seven z3test
-regression queries with constant arrays exported and passed Lean. A deliberately broken file was rejected, which
-shows the check is not empty. The reviewer repeated the main runs and got the same results.</p>
 <table>
-<thead><tr><th>Check (run locally)</th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
 <tbody>
-<tr><td>Array tests, <code>test_proof_to_lean_array.py</code></td><td class="ok">19 tests OK, 39.7 s, Lean included</td></tr>
-<tr><td>All Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">399 tests OK, 1642.4 s</td></tr>
-<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">110 tests OK</td></tr>
-<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">"Lean checks passed."</td></tr>
-<tr><td>z3test proof tests</td><td class="ok">48 tests OK</td></tr>
-<tr><td>z3test <code>2549.smt2</code> and <code>array.smt2</code> queries 0 to 5</td><td class="ok">7 of 7 export and pass Lean</td></tr>
-<tr><td>Negative check: 36 read facts stripped from <code>array.smt2</code> query 2</td><td class="ok">Lean fails with "grind failed", as intended</td></tr>
-<tr><td>Regression matrix, Boolean inputs, before review fixes</td><td class="ok">6 of 6</td></tr>
-<tr><td>Regression matrix, LRA inputs, before review fixes</td><td class="ok">8 of 8</td></tr>
-<tr><td>C++ tests</td><td>Not run, no C++ change</td></tr>
-<tr><td>This report's worked example</td><td class="ok">Lean accepted</td></tr>
-</tbody>
-</table>
-<p>The loop's local gate has not been recorded for this iteration yet, so its result is not reported here.</p>
-<p>No CI status was available when this report was written. The table below lists the CI job that the PR description
-says runs the new tests. Its outcome is unknown here. Please see the PR's checks page for the current state.
-There were no CI fix rounds.</p>
-<table>
-<thead><tr><th>Workflow job and step</th><th>Status</th><th>Link</th></tr></thead>
-<tbody>
-<tr><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td class="unk">Unknown at writing time</td>
-<td><a href="https://github.com/levnach/z3/pull/70/checks">PR checks</a></td></tr>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">14 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">1643 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">18 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="ok">pass</td><td class="num">4 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="ok">pass</td><td class="num">7 s</td></tr>
 </tbody>
 </table>
 
-<h2>Review</h2>
-<p>The reviewer approved the PR. They found no blockers, no major issues, and no minor issues. They found four nits,
-and all four were fixed in the second commit.</p>
+<p>The implementer also reported these runs at the final commit.</p>
 <table>
-<thead><tr><th>Severity</th><th>Count</th></tr></thead>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
 <tbody>
-<tr><td>Blocker / Major / Minor</td><td class="num">0</td></tr>
-<tr><td>Nit</td><td class="num">4, all fixed</td></tr>
+<tr><td><code>test_proof_to_lean_array.py</code></td><td class="ok">19 tests, OK</td></tr>
+<tr><td><code>test_proof_to_lean*.py</code></td><td class="ok">399 tests, OK</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td class="ok">110 tests, OK</td></tr>
+<tr><td>z3test proof scripts</td><td class="ok">48 tests, OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test <code>2549.smt2</code> and <code>array.smt2</code> queries 0 to 5</td><td class="ok">7 of 7 verify in Lean</td></tr>
+<tr><td>Negative check: comparison read facts removed from <code>array.smt2</code> query 2</td><td class="ok">Lean fails with "grind failed", as intended</td></tr>
+<tr><td>C++ tests</td><td class="unk">not run, no C++ change</td></tr>
 </tbody>
 </table>
-<ol>
-<li><strong>A wrong reason in the docs.</strong> The reviewer read the README and the plan. Both said Real indices
-were rejected because the index sort might be finite. But Real is infinite. A future reader might think Real
-indices are unsound, when they are only unimplemented. The docs and comments now give the true reason: a missing
-unboundedness lemma over rationals.</li>
-<li><strong>Coverage understated.</strong> The plan said only queries 0 to 2 of <code>array.smt2</code> pass in Lean.
-The reviewer checked all six, and all six passed. The plan now says so, which saves a later iteration from
-re-checking.</li>
-<li><strong>A missing targeted test.</strong> The reviewer asked: what if the read facts for rewrite steps silently
-disappeared? Only an indirect test would notice. The new test <code>test_comparison_reads_are_needed</code> strips
-those facts and requires Lean to fail.</li>
-<li><strong>Slow counting.</strong> A list lookup inside a sum made the count of read facts quadratic in the number
-of arrays. The count now sums over the two lists separately. The result is the same, and the cost is linear.</li>
-</ol>
-<p>The reviewer also checked the trust boundary on their own. They changed one default fact by hand, and Lean
-rejected the file.</p>
 
-<h2>Risks and open questions</h2>
+<p>GitHub CI checks are unknown for this PR. No CI status files were recorded, and there were no CI fix rounds.</p>
+<table>
+<thead><tr><th>CI workflow / check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>CI / Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td class="unk">not recorded; GitHub CI runs on <code>master</code> after the merge</td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR. There were no blockers, majors, or minors. There were four nits, all fixed in commit <code>1f463436a</code>.</p>
 <ul>
-<li>The facts for rewriter steps come from a shape-driven heuristic, capped at 64 reads per step. A step that needs
-more fails in Lean openly. It is never accepted unsoundly.</li>
-<li>Lemmas that reach a default value now carry a few more <code>have</code> lines, so files grow a little.</li>
-<li>Default facts reach rewriter steps only. Whether other step kinds will need them is open.</li>
-<li>CI results are unknown at the time of writing.</li>
+<li><strong>Nit: a wrong reason in the docs.</strong> The reviewer read the README and the plan. They said Real indices are rejected because of finiteness, but Real is infinite. A later contributor could wrongly think Real-indexed constant arrays are unsound. The docs and comments now say Real indices are simply not implemented yet.</li>
+<li><strong>Nit: coverage understated.</strong> The plan said only <code>array.smt2</code> queries 0 to 2 verify. The reviewer exported all six queries and all six passed Lean. The plan now says so, which saves a later iteration from rechecking them.</li>
+<li><strong>Nit: a missing negative test.</strong> No test proved that the comparison read facts are needed. A future bug could silently drop them. The new <code>test_comparison_reads_are_needed</code> removes them and requires Lean to fail.</li>
+<li><strong>Nit: a slow count.</strong> A list membership test inside a sum made one count quadratic in the number of arrays. The count now sums over the two lists separately, with the same result.</li>
+</ul>
+<p>The reviewer also changed a default fact from 1 to 0 by hand. Lean rejected it, which shows the check is not vacuous.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>The rewrite-step facts come from a heuristic based on the shape of terms. It is capped at 64 read facts per step. A step that needs more fails in Lean openly. It is never accepted unsoundly.</li>
+<li>Lemmas that reach a default term now carry a few extra <code>have</code> lines.</li>
+<li>GitHub CI results for this change are not part of the inputs, so they are unknown here.</li>
 </ul>
 
-<h2>What comes next</h2>
-<p>The PR lists these follow-ups in the backlog:</p>
+<h2 id="next">What comes next</h2>
+<p>The PR lists these follow-ups in the backlog.</p>
 <ul>
-<li>Constant arrays over Real indices, which need an unboundedness lemma over rationals.</li>
-<li>Constant arrays over uninterpreted index sorts, where Z3 uses extra witness symbols that the replay rejects.</li>
-<li>Comparison facts outside rewriter steps.</li>
+<li>Constant arrays over Real indices. These need an unboundedness lemma over Rat.</li>
+<li>Constant arrays over uninterpreted index sorts. Z3 uses extra witness symbols there, which the replay rejects.</li>
+<li>Comparison facts for steps other than rewrites.</li>
 <li>The <code>map</code> and <code>as-array</code> operators, Bool elements, and nested arrays.</li>
 </ul>
 
-<h2>Glossary</h2>
+<h2 id="glossary">Glossary</h2>
 <dl>
 <dt id="g-array">array</dt>
-<dd>An SMT-LIB value that maps indices to elements, like a function. <code>(Array Int Real)</code> maps Int indices
-to Real elements.</dd>
+<dd>A map from indices to elements, like a function. <code>(Array Int Real)</code> maps each Int to a Real.</dd>
 <dt id="g-axiom">axiom</dt>
-<dd>A statement accepted without proof. Z3's array solver applies array axioms as rules. In Lean, an axiom is an
-unproved assumption, and this project adds none.</dd>
+<dd>A statement taken as true without proof. Here, Z3's array axioms are re-proved as theorems in Lean.</dd>
 <dt id="g-clause">clause</dt>
-<dd>A disjunction of literals, read as "at least one of these holds".</dd>
+<dd>A disjunction of literals, such as <code>a or not b</code>.</dd>
 <dt id="g-clause-log">clause log</dt>
-<dd>The record of clauses Z3's SAT-based solver learns or adds, each with a hint saying why it holds.</dd>
+<dd>The record of clauses Z3's SAT-based solver learned or used, each with a hint saying why it holds.</dd>
 <dt id="g-congruence">congruence</dt>
-<dd>The rule that equal inputs give equal outputs. If <code>a = b</code>, then <code>(select a i) = (select b i)</code>.</dd>
+<dd>The rule that equal inputs give equal outputs. If <code>a = b</code>, then <code>f a = f b</code>.</dd>
 <dt id="g-constant-array">constant array</dt>
-<dd>An array with the same element at every index. SMT-LIB writes it <code>((as const (Array Int Int)) 0)</code>.</dd>
+<dd>An array with the same value at every index. In SMT-LIB: <code>((as const (Array Int Int)) 0)</code>.</dd>
 <dt id="g-default-value">default value</dt>
-<dd>The value an array takes at all but finitely many indices. A constant array of 0 has default 0.</dd>
-<dt id="g-element-sort">element sort</dt>
-<dd>The sort of the values stored in an array. In <code>(Array Int Real)</code> it is Real.</dd>
-<dt id="g-exporter">exporter</dt>
-<dd>The step that runs Z3 and writes its proof evidence into a certificate file.</dd>
-<dt id="g-farkas">Farkas lemma</dt>
-<dd>A proof that some linear inequalities have no solution, given as weights that add them up to a false statement
-such as <code>0 &lt; 0</code>.</dd>
-<dt id="g-index-sort">index sort</dt>
-<dd>The sort of the positions of an array. In <code>(Array Int Real)</code> it is Int.</dd>
+<dd>The value an array takes at all but finitely many indices. Z3 writes it <code>(default a)</code>.</dd>
+<dt id="g-hint">hint</dt>
+<dd>A label on a logged clause naming the theory reason for it, such as <code>array</code> or <code>euf</code>.</dd>
 <dt id="g-lemma">lemma</dt>
-<dd>A small proved fact used on the way to a bigger theorem.</dd>
+<dd>A helper theorem proved on the way to the main result.</dd>
 <dt id="g-literal">literal</dt>
 <dd>An atomic formula or its negation, such as <code>x = y</code> or <code>not (x = y)</code>.</dd>
-<dt id="g-reconstructor">reconstructor</dt>
-<dd>The step that turns a certificate into a Lean file for Lean to check.</dd>
 <dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of assertions leads to False.</dd>
-<dt id="g-replay">replay</dt>
-<dd>The step that re-reads a clause log and rebuilds each clause as a formula over the input's terms.</dd>
+<dd>A proof that a set of assertions implies False.</dd>
 <dt id="g-rewriter">rewriter</dt>
-<dd>The part of Z3 that simplifies terms before solving, for example replacing an equality it can decide by
-<code>false</code>.</dd>
+<dd>The part of Z3 that simplifies terms before and during solving, such as turning an equality it can decide into <code>false</code>.</dd>
 <dt id="g-select">select</dt>
-<dd>Reading an array: <code>(select a i)</code> is the element of <code>a</code> at index <code>i</code>.</dd>
-<dt id="g-sorry">sorry</dt>
-<dd>A Lean placeholder that skips a proof. A file containing it proves nothing.</dd>
+<dd>Reading an array at an index: <code>(select a i)</code>.</dd>
 <dt id="g-sort">sort</dt>
-<dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dd>The type of a value, such as Int, Real, or Bool. An array sort has an index sort and an element sort.</dd>
 <dt id="g-store">store</dt>
-<dd>Writing an array: <code>(store a i v)</code> is <code>a</code> with index <code>i</code> changed to <code>v</code>.</dd>
+<dd>Writing one index of an array: <code>(store a i v)</code> is <code>a</code> with the value at <code>i</code> replaced by <code>v</code>.</dd>
 <dt id="g-tactic">tactic</dt>
-<dd>A Lean command that builds part of a proof automatically. <code>omega</code> and <code>grind</code> are tactics.</dd>
+<dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> or <code>grind</code>.</dd>
 <dt id="g-theorem">theorem</dt>
-<dd>A statement together with a proof that Lean has checked.</dd>
+<dd>A statement with a proof that Lean has checked.</dd>
 <dt id="g-trust-boundary">trust boundary</dt>
-<dd>The list of things one must believe without checking, such as Lean's kernel and its standard axioms.</dd>
+<dd>The things one must trust without proof. A change that adds no assumption and no new trusted step leaves it unchanged.</dd>
 <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
-<dd>A sort declared with only a name, like <code>(declare-sort Element 0)</code>. It may have any number of values,
-even only one.</dd>
+<dd>A sort declared with only a name, such as <code>(declare-sort Element 0)</code>. It may have any number of values, even finitely many.</dd>
 </dl>
 
 <footer>Generated by the Lean certificate improvement loop on 2026-11-03.</footer>
