@@ -691,7 +691,7 @@ def _require_uninterpreted_sort(candidate, sorts):
 
 
 def _require_uninterpreted_signature(decl, sorts):
-    """Check that a function or predicate ranges over uninterpreted sorts, Bool, Real, and Int only.
+    """Check that a function or predicate ranges over uninterpreted sorts, Bool, Real, Int, and arrays only.
 
     Arguments may be Bool, Real, Int, or a supported array sort as well as
     uninterpreted sorts (Lean injects a Boolean, numeric, or array argument
@@ -702,7 +702,7 @@ def _require_uninterpreted_signature(decl, sorts):
     """
     candidates = [decl.domain(i) for i in range(decl.arity())] + [decl.range()]
     real = integer = False
-    for position, candidate in enumerate(candidates):
+    for candidate in candidates:
         if candidate.kind() == z3.Z3_BOOL_SORT:
             continue
         if candidate.kind() == z3.Z3_ARRAY_SORT and is_array_sort(candidate):

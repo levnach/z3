@@ -511,6 +511,16 @@ ARRAY_FUNCTION_INPUTS = {
 (assert (= (select (f1 v3) v0) (select v3 v0)))
 (check-sat)
 """,
+    # Two functions of the same signature share one family at distinct
+    # indices; the roles are asymmetric, so swapping them changes the input.
+    "two_functions_into_arrays": """(set-logic QF_AUFLIA)
+(declare-fun f (Int) (Array Int Int))
+(declare-fun g (Int) (Array Int Int))
+(declare-fun x () Int)
+(assert (= (f x) (store (g x) 0 1)))
+(assert (not (= (select (f x) 0) 1)))
+(check-sat)
+""",
 }
 ARRAY_INPUTS.update(ARITHMETIC_ARRAY_INPUTS)
 ARRAY_INPUTS.update(CONSTANT_ARRAY_INPUTS)
@@ -524,7 +534,7 @@ _FRAGMENTS = {"arrays_with_integer_weights": "qf_uflia", "real_read_own_write": 
               "real_index_elements": "qf_uflra", "int_function_into_arrays": "qf_uflia",
               "real_function_into_arrays": "qf_uflra", "function_into_constant_arrays": "qf_uflira",
               "predicate_over_application": "qf_uflia", "nested_applications": "qf_uflia",
-              "array_function_twice": "qf_uflia"}
+              "array_function_twice": "qf_uflia", "two_functions_into_arrays": "qf_uflia"}
 _FRAGMENTS.update((name, "qf_uflia") for name in list(ARITHMETIC_ARRAY_INPUTS) + list(CONSTANT_ARRAY_INPUTS)
                   if name not in _FRAGMENTS)
 
@@ -789,10 +799,23 @@ class TestArrayValidation(unittest.TestCase):
         def into_real_arrays(certificate):
             function(certificate, "f")["range"] = "(Array Int Real)"
 
+        def swapped_functions(certificate):
+            # Two functions of the same signature exchanged: the certificate
+            # stays well-formed, so only the binding to the input catches it.
+            first, second = function(certificate, "f"), function(certificate, "g")
+            first["name"], second["name"] = "g", "f"
+
+        def renamed_function(certificate):
+            function(certificate, "g")["name"] = "f2"
+
         self._rejects("function_into_arrays", proof_argument, "unsupported array declaration")
         self._rejects("function_into_arrays", array_constant, "wrong number of arguments")
         self._rejects("function_into_arrays", element_argument, "wrong argument sort")
         self._rejects("int_function_into_arrays", into_real_arrays, "wrong argument sort")
+        self._rejects("two_functions_into_arrays", swapped_functions,
+                      "certificate (source|assertions) do(es)? not match the original input")
+        self._rejects("two_functions_into_arrays", renamed_function,
+                      "certificate (source|assertions) do(es)? not match the original input")
 
     def test_the_replay_reads_constant_arrays(self):
         context = z3.Context()

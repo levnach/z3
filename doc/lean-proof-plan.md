@@ -1607,10 +1607,10 @@ congruence closure compares them by arguments; without those facts grind
 fails (`test_application_facts_are_needed`). Arrays over Bool or arrays stay
 rejected as results as well as arguments. No z3test input is newly
 certified (the fuzzsmt `t168`/`t170` regressions with such functions are
-satisfiable); ten synthetic inputs (`ARRAY_FUNCTION_INPUTS` in
+satisfiable); eleven synthetic inputs (`ARRAY_FUNCTION_INPUTS` in
 `test_proof_to_lean_array.py`: store, extensionality, ite, constant arrays,
-predicates over applications, Int/Real/mixed sorts, arrays to arrays)
-verify in Lean.
+predicates over applications, Int/Real/mixed sorts, arrays to arrays, two
+functions sharing one family) verify in Lean.
 
 ### Constant arrays over Int and Real indices (2026-11-03, 2026-11-04)
 
