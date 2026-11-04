@@ -230,6 +230,27 @@ class TestArrayValidation(unittest.TestCase):
         two = proof_to_lean.reconstruct(ARRAY_INPUTS["two_array_sorts"], self.certificates["two_array_sorts"])
         self.assertIn('-- Array sorts "(Array Index Element)", "(Array Index Key)" are functions', two)
 
+    def test_sort_header_comments(self):
+        """The header names the carriers once and claims no missing sort, with or without arrays."""
+        text = proof_to_lean.reconstruct(ARRAY_INPUTS["read_own_write"], self.certificates["read_own_write"])
+        self.assertIn('-- Uninterpreted sorts "Element", "Index" are the one type _m.U;', text)
+        self.assertIn('-- Array sorts "(Array Index Element)" are functions', text)
+        self.assertNotIn("No uninterpreted sort", text)
+        source = """(declare-sort S 0)
+(declare-fun a () S)
+(declare-fun b () S)
+(declare-fun f (S) S)
+(assert (= a b))
+(assert (not (= (f a) (f b))))
+(check-sat)
+"""
+        for export in (_export, proof_certificate.export_certificate):
+            with self.subTest(export=export.__name__):
+                text = proof_to_lean.reconstruct(source, export(source))
+                self.assertIn('-- Uninterpreted sort "S" is the type _m.U;', text)
+                self.assertNotIn("No uninterpreted sort", text)
+                self.assertNotIn("Array sorts", text)
+
     def _rejects(self, name, mutate, message):
         certificate = copy.deepcopy(self.certificates[name])
         mutate(certificate)
@@ -335,7 +356,14 @@ class TestArrayLeanIntegration(unittest.TestCase):
             output = Path(directory) / "stripped.lean"
             output.write_text(stripped)
             result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(output)], text=True, capture_output=True)
-        self.assertNotEqual(result.returncode, 0)
+        report = result.stdout + result.stderr
+        self.assertNotEqual(result.returncode, 0, report)
+        # Every error is grind failing on an array lemma, not a dangling
+        # reference to a removed fact.
+        errors = [line for line in report.split("\n") if "error:" in line]
+        self.assertTrue(errors, report)
+        for error in errors:
+            self.assertIn("`grind` failed", error)
 
 
 if __name__ == "__main__":

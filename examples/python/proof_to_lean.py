@@ -2149,23 +2149,23 @@ def _integrality_fact(graph, atom, atom_indices, variable_indices):
             "have _q%d := %s (%s) ((0 : Int))" % (atom, _CAST_LEMMA_OF[relation], form)]
 
 
-def _definition_names(graph, nodes, arrays=False):
+def _definition_names(graph, nodes):
     """The definitions of nodes in unfolding order: parents before children (ids are topological).
 
-    Array terms are left folded unless arrays is set: written out, a chain of
-    stores sharing subterms (z3test's swap and storecomm benchmarks) grows
-    exponentially, and grind needs only the one-step facts _array_helpers
-    states about them.
+    Array terms are left folded: written out, a chain of stores sharing
+    subterms (z3test's swap and storecomm benchmarks) grows exponentially,
+    and grind needs only the one-step facts _array_helpers states about them.
     """
-    if graph.arrays and not arrays:
-        # Only what unfold reaches without entering an array term: nodes is
-        # closed under arguments, so its roots are the nodes no other one has
-        # as an argument.
+    if graph.arrays:
+        # Only the nodes unfold reaches from the roots of nodes (those no
+        # other one has as an argument) without entering an array term. The
+        # walk stays inside nodes, which some callers cut below given atoms
+        # (_reachable_outside).
         children = {child for node in nodes for child in graph.arguments(node)}
         pending, visible = [node for node in nodes if node not in children], set()
         while pending:
             node = pending.pop()
-            if node not in visible and not graph.is_array(node):
+            if node in nodes and node not in visible and not graph.is_array(node):
                 visible.add(node)
                 pending.extend(graph.arguments(node))
         nodes = visible
@@ -5362,12 +5362,14 @@ def reconstruct(source, certificate):
         # of the theorem over the disjoint union of its carriers.
         lines.append("-- Uninterpreted sorts %s are the one type _m.U; functions and predicates take argument lists."
                      % ", ".join(json.dumps(sort, ensure_ascii=True) for sort in graph.carriers))
+    elif graph.uninterpreted:
+        lines.append("-- No uninterpreted sort: the type _m.U carries only the Boolean arguments of the predicates.")
     if graph.arrays:
+        # An array sort's index and element sorts are carriers, so the
+        # sentence above names them.
         lines.append("-- Array sorts %s are functions _m.U -> _m.U (_m.arrs); select is _select, store the classical "
                      "update _store, and the extensionality witness array-ext is _array_diff." % ", ".join(
                          json.dumps(sort, ensure_ascii=True) for sort in graph.arrays))
-    elif graph.uninterpreted:
-        lines.append("-- No uninterpreted sort: the type _m.U carries only the Boolean arguments of the predicates.")
     if any(decl.kind == z3.Z3_OP_UNINTERPRETED and "Bool" in decl.domain for decl in graph.declarations):
         lines.append("-- Boolean arguments of functions and predicates are injected into _m.U by _m.bool.")
     # Formulas over wide n-ary connectives render as right-nested And/Or chains
