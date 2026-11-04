@@ -6,124 +6,129 @@
 <title>PR #71: Certify constant arrays over Real indices in Lean via the clause log</title>
 <style>
   :root {
-    --bg: #ffffff; --fg: #1d1f23; --muted: #5b6270; --accent: #1f5fbf;
-    --code-bg: #f3f4f7; --border: #d9dce3; --ok: #1a7f37; --warn: #9a6700; --head-bg: #f7f8fa;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #15171c; --fg: #e3e5ea; --muted: #9aa1ad; --accent: #79b0ff;
-      --code-bg: #20232b; --border: #343844; --ok: #4ac26b; --warn: #d4a72c; --head-bg: #1b1e25;
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922;
     }
   }
   html { background: var(--bg); color: var(--fg); }
-  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 860px; margin: 0 auto; padding: 1.5rem 1.2rem 3rem; }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
-  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem;
+  }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
   h3 { font-size: 1.05rem; margin-top: 1.4rem; }
   a { color: var(--accent); }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; }
-  pre code { background: none; padding: 0; font-size: .82em; }
-  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93em; }
-  th, td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; vertical-align: top; }
-  th { background: var(--head-bg); }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .meta { color: var(--muted); font-size: .95em; }
-  .badge { display: inline-block; padding: .05em .55em; border-radius: 999px; border: 1px solid var(--border); font-size: .85em; font-weight: 600; }
-  .open { color: var(--ok); border-color: var(--ok); }
-  .ok { color: var(--ok); font-weight: 600; }
-  .unknown { color: var(--warn); font-weight: 600; }
-  .note { color: var(--muted); font-size: .93em; }
-  dt { font-weight: 600; margin-top: .7rem; }
-  dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9em; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: 0.82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 8.5rem; }
+  .meta dd { margin-left: 9rem; }
+  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 999px; font-size: 0.85rem;
+           font-weight: 600; border: 1px solid currentColor; }
+  .merged { color: #8250df; }
+  @media (prefers-color-scheme: dark) { .merged { color: #ab7df8; } }
+  .pass { color: var(--ok); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.92rem; }
+  .explain { margin-top: -0.4rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.88rem; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Certify constant arrays over Real indices in Lean via the clause log</h1>
-  <p class="meta">
-    Pull request <a href="https://github.com/levnach/z3/pull/71">levnach/z3#71</a> into <code>master</code>
-    · State: <span class="badge open">OPEN</span>
-    · Opened 2026-11-04T09:04:12Z · Loop iteration 71
-  </p>
-  <p class="meta">
-    This pull request is open and <strong>not merged</strong>.
-    The change under review ends at commit
-    <a href="https://github.com/levnach/z3/commit/8c10fbd0218759c5ebad229bbb505b5258a1db9d"><code>8c10fbd02</code></a>.
-  </p>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/71">levnach/z3#71</a></dd>
+    <dt>State</dt><dd><span class="badge merged">MERGED</span></dd>
+    <dt>Date</dt><dd>2026-11-04T09:32:28Z</dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/fff41c90936d56e7d261a9eed03e443323e5f4f4"><code>fff41c909</code></a>, merged 2026-11-04T09:32:28Z</dd>
+    <dt>Loop iteration</dt><dd>71</dd>
+  </dl>
 </header>
 
-<h2 id="summary">In one paragraph</h2>
-<p>
-This PR lets the pipeline certify unsat results that involve
-<a href="#g-constant-array">constant arrays</a> whose index <a href="#g-sort">sort</a> is Real.
-Until now, only constant arrays over Int indices were accepted.
-The array solver links constant arrays to other <a href="#g-array">arrays</a> through their
-<a href="#g-default-value">default value</a>.
-Lean can only define that value when no finite list covers the whole index sort.
-The PR adds the matching <a href="#g-unbounded">unboundedness theorem</a> for the
-<a href="#g-rat">rational numbers</a>, and reuses the existing default-value facts at that sort.
-Every new step is a checked <a href="#g-theorem">theorem</a>.
-There is no <a href="#g-sorry">sorry</a>, no new <a href="#g-axiom">axiom</a>, and the
-<a href="#g-trust-boundary">trust boundary</a> is unchanged.
-</p>
+<section id="summary">
+  <h2>In one paragraph</h2>
+  <p>
+    This PR lets the pipeline certify problems that use
+    <a href="#g-constant-array">constant arrays</a> whose index
+    <a href="#g-sort">sort</a> is Real. Before, only Int indices were accepted.
+    The Lean side gains one new <a href="#g-theorem">theorem</a>: no finite list contains every
+    <a href="#g-rational">rational number</a>. With it, the existing facts about
+    <a href="#g-default-value">default values</a> now work over Rat as well as Int.
+    The proof travels through the <a href="#g-clause-log">clause log</a>, and Lean checks the whole
+    <a href="#g-refutation">refutation</a>. No <a href="#g-axiom">axiom</a> was added, so the
+    <a href="#g-trust-boundary">trust boundary</a> stays the same.
+  </p>
+</section>
 
-<h2 id="background">Background</h2>
-<p>
-The previous PR, #70, certified constant arrays over Int indices through the
-<a href="#g-clause-log">clause log</a>.
-Real-indexed constant arrays were still rejected by the exporter.
-The rejection was not about soundness.
-Real is an infinite sort, just like Int.
-Only the Lean <a href="#g-unbounded">unboundedness theorem</a> for Rat was missing.
-<a href="#g-uninterpreted-sort">Uninterpreted sorts</a> as indices stay out of scope,
-because they may be <a href="#g-finite-sort">finite</a>.
-The work belongs to milestone 4 of the project plan, "Broader theories and integration",
-which treats arrays as one of the theory extensions.
-</p>
+<section id="background">
+  <h2>Background</h2>
+  <p>
+    PR #70 taught the pipeline to certify constant arrays over Int indices.
+    Its key Lean fact was <code>_int_unbounded</code>, which says Int is an
+    <a href="#g-infinite-sort">infinite sort</a>. Real-indexed constant arrays were still rejected
+    with an error. Arrays over <a href="#g-uninterpreted-sort">uninterpreted sorts</a> as index
+    could not be used either, because such a sort may be finite. Plain <a href="#g-array">arrays</a> with
+    <a href="#g-store">store</a> were already certified over Int, Real, and uninterpreted index sorts (PRs #68 and #69). This work belongs to milestone 4
+    of the project plan, "Broader theories and integration", which treats arrays as one of the
+    theories to add.
+  </p>
+</section>
 
-<h2 id="changes">What changed</h2>
-<ul>
-  <li>The exporter now accepts constant arrays over Real indices and still rejects every other index sort except Int.</li>
-  <li>The Lean output now proves that no finite list contains every rational number, the Real counterpart of the existing Int theorem.</li>
-  <li>The reconstructor now picks the right unboundedness theorem from the array's index sort, so <a href="#g-default-value">default values</a> work over Rat as they did over Int.</li>
-  <li>A generated file now proves only the unboundedness theorems of the index sorts it actually uses, so Int-only output is byte-identical to before.</li>
-  <li>Five new Real-index test inputs are checked in Lean, and new <a href="#g-tamper">tamper tests</a> show that relabelled certificates are rejected.</li>
-</ul>
-<p>
-Grouped by component: the exporter change is a two-line widening of a check.
-The replay module got a comment update only.
-The reconstructor carries the real work: a lookup table <code>_UNBOUNDED</code> maps Int and Real to their theorems.
-The README and the project plan describe the new scope.
-There is no C++ change.
-The PR has two commits: the feature commit <code>d5f4eea00</code> and a review-fix commit <code>8c10fbd02</code>.
-</p>
-<table>
-  <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
-  <tbody>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">91</td><td class="num">40</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">149</td><td class="num">33</td></tr>
-    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">7</td><td class="num">8</td></tr>
-    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay (comment)</td><td class="num">2</td><td class="num">1</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">7</td><td class="num">8</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">14</td><td class="num">1</td></tr>
-    <tr><th>Total (6 files)</th><th></th><td class="num"><strong>270</strong></td><td class="num"><strong>91</strong></td></tr>
-  </tbody>
-</table>
+<section id="changes">
+  <h2>What changed</h2>
+  <ul>
+    <li><strong>Exporter.</strong> You can now export a certificate for an input with a constant array over Real indices.</li>
+    <li><strong>Lean prelude.</strong> Generated files can now prove that Rat is unbounded, just as they already did for Int.</li>
+    <li><strong>Reconstructor.</strong> The default-value lemmas are now used at the array's real index type instead of always at Int.</li>
+    <li><strong>Lean output size.</strong> Each file now proves only the unboundedness theorems its own array sorts need, so Int-only output is unchanged.</li>
+    <li><strong>Tests.</strong> Five new Real-index inputs are checked in Lean, and new <a href="#g-tamper-test">tamper tests</a> show that relabelled certificates are refused.</li>
+    <li><strong>Docs.</strong> The README and the plan now say that Int and Real indices are supported and uninterpreted ones are not.</li>
+  </ul>
+  <p>
+    An analogy for the new theorem: for any finite guest list of numbers, you can name a number not
+    on it. Take the largest entry and add one. The default-value lemmas need nothing more.
+  </p>
+  <table>
+    <thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+    <tbody>
+      <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">91</td><td class="num">40</td></tr>
+      <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">149</td><td class="num">33</td></tr>
+      <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">7</td><td class="num">8</td></tr>
+      <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Replay (comment only)</td><td class="num">2</td><td class="num">1</td></tr>
+      <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">7</td><td class="num">8</td></tr>
+      <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan</td><td class="num">14</td><td class="num">1</td></tr>
+      <tr><th colspan="2">Total, 6 files</th><th class="num">270</th><th class="num">91</th></tr>
+    </tbody>
+  </table>
+  <p class="note">There is no C++ change. The change is Python and documentation only.</p>
+</section>
 
-<h2 id="example">Worked example</h2>
-<p>
-This input is the PR's test <code>real_index_2549</code>, a Real-index version of z3test's <code>2549.smt2</code>.
-It is unsat for a simple reason.
-Writing one cell into two arrays does not change their default values, which are 0 and 1.
-So the two updated arrays cannot be equal.
-Think of a default value as the background colour of a canvas.
-Painting one dot does not change the background.
-</p>
+<section id="example">
+  <h2>Worked example</h2>
+  <p>
+    This is the PR's test <code>real_index_2549</code>, a z3test regression moved to Real indices.
+    <code>A0</code> is 0 everywhere and <code>A1</code> is 1 everywhere. Storing 3 at index 2.5 makes
+    them equal. Yet one store cannot change a default value, 0 versus 1. So the input is unsat.
+  </p>
 
-<h3>(a) The input</h3>
+  <h3>(a) The input</h3>
 <pre><code>(declare-const A0 (Array Real Int))
 (declare-const A1 (Array Real Int))
 (assert (= A0 ((as const (Array Real Int)) 0)))
@@ -131,33 +136,19 @@ Painting one dot does not change the background.
 (assert (= (store A0 2.5 3) (store A1 2.5 3)))
 (check-sat)</code></pre>
 
-<h3>(b) Before</h3>
-<p>The exporter from the PR's base commit stopped at once:</p>
+  <h3>(b) Before: the base exporter</h3>
+  <p>Running the exporter from the PR's base commit on this input stopped at once:</p>
 <pre><code>proof_certificate.py: error: constant arrays are supported over Int indices only: Array(Real, Int)</code></pre>
-<p class="note">No certificate was produced, so the old reconstructor had nothing to read and was not run.</p>
+  <p class="explain">No certificate was produced, so Lean never saw the problem.</p>
 
-<h3>(c) After</h3>
-<p>The current exporter produced a certificate, and the reconstructor turned it into a 251-line Lean file.
-The reconstructor reported "Lean checked the <a href="#g-refutation">refutation</a>", and a separate run of <code>scripts/check_lean.sh</code>
-printed "Lean checks passed."</p>
+  <h3>(c) After: the generated Lean file, trimmed</h3>
+  <p>The exporter, reconstructor, and Lean check all ran on the merged code. Lean accepted the file: the check script reported
+     "Lean checks passed."</p>
 
-<pre><code>-- Array sorts "(Array Real Int)" are functions Rat -&gt; Int (_m.arrs_ri); select is _select, ...
-...
-structure Interpretation where
+<pre><code>structure Interpretation where
   ...
-  arrs_ri : Nat -&gt; Rat -&gt; Int
-...
-def term_2 ... : (Rat -&gt; Int) := (@_const_array Rat Int (term_1 _atoms _vars _ivars _m))
-...</code></pre>
-<p>Each array of sort <code>(Array Real Int)</code> becomes a Lean function from rationals to integers, and the constant array holding 0 is the constant function over Rat.</p>
-
-<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation)
-    (_h0 : (formula_3 _atoms _vars _ivars _m))
-    (_h1 : (formula_7 _atoms _vars _ivars _m))
-    (_h2 : (formula_12 _atoms _vars _ivars _m))
-    : False :=
-  ...</code></pre>
-<p>The main theorem says that the three assertions together imply <code>False</code>, for every possible interpretation.</p>
+  arrs_ri : Nat -&gt; Rat -&gt; Int</code></pre>
+  <p class="explain">An array of sort <code>(Array Real Int)</code> becomes a Lean function from Rat to Int.</p>
 
 <pre><code>private theorem _rat_unbounded : forall l : List Rat, Exists (fun x : Rat =&gt; Not (List.Mem x l)) := by
   intro l
@@ -172,173 +163,192 @@ def term_2 ... : (Rat -&gt; Int) := (@_const_array Rat Int (term_1 _atoms _vars 
       | tail _ h =&gt; have := hb y h; grind
   obtain ⟨b, hb⟩ := _b
   exact Exists.intro b (fun h =&gt; Rat.lt_irrefl (hb b h))</code></pre>
-<p>This new theorem shows by <a href="#g-induction">induction</a> that any finite list of rationals misses some rational, using the <code>grind</code> <a href="#g-tactic">tactic</a> to find a number above every element.</p>
+  <p class="explain">This is the new theorem. By <a href="#g-induction">induction</a>, every finite list of rationals has an upper bound outside the list. The <code>grind</code> <a href="#g-tactic">tactic</a> closes each arithmetic step.</p>
+
+<pre><code>def term_2 ... : (Rat -&gt; Int) := (@_const_array Rat Int (term_1 _atoms _vars _ivars _m))
+...
+noncomputable def term_33 ... : Int := (_default _rat_unbounded (term_2 _atoms _vars _ivars _m))</code></pre>
+  <p class="explain">The constant array of 0 and its default value are now built over Rat, with the new theorem as evidence.</p>
 
 <pre><code>private theorem th_lemma_35 ... : (formula_34 _atoms _vars _ivars _m) := by
   unfold formula_34 term_33 term_1
   have _t2 : (term_2 _atoms _vars _ivars _m) = (@_const_array Rat Int (((0 : Int)))) := rfl
   have _d33 := _default_const (I := Rat) _rat_unbounded (((0 : Int)))
+  first | omega | grind (splits := 64)
+
+private theorem th_lemma_28 ... : (formula_27 _atoms _vars _ivars _m) := by
+  unfold formula_27 term_26 term_25
+  ...
+  have _d25 := _default_store _rat_unbounded ((term_4 _atoms _vars _ivars _m)) (((((5 : Rat))) / (((2 : Rat))))) (((3 : Int)))
   first | omega | grind (splits := 64)</code></pre>
-<p>This lemma uses the new theorem to prove that the default value of the constant array of 0 over Rat is 0.</p>
-<p class="note">Other lemmas in the file apply <code>_default_store _rat_unbounded</code> in the same way, to show that a store keeps the default value.</p>
+  <p class="explain">These two <a href="#g-theory-lemma">theory lemmas</a> state "the default of the constant array of 0 is 0" and "a store at 5/2 keeps the default", each now instantiated at Rat.</p>
 
-<h2 id="verification">How it was verified</h2>
-<p>
-After the review fixes, the full Lean reconstruction suite passed, as did the exporter tests and the z3test proof scripts.
-The regression matrix verified every selected Boolean and linear-arithmetic benchmark in Lean.
-Five extra hand-built inputs also checked in Lean, including a file that mixes Int- and Real-indexed constant arrays.
-For the six existing Int-indexed inputs, the generated Lean text did not change at all.
-The worked example above was re-run for this report and Lean accepted it.
-</p>
-<table>
-  <thead><tr><th>Local check (from the PR description, after review fixes)</th><th>Result</th></tr></thead>
-  <tbody>
-    <tr><td>Lean reconstruction suite, <code>test_proof_to_lean*.py</code></td><td class="ok">399 tests OK (1649.4 s)</td></tr>
-    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">110 tests OK</td></tr>
-    <tr><td>Array validation tests without Lean, <code>TestArrayValidation</code></td><td class="ok">16 tests OK</td></tr>
-    <tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
-    <tr><td>z3test proof scripts, <code>test_proof*.py</code></td><td class="ok">48 tests OK</td></tr>
-    <tr><td>Regression matrix, legacy proof object, Boolean and unit-resolution inputs</td><td class="ok">6/6 lean-verified</td></tr>
-    <tr><td>Regression matrix, clause log, <code>lra_*.smt2</code></td><td class="ok">8/8 lean-verified</td></tr>
-    <tr><td>Extra end-to-end inputs (mixed sorts, coerced index, <a href="#g-ite">if-then-else term</a> of constant arrays, two stores)</td><td class="ok">5/5 Lean-checked, about 0.7 s each</td></tr>
-    <tr><td>Generated Lean for Int-indexed inputs, base versus head</td><td class="ok">0 changed lines (6 inputs)</td></tr>
-    <tr><td>Worked example in this report</td><td class="ok">Lean checks passed</td></tr>
-    <tr><td>C++ tests (<code>test-z3</code>, <code>test_benchmarks.py</code>)</td><td>Not run: no C++ change</td></tr>
-  </tbody>
-</table>
-<p>
-The loop's own local gate was still running when this report was written.
-Its result has not been recorded yet.
-</p>
-<p>
-No CI status was recorded for this PR when the report was written.
-The loop chose to run its local gate instead of waiting for GitHub CI, because the change touches only paths the local gate covers.
-There were no CI fix rounds.
-The table names the CI steps that would run the new tests.
-</p>
-<table>
-  <thead><tr><th>Workflow / job</th><th>Check</th><th>Covers the new tests?</th><th>Status</th></tr></thead>
-  <tbody>
-    <tr><td><code>ci.yml</code>, Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean (Lean reconstruction tests)</td><td>Yes</td><td class="unknown">Not recorded</td></tr>
-    <tr><td>manylinux wheel steps</td><td><code>test_proof_certificate.py</code>, <code>test_proof_to_lean.py</code></td><td>No</td><td class="unknown">Not recorded</td></tr>
-  </tbody>
-</table>
-<p class="note">Live results: <a href="https://github.com/levnach/z3/pull/71/checks">checks tab of PR #71</a>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_3 _atoms _vars _ivars _m))
+    (_h1 : (formula_7 _atoms _vars _ivars _m))
+    (_h2 : (formula_12 _atoms _vars _ivars _m))
+    : False :=
+  ...</code></pre>
+  <p class="explain">The final theorem says that the three assertions together imply False, for every interpretation.</p>
+</section>
 
-<h2 id="review">Review</h2>
-<p>
-The reviewer approved the change with no blocker, major, or minor findings.
-They ran the full suites, then attacked the change by hand.
-Swapping the Rat theorem for the Int one made Lean reject the file with type errors.
-Relabelling Real indices as Int was caught by the check that the certificate matches the input.
-They reported three nits, and all three were fixed in <code>8c10fbd02</code>.
-</p>
-<h3>Nit 1: every file proved both theorems</h3>
-<p>
-The reviewer rebuilt each Int-indexed test input with the old and new code and compared the output.
-Each new file had 14 extra lines: the Rat theorem, which those files never used.
-That contradicted the claim that Int output was unchanged, and it made Lean check dead code.
-The fix emits only the theorems of the index sorts that the file's arrays use.
-The same comparison now shows zero changed lines.
-</p>
-<h3>Nit 2: a stale heading and a wrong date</h3>
-<p>
-The project plan still titled the section "Constant arrays over Int indices", and the new note had the wrong date.
-A reader scanning headings for Real support would have missed it.
-The heading now names both Int and Real, and the note is dated 2026-11-04.
-</p>
-<h3>Nit 3: a test that tested something else</h3>
-<p>
-A <a href="#g-tamper">tamper test</a> named <code>const_of_int</code> claimed to relabel an index to Int.
-It actually changed the element sort.
-So no test asserted that a Real-to-Int index relabel is rejected.
-A later refactor could have weakened that check silently.
-The test was renamed, and two new cases relabel the whole certificate and expect "certificate source does not match the original input".
-</p>
+<section id="verification">
+  <h2>How it was verified</h2>
+  <p>
+    In plain terms, every test suite for this area passed, including about 400 Lean reconstruction tests.
+    The loop merged the PR on its local gate. The gate mirrors the parts of the Linux
+    <code>releaseClang</code> CI job that exercise this work, run on a Darwin arm64 machine.
+  </p>
+  <table>
+    <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+    <tbody>
+      <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">14 s</td></tr>
+      <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">1648 s</td></tr>
+      <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">18 s</td></tr>
+      <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">4 s</td></tr>
+      <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">7 s</td></tr>
+    </tbody>
+  </table>
+  <p>The PR description also lists the author's own runs after the review fixes:</p>
+  <table>
+    <thead><tr><th>Check</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Full Lean reconstruction suite (<code>test_proof_to_lean*.py</code>)</td><td>399 tests, OK</td></tr>
+      <tr><td>Exporter tests (<code>test_proof_certificate.py</code>)</td><td>110 tests, OK</td></tr>
+      <tr><td>Array validation tests without Lean</td><td>16 tests, OK</td></tr>
+      <tr><td><code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+      <tr><td>z3test proof script tests</td><td>48 tests, OK</td></tr>
+      <tr><td>Boolean matrix, legacy proof object</td><td>6/6 lean-verified</td></tr>
+      <tr><td>QF_LRA matrix, clause log</td><td>8/8 lean-verified</td></tr>
+      <tr><td>Five extra reviewer inputs, end to end</td><td>all checked in Lean</td></tr>
+      <tr><td>Generated Lean for six Int-indexed inputs, base vs. PR</td><td>0 changed lines</td></tr>
+    </tbody>
+  </table>
+  <h3>GitHub CI</h3>
+  <table>
+    <thead><tr><th>Workflow / check</th><th>Result</th><th>Link</th></tr></thead>
+    <tbody>
+      <tr><td>No per-PR CI check results were recorded for this PR</td><td>unknown</td><td><a href="https://github.com/levnach/z3/pull/71/checks">PR checks</a></td></tr>
+    </tbody>
+  </table>
+  <p>
+    The loop merged without waiting for GitHub CI, which runs on <code>master</code> afterwards.
+    Those results were not available to this report. There were no CI fix rounds.
+    The C++ tests were not run, because there is no C++ change.
+  </p>
+</section>
 
-<h2 id="risks">Risks and open questions</h2>
-<ul>
-  <li>No z3test benchmark uses Real-indexed constant arrays. Only synthetic inputs exercise this path.</li>
-  <li>Real-indexed arrays are modelled as functions over Rat. This rests on the same argument as PR #69: a rational model exists, and arrays are determined by their reads at rational indices.</li>
-  <li>The CI results for this PR are not known yet.</li>
-</ul>
+<section id="review">
+  <h2>Review</h2>
+  <p>The reviewer approved the change. There were no blocker, major, or minor findings. All three nits were fixed before merging.</p>
+  <table>
+    <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+    <tbody>
+      <tr><td>nit</td><td>Every file proved both unboundedness theorems</td><td>Fixed</td></tr>
+      <tr><td>nit</td><td>Plan note misdated, section heading stale</td><td>Fixed</td></tr>
+      <tr><td>nit</td><td>A tamper test checked the element sort, not the index sort</td><td>Fixed</td></tr>
+    </tbody>
+  </table>
+  <p>
+    <strong>Both theorems everywhere.</strong> The reviewer rebuilt the Lean output for the Int-only
+    inputs with the base code and with the PR. Every file had grown by the unused 14-line Rat theorem.
+    The cost was small, but the claim "Int output is unchanged" was false. Now each file proves only
+    the theorems for its own index sorts. The same comparison then showed no changed lines.
+  </p>
+  <p>
+    <strong>Stale plan heading.</strong> The plan section was still titled "Constant arrays over Int
+    indices", and the new note had the wrong date. A reader scanning headings would miss Real support.
+    Both were corrected.
+  </p>
+  <p>
+    <strong>A test with a misleading name.</strong> A tamper test called <code>const_of_int</code>
+    changed the element sort, not the index sort. The reviewer relabelled Real indices as Int by hand.
+    The source-match check caught it, but no test asserted that. So a later refactor could weaken the
+    check unnoticed. The test was renamed, and two new cases now expect "certificate source does not
+    match the original input".
+  </p>
+</section>
 
-<h2 id="next">What comes next</h2>
-<ul>
-  <li>Constant arrays over <a href="#g-uninterpreted-sort">uninterpreted</a> index sorts, which need Z3's small-domain encoding.</li>
-  <li>Comparison facts for constant arrays outside <a href="#g-rewrite">rewrite steps</a>.</li>
-  <li>A real QF_ALRA or QF_AUFLIRA benchmark as a regression test.</li>
-  <li>Arrays with Bool elements, nested arrays, <code>map</code>, and <code>as-array</code>, which are still rejected.</li>
-</ul>
+<section id="risks">
+  <h2>Risks and open questions</h2>
+  <ul>
+    <li>No z3test benchmark uses Real-indexed constant arrays. Only synthetic inputs exercise this path.</li>
+    <li>Real-indexed arrays are modelled as functions over Rat. This reuses PR #69's argument that a rational model always exists.</li>
+  </ul>
+</section>
 
-<h2 id="glossary">Glossary</h2>
-<dl>
-  <dt id="g-array">array</dt>
-  <dd>A total map from an index sort to an element sort. <code>(Array Real Int)</code> maps every rational index to an integer.</dd>
+<section id="next">
+  <h2>What comes next</h2>
+  <p>The PR lists these follow-ups, all recorded in the project backlog:</p>
+  <ul>
+    <li>Constant arrays over uninterpreted index sorts. They need Z3's small-domain encoding.</li>
+    <li>Comparison facts for constant arrays outside <a href="#g-rewrite">rewrite</a> steps.</li>
+    <li>A real QF_ALRA or QF_AUFLIRA benchmark as a regression test.</li>
+    <li>Bool elements, nested arrays, <code>map</code>, and <code>as-array</code>, which are still rejected.</li>
+  </ul>
+</section>
 
-  <dt id="g-axiom">axiom</dt>
-  <dd>A statement Lean accepts without proof. Adding one widens what must be trusted.</dd>
+<section id="glossary">
+  <h2>Glossary</h2>
+  <dl class="glossary">
+    <dt id="g-array">array</dt>
+    <dd>A value that maps each index to an element, like a function. <code>(Array Real Int)</code> maps reals to integers.</dd>
 
-  <dt id="g-certificate">certificate</dt>
-  <dd>The JSON file the exporter writes. It records the input and every proof step Z3 took.</dd>
+    <dt id="g-axiom">axiom</dt>
+    <dd>A statement Lean accepts without proof. Every new axiom is something the reader must trust.</dd>
 
-  <dt id="g-clause">clause</dt>
-  <dd>A disjunction of literals, such as <code>(or (not p) q)</code>. A literal is an atom or its negation.</dd>
+    <dt id="g-clause">clause</dt>
+    <dd>A disjunction of literals, such as <code>p or not q</code>.</dd>
 
-  <dt id="g-clause-log">clause log</dt>
-  <dd>The record of every clause the solver adds or deletes, with a hint saying why each one holds.</dd>
+    <dt id="g-clause-log">clause log</dt>
+    <dd>The record Z3 writes of each clause it learns or assumes, with a hint saying why it holds.</dd>
 
-  <dt id="g-constant-array">constant array</dt>
-  <dd>An array with the same value at every index, written <code>((as const (Array Real Int)) 0)</code> in SMT-LIB.</dd>
+    <dt id="g-constant-array">constant array</dt>
+    <dd>An array with the same element at every index. In SMT-LIB, <code>((as const (Array Real Int)) 0)</code> is 0 everywhere.</dd>
 
-  <dt id="g-default-value">default value</dt>
-  <dd>The value an array takes at all but finitely many indices. The default of a constant array of 0 is 0.</dd>
+    <dt id="g-default-value">default value</dt>
+    <dd>The element an array holds at all but finitely many indices. A constant array of 0 has default 0.</dd>
 
-  <dt id="g-finite-sort">finite and infinite sorts</dt>
-  <dd>A finite sort has finitely many values. Int and Real are infinite. An uninterpreted sort might be finite.</dd>
+    <dt id="g-induction">induction</dt>
+    <dd>Proving a fact for the empty list, then showing it survives adding one more element.</dd>
 
-  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
-  <dd>A term that picks one of two values by a condition: <code>(ite c a b)</code>.</dd>
+    <dt id="g-infinite-sort">infinite sort</dt>
+    <dd>A sort with infinitely many values, such as Int or Real. No finite list contains all of them.</dd>
 
-  <dt id="g-induction">induction</dt>
-  <dd>A proof method: show a fact for the empty list, then show it survives adding one element.</dd>
+    <dt id="g-rational">rational number</dt>
+    <dd>A fraction of two integers, such as 5/2. Lean's type is <code>Rat</code>, used here for SMT-LIB Real.</dd>
 
-  <dt id="g-rat">rational numbers (Rat)</dt>
-  <dd>Fractions such as 5/2. Lean models the SMT-LIB sort Real as <code>Rat</code>.</dd>
+    <dt id="g-refutation">refutation</dt>
+    <dd>A proof that a set of assertions leads to False.</dd>
 
-  <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+    <dt id="g-rewrite">rewrite</dt>
+    <dd>A step that replaces a term by an equal, simpler one, such as <code>x + 0</code> by <code>x</code>.</dd>
 
-  <dt id="g-rewrite">rewrite step</dt>
-  <dd>A proof step that replaces a formula with an equivalent, simpler one.</dd>
+    <dt id="g-sort">sort</dt>
+    <dd>The type of a value in SMT-LIB, such as Int, Real, Bool, or an array sort.</dd>
 
-  <dt id="g-select">select and store</dt>
-  <dd><code>(select a i)</code> reads array <code>a</code> at index <code>i</code>. <code>(store a i v)</code> is a copy of <code>a</code> with index <code>i</code> set to <code>v</code>.</dd>
+    <dt id="g-store">store</dt>
+    <dd>Writing an array at one index. <code>(store a i v)</code> is <code>a</code> with <code>v</code> at <code>i</code>.</dd>
 
-  <dt id="g-sorry">sorry</dt>
-  <dd>A Lean placeholder that skips a proof. A trusted file must contain none.</dd>
+    <dt id="g-tactic">tactic</dt>
+    <dd>A Lean command that builds part of a proof automatically, such as <code>grind</code> or <code>omega</code>.</dd>
 
-  <dt id="g-sort">sort</dt>
-  <dd>The type of a value, such as Int, Real, Bool, or <code>(Array Real Int)</code>.</dd>
+    <dt id="g-tamper-test">tamper test</dt>
+    <dd>A test that edits a certificate on purpose and checks that the checker rejects it.</dd>
 
-  <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that builds part of a proof. <code>grind</code> and <code>omega</code> are tactics.</dd>
+    <dt id="g-theorem">theorem</dt>
+    <dd>A statement with a proof that Lean has checked.</dd>
 
-  <dt id="g-tamper">tamper test</dt>
-  <dd>A test that edits a certificate on purpose and checks that the reconstructor rejects it.</dd>
+    <dt id="g-theory-lemma">theory lemma</dt>
+    <dd>A <a href="#g-clause">clause</a> that holds by the rules of one theory, such as arrays or arithmetic, and not by pure logic.</dd>
 
-  <dt id="g-theorem">theorem</dt>
-  <dd>A statement together with a proof that Lean checks.</dd>
+    <dt id="g-trust-boundary">trust boundary</dt>
+    <dd>The list of things one must believe without checking, such as Lean's kernel and its standard axioms.</dd>
 
-  <dt id="g-trust-boundary">trust boundary</dt>
-  <dd>The set of things one must believe without checking, here Lean's kernel and its standard axioms.</dd>
-
-  <dt id="g-unbounded">unboundedness theorem</dt>
-  <dd>A theorem saying no finite list contains every value of a sort. Like a guest list: however long, someone is left outside.</dd>
-
-  <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
-  <dd>A sort declared by name only, with <code>declare-sort</code>. Nothing is known about how many values it has.</dd>
-</dl>
+    <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+    <dd>A sort declared by name only, with no fixed set of values. It may have just one or two values.</dd>
+  </dl>
+</section>
 
 <footer>
   Generated by the Lean certificate improvement loop on 2026-11-04.
