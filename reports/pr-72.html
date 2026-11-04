@@ -6,121 +6,123 @@
 <title>PR #72: Certify uninterpreted functions into arrays in Lean via the clause log</title>
 <style>
   :root {
-    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0b5cad;
-    --code-bg: #f3f4f6; --border: #d0d7de; --ok: #1a7f37; --warn: #9a6700; --head-bg: #f6f8fa;
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+    --code-bg: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --accent-bg: #eef6ff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #58a6ff;
-      --code-bg: #161b22; --border: #30363d; --ok: #3fb950; --warn: #d29922; --head-bg: #161b22;
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+      --code-bg: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --accent-bg: #10243e;
     }
   }
-  html { background: var(--bg); color: var(--fg); }
-  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6;
-         max-width: 50rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-  a { color: var(--accent); }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
   h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
-  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; margin-top: 2.2rem; }
   h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-  .meta { color: var(--muted); font-size: .95rem; }
-  .meta strong { color: var(--fg); }
-  .badge { display: inline-block; padding: 0 .5rem; border-radius: 1rem; border: 1px solid var(--warn);
-           color: var(--warn); font-weight: 600; font-size: .85rem; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
-         background: var(--code-bg); padding: .05rem .3rem; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
-        overflow-x: auto; line-height: 1.4; }
-  pre code { background: none; padding: 0; font-size: .85rem; }
-  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
-  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
-  th { background: var(--head-bg); }
+  a { color: var(--link); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+         background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+        padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: .82rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+  th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+  .meta dd { margin: 0 0 .2rem 9rem; }
+  .badge { display: inline-block; padding: .05rem .55rem; border-radius: 999px; font-size: .85rem;
+           font-weight: 600; border: 1px solid currentColor; }
+  .merged { color: #8250df; }
+  @media (prefers-color-scheme: dark) { .merged { color: #ab7df8; } }
   .pass { color: var(--ok); font-weight: 600; }
   .unknown { color: var(--warn); font-weight: 600; }
-  .explain { margin-top: -.3rem; color: var(--muted); }
-  dl dt { font-weight: 600; margin-top: .7rem; }
-  dl dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+  .note { background: var(--accent-bg); border-left: 4px solid var(--link); padding: .6rem .9rem; border-radius: 4px; }
+  .explain { margin-top: -.4rem; color: var(--fg); }
+  dl.glossary dt { font-weight: 600; margin-top: .7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
-<h1>Certify uninterpreted functions into arrays in Lean via the clause log</h1>
-<p class="meta">
-  <a href="https://github.com/levnach/z3/pull/72">Pull request #72</a> on levnach/z3 ·
-  state <span class="badge">OPEN</span> · <strong>not merged</strong> ·
-  opened 2026-11-04T16:46:25Z · loop iteration 72<br>
-  Change commit:
-  <a href="https://github.com/levnach/z3/commit/29b5008c91dd66b9e7a795fede478055871e83ca"><code>29b5008c9</code></a>
-  (the PR has two commits on top of base <code>fff41c909</code>).
-</p>
+  <h1>Certify uninterpreted functions into arrays in Lean via the clause log</h1>
+  <p><span class="badge merged">MERGED</span></p>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/72">levnach/z3#72</a></dd>
+    <dt>State</dt><dd>MERGED</dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/4d7571b937fcd21dcfc00cbd7565c53e6aed14bb"><code>4d7571b93</code></a></dd>
+    <dt>Merge date</dt><dd>2026-11-04T17:15:44Z</dd>
+    <dt>Date</dt><dd>2026-11-04T17:15:44Z</dd>
+    <dt>Loop iteration</dt><dd>72</dd>
+  </dl>
 </header>
 
-<section>
-<h2>In one paragraph</h2>
+<h2 id="one-paragraph">In one paragraph</h2>
 <p>
-This PR lets the pipeline certify inputs that declare an
-<a href="#g-uf">uninterpreted function</a> whose result <a href="#g-sort">sort</a> is an
+Before this PR, the pipeline refused any input with an
+<a href="#g-uninterpreted-function">uninterpreted function</a> whose result is an
 <a href="#g-array">array</a>, such as <code>(declare-fun h (Index) (Array Index Element))</code>.
-Before, the certificate exporter and the Lean reconstructor both rejected such declarations.
-Now the <a href="#g-clause-log">clause log</a> for these inputs becomes a Lean
-<a href="#g-refutation">refutation</a> that the Lean <a href="#g-kernel">kernel</a> checks.
-Each Lean array type gets one new <a href="#g-forall">universally quantified</a> field in the
-<a href="#g-interpretation">interpretation</a>, standing for every function into that type.
-Each application also gets a small fact proved by <a href="#g-rfl">rfl</a>.
-That fact lets the <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a> use
-<a href="#g-congruence">congruence</a>: equal arguments give equal arrays.
-No <a href="#g-axiom">axiom</a> or <code>sorry</code> is added, so nothing new is trusted.
-For every input without such functions, the generated Lean is byte-for-byte unchanged.
+Both the certificate exporter and the Lean reconstructor rejected it.
+Now such inputs are certified through the <a href="#g-clause-log">clause log</a>.
+The <a href="#g-refutation">refutation</a> is checked by the Lean <a href="#g-kernel">kernel</a>.
+Each Lean array type gets one new <a href="#g-universally-quantified">universally quantified</a>
+function family in the <a href="#g-interpretation">interpretation</a>.
+Each application of such a function also gets a small <a href="#g-rfl"><code>rfl</code></a> fact.
+That fact lets the <a href="#g-grind"><code>grind</code></a> <a href="#g-tactic">tactic</a> use
+<a href="#g-congruence">congruence</a> to compare two applications by their arguments.
+No <a href="#g-axiom">axiom</a> or <code>sorry</code> is added.
+For every input without functions into arrays, the generated Lean is byte-identical to before.
 </p>
-</section>
 
-<section>
-<h2>Background</h2>
+<h2 id="background">Background</h2>
 <p>
-Earlier iterations certified <a href="#g-array">arrays</a> over
-<a href="#g-usort">uninterpreted sorts</a>, Int, and Real.
-That work covered <a href="#g-select">select</a>, <a href="#g-store">store</a>,
-<a href="#g-ext">extensionality</a>, and <a href="#g-const-array">constant arrays</a>.
-Functions that take arrays as arguments have been certified since iteration 69.
-A function that returns an array was still rejected, and the backlog listed this gap as "functions into arrays".
-This PR serves milestone 4, broader theories, where arrays are one of the named extensions.
-It builds on the <a href="#g-uf">uninterpreted function</a> support from milestone 3.
+Recent iterations taught the pipeline to certify arrays over
+<a href="#g-uninterpreted-sort">uninterpreted sorts</a>, Int, and Real.
+They also added <a href="#g-constant-array">constant arrays</a>, and functions that take arrays as arguments.
+A function could take an array in, but it could not return one.
+The exporter stopped with "uninterpreted functions over Array(I, E)".
+The reconstructor stopped with "unsupported array declaration".
+The backlog listed this gap as "functions into arrays".
+The work serves milestone 4 of the plan, "Broader theories and integration", which treats arrays as one extension.
 </p>
-</section>
 
-<section>
-<h2>What changed</h2>
+<h2 id="what-changed">What changed</h2>
 <ul>
-  <li>The exporter now turns an input with a function into a supported array sort into a certificate, where it used to stop with an error.</li>
-  <li>The reconstructor accepts these functions and gives each Lean array type one family of them. Think of a filing cabinet per array type: each function has a numbered drawer, and the argument list picks the folder.</li>
-  <li>Each application of such a function gets an <a href="#g-rfl">rfl</a> fact, so grind can conclude <code>h i = h j</code> from <code>i = j</code> by <a href="#g-cc">congruence closure</a>.</li>
-  <li>Certificates that swap, rename, or relabel these functions are rejected, because they no longer match the original input.</li>
-  <li>Eleven new test inputs are each checked in Lean. They cover store, extensionality, <a href="#g-ite">ite</a>, constant arrays, nested applications, and Int and Real sorts under <a href="#g-farkas">Farkas lemma</a> steps.</li>
+  <li>The exporter now accepts a function whose result is a supported array <a href="#g-sort">sort</a>, not only one that takes an array as an argument.</li>
+  <li>The reconstructor now writes such a function as a member of one family per Lean array type, such as <code>_m.arrs_funs</code>.</li>
+  <li>Each application of such a function now gets an <code>rfl</code> fact that shows its arguments, so <code>grind</code> can prove that equal arguments give equal arrays.</li>
+  <li>The certificate gets a new symbol table, "Array function N", and it is matched against the original input by name and signature, so a swapped or renamed function is rejected.</li>
+  <li>Eleven new test inputs cover stores, <a href="#g-extensionality">extensionality</a>, an <a href="#g-ite">if-then-else term</a>, constant arrays, Int and Real arrays, and arrays to arrays.</li>
 </ul>
-<p>Arrays with <a href="#g-bool">Boolean</a> elements and arrays of arrays are still rejected, both as arguments and as results.</p>
-
+<p>
+An analogy for the <code>rfl</code> facts: array terms stay folded, like sealed envelopes.
+<code>grind</code> cannot see which argument made each envelope.
+The fact writes the argument on the envelope.
+Then two envelopes with the same argument are known to hold the same array.
+</p>
 <table>
-  <thead><tr><th>File</th><th>Component</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter: signature check</td><td class="num">9</td><td class="num">8</td></tr>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: declarations, families, rfl facts</td><td class="num">46</td><td class="num">15</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">234</td><td class="num">6</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>Docs: scope and encoding</td><td class="num">12</td><td class="num">6</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs: dated plan section</td><td class="num">23</td><td class="num">0</td></tr>
-    <tr><th>Total (5 files)</th><th></th><th class="num">324</th><th class="num">35</th></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>exporter</td><td class="num">9</td><td class="num">8</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">46</td><td class="num">15</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>tests</td><td class="num">234</td><td class="num">6</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>docs</td><td class="num">12</td><td class="num">6</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>plan</td><td class="num">23</td><td class="num">0</td></tr>
+    <tr><th>Total (5 files, 1 commit)</th><th></th><th class="num">324</th><th class="num">35</th></tr>
   </tbody>
 </table>
-</section>
 
-<section>
-<h2>Worked example</h2>
+<h2 id="worked-example">Worked example</h2>
 <p>
-This input is the test input <code>function_into_arrays</code> from the PR.
-Since <code>i = j</code>, congruence gives <code>(h i) = (h j)</code>.
-So <code>(h j)</code> equals a store of <code>e</code> into itself at <code>i</code>, and reading it at <code>i</code> must give <code>e</code>.
-The third assertion says it does not, so the input is unsat.
+This is the PR's test input <code>function_into_arrays</code>.
+It was run through the code before and after the PR for this report.
 </p>
 
 <h3>(a) The input</h3>
@@ -135,35 +137,42 @@ The third assertion says it does not, so the input is unsat.
 (assert (= i j))
 (assert (not (= (select (h j) i) e)))
 (check-sat)</code></pre>
+<p class="explain">
+Since <code>i = j</code>, the arrays <code>h i</code> and <code>h j</code> are equal.
+So reading <code>h j</code> at <code>i</code> must give <code>e</code>, which the last assertion denies.
+</p>
 
 <h3>(b) Before</h3>
-<p>The exporter from the PR's base commit rejected the input:</p>
 <pre><code>proof_certificate.py: error: uninterpreted functions over Array(Index, Element) are not supported: h</code></pre>
-<p>Given a certificate from the new exporter, the old reconstructor also refused it:</p>
-<pre><code>proof_to_lean.py: error: unsupported array declaration: h</code></pre>
+<p class="explain">
+The old exporter stopped with exit code 2, so the old reconstructor was never reached.
+</p>
 
 <h3>(c) After</h3>
-<p>The new exporter and reconstructor produced a Lean file. The project's Lean check accepted it with "Lean checks passed."</p>
-<pre><code>structure Interpretation where
+<pre><code>-- Array function 0: "h"
+...
+-- Functions into array sorts are the families _m.arrs_funs, one per Lean array type.
+...
+structure Interpretation where
   U : Type
   elems : Nat -&gt; U
+  funs : Nat -&gt; List U -&gt; U
   ...
   arrs : Nat -&gt; U -&gt; U
   arrs_funs : Nat -&gt; List U -&gt; U -&gt; U</code></pre>
-<p class="explain">The last field is new: one family for all functions into this array type, indexed by a number and fed a list of arguments.</p>
+<p class="explain">The new field <code>arrs_funs</code> gives every function into this array type: a number picks the function, and a list of arguments picks the array.</p>
 
 <pre><code>def term_1 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : (_m.U -&gt; _m.U) := _m.arrs_funs 0 [(term_0 _atoms _m)]
 ...
-def term_3 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : (_m.U -&gt; _m.U) := _m.arrs_funs 0 [(term_2 _atoms _m)]</code></pre>
-<p class="explain">These are <code>(h i)</code> and <code>(h j)</code>: function number 0 of the family, applied to <code>i</code> and to <code>j</code>.</p>
-
-<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+def term_3 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : (_m.U -&gt; _m.U) := _m.arrs_funs 0 [(term_2 _atoms _m)]
+...
+theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
     (_h0 : (formula_6 _atoms _m))
     (_h1 : (formula_7 _atoms _m))
     (_h2 : (formula_10 _atoms _m))
     : False :=
   ...</code></pre>
-<p class="explain">For every interpretation, the three assertions together imply False.</p>
+<p class="explain">The terms <code>h i</code> and <code>h j</code> become function 0 of the family applied to <code>i</code> and to <code>j</code>, and the theorem says the three assertions imply False for every interpretation.</p>
 
 <pre><code>private theorem th_lemma_21 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
     : (formula_20 _atoms _m) := by
@@ -173,119 +182,134 @@ def term_3 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : (_m.U -&gt; _m.U) :
   have _t5 : (term_5 _atoms _m) = (_store ((term_3 _atoms _m)) (_m.elems 0) (_m.elems 2)) := rfl
   have _s14 := _store_apply ((term_3 _atoms _m)) (_m.elems 0) (_m.elems 2) (_m.elems 0)
   grind (splits := 64)</code></pre>
-<p class="explain">This lemma proves one <a href="#g-clause">clause</a> of four <a href="#g-literal">literals</a> from the clause log. The new <code>_t1</code> and <code>_t3</code> facts expose the two applications, so grind can see that <code>i = j</code> makes them equal.</p>
-</section>
+<p class="explain">The new <code>_t1</code> and <code>_t3</code> facts expose the arguments of <code>h i</code> and <code>h j</code>, so <code>grind</code> can close this <a href="#g-clause">clause</a> by congruence.</p>
 
-<section>
-<h2>How it was verified</h2>
-<p>
-In plain terms, every test suite the authors ran passed, about 560 tests in all.
-The reviewer also regenerated Lean for every documented input with the old and new code.
-Only the new inputs changed, so existing outputs are untouched.
-The worked example above was produced and Lean-checked while writing this report.
+<p class="note">
+Lean accepted the generated file.
+<code>scripts/check_lean.sh</code> printed "Build completed successfully (4 jobs)" and "Lean checks passed."
 </p>
 
-<h3>Local verification</h3>
+<h2 id="verification">How it was verified</h2>
+<p>
+Every local test suite passed, including about 400 Lean reconstruction tests.
+This PR touched only Python examples and docs.
+So the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate mirrors the steps of the <code>releaseClang</code> CI job that exercise this work.
+</p>
 <table>
-  <thead><tr><th>Check</th><th>Who ran it</th><th>Result</th></tr></thead>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
   <tbody>
-    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>Implementer and integrator, final head</td><td class="pass">402 tests, OK</td></tr>
-    <tr><td>Certificate exporter tests</td><td>Implementer, integrator, reviewer</td><td class="pass">110 tests, OK</td></tr>
-    <tr><td>Lean project build, <code>scripts/check_lean.sh</code></td><td>Implementer, integrator, reviewer</td><td class="pass">Lean checks passed</td></tr>
-    <tr><td>z3test proof tests</td><td>Implementer, integrator, reviewer</td><td class="pass">48 tests, OK</td></tr>
-    <tr><td>Array test module only</td><td>Reviewer</td><td class="pass">22 tests, OK</td></tr>
-    <tr><td>Old vs new generated Lean, all documented inputs, both exporters</td><td>Reviewer</td><td class="pass">504 outputs. Only the new inputs differ (40 files).</td></tr>
-    <tr><td>Extra edge inputs, kernel-checked</td><td>Reviewer</td><td class="pass">4 of 4 OK</td></tr>
-    <tr><td>Worked example on this page</td><td>Reporter</td><td class="pass">Lean checks passed</td></tr>
-    <tr><td><code>proof_matrix.py --lean</code> sweeps</td><td>Nobody</td><td class="unknown">Not run. Those inputs contain no arrays.</td></tr>
-    <tr><td>Local gate</td><td>Loop driver</td><td class="unknown">Not yet recorded. When this page was written, its exporter step had passed 110 tests and its Lean reconstruction step was still running.</td></tr>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">14 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">1709 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">18 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
   </tbody>
 </table>
-
-<h3>Continuous integration</h3>
-<p>No CI status was available when this report was written, so no result is claimed here. There were no CI fix rounds. The loop's first attempt to push the branch failed, and it resumed at the push step.</p>
 <table>
-  <thead><tr><th>Workflow / job</th><th>Relevance</th><th>Status</th></tr></thead>
+  <thead><tr><th>Implementer and reviewer runs</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td>Runs the new tests</td><td class="unknown">Unknown. See <a href="https://github.com/levnach/z3/pull/72/checks">PR checks</a>.</td></tr>
-    <tr><td>Wheel jobs</td><td>Run other test files only, unaffected per the PR</td><td class="unknown">Unknown. See <a href="https://github.com/levnach/z3/pull/72/checks">PR checks</a>.</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code></td><td class="pass">402 tests, OK</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="pass">110 tests, OK</td></tr>
+    <tr><td>z3test <code>test_proof*.py</code></td><td class="pass">48 tests, OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>Reviewer's regression diff of generated Lean, base against head</td><td class="pass">504 outputs; only the new inputs differ</td></tr>
+    <tr><td>Reviewer's extra edge inputs, kernel-checked</td><td class="pass">4 of 4 OK</td></tr>
   </tbody>
 </table>
-</section>
+<table>
+  <thead><tr><th>GitHub CI workflow / check</th><th>Result</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td>CI / Ubuntu build - cmake - releaseClang</td><td class="unknown">not recorded</td><td><a href="https://github.com/levnach/z3/commit/4d7571b937fcd21dcfc00cbd7565c53e6aed14bb">commit page</a></td></tr>
+  </tbody>
+</table>
+<p>
+No CI status files were recorded for this PR.
+CI runs on <code>master</code> after the merge, and its result is unknown to this report.
+There were no CI fix rounds.
+</p>
 
-<section>
-<h2>Review</h2>
-<p>The reviewer approved the change with no blockers and no major findings.</p>
+<h2 id="review">Review</h2>
+<p>The reviewer approved. There were no blockers and no major findings.</p>
 <ul>
-  <li><strong>Minor: a missing tamper test.</strong>
-    The reviewer read the tests that feed the checker forged certificates.
-    They caught wrong declaration shapes, but none swapped two functions with the same signature.
-    If someone later loosened the binding check, a forged certificate swapping <code>f</code> and <code>g</code> could slip past every test.
-    Today's code already rejects it, so this was a coverage gap, not a bug.
-    The fix added an input where <code>f</code> and <code>g</code> play different roles.
-    The tamper test now swaps them and renames <code>g</code>, and both forgeries are rejected as not matching the input.</li>
-  <li><strong>Nit: an unused loop variable</strong> in the exporter's signature check. It was removed.</li>
-  <li><strong>Nit: a stale docstring.</strong> Its first line did not mention arrays. It was fixed.</li>
-  <li><strong>Nit: a wrong claim in the implementer's notes.</strong>
-    The notes said the symbol tables were "numbered together".
-    In fact each table counts from zero, which is safe because each maps to its own family.
-    The code and docs never made the claim, so only the notes were wrong. No code change was needed.</li>
-</ul>
-</section>
-
-<section>
-<h2>Risks and open questions</h2>
-<ul>
-  <li>Soundness relies on an argument written in the PR, not proved in Lean. A <a href="#g-model">model</a>'s function into arrays returns model arrays. These embed into the Lean array type by the same map as array constants, and that map respects select and store.</li>
-  <li>No z3test input becomes newly certified. The two fuzzsmt regressions with such functions are <a href="#g-sat">satisfiable</a>, so all coverage comes from synthetic inputs.</li>
-  <li>An unused constant-array field is still emitted when an array sort appears only as a function result. The reviewer judged this harmless.</li>
-  <li>The legacy proof core does not inject array arguments in one congruence step. This cannot be reached while that core rejects arrays.</li>
-  <li>CI results and the local gate outcome were unknown at the time of writing.</li>
+  <li><strong>Minor: no swap or rename test.</strong>
+    The tamper tests changed a function's declaration shape, but none swapped two functions.
+    If the input binding were loosened later, a certificate that swaps <code>f</code> and <code>g</code> could slip through.
+    The current code already rejects it, so this was a coverage gap, not a bug.
+    The fix added a new input where two functions share one family in different roles.
+    The tamper test now swaps their names and also renames one of them.
+    Both certificates are rejected because they no longer match the input.</li>
+  <li><strong>Nit: unused loop variable.</strong> A leftover index in the exporter's signature check was removed.</li>
+  <li><strong>Nit: stale docstring.</strong> The summary line now mentions arrays.</li>
+  <li><strong>Nit: wrong wording in the implementer's notes.</strong>
+    The notes said the symbol tables are "numbered together", but each starts at zero.
+    That is sound, and the code and docs never made the claim.</li>
 </ul>
 
-<h2>What comes next</h2>
+<h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>Arrays with Boolean elements, also called sets, are the next array candidate. The backlog plans a Prop element type for them.</li>
-  <li>Arrays of arrays remain rejected.</li>
-  <li>Optionally, the unused constant-array field could be trimmed to keep the interpretation minimal.</li>
+  <li>Soundness rests on one argument. A model's function into arrays returns model arrays. They embed into the Lean array type by the same map as array constants, and that map respects select and store.</li>
+  <li>No z3test input becomes newly certifiable. The fuzzsmt regressions with such functions are satisfiable, so all coverage comes from synthetic inputs.</li>
+  <li>An unused constant-array field is still emitted when an array sort appears only as a function result. This is harmless.</li>
 </ul>
-</section>
 
-<section>
-<h2>Glossary</h2>
-<dl>
-  <dt id="g-array">array</dt><dd>A value that maps every index to an element, like a total function. <code>(Array Int Real)</code> maps integers to reals.</dd>
-  <dt id="g-axiom">axiom</dt><dd>A statement Lean accepts without proof. A certificate that needs a new axiom trusts something extra.</dd>
-  <dt id="g-bool">Boolean</dt><dd>The sort with two values, true and false, written <code>Bool</code>.</dd>
-  <dt id="g-clause">clause</dt><dd>A disjunction of literals: at least one of them must be true. Example: <code>x = 1 or not p</code>.</dd>
-  <dt id="g-clause-log">clause log</dt><dd>The record of clauses the solver derived on its way to a contradiction, used here as the proof certificate.</dd>
-  <dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal results: if <code>i = j</code> then <code>h i = h j</code>.</dd>
-  <dt id="g-cc">congruence closure</dt><dd>A procedure that finds all equalities that follow from given ones by congruence.</dd>
-  <dt id="g-const-array">constant array</dt><dd>An array with the same element at every index, written <code>((as const (Array Int Int)) 0)</code>.</dd>
-  <dt id="g-ext">extensionality</dt><dd>The rule that two arrays are equal if they agree at every index.</dd>
-  <dt id="g-farkas">Farkas lemma</dt><dd>A way to show linear inequalities have no solution: a positive combination of them sums to something false, like <code>0 &lt; 0</code>.</dd>
-  <dt id="g-grind">grind</dt><dd>A Lean tactic that combines congruence closure, case splits, and arithmetic to close a goal.</dd>
-  <dt id="g-ite">if-then-else term (ite)</dt><dd>A term that picks one of two values by a condition: <code>(ite p a b)</code> is <code>a</code> when <code>p</code> holds, else <code>b</code>.</dd>
-  <dt id="g-interpretation">interpretation</dt><dd>A choice of meaning for every symbol: which set a sort is, which function a function symbol is, and so on.</dd>
-  <dt id="g-kernel">kernel</dt><dd>The small core of Lean that checks every proof step. A proof is trusted only once the kernel accepts it.</dd>
-  <dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>i = j</code> or <code>not (i = j)</code>.</dd>
-  <dt id="g-model">model</dt><dd>An interpretation that makes all the assertions true.</dd>
-  <dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to False, so no model exists.</dd>
-  <dt id="g-rfl">rfl</dt><dd>Lean's proof that a term equals itself. It also proves equalities that hold just by unfolding definitions.</dd>
-  <dt id="g-sat">satisfiable</dt><dd>Having at least one model. A satisfiable input has no refutation to certify.</dd>
-  <dt id="g-select">select</dt><dd>Reading an array: <code>(select a i)</code> is the element of <code>a</code> at index <code>i</code>.</dd>
-  <dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, Bool, or an array sort.</dd>
-  <dt id="g-store">store</dt><dd>Writing an array: <code>(store a i v)</code> is <code>a</code> with index <code>i</code> changed to <code>v</code>.</dd>
-  <dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically.</dd>
-  <dt id="g-uf">uninterpreted function</dt><dd>A function symbol with no fixed meaning. Only its sorts are known, and congruence holds. Example: <code>(declare-fun h (Index) (Array Index Element))</code>.</dd>
-  <dt id="g-usort">uninterpreted sort</dt><dd>A sort with no fixed meaning, declared with <code>declare-sort</code>, such as <code>Index</code> above.</dd>
-  <dt id="g-forall">universally quantified</dt><dd>Stated "for all" values. The Lean theorem holds for every interpretation, so it covers every possible model.</dd>
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Arrays over Bool elements, that is sets, are the next array candidate. The backlog plans a Prop element type for them.</li>
+  <li>Nested arrays stay rejected, both as arguments and as results.</li>
+  <li>The legacy core's congruence step does not inject array arguments. This cannot be reached while the legacy core rejects arrays.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-array">array</dt>
+  <dd>A sort <code>(Array I E)</code> of maps from an index sort I to an element sort E. In Lean it is a function <code>I -&gt; E</code>.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement Lean accepts without proof. A certificate that needs a new one would not be trustworthy.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>a or not b or c</code>. A proof step usually proves one clause.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>The record of clauses Z3 derives while solving. The exporter turns it into a certificate.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results: if <code>i = j</code> then <code>h i = h j</code>. Congruence closure applies it automatically.</dd>
+  <dt id="g-constant-array">constant array</dt>
+  <dd>An array with the same element at every index, written <code>((as const (Array Int Real)) 2.0)</code>.</dd>
+  <dt id="g-extensionality">extensionality</dt>
+  <dd>The rule that two arrays are equal if they agree at every index.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A Lean tactic that combines congruence closure, case splits, and arithmetic to close a goal.</dd>
+  <dt id="g-ite">if-then-else term (ite)</dt>
+  <dd>A term <code>(ite c a b)</code> that equals <code>a</code> when <code>c</code> is true and <code>b</code> otherwise.</dd>
+  <dt id="g-interpretation">interpretation</dt>
+  <dd>A choice of meaning for every symbol: a carrier type, values for constants, and functions for function symbols. In the Lean file it is the structure <code>Interpretation</code>.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small core of Lean that checks every proof. Trust rests on it, not on the tactics.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>i = j</code> or <code>not (i = j)</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions implies False.</dd>
+  <dt id="g-rfl">rfl</dt>
+  <dd>Lean's proof that something equals itself. It works when both sides unfold to the same term.</dd>
+  <dt id="g-select">select</dt>
+  <dd>Reading an array at an index: <code>(select a i)</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, Bool, or <code>(Array Int Int)</code>.</dd>
+  <dt id="g-store">store</dt>
+  <dd>Writing one index of an array: <code>(store a i v)</code> is <code>a</code> with the value at <code>i</code> replaced by <code>v</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. The kernel still checks the result.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with a signature but no fixed definition, such as <code>h : Index -&gt; (Array Index Element)</code>. Any function of that signature may stand for it.</dd>
+  <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+  <dd>A sort declared by name only, such as <code>Index</code>, with no built-in values.</dd>
+  <dt id="g-universally-quantified">universally quantified</dt>
+  <dd>Stated "for all" values. The theorem holds for every interpretation, so it holds for any model.</dd>
 </dl>
-</section>
 
 <footer>
-Generated by the Lean certificate improvement loop on 2026-11-04.
+  Generated by the Lean certificate improvement loop on 2026-11-04.
 </footer>
 
+</main>
 </body>
 </html>
