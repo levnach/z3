@@ -289,6 +289,21 @@ ARITHMETIC_ARRAY_INPUTS = {
 (assert (not (= (select (store (store a 1 5) 2 7) 3) (select a 3))))
 (check-sat)
 """,
+    # The skip stops at a store at the read's own numeral, whose read the
+    # rewriter evaluates in the same step: (select (store (store a 3 5) 2 7)
+    # 3) is 5, so that level gets its fact too (missing before 2026-11-05).
+    "read_through_numeral_stores_to_own_index": """(set-logic QF_ALIA)
+(declare-fun a () (Array Int Int))
+(assert (not (= (select (store (store a 3 5) 2 7) 3) 5)))
+(check-sat)
+""",
+    # Negative numerals are (- n) in the certificate; the rewriter skips the
+    # stores at -1 and -2 in a read at 3 all the same.
+    "read_through_negative_numeral_stores": """(set-logic QF_ALIA)
+(declare-fun a () (Array Int Int))
+(assert (not (= (select (store (store a (- 1) 5) (- 2) 7) 3) (select a 3))))
+(check-sat)
+""",
 }
 # Constant arrays over Int indices, ((as const (Array Int E)) v): the
 # constant function _const_array. The array solver relates them to other
@@ -706,6 +721,13 @@ BOOL_ELEMENT_INPUTS = {
 (assert (not (select a 3)))
 (check-sat)
 """,
+    # Membership after an insert at 3 and removals at 2 and 1: the skip
+    # stops at the insert (read_through_numeral_stores_to_own_index).
+    "set_read_through_numeral_stores_to_own_index": """(set-logic QF_ALIA)
+(declare-fun a () (Array Int Bool))
+(assert (not (select (store (store (store a 3 true) 2 false) 1 false) 3)))
+(check-sat)
+""",
 }
 ARRAY_INPUTS.update(ARITHMETIC_ARRAY_INPUTS)
 ARRAY_INPUTS.update(CONSTANT_ARRAY_INPUTS)
@@ -1059,6 +1081,18 @@ class TestArrayValidation(unittest.TestCase):
         facts = levels("set_read_through_numeral_stores")
         self.assertTrue(any(name.endswith("_2") for name, _ in facts), facts)
         self.assertFalse(any(name.endswith("_3") for name, _ in facts), facts)
+        # Stores at 2 and 3 read at 3: the skipped level and the one at 3.
+        facts = levels("read_through_numeral_stores_to_own_index")
+        self.assertTrue(any(name.endswith("_1") for name, _ in facts), facts)
+        self.assertFalse(any(name.endswith("_2") for name, _ in facts), facts)
+        # Stores at 1, 2 over a set read at 3, the skip stopping at 3: levels 0 to 2.
+        facts = levels("set_read_through_numeral_stores_to_own_index")
+        self.assertTrue(any(name.endswith("_2") for name, _ in facts), facts)
+        self.assertFalse(any(name.endswith("_3") for name, _ in facts), facts)
+        # Stores at -2 and -1 read at 3: both levels, not the plain array.
+        facts = levels("read_through_negative_numeral_stores")
+        self.assertTrue(any(name.endswith("_1") for name, _ in facts), facts)
+        self.assertFalse(any(name.endswith("_2") for name, _ in facts), facts)
         # Stores at symbolic indices over a plain array: one level per read.
         facts = levels("bool_store_chain")
         self.assertTrue(facts)
@@ -1378,7 +1412,9 @@ class TestArrayLeanIntegration(unittest.TestCase):
         """
         for name, fact in (("read_of_store_over_constant", "_select_const"), ("singleton_set", "_select_const"),
                            ("read_through_numeral_stores", "_store_apply"),
-                           ("set_read_through_numeral_stores", "_store_apply")):
+                           ("set_read_through_numeral_stores", "_store_apply"),
+                           ("read_through_numeral_stores_to_own_index", "_store_apply"),
+                           ("read_through_negative_numeral_stores", "_store_apply")):
             with self.subTest(name=name):
                 source = ARRAY_INPUTS[name]
                 text = proof_to_lean.reconstruct(source, _export(source))

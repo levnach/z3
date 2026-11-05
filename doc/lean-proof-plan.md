@@ -1613,10 +1613,15 @@ at a constant array now gets `_store_apply` at every level and
 On 2026-11-05 the same was found over plain arrays: the rewriter skips the
 stores at numerals other than the read's, `(select (store (store a 1 5) 2 7)
 3)` is `(select a 3)`, so those levels get their `_store_apply` facts too
-(`read_through_numeral_stores`); reads through stores at symbolic indices
-keep one fact, so z3test's swap files are unaffected.
+(`read_through_numeral_stores`), and so does the store where the skip stops,
+whose read at the read's own numeral the rewriter evaluates in the same step
+(`(select (store (store a 3 5) 2 7) 3)` is `5`,
+`read_through_numeral_stores_to_own_index`). Numerals are compared by value,
+negative ones `(- n)` and Real fractions `(/ n d)` included
+(`read_through_negative_numeral_stores`). Reads through stores at symbolic
+indices keep one fact, so z3test's swap files are unaffected.
 No z3test input is newly certified (its Bool-array files also need `map`,
-nested arrays, quantifiers, or unsupported commands); fourteen synthetic
+nested arrays, quantifiers, or unsupported commands); sixteen synthetic
 inputs (`BOOL_ELEMENT_INPUTS` in `test_proof_to_lean_array.py`) and the
 Int-element `read_of_store_over_constant` verify in Lean.
 

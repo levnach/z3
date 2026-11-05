@@ -2465,10 +2465,26 @@ def _theory_helpers(graph, reachable, atom_indices, variable_indices):
     return helpers
 
 
+def _numeral_value(graph, node):
+    """The value of an arithmetic node that is a constant (a numeral, -2 or 1/3 too), or None."""
+    if not graph.is_arith(node):
+        return None
+    terms = {}
+    try:
+        constant = _linear_term(graph, node, Fraction(1), terms)
+    except ReconstructionError:
+        return None
+    return None if any(terms.values()) else constant
+
+
 def _distinct_numerals(graph, left, right):
-    """Whether two index nodes are numerals of different values (Z3's are_distinct on arithmetic values)."""
-    return (graph.kind(left) == z3.Z3_OP_ANUM and graph.kind(right) == z3.Z3_OP_ANUM
-            and Fraction(graph.decl(left).name) != Fraction(graph.decl(right).name))
+    """Whether two index nodes are numerals of different values (Z3's are_distinct on arithmetic values).
+
+    A negative numeral is (- n) and a Real fraction (/ n d) in a
+    certificate, which Z3's rewriter compares as the values -n and n/d.
+    """
+    left, right = _numeral_value(graph, left), _numeral_value(graph, right)
+    return left is not None and right is not None and left != right
 
 
 def _array_helpers(graph, reachable, atom_indices, variable_indices):
@@ -2509,7 +2525,10 @@ def _array_helpers(graph, reachable, atom_indices, variable_indices):
             if graph.kind(levels[-1]) != z3.Z3_OP_CONST_ARRAY:
                 # Over a plain array the rewriter skips the stores at a
                 # numeral index other than the read's ((select (store (store
-                # a 1 v) 2 w) 3) is (select a 3)), so those levels get their
+                # a 1 v) 2 w) 3) is (select a 3)) and goes on with the read
+                # of the level where the skip stops, a store at the read's
+                # own index evaluated in the same step ((select (store
+                # (store a 3 5) 2 7) 3) is 5), so those levels get their
                 # facts too; other reads keep the single fact of their own
                 # level (long store chains over plain arrays at symbolic
                 # indices, as in z3test's swap files, would otherwise get one
@@ -2518,7 +2537,9 @@ def _array_helpers(graph, reachable, atom_indices, variable_indices):
                 while (skipped + 1 < len(levels)
                        and _distinct_numerals(graph, graph.arguments(levels[skipped])[1], read)):
                     skipped += 1
-                levels = levels[:max(1, skipped)]
+                # The skipped levels and the store where the skip stops (not
+                # the plain array at the bottom).
+                levels = levels[:min(skipped + 1, len(levels) - 1)]
             for level, store in enumerate(levels):
                 name = "_s%d" % node if level == 0 else "_s%d_%d" % (node, level)
                 if graph.kind(store) == z3.Z3_OP_STORE:

@@ -160,8 +160,9 @@ its arithmetic (an input with Int arrays alone is qf_uflia); functions and
 predicates may take arrays as arguments, functions may return them, and
 constant arrays ((as const (Array I E)) v) are supported over Int and Real
 indices. Only the clause log certifies them (the legacy core rejects them
-explicitly); arrays over Bool indices, arrays of arrays, arrays with several indices,
-constant arrays over other index sorts, map, and as-array are rejected. Integer
+explicitly); arrays over Bool indices, arrays of arrays, arrays with
+several indices, constant arrays over other index sorts, map, and as-array
+are rejected. Integer
 div, mod, and rem by zero or by a term (SMT-LIB leaves division by zero
 uninterpreted, where Lean's Int division is total; a term divisor is
 nonlinear), and Int
@@ -986,7 +987,8 @@ grind proves after each lemma states _store_apply for every read of a
 store and _array_ext for every witness it reaches. A read the rewriter
 evaluates through several stores gets a fact per level it skips: the
 stores at numerals other than the read's ((select (store (store a 1 5) 2
-7) 3) is (select a 3)), and every store above a constant array (with
+7) 3) is (select a 3)) and the store where that skip stops ((select (store
+(store a 3 5) 2 7) 3) is 5), and every store above a constant array (with
 _select_const at the bottom). Array terms stay
 folded in those lemmas (term_N, related to its store or ite by an rfl
 fact): written out, the shared store chains of the swap and storecomm
