@@ -983,7 +983,11 @@ of I, and every model's carriers are nonempty, so each model is again an
 instance. The array solver's axiom instances (array hints: the store
 axiom, select over store, extensionality) are clauses of equalities that
 grind proves after each lemma states _store_apply for every read of a
-store and _array_ext for every witness it reaches. Array terms stay
+store and _array_ext for every witness it reaches. A read the rewriter
+evaluates through several stores gets a fact per level it skips: the
+stores at numerals other than the read's ((select (store (store a 1 5) 2
+7) 3) is (select a 3)), and every store above a constant array (with
+_select_const at the bottom). Array terms stay
 folded in those lemmas (term_N, related to its store or ite by an rfl
 fact): written out, the shared store chains of the swap and storecomm
 benchmarks grow exponentially. A lemma over stores (Z3's rewriter turns

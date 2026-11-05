@@ -280,6 +280,15 @@ ARITHMETIC_ARRAY_INPUTS = {
 (assert (not (= e_222 e_223)))
 (check-sat)
 """,
+    # Z3's rewriter skips the stores at numerals other than the read's,
+    # (select (store (store a 1 5) 2 7) 3) is (select a 3), with no read of
+    # the level in between in the certificate, so the read gets the
+    # _store_apply fact of every skipped level (missing before 2026-11-05).
+    "read_through_numeral_stores": """(set-logic QF_ALIA)
+(declare-fun a () (Array Int Int))
+(assert (not (= (select (store (store a 1 5) 2 7) 3) (select a 3))))
+(check-sat)
+""",
 }
 # Constant arrays over Int indices, ((as const (Array Int E)) v): the
 # constant function _const_array. The array solver relates them to other
@@ -689,6 +698,14 @@ BOOL_ELEMENT_INPUTS = {
 (assert (not (= (g s) (g (store s x true)))))
 (check-sat)
 """,
+    # Membership through inserts at other numerals: the rewriter skips the
+    # stores at 1, 2, and 4 in a read at 3 (read_through_numeral_stores).
+    "set_read_through_numeral_stores": """(set-logic QF_ALIA)
+(declare-fun a () (Array Int Bool))
+(assert (select (store (store (store a 1 true) 2 true) 4 false) 3))
+(assert (not (select a 3)))
+(check-sat)
+""",
 }
 ARRAY_INPUTS.update(ARITHMETIC_ARRAY_INPUTS)
 ARRAY_INPUTS.update(CONSTANT_ARRAY_INPUTS)
@@ -1028,6 +1045,28 @@ class TestArrayValidation(unittest.TestCase):
             self.assertNotIn("sorry", each)
             self.assertNotIn("axiom ", each)
 
+    def test_store_level_facts(self):
+        """Reads get facts for the store levels the rewriter skips, and only for those, over plain arrays."""
+        def levels(name):
+            text = proof_to_lean.reconstruct(ARRAY_INPUTS[name], self.certificates[name])
+            return re.findall(r"have (_s\d+(?:_\d+)?) := (_store_apply|_select_const) ", text)
+
+        # (select (store (store a 1 5) 2 7) 3): the levels at 2 and at 1.
+        facts = levels("read_through_numeral_stores")
+        self.assertTrue(any(name.count("_") == 2 and name.endswith("_1") for name, _ in facts), facts)
+        self.assertFalse(any(name.count("_") == 2 and not name.endswith("_1") for name, _ in facts), facts)
+        # Stores at 4, 2, 1 over a plain set read at 3: levels 0 to 2.
+        facts = levels("set_read_through_numeral_stores")
+        self.assertTrue(any(name.endswith("_2") for name, _ in facts), facts)
+        self.assertFalse(any(name.endswith("_3") for name, _ in facts), facts)
+        # Stores at symbolic indices over a plain array: one level per read.
+        facts = levels("bool_store_chain")
+        self.assertTrue(facts)
+        self.assertEqual([name for name, _ in facts if name.count("_") == 2], [])
+        # Stores over a constant array: every level and the constant.
+        facts = levels("read_of_store_over_constant")
+        self.assertIn("_select_const", [fact for _, fact in facts])
+
     def test_tampered_bool_element_arrays_are_rejected(self):
         def relabelled(source, target):
             def mutate(certificate):
@@ -1332,13 +1371,19 @@ class TestArrayLeanIntegration(unittest.TestCase):
             self.assertIn("`grind` failed", error)
 
     def test_reads_down_to_constant_arrays_are_needed(self):
-        """Without the lower-level facts of a read of a store over a constant array grind cannot prove its rewrite."""
-        for name in ("read_of_store_over_constant", "singleton_set"):
+        """Without the lower-level facts of a read the rewriter evaluates grind cannot prove its rewrite.
+
+        The read is of stores over a constant array, or of stores at
+        numerals other than the read's over a plain array.
+        """
+        for name, fact in (("read_of_store_over_constant", "_select_const"), ("singleton_set", "_select_const"),
+                           ("read_through_numeral_stores", "_store_apply"),
+                           ("set_read_through_numeral_stores", "_store_apply")):
             with self.subTest(name=name):
                 source = ARRAY_INPUTS[name]
                 text = proof_to_lean.reconstruct(source, _export(source))
                 # _s<n> is the read's store level, _s<n>_<k> the levels below.
-                level = re.compile(r"^\s*have _s\d+_\d+ := _select_const ")
+                level = re.compile(r"^\s*have _s\d+_\d+ := %s " % fact)
                 lines = text.split("\n")
                 self.assertTrue(any(map(level.match, lines)), text)
                 stripped = "\n".join(line for line in lines if not level.match(line))

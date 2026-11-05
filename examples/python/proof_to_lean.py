@@ -2465,6 +2465,12 @@ def _theory_helpers(graph, reachable, atom_indices, variable_indices):
     return helpers
 
 
+def _distinct_numerals(graph, left, right):
+    """Whether two index nodes are numerals of different values (Z3's are_distinct on arithmetic values)."""
+    return (graph.kind(left) == z3.Z3_OP_ANUM and graph.kind(right) == z3.Z3_OP_ANUM
+            and Fraction(graph.decl(left).name) != Fraction(graph.decl(right).name))
+
+
 def _array_helpers(graph, reachable, atom_indices, variable_indices):
     """Instantiate the array facts for the reads of stores and the extensionality witnesses a lemma reaches.
 
@@ -2501,10 +2507,18 @@ def _array_helpers(graph, reachable, atom_indices, variable_indices):
             while graph.kind(levels[-1]) == z3.Z3_OP_STORE:
                 levels.append(graph.arguments(levels[-1])[0])
             if graph.kind(levels[-1]) != z3.Z3_OP_CONST_ARRAY:
-                # Other reads keep the single fact of their own level (long
-                # store chains over plain arrays, as in z3test's swap files,
-                # would otherwise get one fact per level and read).
-                levels = levels[:1]
+                # Over a plain array the rewriter skips the stores at a
+                # numeral index other than the read's ((select (store (store
+                # a 1 v) 2 w) 3) is (select a 3)), so those levels get their
+                # facts too; other reads keep the single fact of their own
+                # level (long store chains over plain arrays at symbolic
+                # indices, as in z3test's swap files, would otherwise get one
+                # fact per level and read).
+                skipped = 0
+                while (skipped + 1 < len(levels)
+                       and _distinct_numerals(graph, graph.arguments(levels[skipped])[1], read)):
+                    skipped += 1
+                levels = levels[:max(1, skipped)]
             for level, store in enumerate(levels):
                 name = "_s%d" % node if level == 0 else "_s%d_%d" % (node, level)
                 if graph.kind(store) == z3.Z3_OP_STORE:
