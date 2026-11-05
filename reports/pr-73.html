@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #73: Certify sets and reads through store chains in Lean via the clause log</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { border-bottom: 1px solid var(--border); padding-bottom: .25rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; border: 1px solid var(--ok);
+  color: var(--ok); font-weight: 600; font-size: .85rem; }
+code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 4px; font-size: .9em; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+  overflow-x: auto; font-size: .82rem; line-height: 1.45; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.explain { color: var(--muted); margin-top: -.3rem; }
+dl dt { font-weight: 600; margin-top: .7rem; }
+dl dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify sets and reads through store chains in Lean via the clause log</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/73">Pull request #73</a> on levnach/z3 ·
+State: <span class="badge">OPEN</span> · Opened 2026-11-05T22:44:38Z · Loop iteration 74
+</p>
+<p>This pull request is open and <strong>not merged</strong>.
+The change under review ends at commit
+<a href="https://github.com/levnach/z3/commit/901fb0d72ef0acdd0d7766d7285eca423a240b99"><code>901fb0d72</code></a>.
+It contains three commits on top of <code>4d7571b93</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Before this PR, the pipeline rejected every <a href="#g-array">array</a> whose <a href="#g-element-sort">element sort</a> is <a href="#g-boolean">Boolean</a>.
+Such arrays are the usual way to write a <a href="#g-set">set</a> in SMT-LIB.
+Now the <a href="#g-exporter">exporter</a> and the <a href="#g-reconstructor">reconstructor</a> accept them, and a <a href="#g-select">select</a> on a set becomes a Lean <a href="#g-prop">Prop</a>.
+The PR also fixes a gap that affected every element sort.
+Z3's <a href="#g-rewriter">rewriter</a> can read through a whole <a href="#g-store-chain">store chain</a> in one step.
+The <a href="#g-certificate">certificate</a> then has no term for the levels in between, so the <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a> could not prove that step.
+The reconstructor now adds one small <a href="#g-rfl">rfl</a> fact per level the rewriter passes.
+More <a href="#g-refutation">refutations</a> over arrays now check in Lean, with no new <a href="#g-axiom">axiom</a> and no <a href="#g-sorry">sorry</a>.</p>
+
+<h2 id="background">Background</h2>
+<p>Earlier iterations taught the <a href="#g-clause-log">clause log</a> path to handle arrays over <a href="#g-uninterpreted-sort">uninterpreted sorts</a>, Int, and Real.
+They also added <a href="#g-constant-array">constant arrays</a> and <a href="#g-uninterpreted-function">uninterpreted functions</a> into and over arrays.
+Arrays with Bool elements were still the most common array rejection.
+Reads that the rewriter evaluated through several <a href="#g-store">stores</a> also failed in Lean, even when Z3 itself was fine.
+This work belongs to milestone 4 of the plan, "Broader theories and integration", where arrays are one of the listed extensions.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>You can now certify inputs that use sets, <code>(Array I Bool)</code>, with an uninterpreted, Int, or Real index sort.</li>
+<li>In Lean a set is a predicate, a function from the index type to <code>Prop</code>, and each membership test is a formula.</li>
+<li>A read through stores over a constant array now checks, because each store level and the constant at the bottom get their own fact.</li>
+<li>A read that skips stores at other numerals now checks, and so does a read whose skip stops at a store at its own index.</li>
+<li>Numerals are compared by value, so negative indices such as <code>(- 1)</code> and fractions such as <code>(/ 1 3)</code> are skipped correctly.</li>
+</ul>
+<p>Think of a store chain as a stack of sticky notes on a page.
+Each note says "position 2 now holds false".
+To read position 3 you look past every note about another position.
+You stop at the first note about position 3.
+The rewriter does this in one jump.
+Lean needs to be told, note by note, what each one says about position 3.
+The new facts are exactly those notes.</p>
+
+<table>
+<thead><tr><th>Component</th><th>File</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td>Exporter</td><td><code>examples/python/proof_certificate.py</code></td><td class="num">13</td><td class="num">5</td></tr>
+<tr><td>Reconstructor</td><td><code>examples/python/proof_to_lean.py</code></td><td class="num">83</td><td class="num">21</td></tr>
+<tr><td>Tests</td><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="num">360</td><td class="num">13</td></tr>
+<tr><td>Docs</td><td><code>examples/python/README</code></td><td class="num">21</td><td class="num">4</td></tr>
+<tr><td>Docs</td><td><code>doc/lean-proof-plan.md</code></td><td class="num">36</td><td class="num">0</td></tr>
+<tr><th colspan="2">Total, 5 files</th><th class="num">513</th><th class="num">43</th></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This input comes from the PR's new test <code>set_read_through_numeral_stores_to_own_index</code>.
+It uses both new features: a set, and a read that skips two stores and stops at a third.
+All output below comes from real runs.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_ALIA)
+(declare-fun a () (Array Int Bool))
+(assert (not (select (store (store (store a 3 true) 2 false) 1 false) 3)))
+(check-sat)</code></pre>
+<p class="explain">Put 3 into set <code>a</code>, then remove 2 and 1. The input claims that 3 is not a member, which is impossible.</p>
+
+<h3>(b) Before</h3>
+<p>The exporter at the base commit rejected the input:</p>
+<pre><code>proof_certificate.py: error: unsupported propositional operator: select</code></pre>
+<p>Given a certificate from the new exporter, the old reconstructor rejected it too:</p>
+<pre><code>proof_to_lean.py: error: unsupported array sort: (Array Int Bool)</code></pre>
+
+<h3>(c) After</h3>
+<p>The new exporter and reconstructor produced a 114-line Lean file.
+<code>check_lean.sh</code> printed "Build completed successfully" and "<span class="ok">Lean checks passed.</span>"</p>
+<pre><code>structure Interpretation where
+  ...
+  arrs_ib : Nat -&gt; Int -&gt; Prop</code></pre>
+<p class="explain">Each array constant of sort <code>(Array Int Bool)</code> is a predicate from Int to Prop.</p>
+<pre><code>noncomputable def term_8 ... : (Int -&gt; Prop) := (_store (term_6 _atoms _vars _m) (term_7 _atoms _vars _m) (formula_5 _atoms _vars _m))
+def formula_9 ... : Prop := (_select (term_8 _atoms _vars _m) (term_1 _atoms _vars _m))</code></pre>
+<p class="explain">The stored value <code>false</code> is a formula, and the read at 3 is itself a formula.</p>
+<pre><code>private theorem rewrite_15 ... : (formula_14 _atoms _vars _m) := by
+  first
+    | (unfold formula_14 formula_10 formula_9 formula_5 term_1
+       ...
+       have _s9 := _store_apply ((term_6 _atoms _vars _m)) (((1 : Int))) (False) (((3 : Int)))
+       have _s9_1 := _store_apply ((term_3 _atoms _vars _m)) (((2 : Int))) (False) (((3 : Int)))
+       have _s9_2 := _store_apply ((term_0 _atoms _vars _m)) (((3 : Int))) (True) (((3 : Int)))
+       first | omega | grind (splits := 64))
+    ...</code></pre>
+<p class="explain">The rewriter turned the read into <code>True</code> in one step. The three facts describe the stores at 1, 2, and 3, so grind can follow the same path.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_10 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p class="explain">The final theorem says that the assertion leads to False under every interpretation.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>Every local test suite passed on the final commit, including about 400 Lean reconstruction tests.
+The reviewer's nine probe inputs all passed Lean after the fix.
+The formal local gate had not finished when this page was written.</p>
+<table>
+<thead><tr><th>Local check (on <code>901fb0d72</code>)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>All <code>test_proof_to_lean*.py</code> suites</td><td class="ok">OK, 406 tests, 1681 s</td></tr>
+<tr><td>Array suite <code>test_proof_to_lean_array</code></td><td class="ok">OK, 26 tests, 89 s</td></tr>
+<tr><td>Exporter suite <code>test_proof_certificate.py</code></td><td class="ok">OK, 110 tests</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test <code>scripts/proofs</code> tests</td><td class="ok">OK, 48 tests</td></tr>
+<tr><td>Reviewer's end-to-end probes</td><td class="ok">9 of 9 pass Lean</td></tr>
+<tr><td>Text of older array inputs, before and after the fix</td><td class="ok">Only the 3 new inputs changed</td></tr>
+<tr><td><code>proof_matrix.py --lean</code>, earlier commits only</td><td class="ok">6/6 and 8/8 lean-verified</td></tr>
+<tr><td>Formal local gate</td><td class="warn">Exporter part OK, 110 tests. Lean part not yet recorded.</td></tr>
+<tr><td>C++ <code>test-z3</code></td><td>Not run. No C++ change.</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>CI workflow</th><th>Check</th><th>State</th></tr></thead>
+<tbody>
+<tr><td><code>.github/workflows/ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean". This runs the new Lean tests.</td><td class="warn">Unknown. No CI status was recorded when this page was written. See the <a href="https://github.com/levnach/z3/pull/73/checks">PR checks page</a>.</td></tr>
+</tbody>
+</table>
+<p>No CI fix rounds were recorded for this PR.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer asked for changes but found no blocker. All four findings were fixed in the last commit.</p>
+<table>
+<thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+<tbody>
+<tr><td class="bad">major</td><td>No fact for the store where a numeral skip stops</td><td>Fixed, with new Lean-checked tests for Int and sets</td></tr>
+<tr><td class="warn">minor</td><td>Negative numerals were not recognized</td><td>Fixed, numerals compared by value</td></tr>
+<tr><td>nit</td><td>Plan said "fourteen" set inputs</td><td>Fixed, now "sixteen"</td></tr>
+<tr><td>nit</td><td>Overlong README line</td><td>Fixed, rewrapped</td></tr>
+</tbody>
+</table>
+<p><strong>The missing stopping level (major).</strong>
+The reviewer tried <code>(select (store (store a 3 5) 2 7) 3)</code>, which Z3 rewrites to 5.
+The second commit gave a fact to the store at 2, which the read skips.
+It gave none to the store at 3, where the skip stops.
+Lean's grind failed, and a set version failed the same way.
+This shape is common in array benchmarks with numeral indices, so it mattered.
+The fix adds the fact for the stopping store as well.</p>
+<p><strong>Negative numerals (minor).</strong>
+The reviewer tried stores at <code>(- 1)</code> and <code>(- 2)</code> with a read at 3.
+In the certificate a negative numeral is a minus applied to a numeral, not a single numeral.
+The old check did not see it as a numeral, so it gave no facts and grind failed.
+Z3 does treat it as a value and skips those stores.
+The fix computes the constant value of each index, which also covers the fraction <code>(/ 1 3)</code>.</p>
+<p><strong>Two small text fixes (nits).</strong>
+The plan had an outdated count of set inputs, and one README line was too long.
+Both were corrected.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li><strong>Soundness.</strong> The new facts are rfl theorems. An extra fact cannot make Lean accept a false claim.</li>
+<li><strong>Relaxed shape check.</strong> Array lemmas may now compare Bool terms when some array has Bool elements. This is only a shape guard, and Lean still proves each clause.</li>
+<li><strong>Proof size.</strong> A read gets one fact per numeral store it skips. A long chain of such stores adds one fact per level.</li>
+<li><strong>No z3test input is newly certified.</strong> Its set files also need <code>map</code>, nested arrays, Bool indices, or quantifiers.</li>
+<li><strong>Other rewriter expansions</strong> are not covered. No failing input for them was seen with default options.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Support <code>map</code> over arrays, the natural next set feature.</li>
+<li>Possibly admit Bool index sorts.</li>
+<li>Cover the remaining rewriter expansions if a failing input appears.</li>
+<li>The legacy core still rejects arrays.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-array">array</dt>
+<dd>A value that maps each index to an element, like a table with one row per index. In SMT-LIB its sort is written <code>(Array I E)</code>.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement Lean accepts without proof. Adding one would mean trusting something unchecked.</dd>
+<dt id="g-boolean">Boolean</dt>
+<dd>The sort with exactly two values, true and false. SMT-LIB calls it Bool.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>The file Z3 exports to justify its answer. It lists the input's terms and the proof steps.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of literals, an "or" of simple facts. Example: <code>x = 1 or not p</code>.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>A record of the clauses Z3's solver learned or used, which the pipeline replays as the proof.</dd>
+<dt id="g-constant-array">constant array</dt>
+<dd>An array that holds the same value at every index. Example: the empty set holds false everywhere.</dd>
+<dt id="g-element-sort">element sort</dt>
+<dd>The sort of the values an array holds. In <code>(Array Int Bool)</code> it is Bool.</dd>
+<dt id="g-exporter">exporter</dt>
+<dd>The script that runs Z3 and writes its proof as a certificate.</dd>
+<dt id="g-grind">grind</dt>
+<dd>A Lean tactic that proves goals by congruence closure, case splits, and arithmetic.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atomic formula or its negation. Example: <code>p</code> or <code>not p</code>.</dd>
+<dt id="g-prop">Prop</dt>
+<dd>Lean's type of propositions, the statements that can be proved. A Bool value becomes a Prop.</dd>
+<dt id="g-reconstructor">reconstructor</dt>
+<dd>The script that turns a certificate into a Lean file for Lean to check.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to false, so they cannot all hold.</dd>
+<dt id="g-rewriter">rewriter</dt>
+<dd>The part of Z3 that simplifies terms before solving. Example: it turns a read through stores into a shorter term.</dd>
+<dt id="g-rfl">rfl</dt>
+<dd>Lean's proof that two things are equal because both sides compute to the same value.</dd>
+<dt id="g-select">select</dt>
+<dd>Reading an array at an index. <code>(select a 3)</code> is the element of <code>a</code> at 3.</dd>
+<dt id="g-set">set</dt>
+<dd>An array with Bool elements. The element at an index says whether that index is a member.</dd>
+<dt id="g-sorry">sorry</dt>
+<dd>A Lean placeholder that skips a proof. A trusted certificate must contain none.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value in SMT-LIB, such as Int, Real, or Bool.</dd>
+<dt id="g-store">store</dt>
+<dd>Writing an array at an index. <code>(store a 3 true)</code> is <code>a</code> with the element at 3 replaced by true.</dd>
+<dt id="g-store-chain">store chain</dt>
+<dd>Several stores nested inside each other. Example: <code>(store (store a 1 5) 2 7)</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A command that tells Lean how to build a proof, such as <code>grind</code> or <code>omega</code>.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. The only rule is that equal arguments give equal results.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+<dd>A sort declared by the user with no built-in meaning, such as <code>(declare-sort Index 0)</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-05.
+</footer>
+
+</body>
+</html>
