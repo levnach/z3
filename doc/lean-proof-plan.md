@@ -1589,6 +1589,32 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Arrays with Bool elements (2026-11-04)
+
+Sets, `(Array I Bool)`, were the commonest remaining array rejection
+("unsupported propositional operator: select"). The exporter and the
+reconstructor now admit Bool as an array's element sort over every
+supported index sort (uninterpreted, Int, Real), with constant arrays,
+default values, functions into and over such arrays, and ite; the clause-log
+replay needed no change. Lean's element type is `Prop` (`Prop : Type`, so the
+array definitions apply unchanged): an array is a predicate (`_m.arrs_ib :
+Nat -> Int -> Prop`), a read `(_select a i)` is a formula, a stored or
+constant value is a formula, and a Bool default value is `_default ... :
+Prop`. The array solver's store axiom over a Boolean value, `(= v (select
+(store a i v) i))`, is a Bool equality (Iff); an `array` lemma may compare
+Bool terms only when some array has Bool elements. Bool indices stay
+rejected (a finite index sort), as do arrays of arrays and `map`.
+Along the way a gap for every element sort was closed: Z3's rewriter
+evaluates a read of a store over a constant array, `(select (store (const
+v) y w) x)`, without any read of the constant array at `x` in the
+certificate, so grind failed on the rewrite; a read of a store chain ending
+at a constant array now gets `_store_apply` at every level and
+`_select_const` at the bottom (`test_reads_down_to_constant_arrays_are_needed`).
+No z3test input is newly certified (its Bool-array files also need `map`,
+nested arrays, quantifiers, or unsupported commands); fourteen synthetic
+inputs (`BOOL_ELEMENT_INPUTS` in `test_proof_to_lean_array.py`) and the
+Int-element `read_of_store_over_constant` verify in Lean.
+
 ### Functions into arrays (2026-11-04)
 
 Uninterpreted functions returning an array, `(declare-fun h (I) (Array I
