@@ -695,6 +695,12 @@ def set_combinator(expr):
             not child.sort().eq(expr.sort()) for child in expr.children()):
         raise ProofExportError("unsupported map or set operator (%d arrays of one set sort are supported): %s" % (
             arity, decl.name()))
+    if expr.sort().domain().kind() == z3.Z3_ARRAY_SORT:
+        # A model's sets over array indices embed in Lean as functions fixed
+        # off the embedded indices, which a connective does not commute with
+        # (proof_to_lean's nested arrays).
+        raise ProofExportError("maps and set operators over sets indexed by arrays are not supported: %s"
+                               % expr.sort())
     return name
 
 

@@ -1599,9 +1599,14 @@ certifies). The exporter, the clause-log replay (sort names `(Array Int
 now admit an index or element sort that is itself a supported array sort,
 at any depth. Lean renders it as a function type (`Int -> (Int -> Int)`,
 family `arrs_iaii`); the extensionality witness over array indices is
-chosen with a constant function. Reads and witnesses whose values are
-arrays are unfolded in lemmas (`_folded_array`); only stores, ites,
-constants, maps, and applications stay folded. The rewriter evaluates a
+chosen with a constant function. Reads, witnesses, and default values
+whose values are arrays are unfolded in lemmas (`_folded_array`; the array
+solver introduces the default row of a constant array of rows itself,
+`const_rows_default`); only stores, ites, constants, maps, and
+applications stay folded. Maps and set operators over sets indexed by
+arrays are rejected: the embedding of a model's outer arrays is fixed off
+the embedded indices, and a connective does not commute with it there.
+The rewriter evaluates a
 read through a stored row, `(select (select (store a i (store r j v)) i)
 j)` to `v`, with no read term of the stored row, so each row stored along
 the outer chain (recursively, three levels deep too) gets the read facts of
@@ -1612,7 +1617,7 @@ Int atom of a lemma and the value of a folded store was never unfolded in
 the generalization fallback, so grind failed (`stored_read_atom`, 7 lines
 of QF_ALIA); `_definition_names` now takes the atoms as roots. Constant
 arrays over array indices and array-valued default values stay rejected.
-27 documented inputs (`NESTED_ARRAY_INPUTS`) verify in Lean, as do the 104
+28 documented inputs (`NESTED_ARRAY_INPUTS`) verify in Lean, as do the 104
 unsat seeds among 350 random two-dimensional Int array instances (stores,
 reads, and ites of matrices and rows).
 

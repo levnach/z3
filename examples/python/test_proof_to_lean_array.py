@@ -1155,6 +1155,16 @@ NESTED_ARRAY_INPUTS = {
 (assert (not (= (select (select a i) j) 5)))
 (check-sat)
 """,
+    # The array solver relates constant arrays of rows through their default
+    # rows, array-valued default terms of its own, unfolded in the lemmas.
+    "const_rows_default": """(declare-fun r () (Array Int Int))
+(declare-fun s () (Array Int Int))
+(declare-fun a () (Array Int (Array Int Int)))
+(assert (= a ((as const (Array Int (Array Int Int))) r)))
+(assert (= (store a 3 s) ((as const (Array Int (Array Int Int))) s)))
+(assert (not (= r s)))
+(check-sat)
+""",
     # Reads the rewriter evaluates through a stored row: the row read back,
     # then the read of the stored row (its _store_apply or _select_const
     # facts at the read's index, _n facts), two and three levels deep.
@@ -1380,6 +1390,14 @@ class TestArrayValidation(unittest.TestCase):
                 "constant arrays are supported over Int and Real indices only",
             "(declare-fun a () (Array Int (Array Int Int)))(assert (= (select (default a) 0) 1))":
                 "unsupported array operator: default",
+            # Nor connectives over sets indexed by arrays (the embedding of
+            # a model's outer arrays does not commute with them).
+            "(declare-fun s () (Array (Array Int Int) Bool))(declare-fun x () (Array Int Int))"
+            "(assert (select s x))(assert (select (complement s) x))":
+                "maps and set operators over sets indexed by arrays",
+            "(declare-fun s () (Array (Array Bool Bool) Bool))(declare-fun t () (Array (Array Bool Bool) Bool))"
+            "(declare-fun x () (Array Bool Bool))(assert (select (union s t) x))(assert (not (select s x)))"
+            "(assert (not (select t x)))": "maps and set operators over sets indexed by arrays",
             # Constant arrays over a possibly finite index sort.
             "(declare-sort I 0)(declare-fun e () I)(declare-fun i () I)"
             "(assert (not (= (select ((as const (Array I I)) e) i) e)))":
@@ -1781,6 +1799,27 @@ class TestArrayValidation(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIsNone(components(name))
         self.assertEqual(proof_to_lean._array_family("(Array (Array Int Int) (Array Bool U))"), "arrs_aiiabu")
+        # A tampered name nested past the cap is no sort name (not a RecursionError).
+        deep = "Int"
+        for _ in range(2000):
+            deep = "(Array Int %s)" % deep
+        self.assertIsNone(components(deep))
+        with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "unsupported sort"):
+            proof_to_lean._uninterpreted_sorts([{"range": deep}])
+
+    def test_connectives_over_array_indexed_sets_are_rejected(self):
+        """The reconstructor rejects maps and set operators over sets indexed by arrays, not over rows of sets."""
+        def declaration(kind, name, sort, arity):
+            return {"kind": kind, "name": name, "domain": [sort] * arity, "range": sort, "parameters": []}
+
+        rows = "(Array Int Bool)"
+        proof_to_lean._declaration(declaration(z3.Z3_OP_SET_UNION, "union", rows, 2), (rows,))
+        for sort in ("(Array (Array Int Int) Bool)", "(Array (Array Bool Bool) Bool)"):
+            for kind, name, arity in ((z3.Z3_OP_SET_UNION, "union", 2), (z3.Z3_OP_SET_COMPLEMENT, "complement", 1)):
+                with self.subTest(sort=sort, name=name):
+                    with self.assertRaisesRegex(proof_to_lean.ReconstructionError,
+                                                "invalid map or set operator declaration"):
+                        proof_to_lean._declaration(declaration(kind, name, sort, arity), (sort,))
 
     def test_tampered_nested_arrays_are_rejected(self):
         def row_read_into_element(certificate):

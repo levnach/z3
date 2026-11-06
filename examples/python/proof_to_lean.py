@@ -272,9 +272,15 @@ _NUMERIC_FIELDS[_MIXED] = _NUMERIC_FIELDS["Real"] + _NUMERIC_FIELDS["Int"]
 # Lean function type, (Array Int (Array Int Int)) is Int -> (Int -> Int).
 # A model embeds its inner arrays first (injectively, commuting with select
 # and store), then each outer array as the function agreeing with it on the
-# embedded indices and one fixed value elsewhere (so store commutes outside
-# the image too); constant arrays are admitted over Int and Real indices
-# only, whose embedding is onto. A read of a row and an extensionality
+# embedded indices and one fixed value elsewhere (so store, at an embedded
+# index, and ite commute outside the image too, and two outer arrays that
+# differ do so at an embedded index); constant arrays are admitted over Int
+# and Real indices only, whose embedding is onto. A pointwise connective
+# does not commute with that embedding outside the image (not of the fixed
+# value is another value), so maps and set operators over sets indexed by
+# arrays are rejected (_declaration, proof_certificate's set_combinator);
+# maps over rows of nested arrays (a set Int -> Prop read from a row of an
+# Int -> (Int -> Prop)) are over Int indices. A read of a row and an extensionality
 # witness over array indices are array terms that lemmas unfold
 # (_folded_array); the witness is chosen with a constant function (_nonempty).
 _ARRAY_TYPE_CODES = {"_m.U": "u", "Int": "i", "Rat": "r", "Prop": "b"}
@@ -462,6 +468,9 @@ private theorem _map2_store {I : Type} (f : Prop -> Prop -> Prop) (a b : I -> Pr
   by_cases _h : _j = i <;> simp [_map2, _store, _h]
 """.strip("\n").split("\n")
 _ARRAY_COMPONENT_NAME = re.compile(r"[^\s()|]+")
+# The deepest nesting of array sort names _array_components parses (each
+# level one recursion of it and of the functions over its components).
+_ARRAY_NESTING = 64
 # Z3's array rewriter simplifies (store (store a i v) i w) to (store a i w)
 # and (store a i (select a i)) to a, which the clause-log replay then ties to
 # the assertion by a rewrite; a lemma reaching a store may need these
@@ -510,6 +519,8 @@ def _array_components(name):
     for position, character in enumerate(body + " "):
         if character == "(":
             depth += 1
+            if depth > _ARRAY_NESTING:
+                return None  # A rejection, not a RecursionError, for a tampered name.
         elif character == ")":
             depth -= 1
             if depth < 0:
@@ -957,7 +968,8 @@ def _declaration(raw, sorts):
     argument_sorts = sorts + ("Bool", "Real", "Int")
     array = _array_components(raw["range"]) if raw["range"] in sorts else None
     if kind == z3.Z3_OP_SELECT:
-        # A read of an array, of its element sort: uninterpreted, Int, or Real.
+        # A read of an array, of its element sort: uninterpreted, Int, Real,
+        # Bool, or an array (a row of nested arrays).
         if (name != "select" or len(domain) != 2 or domain[0] not in sorts
                 or _array_components(domain[0]) != (domain[1], raw["range"])):
             raise ReconstructionError("invalid select declaration")
@@ -979,7 +991,11 @@ def _declaration(raw, sorts):
         # A pointwise connective over sets of one sort (_set_combinator).
         expected = ("map", _MAP_CONNECTIVES[parameters[0]][1]) if kind == z3.Z3_OP_ARRAY_MAP \
             else _SET_OPERATOR_NAMES[kind]
-        if array is None or array[1] != "Bool" or (name, domain) != (expected[0], (raw["range"],) * expected[1]):
+        # Not over sets indexed by arrays: the embedding of a model's outer
+        # arrays (fixed off the embedded indices) does not commute with a
+        # connective there (see _ARRAY_TYPE_CODES).
+        if (array is None or array[1] != "Bool" or _array_components(array[0]) is not None
+                or (name, domain) != (expected[0], (raw["range"],) * expected[1])):
             raise ReconstructionError("invalid map or set operator declaration: %s" % name)
     elif array is not None:
         # Array constants, functions into arrays (the family of their Lean
@@ -2596,11 +2612,14 @@ def _integrality_fact(graph, atom, atom_indices, variable_indices):
 def _folded_array(graph, node):
     """Whether node is an array term that lemmas keep folded (_definition_names, _inline).
 
-    Reads and extensionality witnesses are not, even when their values are
-    arrays (a row of nested arrays, an index that is an array): grind must
-    see them as reads and witnesses of the arrays, which stay folded.
+    Reads, extensionality witnesses, and default values are not, even when
+    their values are arrays (a row of nested arrays, an index that is an
+    array, the default row of a constant array of rows): grind must see them
+    as reads, witnesses, and default values of the arrays, which stay folded
+    (the atoms _reachable stops at).
     """
-    return graph.is_array(node) and graph.kind(node) not in (z3.Z3_OP_SELECT, z3.Z3_OP_ARRAY_EXT)
+    return graph.is_array(node) and graph.kind(node) not in (z3.Z3_OP_SELECT, z3.Z3_OP_ARRAY_EXT,
+                                                             z3.Z3_OP_ARRAY_DEFAULT)
 
 
 def _definition_names(graph, nodes, roots=None):
