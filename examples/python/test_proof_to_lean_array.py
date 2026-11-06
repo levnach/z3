@@ -996,7 +996,16 @@ BOOL_INDEX_INPUTS = {
 (assert (not (= (select (h x) p) (select (h y) p))))
 (check-sat)
 """,
-    "bool_index_map": """(declare-fun a () (Array Bool Bool))
+    # A function over Bool-indexed arrays: (h a) applies h to the array's
+    # injection (_m.arrs_bi_inj).
+    "function_over_bool_indexed_arrays": """(declare-fun h ((Array Bool Int)) Int)
+(declare-fun a () (Array Bool Int))
+(declare-fun b () (Array Bool Int))
+(assert (= a b))
+(assert (not (= (h a) (h b))))
+(check-sat)
+""",
+    "bool_index_map":"""(declare-fun a () (Array Bool Bool))
 (declare-fun b () (Array Bool Bool))
 (declare-fun p () Bool)
 (assert (select ((_ map and) a b) p))
@@ -1415,6 +1424,10 @@ class TestArrayValidation(unittest.TestCase):
         self.assertIn("  arrs_bu : Nat -> Prop -> U", text("bool_index_store_self"))
         self.assertIn("  arrs_bb : Nat -> Prop -> Prop", text("z3test_5798"))
         self.assertIn("  arrs_bu_funs : Nat -> List U -> Prop -> U", text("function_into_bool_indexed_arrays"))
+        # A function over such arrays applies to the array's injection into U.
+        over = text("function_over_bool_indexed_arrays")
+        self.assertIn("  arrs_bi_inj : (Prop -> Int) -> U", over)
+        self.assertRegex(over, r":= _m\.ifuns 0 \[\(_m\.arrs_bi_inj \(term_[0-9]+ ")
         # Both levels of a read at true through a store at false.
         through = text("bool_index_read_through_value_stores")
         self.assertRegex(through, r"have _s[0-9]+ := _store_apply \(\(term_[0-9]+ [^)]*\)\) \(False\) "

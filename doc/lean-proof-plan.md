@@ -1613,7 +1613,7 @@ double negation is one literal there), which the reconstructor rejected
 `Decidable.byContradiction` with `x`'s decidability witness
 (`bool_index_negated_stores`). Constant arrays and default values over Bool
 indices stay rejected (a finite index sort), as do arrays of arrays. z3test
-`5798.smt2` and ten synthetic inputs (`BOOL_INDEX_INPUTS` in
+`5798.smt2` and eleven synthetic inputs (`BOOL_INDEX_INPUTS` in
 `test_proof_to_lean_array.py`) verify in Lean.
 
 ### Arrays with Bool elements (2026-11-04)
@@ -1629,9 +1629,9 @@ Nat -> Int -> Prop`), a read `(_select a i)` is a formula, a stored or
 constant value is a formula, and a Bool default value is `_default ... :
 Prop`. The array solver's store axiom over a Boolean value, `(= v (select
 (store a i v) i))`, is a Bool equality (Iff); an `array` lemma may compare
-Bool terms only when some array has Bool elements. Bool indices stayed
-rejected (a finite index sort; admitted since 2026-11-05, above), as do arrays of arrays; `map` over sets is
-supported since 2026-11-05 (below).
+Bool terms only when some array has Bool elements. Bool indices and arrays
+of arrays were still rejected then (Bool indices are admitted since
+2026-11-05, above); `map` over sets is supported since 2026-11-05 (below).
 Along the way a gap for every element sort was closed: Z3's rewriter
 evaluates a read of a store over a constant array, `(select (store (const
 v) y w) x)`, without any read of the constant array at `x` in the
