@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --merged: #8250df;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149; --merged: #ab7df8;
   }
 }
 body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -34,6 +34,7 @@ table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92r
 th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
 th { background: var(--code-bg); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.badge.merged { border-color: var(--merged); color: var(--merged); }
 .ok { color: var(--ok); font-weight: 600; }
 .pending { color: var(--warn); font-weight: 600; }
 .explain { color: var(--muted); margin-top: -.4rem; }
@@ -48,13 +49,12 @@ footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8r
 <h1>Certify arrays over Bool indices in Lean via the clause log</h1>
 <p class="meta">
 Pull request <a href="https://github.com/levnach/z3/pull/75">levnach/z3#75</a> into <code>master</code>
-&middot; State: <span class="badge">OPEN</span>
-&middot; Date: 2026-11-06T03:36:31Z
+&middot; State: <span class="badge merged">MERGED</span>
+&middot; Date: 2026-11-06T04:06:09Z
 &middot; Loop iteration 76
 </p>
-<p class="meta">This pull request is open and <strong>not merged</strong>.
-The change under review is commit
-<a href="https://github.com/levnach/z3/commit/b5621d72906ca0bc1c846a483a6b2d4229f96a10"><code>b5621d7</code></a>.</p>
+<p class="meta">Merged into <code>master</code> on 2026-11-06T04:06:09Z as commit
+<a href="https://github.com/levnach/z3/commit/ffcd21f08091c39f119b1e8f7bf2fc55f2e77c6f"><code>ffcd21f</code></a>.</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
@@ -91,8 +91,6 @@ The work serves milestone 4 of the plan, "Broader theories and integration", whe
 <p>Think of an array over Bool as a light switch with two labelled positions.
 Lean does not see "on" and "off" as values.
 It sees statements that are either true or false, and two statements count as the same index when they are equivalent.</p>
-<p><a href="#g-constant-array">Constant arrays</a> and <code>default</code> over Bool indices are still rejected.
-So are arrays of arrays.</p>
 
 <table>
 <thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
@@ -103,7 +101,7 @@ So are arrays of arrays.</p>
 <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests</td><td class="num">1</td><td class="num">1</td></tr>
 <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">17</td><td class="num">3</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">30</td><td class="num">3</td></tr>
-<tr><th>Total, 2 commits</th><th></th><th class="num">312</th><th class="num">43</th></tr>
+<tr><th>Total, 6 files</th><th></th><th class="num">312</th><th class="num">43</th></tr>
 </tbody>
 </table>
 
@@ -128,8 +126,7 @@ The second assertion denies this, so the input is unsatisfiable.</p>
 <p class="explain">The old exporter stopped at the array sort.
 Fed the new certificate, the old reconstructor also refused it:</p>
 <pre><code>proof_to_lean.py: error: unsupported array sort: (Array Bool Int)</code></pre>
-<p class="explain">The reviewer also ran the new code with only the double-negation step switched off.
-This same input then failed with "incorrect unit-resolution conclusion at node 40".</p>
+<p class="explain">With only the new double-negation step switched off, the reviewer saw this input fail with "incorrect unit-resolution conclusion at node 40".</p>
 
 <h3>(c) After this PR</h3>
 <p>The new scripts produced a 285-line Lean file, and <code>scripts/check_lean.sh</code> reported
@@ -157,7 +154,7 @@ def formula_21 ... : Prop := (Or (formula_19 _atoms _vars _m) (Or (formula_20 _a
   ...
   have _s35 := _store_apply ((term_0 _atoms _vars _m)) (_atoms 0) (((0 : Int))) ((Not (_atoms 0)))
   first | omega | grind (splits := 64)</code></pre>
-<p class="explain">This array <a href="#g-lemma">lemma</a> reads <code>(store a p 0)</code> at <code>(not p)</code>, and the <a href="#g-tactic">tactic</a> <code>grind</code> closes it.</p>
+<p class="explain">This array <a href="#g-lemma">lemma</a> uses a <a href="#g-select">select</a> of <code>(store a p 0)</code> at <code>(not p)</code>, and the <a href="#g-tactic">tactic</a> <code>grind</code> closes it.</p>
 <pre><code>  let _step_40 (_hyp18 : (formula_18 _atoms _vars _m)) : (formula_1 _atoms _vars _m) :=
     ...
     (Or.elim (_step_22.resolve_left (fun _literal =&gt; _literal _step_39)) (fun _literal =&gt; (@Decidable.byContradiction (formula_1 _atoms _vars _m) _df1 _literal)) (fun _tail =&gt; _tail))</code></pre>
@@ -166,8 +163,9 @@ def formula_21 ... : Prop := (Or (formula_19 _atoms _vars _m) (Or (formula_20 _a
 <h2 id="verification">How it was verified</h2>
 <p>All Python test suites and the Lean project build passed on the author's machine after the review fixes.
 That includes every new Bool-index input, each checked by Lean.
-The reviewer repeated the main suites and got the same results.
-The z3test file <code>5798.smt2</code> was also certified end to end through the regression matrix.</p>
+The reviewer repeated the main suites with the same results.
+The z3test file <code>5798.smt2</code> was certified end to end.
+The worked example was re-run on the merged commit, and Lean accepted it.</p>
 <table>
 <thead><tr><th>Local command (reported in the PR)</th><th>Result</th></tr></thead>
 <tbody>
@@ -181,27 +179,38 @@ The z3test file <code>5798.smt2</code> was also certified end to end through the
 <tr><td><code>proof_matrix.py --lean</code>, cell <code>smt-clause-log-nopp</code>, <code>lra_*.smt2</code></td><td class="ok">8/8 lean-verified</td></tr>
 </tbody>
 </table>
-<p>The last two rows check that the unit-resolution change does not break other proof paths.
-No C++ code changed, so the C++ build and <code>test-z3</code> were not re-run.</p>
-<p>The loop's local gate was still running when this page was written, and its result is not recorded here.
-No CI status was available to the reporter either.
-CI results are therefore unknown at this time, and the local tests above do not imply them.</p>
+<p>The last two rows show the unit-resolution change does not break other proof paths.
+No C++ code changed, so the C++ build was not re-run.</p>
+<p>Because only Python, tests, and docs changed, the loop merged on its local gate instead of waiting for GitHub CI.
+The gate repeats the proof steps of the releaseClang CI job on a Darwin arm64 machine.
+Every gate step passed.</p>
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">14 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">1733 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">16 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">6 s</td></tr>
+</tbody>
+</table>
+<p>GitHub CI still runs on <code>master</code> after the merge.
+No CI status files were available to the reporter, so those results are unknown here.
+The local runs above do not imply them.</p>
 <table>
 <thead><tr><th>CI workflow / job</th><th>Check</th><th>Status</th></tr></thead>
 <tbody>
-<tr><td><code>ci.yml</code>, "Ubuntu build - cmake - releaseClang"</td><td>"Lean reconstruction tests", which runs the new tests</td><td class="pending">Unknown when written</td></tr>
-<tr><td>manylinux wheel job</td><td>Runs only <code>test_proof_to_lean.py</code> and <code>test_proof_certificate.py</code></td><td class="pending">Unknown when written</td></tr>
+<tr><td><code>ci.yml</code>, "Ubuntu build - cmake - releaseClang"</td><td>"Lean reconstruction tests", which runs the new tests</td><td class="pending">Unknown, not recorded</td></tr>
+<tr><td>manylinux wheel job</td><td>Runs only <code>test_proof_to_lean.py</code> and <code>test_proof_certificate.py</code></td><td class="pending">Unknown, not recorded</td></tr>
 </tbody>
 </table>
-<p>Live results are on the <a href="https://github.com/levnach/z3/pull/75/checks">PR checks page</a>.
-There were no CI fix rounds recorded.</p>
+<p>Results after the merge appear on the <a href="https://github.com/levnach/z3/commit/ffcd21f08091c39f119b1e8f7bf2fc55f2e77c6f">merge commit page</a>.
+No CI fix rounds were recorded.</p>
 
 <h2 id="review">Review</h2>
 <p>The reviewer approved the PR, with no blocker or major findings.
-They also tested beyond the suite.
-They switched off the new unit-resolution path in a scratch copy, and exactly one input failed, the negated-stores one.
-That shows the new path is really needed.
-They also ran six extra Bool-index inputs through Lean, and all passed.</p>
+Switching off the new unit-resolution path broke exactly one input, the one in the worked example, so the path is needed.
+Six extra Bool-index inputs from the reviewer also passed in Lean.</p>
 <table>
 <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
 <tbody>
@@ -211,25 +220,24 @@ They also ran six extra Bool-index inputs through Lean, and all passed.</p>
 </table>
 <p><strong>The missing test.</strong>
 The docs said <a href="#g-uninterpreted-function">uninterpreted functions</a> could take an array over Bool as an argument.
-The reviewer looked for a test and found none.
-An older test that rejected such a function had been changed to use a nested array instead.
-So a later change could break this case and CI would not notice.
-The reviewer tried the case by hand, and it already worked.
-The author added it as a permanent input, <code>function_over_bool_indexed_arrays</code>, plus checks on the Lean text it produces.</p>
+The reviewer looked for a test of this and found none.
+A later change could break the case, and CI would not notice.
+The case already worked when tried by hand.
+The author added it as a permanent input, plus checks on the Lean text it produces.</p>
 <p><strong>The wording.</strong>
-A sentence in the plan document mixed past and present tense, and one line was too long.
+A sentence in the plan mixed tenses and had an over-long line.
 The author reworded and rewrapped it.</p>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
 <li>The unit-resolution change affects every proof path, including the legacy one. It only accepts more, in one narrow shape. Lean still checks each proof, and a tamper test confirms that a wrong conclusion is rejected.</li>
 <li><code>grind</code> must connect Bool equalities, rendered as <code>Iff</code>, to equalities of propositions inside the store facts. It worked on every input tried, but all of them were small.</li>
-<li>Other rules that compare literals exactly may hit the same double-negation shape, for example with Bool arguments to uninterpreted functions. No failing input has been seen yet.</li>
+<li>Other rules that compare the literals of a <a href="#g-clause">clause</a> exactly may hit the same double-negation shape, for example with Bool arguments to uninterpreted functions. No failing input has been seen yet.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-<li>Constant arrays and <code>default</code> over Bool indices. These need a model of how the array solver handles a finite index sort.</li>
+<li><a href="#g-constant-array">Constant arrays</a> and <code>default</code> over Bool indices, which are still rejected, as are arrays of arrays. These need a model of how the array solver handles a finite index sort.</li>
 <li>A small fuzz run over Bool-argument inputs with nested <code>not</code>, as the reviewer suggested.</li>
 <li>Other z3test files with Bool-indexed arrays are still blocked by unrelated features, such as nested arrays, <code>maximize</code>, and <code>:opt.priority</code>.</li>
 </ul>
@@ -237,7 +245,7 @@ The author reworded and rewrapped it.</p>
 <h2 id="glossary">Glossary</h2>
 <dl>
 <dt id="g-array">array</dt>
-<dd>A value that maps each index to an element, like a table with one row per index. Its sort is written <code>(Array I E)</code>.</dd>
+<dd>A value that maps each index to an element, like a table with one row per index. Its <a href="#g-sort">sort</a> is written <code>(Array I E)</code>.</dd>
 <dt id="g-axiom">axiom</dt>
 <dd>A statement accepted without proof. A trustworthy certificate adds none of its own.</dd>
 <dt id="g-boolean">Boolean (Bool)</dt>
