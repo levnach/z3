@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #74: Certify maps and set operators over sets in Lean via the clause log</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--accent); }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; font-size: .85rem; font-weight: 600;
+  border: 1px solid var(--ok); color: var(--ok); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+  background: var(--code-bg); padding: .05rem .25rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+  overflow-x: auto; font-size: .82rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pass { color: var(--ok); font-weight: 600; }
+.unknown { color: var(--warn); font-weight: 600; }
+.fail { color: var(--bad); font-weight: 600; }
+dl dt { font-weight: 700; margin-top: .7rem; }
+dl dd { margin-left: 1.2rem; }
+.note { color: var(--muted); font-size: .92rem; }
+footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify maps and set operators over sets in Lean via the clause log</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/74">levnach/z3#74</a> ·
+State: <span class="badge">OPEN</span> ·
+Opened 2026-11-06T01:18:19Z · Loop iteration 75
+</p>
+<p>This pull request is open and <strong>not merged</strong>.
+The change it proposes is commit
+<a href="https://github.com/levnach/z3/commit/a3281acb81d5505b4c1bb0f64961c6e855790f53"><code>a3281acb8</code></a>
+on top of base <code>83e41fb29</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Before this PR, the pipeline could certify single <a href="#g-set">sets</a>, but it could not combine them.
+It rejected every <a href="#g-map">map</a>, the four <a href="#g-set-operator">set operators</a>,
+and an input <a href="#g-default">default value</a>.
+Now a map of the <a href="#g-connective">connectives</a> <code>not</code>, <code>and</code>, <code>or</code>, and
+<code>=&gt;</code> is accepted over sets of one <a href="#g-sort">sort</a>.
+So are <code>union</code>, <code>intersection</code>, <code>setminus</code>, and <code>complement</code>.
+The <a href="#g-exporter">exporter</a> writes them into the <a href="#g-certificate">certificate</a>.
+The <a href="#g-reconstructor">reconstructor</a> turns each one into a Lean function applied pointwise.
+Every new Lean fact is either true <a href="#g-rfl">by definition</a> or a proved
+<a href="#g-funext">function-extensionality</a> <a href="#g-theorem">theorem</a>.
+No new <a href="#g-axiom">axiom</a> was added.
+As a result, the z3test file <code>t8.smt2</code>, which states <a href="#g-de-morgan">De Morgan's law</a> over sets,
+now gets a <a href="#g-refutation">refutation</a> that Lean accepts.
+So do two of the three queries in <code>issue-1665.smt2</code>.</p>
+
+<h2 id="background">Background</h2>
+<p>Since iteration 74, <a href="#g-array">arrays</a> with Boolean elements have been certified through the
+<a href="#g-clause-log">clause log</a>.
+Reads, <a href="#g-store">stores</a>, and <a href="#g-constant-array">constant arrays</a> all worked.
+But any input that built a new set from old ones stopped at the exporter with
+"unsupported array operator: map".
+The iteration-73 backlog named <code>t8.smt2</code> and <code>issue-1665.smt2</code> as blocked by exactly this.
+The work serves milestone 4 of the plan, "Broader theories and integration", which lists arrays as one of the
+theory extensions.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>You can now give the exporter a map such as <code>((_ map and) a b)</code> over sets and get a certificate.
+Maps of any other function, such as an <a href="#g-uninterpreted-function">uninterpreted function</a> or <code>xor</code>, are still rejected with a clear message.</li>
+<li>You can now use <code>union</code>, <code>intersection</code>, <code>setminus</code>, and <code>complement</code>
+in an input, and the generated Lean file checks.</li>
+<li>You can now write <code>(default a)</code> in an input when the index sort is Int or Real.
+Other index sorts are still rejected, as for constant arrays.</li>
+<li>The Lean file now states the identities that Z3's <a href="#g-rewriter">rewriter</a> and
+<a href="#g-congruence">congruence closure</a> use on maps.
+Examples are <a href="#g-commutativity">commutativity</a> and <a href="#g-idempotence">idempotence</a>
+of <code>and</code> and <code>or</code> maps, and a double complement cancelling out.</li>
+<li>A tampered certificate that swaps one connective for another is now caught, because the input is matched by connective name.</li>
+<li>The default value of a map is refused with "the default value of a map is not certified".
+Lean cannot prove that fact, so it is rejected rather than trusted.</li>
+</ul>
+
+<p>Think of a map like a spreadsheet column formula.
+If column C is "A AND B", every row of C is fixed by the same rows of A and B.
+Lean's <code>_map2</code> says exactly that, one row at a time.</p>
+
+<table>
+<caption class="note">Files touched, base <code>83e41fb29</code> to head <code>a3281acb8</code> (two commits)</caption>
+<thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">64</td><td class="num">4</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">44</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">180</td><td class="num">3</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">340</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">32</td><td class="num">6</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">28</td><td class="num">1</td></tr>
+<tr><th colspan="2">Total</th><th class="num">688</th><th class="num">17</th></tr>
+</tbody>
+</table>
+
+<table>
+<caption class="note">Commits in the PR</caption>
+<thead><tr><th>Commit</th><th>Message</th></tr></thead>
+<tbody>
+<tr><td><code>7d95b0aa1</code></td><td>Certify maps and set operators over sets in Lean via the clause log</td></tr>
+<tr><td><code>a3281acb8</code></td><td>State the setminus rewrite identity for Lean; pin set fragments (the review fix)</td></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>The input is the z3test regression <code>t8.smt2</code>, which is also a test in the PR.
+It claims that De Morgan's law fails for two sets of integers.
+All three pieces below come from real runs on the PR's head and base code.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const s1 (Array Int Bool))
+(declare-const s2 (Array Int Bool))
+(set-info :status unsat)
+(assert (not (= ((_ map and) s1 s2)
+                ((_ map not) ((_ map or) ((_ map not) s1) ((_ map not) s2))))))
+(check-sat)</code></pre>
+<p>It says "the intersection of s1 and s2 is different from the complement of the union of their complements".</p>
+
+<h3>(b) Before: the base exporter</h3>
+<pre><code>proof_certificate.py: error: unsupported array operator: map</code></pre>
+<p>The old exporter stopped at the first map, so no certificate and no Lean file were produced.</p>
+
+<h3>(c) After: the generated Lean file, trimmed</h3>
+<p>The exporter wrote a certificate and the reconstructor wrote a Lean file.
+<strong>Lean accepted the file:</strong> <code>check_lean.sh</code> printed "Lean checks passed."</p>
+
+<pre><code>def _map1 {I : Type} (f : Prop -&gt; Prop) (a : I -&gt; Prop) : I -&gt; Prop := fun _i =&gt; f (a _i)
+
+def _map2 {I : Type} (f : Prop -&gt; Prop -&gt; Prop) (a b : I -&gt; Prop) : I -&gt; Prop := fun _i =&gt; f (a _i) (b _i)
+
+private theorem _map2_and_comm {I : Type} (a b : I -&gt; Prop) : _map2 And a b = _map2 And b a :=
+  funext (fun _i =&gt; propext And.comm)
+...</code></pre>
+<p>A set is a function from indices to propositions, and a map applies a connective at every index.</p>
+
+<pre><code>def term_0 ... : (Int -&gt; Prop) := _m.arrs_ib 0
+def term_1 ... : (Int -&gt; Prop) := _m.arrs_ib 1
+def term_2 ... : (Int -&gt; Prop) := (_map2 And (term_0 _atoms _vars _m) (term_1 _atoms _vars _m))
+def term_3 ... : (Int -&gt; Prop) := (_map1 Not (term_0 _atoms _vars _m))
+def term_4 ... : (Int -&gt; Prop) := (_map1 Not (term_1 _atoms _vars _m))
+def term_5 ... : (Int -&gt; Prop) := (_map2 Or (term_3 _atoms _vars _m) (term_4 _atoms _vars _m))
+def term_6 ... : (Int -&gt; Prop) := (_map1 Not (term_5 _atoms _vars _m))
+def formula_7 ... : Prop := ((term_2 _atoms _vars _m) = (term_6 _atoms _vars _m))
+def formula_8 ... : Prop := (Not (formula_7 _atoms _vars _m))
+...</code></pre>
+<p>Each subterm of the input gets one declaration, so <code>term_2</code> is <code>s1 ∩ s2</code> and <code>term_6</code> is the other side.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_8 _atoms _vars _m))
+    : False :=
+...</code></pre>
+<p>The theorem says that in every interpretation, the input assertion leads to <code>False</code>.</p>
+
+<pre><code>private theorem th_lemma_57 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_17 _atoms _vars _m) := by
+  unfold formula_17 formula_16 formula_15 formula_14 formula_13 formula_12 formula_11 formula_10 term_9
+  ...
+  have _mc5 := _map2_or_comm ((term_3 _atoms _vars _m)) ((term_4 _atoms _vars _m))
+  ...
+  have _x9 := _array_ext (Nonempty.intro (0 : Int)) ((term_2 _atoms _vars _m)) ((term_6 _atoms _vars _m))
+  have _m10 : _select ((term_6 _atoms _vars _m)) (...) = (Not (_select ((term_5 _atoms _vars _m)) (...))) := rfl
+  have _m10_1 : _select ((term_5 _atoms _vars _m)) (...) = (Or (_select ((term_3 _atoms _vars _m)) (...)) (_select ((term_4 _atoms _vars _m)) (...))) := rfl
+  have _m10_2 : _select ((term_3 _atoms _vars _m)) (...) = (Not (_select ((term_0 _atoms _vars _m)) (...))) := rfl
+  have _m10_3 : _select ((term_4 _atoms _vars _m)) (...) = (Not (_select ((term_1 _atoms _vars _m)) (...))) := rfl
+  first | omega | grind (splits := 64)</code></pre>
+<p>By <a href="#g-extensionality">extensionality</a>, the two sides differ at some witness index.
+This lemma reads the right-hand side at that index through all three nested maps, one <code>rfl</code> fact per level, and then the <code>grind</code> <a href="#g-tactic">tactic</a> closes the goal.
+The <code>(...)</code> stands for the long witness index <code>_array_diff ... term_2 ... term_6</code>, cut for width.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>In plain terms: every test suite the implementer and the integrator ran on the final commit passed.
+That covers about 410 Lean-checked reconstruction tests and the new set inputs.
+The separate local gate run by the loop driver had <strong>not been recorded</strong> when this report was written.
+Its log showed the exporter tests passing and the Lean suite still running.</p>
+
+<table>
+<caption class="note">Local runs reported in the PR description, on commit <code>a3281acb8</code></caption>
+<thead><tr><th>What ran</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>All reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">OK, 410 tests, 1726 s</td></tr>
+<tr><td>Array tests, <code>test_proof_to_lean_array</code></td><td class="pass">OK, 30 tests, 124 s</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">OK, 110 tests</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+<tr><td>z3test proof scripts, <code>test_proof*.py</code></td><td class="pass">OK, 48 tests</td></tr>
+<tr><td>Regression matrix, Boolean inputs, legacy proof objects (implementer run)</td><td class="pass">6/6 Lean-verified</td></tr>
+<tr><td>Regression matrix, <code>lra_*</code> inputs, clause log (implementer run)</td><td class="pass">8/8 Lean-verified</td></tr>
+<tr><td>Review fix necessity: fix stashed</td><td>exactly the three new <code>setminus</code> inputs failed, as expected</td></tr>
+<tr><td>Local gate (<code>LOCAL_GATE.md</code>)</td><td class="unknown">not recorded yet</td></tr>
+<tr><td>Worked example above, run for this report</td><td class="pass">Lean checks passed</td></tr>
+</tbody>
+</table>
+<p class="note">The C++ test suite and the z3test smt2 benchmarks were not run, because the PR changes no C++ code.</p>
+
+<table>
+<caption class="note">CI workflows and checks</caption>
+<thead><tr><th>Workflow / check</th><th>Status</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu build - cmake - releaseClang (<code>.github/workflows/ci.yml</code>), step "Check native proofs in Lean", which runs the new tests</td>
+<td class="unknown">unknown: no CI status was recorded for this report</td>
+<td><a href="https://github.com/levnach/z3/pull/74/checks">PR checks</a></td></tr>
+<tr><td>All other checks on the PR</td><td class="unknown">unknown</td>
+<td><a href="https://github.com/levnach/z3/pull/74/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+<p>No CI fix rounds were recorded. Do not read the local results as CI results. Check the PR page for the current state.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer asked for changes. There was no blocker, one major finding, and two nits. All three were fixed in <code>a3281acb8</code>.</p>
+
+<h3>Major: <code>setminus</code> failed in Lean unless it was read directly</h3>
+<p>The reviewer wrote small inputs that use a set difference as a whole set, such as
+<code>(assert (= c (setminus a b)))</code>.
+Z3 proved each one unsat and the exporter accepted it, but Lean then failed with "<code>grind</code> failed".
+The cause was a mismatch of names.
+Z3's rewriter turns <code>(setminus a b)</code> into "<code>a</code> and the complement of <code>b</code>", built from maps.
+In Lean those two shapes were different functions, and nothing said they were equal.
+It is like two clerks filing the same document under two labels with no cross-reference.
+The fix adds one fact per <code>setminus</code> node, proved by <code>rfl</code>, that links the two shapes.
+Three new test inputs cover it, and a test shows Lean fails if the fact is removed.
+This mattered because the PR advertised <code>setminus</code> as supported, but most real uses would have failed.
+A Lean-free test now also checks that the other three set operators already share their Lean function with their map form.</p>
+
+<h3>Nit: test fragments were guessed</h3>
+<p>The tests decided each input's logic fragment by looking for substrings like <code>Int)</code> in the source.
+A future input could have been classed by accident. The fix is an explicit table, checked against the exported fragment.</p>
+
+<h3>Nit: unclear sentence in the plan</h3>
+<p>One sentence read as if maps were a kind of array of arrays. It was reworded.</p>
+
+<h3>Suggestion not adopted</h3>
+<p>The reviewer suggested that the default-map rejection also inspect a bare atom, not only the sides of an equality.
+The implementer declined. Z3 logs that axiom as an equality today, and a missed case would only make Lean fail.
+That makes the gap incomplete, not unsound.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>A new compaction rule changes the certificate shape for some untrimmed logs. It applies only when the log takes a default value over a non-Int, non-Real index. Such logs were rejected before, so no previously accepted certificate changes.</li>
+<li>Map identity facts are added to every lemma that reaches a map node. The array test module went from about 83 s to about 124 s.</li>
+<li>The replay treats any one-literal array <a href="#g-hint">hint</a> on a read of a map as the propagated equality. If Z3 ever logged the opposite, Lean would fail. That is incomplete, not unsound.</li>
+<li>CI results and the local gate result were not available when this page was written.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<p>The PR lists these follow-ups in the backlog:</p>
+<ul>
+<li>The default-map axiom. It would need a different Lean definition of the default value.</li>
+<li>Default values over uninterpreted index sorts. These block query 0 of <code>issue-1665.smt2</code>.</li>
+<li>Maps of other functions: uninterpreted, arithmetic, <code>xor</code>, or <code>=</code>.</li>
+<li>The rewriter's remaining set identities, such as <code>a ∩ ¬a</code> being the empty set.</li>
+<li>Other blocked z3test set files: <code>t150</code>, <code>t109</code>, <code>t155</code>, <code>t154</code>, <code>issue-1816</code>.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-array">array</dt>
+<dd>A total map from an index sort to an element sort, written <code>(Array I E)</code>. It may have infinitely many entries.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement accepted without proof. Adding one to Lean means trusting it, so the project avoids new ones.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>A file that records the solver's refutation in a form another tool can check step by step.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of literals, such as <code>p ∨ ¬q ∨ r</code>.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>The list of clauses the solver writes while it works, each tagged with a hint saying why it holds.</dd>
+<dt id="g-commutativity">commutativity</dt>
+<dd>The rule that argument order does not matter: <code>a ∧ b = b ∧ a</code>.</dd>
+<dt id="g-complement">complement</dt>
+<dd>The set of all indices not in a given set. A double complement gives back the original set.</dd>
+<dt id="g-congruence">congruence closure</dt>
+<dd>The solver procedure that merges equal terms: if <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+<dt id="g-connective">connective</dt>
+<dd>A Boolean operator that builds formulas from formulas: <code>not</code>, <code>and</code>, <code>or</code>, <code>=&gt;</code>.</dd>
+<dt id="g-constant-array">constant array</dt>
+<dd>An array with the same value at every index, written <code>((as const (Array I E)) v)</code>.</dd>
+<dt id="g-de-morgan">De Morgan's law</dt>
+<dd>The rule <code>a ∧ b = ¬(¬a ∨ ¬b)</code>. Over sets it reads: the intersection is the complement of the union of the complements.</dd>
+<dt id="g-default">default value</dt>
+<dd>The value an array takes at all but finitely many indices, written <code>(default a)</code> in Z3.</dd>
+<dt id="g-exporter">exporter</dt>
+<dd>The program that reads Z3's proof evidence and writes a certificate.</dd>
+<dt id="g-extensionality">extensionality</dt>
+<dd>The rule that two arrays are equal if they agree at every index. If they differ, there is a witness index where they differ.</dd>
+<dt id="g-funext">function extensionality (<code>funext</code>)</dt>
+<dd>The Lean principle that two functions are equal if they give equal results on every input.</dd>
+<dt id="g-hint">hint</dt>
+<dd>A tag on a logged clause naming the reason it holds, such as <code>array</code> or <code>arith</code>.</dd>
+<dt id="g-idempotence">idempotence</dt>
+<dd>The rule that combining a thing with itself changes nothing: <code>a ∧ a = a</code>.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atom or its negation, such as <code>p</code> or <code>¬p</code>.</dd>
+<dt id="g-map">map</dt>
+<dd>An array operator that applies a function at every index. <code>((_ map and) a b)</code> is the array whose entry at <code>i</code> is <code>a[i] ∧ b[i]</code>.</dd>
+<dt id="g-reconstructor">reconstructor</dt>
+<dd>The program that turns a certificate into a Lean file whose proof Lean can check.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+<dt id="g-rewriter">rewriter</dt>
+<dd>The part of Z3 that simplifies terms before and during solving, for example turning a set difference into a map.</dd>
+<dt id="g-rfl">rfl (true by definition)</dt>
+<dd>A Lean proof that two sides are equal because they unfold to the same thing.</dd>
+<dt id="g-set">set</dt>
+<dd>An array with Boolean elements, <code>(Array I Bool)</code>. The entry at <code>i</code> says whether <code>i</code> is a member.</dd>
+<dt id="g-set-operator">set operator</dt>
+<dd>One of Z3's built-in operations on sets: <code>union</code>, <code>intersection</code>, <code>setminus</code> (set difference), and <code>complement</code>.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as <code>Int</code>, <code>Real</code>, <code>Bool</code>, or <code>(Array Int Bool)</code>.</dd>
+<dt id="g-store">store</dt>
+<dd>The array update <code>(store a i v)</code>: the array <code>a</code> with the entry at <code>i</code> replaced by <code>v</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that builds part of a proof automatically. <code>grind</code> and <code>omega</code> are tactics.</dd>
+<dt id="g-theorem">theorem</dt>
+<dd>A statement together with a proof that Lean has checked.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning, only the rule that equal inputs give equal outputs.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-05, for loop iteration 75.
+</footer>
+</body>
+</html>
