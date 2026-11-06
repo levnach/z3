@@ -7,109 +7,118 @@
 <style>
   :root {
     --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --head-bg: #f6f8fa;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --head-bg: #161b22;
     }
   }
-  body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+         max-width: 50rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
   a { color: var(--accent); }
-  h1 { font-size: 1.6rem; margin-bottom: 0.3rem; }
-  h2 { border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2rem; }
-  h3 { margin-bottom: 0.3rem; }
-  .meta { color: var(--muted); font-size: 0.95rem; }
-  .state { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; border: 1px solid var(--ok); color: var(--ok); font-weight: 600; }
-  code { background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; }
-  pre code { background: none; padding: 0; font-size: 0.85rem; }
-  table { border-collapse: collapse; margin: 0.8rem 0; width: 100%; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
   th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
-  th { background: var(--code-bg); }
+  th { background: var(--head-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+  .meta dd { margin: 0 0 0.2rem 9.5rem; }
   .ok { color: var(--ok); font-weight: 600; }
   .warn { color: var(--warn); font-weight: 600; }
-  .explain { color: var(--muted); margin-top: -0.4rem; }
-  dt { font-weight: 600; margin-top: 0.6rem; }
-  dd { margin-left: 1.2rem; }
-  footer { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 0.6rem; color: var(--muted); font-size: 0.9rem; }
+  .explain { margin-top: -0.3rem; color: var(--muted); }
+  dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Certify nested arrays in Lean via the clause log</h1>
-  <p class="meta">
-    <a href="https://github.com/levnach/z3/pull/76">Pull request #76</a> on levnach/z3 ·
-    State: <span class="state">OPEN</span> · Opened 2026-11-06T05:58:41Z · Loop iteration 77
-  </p>
-  <p class="meta">
-    This pull request is open and <strong>not merged</strong>.
-    The change commit is
-    <a href="https://github.com/levnach/z3/commit/da425e9474d2e90bb547faa6348c3f6a231e05a7"><code>da425e9</code></a>.
-  </p>
+<h1>Certify nested arrays in Lean via the clause log</h1>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/76">levnach/z3#76</a></dd>
+  <dt>State</dt><dd><span class="ok">MERGED</span> into <code>master</code></dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/2bd72179a7a874a4bab7035716d35940818a142d"><code>2bd72179a</code></a></dd>
+  <dt>Merge date</dt><dd>2026-11-06T06:29:01Z</dd>
+  <dt>Loop iteration</dt><dd>77</dd>
+</dl>
 </header>
 
-<section>
-<h2>In one paragraph</h2>
+<h2 id="summary">In one paragraph</h2>
 <p>
-  The pipeline now certifies <a href="#g-array">arrays</a> whose index <a href="#g-sort">sort</a> or element sort is itself an array, at any depth.
-  Examples are a matrix <code>(Array Int (Array Int Int))</code> and a table keyed by arrays, <code>(Array (Array Int Int) Bool)</code>.
-  Such inputs come from the QF_ALIA and QF_AUFLIA <a href="#g-fragment">fragments</a>, often from memory models of programs.
-  In Lean each nested array becomes a <a href="#g-function-type">function type</a>, such as <code>Int -&gt; (Int -&gt; Int)</code>.
-  The PR also closes two gaps in the <a href="#g-lemma">lemma</a> proofs.
-  One of them already broke a 7-line input over plain arrays.
-  No new <a href="#g-axiom">axiom</a> is added, so every certified <a href="#g-refutation">refutation</a> still rests only on theorems proved in the generated file.
+This PR lets the pipeline certify unsat results over <a href="#g-nested-array">nested arrays</a>.
+These are <a href="#g-array">arrays</a> whose index <a href="#g-sort">sort</a> or element sort is itself an array sort.
+A two-dimensional matrix <code>(Array Int (Array Int Int))</code> is the typical case.
+The <a href="#g-exporter">exporter</a>, the <a href="#g-clause-log">clause log</a> replay, and the <a href="#g-reconstructor">reconstructor</a> now accept such sorts at any depth.
+In Lean, each one becomes a <a href="#g-function-type">function type</a> such as <code>Int -&gt; (Int -&gt; Int)</code>.
+The PR also closes two gaps in the generated <a href="#g-lemma">lemmas</a>.
+A <a href="#g-select">read</a> through a row that was <a href="#g-store">stored</a> into a matrix now carries the facts that the <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a> needs.
+A gap that already broke some flat-array inputs on <code>master</code> is fixed too.
+No new <a href="#g-axiom">axioms</a> and no <a href="#g-sorry">sorry</a> are added, and the <a href="#g-trust-boundary">trust boundary</a> is unchanged.
 </p>
-</section>
 
-<section>
-<h2>Background</h2>
+<h2 id="background">Background</h2>
 <p>
-  Earlier PRs (#73 to #75) taught the pipeline arrays over <a href="#g-uninterpreted-sort">uninterpreted sorts</a>, Int, Real, and <a href="#g-boolean">Boolean</a> indices.
-  They also covered <a href="#g-constant-array">constant arrays</a>, <a href="#g-set">sets</a>, and <a href="#g-map">maps</a> over sets, all replayed from the <a href="#g-clause-log">clause log</a>.
-  But any array of arrays, or array indexed by arrays, was rejected by the exporter.
-  The messages were "unsupported array operator: select" or "only arrays over uninterpreted sorts, Int, Real, and Bool".
-  This PR serves milestone 4 of the plan, "Broader theories and integration", which lists arrays as a distinct extension.
+Earlier PRs taught the pipeline arrays whose components are flat: <a href="#g-uninterpreted-sort">uninterpreted sorts</a>, Int, Real, and <a href="#g-boolean">Bool</a>.
+They also covered <a href="#g-set">sets</a>, <a href="#g-map">maps</a>, and <a href="#g-constant-array">constant arrays</a>.
+Any input that declared an array of arrays was still rejected by the exporter.
+The messages were "unsupported array operator: select" or "only arrays over uninterpreted sorts, Int, Real, and Bool".
+That blocked every unsat input over two-dimensional arrays, arrays of sets, or arrays indexed by arrays.
+Such inputs are common in the memory models of the <a href="#g-logic">SMT-LIB logics</a> QF_ALIA and QF_AUFLIA.
+Z3 already produced clause logs for them with its usual array and <a href="#g-euf">EUF</a> hints.
+Only the checking side was missing.
+The work serves milestone 4 of the plan, "Broader theories and integration", which treats arrays as their own extension.
 </p>
-</section>
 
-<section>
-<h2>What changed</h2>
+<h2 id="changes">What changed</h2>
 <ul>
-  <li><strong>Exporter.</strong> You can now export an unsat input whose arrays nest other arrays, and a <a href="#g-select">select</a> may return a whole row.</li>
-  <li><strong>Clause-log replay.</strong> The replay now reads nested sort names like <code>(Array Int (Array Int Int))</code>, also inside constant arrays.</li>
-  <li><strong>Reconstructor types.</strong> Lean now receives each nested array as a function returning a function, with a family name such as <code>arrs_iaii</code>.</li>
-  <li><strong>Reconstructor lemmas.</strong> Reads through a row that was just <a href="#g-store">stored</a> now get the facts Lean's <a href="#g-tactic">tactic</a> needs, so these proofs now check.</li>
-  <li><strong>A fix for plain arrays.</strong> A read that is both a lemma atom and a stored value is now unfolded, so the 7-line input <code>stored_read_atom</code> now verifies.</li>
-  <li><strong>Safe rejections.</strong> Maps and set operators over sets indexed by arrays are now rejected, because the <a href="#g-soundness">soundness</a> argument does not cover them.</li>
+  <li>You can now export a certificate for an input that declares arrays of arrays, or arrays indexed by arrays, at any depth.</li>
+  <li>The reconstructor turns each nested array sort into a Lean function type, so a matrix of Int becomes <code>Int -&gt; (Int -&gt; Int)</code>.</li>
+  <li>A read through a row stored inside a matrix now comes with the <a href="#g-read-over-write">read-over-write</a> facts that Lean needs to follow it.</li>
+  <li>A seven-line flat Int array input, <code>stored_read_atom</code>, failed in Lean on <code>master</code> and now verifies.</li>
+  <li>Tampered or absurdly deep sort names, and Boolean maps over sets indexed by arrays, are now rejected with a clean error.</li>
 </ul>
+<p>
+An analogy helps with the third bullet.
+Think of a matrix as a cabinet of drawers.
+Putting a new drawer in the cabinet and then reading one slot of it takes two steps.
+Z3's rewriter does both at once, and no term for the new drawer's slot appears in the certificate.
+The reconstructor now writes down what the new drawer holds at that slot, for every drawer stored along the way.
+</p>
+
 <table>
-  <thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/proof_certificate.py</code> (exporter)</td><td class="num">37</td><td class="num">9</td></tr>
-    <tr><td><code>examples/python/proof_clause_log.py</code> (replay)</td><td class="num">11</td><td class="num">8</td></tr>
-    <tr><td><code>examples/python/proof_to_lean.py</code> (reconstructor)</td><td class="num">216</td><td class="num">62</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="num">414</td><td class="num">17</td></tr>
-    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">1</td><td class="num">1</td></tr>
-    <tr><td><code>examples/python/README</code></td><td class="num">31</td><td class="num">2</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">32</td><td class="num">0</td></tr>
-    <tr><th>Total (7 files, 2 commits)</th><th class="num">742</th><th class="num">99</th></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">37</td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">11</td><td class="num">8</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">216</td><td class="num">62</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests (28 nested inputs, 5 new tests)</td><td class="num">414</td><td class="num">17</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests</td><td class="num">1</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Docs, soundness argument</td><td class="num">31</td><td class="num">2</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, dated entry</td><td class="num">32</td><td class="num">0</td></tr>
+    <tr><th colspan="2">Total, 7 files</th><th class="num">742</th><th class="num">99</th></tr>
   </tbody>
 </table>
-</section>
 
-<section>
-<h2>Worked example</h2>
+<h2 id="example">Worked example</h2>
 <p>
-  This input is <code>nested_read_own_write_evaluated</code> from the PR's new tests.
-  Think of <code>a</code> as a grid of numbers.
-  We write <code>v</code> into cell <code>(i, j)</code> and read that cell back.
-  The input claims the result is not <code>v</code>, which is impossible.
+The input below reads cell <code>(i, j)</code> after writing <code>v</code> there in a matrix.
+It is a shortened form of the PR's test input <code>nested_read_own_write</code>, with the two copies of each index merged.
+All three pieces come from real runs of the base and the merged code.
 </p>
+
 <h3>(a) The input</h3>
 <pre><code>(declare-fun a () (Array Int (Array Int Int)))
 (declare-fun i () Int)
@@ -119,186 +128,204 @@
 (check-sat)</code></pre>
 
 <h3>(b) Before: the base commit</h3>
-<p>The exporter from the base commit stopped at once:</p>
 <pre><code>proof_certificate.py: error: unsupported array operator: select</code></pre>
+<p class="explain">The old exporter stopped at the first read whose value is an array, so no Lean file was produced.</p>
 
 <h3>(c) After: the generated Lean file</h3>
-<p>
-  The current exporter and reconstructor produced a 118-line Lean file.
-  The reconstructor reported "Lean checked the refutation".
-  A separate run of the project's Lean check script printed "Lean checks passed."
-</p>
 <pre><code>structure Interpretation where
   U : Type
   ...
   arrs_iaii : Nat -&gt; Int -&gt; (Int -&gt; Int)
   arrs_ii : Nat -&gt; Int -&gt; Int</code></pre>
-<p class="explain">The grid sort becomes the function type <code>Int -&gt; (Int -&gt; Int)</code>, and a single row becomes <code>Int -&gt; Int</code>.</p>
+<p class="explain">The matrix sort becomes a family of functions from Int to rows, and each row is a function from Int to Int.</p>
 
-<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; (Int -&gt; Int)) := _m.arrs_iaii 0
-...
-def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_select (term_0 _atoms _vars _m) (term_1 _atoms _vars _m))
-...
-noncomputable def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_2 _atoms _vars _m) (term_3 _atoms _vars _m) (term_4 _atoms _vars _m))
-noncomputable def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; (Int -&gt; Int)) := (_store (term_0 _atoms _vars _m) (term_1 _atoms _vars _m) (term_5 _atoms _vars _m))</code></pre>
-<p class="explain">Each subterm gets a name: <code>term_2</code> is row <code>i</code>, <code>term_5</code> is that row with <code>v</code> stored, and <code>term_6</code> is the grid with the new row stored.</p>
+<pre><code>def term_0 ... : (Int -&gt; (Int -&gt; Int)) := _m.arrs_iaii 0
+def term_2 ... : (Int -&gt; Int) := (_select (term_0 _atoms _vars _m) (term_1 _atoms _vars _m))
+noncomputable def term_5 ... : (Int -&gt; Int) := (_store (term_2 _atoms _vars _m) (term_3 _atoms _vars _m) (term_4 _atoms _vars _m))
+noncomputable def term_6 ... : (Int -&gt; (Int -&gt; Int)) := (_store (term_0 _atoms _vars _m) (term_1 _atoms _vars _m) (term_5 _atoms _vars _m))
+noncomputable def term_7 ... : (Int -&gt; Int) := (_select (term_6 _atoms _vars _m) (term_1 _atoms _vars _m))
+noncomputable def term_8 ... : Int := (_select (term_7 _atoms _vars _m) (term_3 _atoms _vars _m))
+def formula_9 ... : Prop := ((term_8 _atoms _vars _m) = (term_4 _atoms _vars _m))
+def formula_10 ... : Prop := (Not (formula_9 _atoms _vars _m))</code></pre>
+<p class="explain">Each subterm of the input gets a name: <code>term_2</code> is the row <code>a[i]</code>, <code>term_5</code> is that row with <code>v</code> written at <code>j</code>, and <code>term_8</code> is the final cell.</p>
 
-<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
-    (_h0 : (formula_10 _atoms _vars _m))
-    : False :=
-  ...</code></pre>
-<p class="explain">The main theorem says: in every interpretation, the input's assertion leads to <code>False</code>.</p>
-
-<pre><code>private theorem rewrite_16 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
-    : (formula_15 _atoms _vars _m) := by
-  ...
+<pre><code>private theorem rewrite_16 ... : (formula_15 _atoms _vars _m) := by
+  unfold formula_15 formula_11 formula_10 formula_9 term_4
+  first
+    ...
     | (unfold term_8 term_7 term_3 term_1
        ...
        have _s7 := _store_apply ((term_0 _atoms _vars _m)) (_vars 0) ((term_5 _atoms _vars _m)) (_vars 0)
        have _n8_0 := _store_apply ((_select ((term_0 _atoms _vars _m)) (_vars 0))) (_vars 1) (_vars 2) (_vars 1)
        first | omega | grind (splits := 64))
+    ...</code></pre>
+<p class="explain">This lemma checks Z3's one-step rewrite of the whole read to <code>v</code>. The fact <code>_s7</code> reads the stored row back from the matrix, and the new fact <code>_n8_0</code> reads <code>v</code> back from that stored row.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_10 _atoms _vars _m))
+    : False :=
   ...</code></pre>
-<p class="explain">Z3's <a href="#g-rewriter">rewriter</a> simplified the double read to <code>v</code> in one step, and this lemma checks that step. The fact <code>_s7</code> reads the new row back from the grid. The fact <code>_n8_0</code> is the new "stored row" fact: it reads cell <code>j</code> of the stored row, which never appears as its own term in the certificate.</p>
-</section>
+<p class="explain">The final theorem says that the input's assertion, read in any interpretation, leads to <code>False</code>.</p>
 
-<section>
-<h2>How it was verified</h2>
 <p>
-  Every local test suite the implementer ran on the final commit passed.
-  This includes all 28 new nested-array examples, each checked by the Lean <a href="#g-kernel">kernel</a>.
-  Random two-dimensional grid puzzles also passed: every unsat one was certified.
-  The reviewer's own random sweep over arrays indexed by arrays had a few failures.
-  All of them came from a gap that already existed before this PR, listed under risks.
-  A dedicated test removes the new stored-row facts and confirms that Lean then fails, so those facts are really needed.
-  The formal local gate file has not been recorded for this iteration, so its result is unknown.
+Lean accepted the file.
+The reconstructor reported "Lean checked the <a href="#g-refutation">refutation</a>", and <code>scripts/check_lean.sh</code> printed "Lean checks passed."
 </p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+All the proof tests passed on the loop machine, including about 400 Lean reconstruction tests.
+Every one of the 28 new nested-array inputs was checked by the Lean <a href="#g-kernel">kernel</a>.
+About 140 random unsat matrix puzzles from two sweeps were all accepted too.
+The PR changes only Python, docs, and tests, so the loop merged it on its local gate instead of waiting for GitHub CI.
+</p>
+
+<h3>Local gate</h3>
 <table>
-  <thead><tr><th>Local check (PR description, review, and this report)</th><th>Result</th></tr></thead>
+  <thead><tr><th>Step</th><th>Result</th><th>Time</th></tr></thead>
   <tbody>
-    <tr><td>All Lean reconstruction tests</td><td><span class="ok">OK</span>, 417 tests</td></tr>
-    <tr><td>Array reconstruction tests only</td><td><span class="ok">OK</span>, 37 tests</td></tr>
-    <tr><td>Exporter tests</td><td><span class="ok">OK</span>, 110 tests</td></tr>
-    <tr><td>Lean project check</td><td><span class="ok">OK</span>, "Lean checks passed."</td></tr>
-    <tr><td>z3test proof script tests</td><td><span class="ok">OK</span>, 48 tests</td></tr>
-    <tr><td>Proof matrix, Boolean regressions, legacy proof objects</td><td><span class="ok">6/6</span> Lean-verified</td></tr>
-    <tr><td>Proof matrix, linear real arithmetic regressions, clause log</td><td><span class="ok">8/8</span> Lean-verified</td></tr>
-    <tr><td>Random 2-D Int sweeps (implementer, then reviewer)</td><td><span class="ok">104 + 38</span> unsat seeds, all kernel-checked</td></tr>
-    <tr><td>Reviewer's random sweep, tables keyed by arrays, with ites</td><td><span class="warn">72 of 76</span> unsat seeds kernel-checked; the 4 failures are the pre-existing ite-over-store gap</td></tr>
-    <tr><td>Worked example above, run for this report</td><td><span class="ok">OK</span>, "Lean checks passed."</td></tr>
+    <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">13 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">1773 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">17 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="ok">pass</td><td class="num">6 s</td></tr>
   </tbody>
 </table>
-<p>
-  No CI status files were available when this report was written.
-  The CI results are therefore unknown here, and the local results above do not imply them.
-  There were no CI fix rounds on record.
-</p>
+
+<h3>Runs reported in the PR</h3>
 <table>
-  <thead><tr><th>CI workflow and check</th><th>What it runs</th><th>Status</th></tr></thead>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td><code>ci.yml</code>, job <code>ubuntu-cmake</code>, entry <code>releaseClang</code>, step "Check native proofs in Lean"</td><td>All Lean reconstruction tests, including the new ones</td><td><span class="warn">Not recorded</span></td></tr>
-    <tr><td>Python wheel jobs</td><td>Exporter tests, no Lean needed</td><td><span class="warn">Not recorded</span></td></tr>
+    <tr><td>All Lean reconstruction tests (<code>test_proof_to_lean*.py</code>)</td><td class="ok">417 tests OK</td></tr>
+    <tr><td>Array reconstruction tests alone</td><td class="ok">37 tests OK</td></tr>
+    <tr><td>Certificate exporter tests</td><td class="ok">110 tests OK</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">48 tests OK</td></tr>
+    <tr><td>Boolean regression matrix in Lean</td><td class="ok">6 / 6 verified</td></tr>
+    <tr><td>QF_LRA regression matrix in Lean</td><td class="ok">8 / 8 verified</td></tr>
+    <tr><td>Random 2-D Int sweep, implementer (seeds 1 to 350)</td><td class="ok">104 / 104 unsat verified</td></tr>
+    <tr><td>Random 2-D Int sweep, reviewer (seeds 351 to 480)</td><td class="ok">38 / 38 unsat verified</td></tr>
+    <tr><td>Random arrays-indexed-by-arrays sweep, reviewer</td><td class="warn">72 / 76 unsat verified, 4 fail from an older gap</td></tr>
   </tbody>
 </table>
-<p>Live status: <a href="https://github.com/levnach/z3/pull/76/checks">checks page of PR #76</a>.</p>
-</section>
 
-<section>
-<h2>Review</h2>
-<p>The reviewer approved the PR. There were no blocker or major findings. All four findings were resolved in the second commit.</p>
+<h3>GitHub CI</h3>
+<p>
+No CI status was recorded for this PR, and no CI fix rounds were needed.
+The PR says its new tests run in the job below.
+GitHub CI runs on <code>master</code> after the merge, and its result is not known to this report.
+</p>
+<table>
+  <thead><tr><th>Workflow / job / step</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>CI</code> / Ubuntu build - cmake - releaseClang / "Check native proofs in Lean"</td><td>not recorded, see <a href="https://github.com/levnach/z3/pull/76/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR. There were no blocker or major findings. All four smaller findings were addressed.</p>
 <ol>
-  <li><strong>Minor: default rows stayed folded.</strong>
-    The reviewer wrote a 6-line input with constant arrays of rows.
-    Z3's array solver added its own <a href="#g-default">default</a> terms whose values are rows.
-    The reconstructor kept those terms opaque, so Lean's <code>grind</code> tactic failed in three lemmas.
-    This mattered because "constant arrays of arrays" was advertised as supported.
-    The fix unfolds these default terms too, and the input became the test <code>const_rows_default</code>.
-    That test fails without the fix and passes with it.</li>
-  <li><strong>Minor: the soundness argument missed maps over array-indexed sets.</strong>
-    The argument places each outer array into Lean's function space, with one fixed value at indices outside the <a href="#g-embedding">embedding</a>.
-    The reviewer noticed that <code>complement</code> flips that fixed value, so the argument no longer applies.
-    The reviewer did not think this was actually unsound.
-    The implementer chose the safe route: such maps are now rejected, and new tests check the rejection.</li>
-  <li><strong>Nit: a crash on absurdly deep sort names.</strong>
-    A tampered certificate with about 2000 nesting levels raised a Python recursion error instead of a clean rejection.
-    The parser now stops at 64 levels, and a 2000-level test checks it.</li>
-  <li><strong>Nit: a stale comment</strong> about select declarations was corrected.</li>
+  <li><strong>Minor: array-valued default values stayed folded.</strong>
+    The reviewer wrote a six-line input that sets a matrix equal to a constant array of rows.
+    Z3's array solver introduced the default row of that array on its own.
+    The reconstructor kept that term opaque, so grind could not connect it to the constant row and failed in three lemmas.
+    The fix unfolds default values like reads, and the input is now a documented test called <code>const_rows_default</code>.
+    It mattered because "constant arrays of arrays" was advertised as supported.</li>
+  <li><strong>Minor: the soundness argument missed Boolean maps over sets indexed by arrays.</strong>
+    The argument places each outer array inside Lean's function space and gives it one fixed value off the embedded indices.
+    The reviewer noticed that a complement flips that fixed value, so the argument no longer applied.
+    The reviewer did not think the result was unsound, but the written argument did not cover it.
+    The implementer chose to reject these maps in both the exporter and the reconstructor, with new tests.
+    Maps over rows of sets, indexed by Int, are still accepted.</li>
+  <li><strong>Nit: a crash on deeply nested tampered names.</strong>
+    A forged sort name nested 2000 levels deep raised a Python recursion error instead of a clean rejection.
+    The parser now stops at 64 levels and rejects the name, and a test covers the 2000-level case.</li>
+  <li><strong>Nit: a stale code comment.</strong> It still listed only flat element sorts and was corrected.</li>
 </ol>
-<p>Two suggestions were left for later: stored-row facts through <a href="#g-ite">if-then-else terms</a>, and a random generator for arrays indexed by arrays.</p>
-</section>
 
-<section>
-<h2>Risks and open questions</h2>
+<h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li><strong>A possible soundness gap in older code.</strong> The PR author reasoned, without a Lean check, that sets over uninterpreted indices (from PR #74) may have the same embedding problem as review finding 2. It would only matter if Z3 emitted a wrong unsat proof.</li>
-  <li><strong>Proof size.</strong> Stored-row facts grow with long store chains. With 12 symbolic row stores, Lean still took about 1.5 seconds. A 30-row case was not checked in Lean.</li>
-  <li><strong>Not covered yet.</strong> Reads of an if-then-else over a store fail, also for flat arrays. Constant arrays over array indices and default values that are arrays in the input stay rejected.</li>
-  <li><strong>Limited real-world coverage.</strong> All z3test regressions with nested arrays are sat, so none newly certifies. The random sweep covered only 2-D Int grids.</li>
+  <li>The PR flags a possible <a href="#g-soundness">soundness</a> gap in older code from PR #74, reasoned but not checked in Lean. Maps over sets indexed by an uninterpreted sort rely on the same fixed-value argument, which may fail when Lean's single carrier type holds more than one sort. It matters only if Z3 ever emits a wrong unsat proof.</li>
+  <li>The changes to which terms stay folded touch every array lemma. All earlier array inputs still verify.</li>
+  <li>The new stored-row facts grow with long store chains. Twelve symbolic row stores gave 420 facts and about 1.5 s in Lean. A 30-row case was not checked in Lean.</li>
+  <li>grind relates row equalities through <a href="#g-congruence">congruence</a> and <a href="#g-extensionality">extensionality</a>. This was tested only on small inputs.</li>
+  <li>Still not covered: reads of an <a href="#g-ite">if-then-else term</a> over a store, constant arrays over array indices, and array-valued default values in the input.</li>
+  <li>No z3test regression newly certifies, because every nested-array file there is <a href="#g-sat">sat</a>.</li>
 </ul>
-</section>
 
-<section>
-<h2>What comes next</h2>
+<h2 id="next">What comes next</h2>
 <ul>
-  <li>Restrict maps over uninterpreted-index sets to safe inputs, or give a different embedding.</li>
-  <li>Extend stored-row facts through if-then-else branches.</li>
-  <li>Add a random generator for arrays indexed by arrays.</li>
+  <li>Restrict maps over sets indexed by uninterpreted sorts, or find a different embedding, to close the possible gap above.</li>
+  <li>Carry the stored-row facts through the branches of an <code>ite</code>. This gap affects flat arrays too and caused about 5% of the reviewer's random failures.</li>
+  <li>Add a random generator for arrays indexed by arrays and for Bool or Real leaves.</li>
+  <li>Search the SMT-LIB QF_AUFLIA samples for unsat nested-array inputs.</li>
 </ul>
-</section>
 
-<section>
-<h2>Glossary</h2>
-<dl>
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
   <dt id="g-array">array</dt>
-  <dd>A total map from an index sort to an element sort. <code>(Array Int Bool)</code> maps every integer to true or false.</dd>
+  <dd>A total map from an index sort to an element sort. <code>(Array Int Bool)</code> maps every Int to a Bool.</dd>
   <dt id="g-axiom">axiom</dt>
-  <dd>A statement accepted without proof. A trustworthy certificate adds none of its own.</dd>
-  <dt id="g-boolean">Boolean</dt>
-  <dd>The sort with exactly two values, true and false. SMT-LIB calls it <code>Bool</code>.</dd>
+  <dd>A statement Lean accepts without proof. Adding one widens what must be trusted.</dd>
+  <dt id="g-boolean">Boolean (Bool)</dt>
+  <dd>The sort with exactly two values, true and false.</dd>
   <dt id="g-clause-log">clause log</dt>
-  <dd>A record, written by Z3 while solving, of the clauses it learned and the theory lemmas behind them. A clause is a disjunction of literals.</dd>
+  <dd>The record Z3 writes while solving: each learned clause, plus a hint naming the theory step that justifies it. A clause is a disjunction of literals, such as <code>x = 1 or y &lt; 0</code>.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results: if <code>i = j</code>, then <code>a[i] = a[j]</code>.</dd>
   <dt id="g-constant-array">constant array</dt>
-  <dd>An array with the same element at every index, such as <code>((as const (Array Int Int)) 5)</code>.</dd>
-  <dt id="g-default">default value</dt>
-  <dd>The element an array holds at all but finitely many indices. Z3's array solver uses it to reason about constant arrays.</dd>
-  <dt id="g-embedding">embedding</dt>
-  <dd>A one-to-one translation of values from one structure into another that keeps the operations meaningful.</dd>
+  <dd>An array with the same value at every index, written <code>((as const (Array Int Int)) 5)</code>. Its default value is that constant.</dd>
+  <dt id="g-euf">EUF</dt>
+  <dd>Equality with uninterpreted functions: the theory of equality and congruence over function symbols with no fixed meaning.</dd>
+  <dt id="g-exporter">exporter</dt>
+  <dd>The script that runs Z3 on an input and writes the certificate, a JSON file with the terms and proof steps.</dd>
   <dt id="g-extensionality">extensionality</dt>
-  <dd>The rule that two arrays are equal if they agree at every index. If they differ, a <em>witness</em> index shows where.</dd>
-  <dt id="g-fragment">fragment</dt>
-  <dd>A named family of SMT inputs. QF_ALIA means quantifier-free arrays with linear integer arithmetic.</dd>
+  <dd>The rule that two arrays are equal if they agree at every index. When they differ, a witness index shows where.</dd>
   <dt id="g-function-type">function type</dt>
-  <dd>The Lean type of functions, written <code>A -&gt; B</code>. <code>Int -&gt; (Int -&gt; Int)</code> returns a function for each integer.</dd>
-  <dt id="g-ite">if-then-else term</dt>
-  <dd>A term that picks one of two values by a condition, written <code>(ite c x y)</code> in SMT-LIB.</dd>
+  <dd>A Lean type of functions, written <code>A -&gt; B</code>. <code>Int -&gt; (Int -&gt; Int)</code> takes an Int and returns a row.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A Lean tactic that combines congruence, case splits, and arithmetic to close a goal.</dd>
+  <dt id="g-ite">if-then-else term (ite)</dt>
+  <dd>A term that picks one of two values by a condition, written <code>(ite c x y)</code>.</dd>
   <dt id="g-kernel">kernel</dt>
-  <dd>The small core of Lean that finally checks every proof. Trust rests on it.</dd>
+  <dd>Lean's small core that checks every proof term. It is the part that must be trusted.</dd>
   <dt id="g-lemma">lemma</dt>
-  <dd>A helper theorem proved on the way to the main result. Here, each step of Z3's proof becomes one lemma.</dd>
-  <dt id="g-map">map</dt>
-  <dd>An operator that applies a function at every index, such as <code>((_ map not) s)</code>. Set operators are maps over Boolean arrays.</dd>
+  <dd>A small proved statement used by a larger proof. Each proof step here becomes one lemma.</dd>
+  <dt id="g-logic">logic (SMT-LIB)</dt>
+  <dd>A named fragment of SMT-LIB. QF_ALIA means quantifier-free arrays and linear Int arithmetic, and QF_AUFLIA adds uninterpreted functions.</dd>
+  <dt id="g-map">map (array map)</dt>
+  <dd>An operator that applies a function at every index, such as <code>((_ map not) s)</code>. Set union and complement are maps.</dd>
+  <dt id="g-nested-array">nested array</dt>
+  <dd>An array whose index or element sort is itself an array sort, such as a matrix <code>(Array Int (Array Int Int))</code>.</dd>
+  <dt id="g-read-over-write">read-over-write</dt>
+  <dd>The rule that reading index <code>j</code> after a write at <code>i</code> gives the written value if <code>j = i</code>, and the old value otherwise.</dd>
+  <dt id="g-reconstructor">reconstructor</dt>
+  <dd>The script that turns a certificate into a Lean file whose main theorem states the refutation.</dd>
   <dt id="g-refutation">refutation</dt>
   <dd>A proof that a set of assertions leads to <code>False</code>.</dd>
-  <dt id="g-rewriter">rewriter</dt>
-  <dd>The part of Z3 that simplifies terms, for example a read right after a write at the same index.</dd>
-  <dt id="g-select">select</dt>
-  <dd>The array read operation. <code>(select a i)</code> is the element of <code>a</code> at index <code>i</code>.</dd>
+  <dt id="g-sat">sat</dt>
+  <dd>Satisfiable: some assignment makes all assertions true. A sat input has no refutation to certify.</dd>
+  <dt id="g-select">select (read)</dt>
+  <dd>The array read <code>(select a i)</code>, the value of <code>a</code> at index <code>i</code>.</dd>
   <dt id="g-set">set</dt>
-  <dd>An array with Boolean elements. <code>(select s x)</code> is true when <code>x</code> belongs to <code>s</code>.</dd>
+  <dd>An array with Bool elements, such as <code>(Array Int Bool)</code>. The index is a member when the value is true.</dd>
   <dt id="g-sort">sort</dt>
-  <dd>The type of a value, such as Int, Real, Bool, or <code>(Array Int Int)</code>.</dd>
+  <dd>The type of a value in SMT-LIB, such as Int, Real, Bool, or <code>(Array Int Int)</code>.</dd>
+  <dt id="g-sorry">sorry</dt>
+  <dd>A Lean placeholder that skips a proof. A file containing it proves nothing.</dd>
   <dt id="g-soundness">soundness</dt>
-  <dd>The guarantee that a checker only accepts true claims. An unsound step could certify a wrong unsat answer.</dd>
-  <dt id="g-store">store</dt>
-  <dd>The array write operation. <code>(store a i v)</code> is <code>a</code> with index <code>i</code> changed to <code>v</code>.</dd>
+  <dd>The property that a checker accepts only true statements. A soundness gap could let a false unsat through.</dd>
+  <dt id="g-store">store (write)</dt>
+  <dd>The array write <code>(store a i v)</code>, a new array equal to <code>a</code> except that index <code>i</code> holds <code>v</code>.</dd>
   <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that builds a proof automatically. <code>grind</code> and <code>omega</code> are tactics.</dd>
+  <dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> for integer arithmetic.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The line between what is checked and what is trusted. Here the theorem's hypotheses are bound to the original input, and only Lean's kernel is trusted.</dd>
   <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
-  <dd>A sort declared with only a name, like <code>(declare-sort U 0)</code>. Nothing is known about its values except equality.</dd>
+  <dd>A sort declared with no fixed meaning, such as <code>(declare-sort U 0)</code>. Only equality between its values is known.</dd>
 </dl>
-</section>
 
 <footer>
-  Generated by the Lean certificate improvement loop on 2026-11-05.
+Generated by the Lean certificate improvement loop on 2026-11-05.
 </footer>
 
 </body>
