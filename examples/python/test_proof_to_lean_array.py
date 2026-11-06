@@ -2359,6 +2359,19 @@ class TestArrayValidation(unittest.TestCase):
             with self.subTest(head=head):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
                     terms.build([["_", "map", head]] + arguments)
+        # A built-in that z3py does not define on the elements is rejected, not a TypeError.
+        assertions, _ = proof_certificate.parse_assertions("""(declare-sort E 0)
+(declare-fun s () (Array Int Bool))
+(declare-fun e () (Array Int E))
+(assert (select s 0))
+(assert (= (select e 0) (select e 1)))
+(check-sat)
+""", context, integer=True)
+        terms = proof_clause_log._Terms(context, assertions)
+        for head, arguments in (("-", ["s"]), ("<=", ["e", "e"]), ("not", ["e"])):
+            with self.subTest(head=head, arguments=arguments):
+                with self.assertRaisesRegex(proof_certificate.ProofExportError, "ill-sorted map in the clause log"):
+                    terms.build([["_", "map", head]] + arguments)
 
     def test_the_replay_reads_constant_arrays(self):
         context = z3.Context()

@@ -1709,12 +1709,13 @@ evaluates the read of a map below it (`(select (store ((_ map not) s) 1
 false) 0)` is `(not (select s 0))`) with no read term of the map, so such
 a read now gets the map's read facts too (`_skipped_to_map`), and a read
 of a map goes on through the stores below it the same way.
-Multiplication, conversions, n-ary functions, and maps over arrays of
+Multiplication, conversions, uninterpreted functions of four or more
+arguments, connectives of three or more arguments, and maps over arrays of
 arrays stay rejected. Tests: `MAP_FUNCTION_INPUTS` (29 inputs, Lean), `test_map_function_encoding`,
 `test_tampered_map_functions_are_rejected`, `test_the_replay_reads_maps`,
 and seven more cases in `test_map_facts_are_needed`; of 200 random map
-inputs (`state/iter-078/scratch/sweep.py`), all 90 unsat ones that export
-verify in Lean, and 2 more are rejected explicitly (they need the
+inputs from a one-off sweep (not part of the repository), all 90 unsat ones
+that export verify in Lean, and 2 more are rejected explicitly (they need the
 default-map axiom). z3test's maps of
 arithmetic (`t155.smt2`, `t154.smt2`) are sat or use `eval`/options, so no
 z3test file newly certifies.

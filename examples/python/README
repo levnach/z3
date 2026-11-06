@@ -170,8 +170,8 @@ Int), see below), and an index or element sort may itself be such an array
 ((Array Int (Array Int Int)), (Array (Array Int Int) Bool), nested to any
 depth); arrays
 with several indices, constant arrays and default values over other index
-sorts, default values that are arrays, maps of other functions (*, conversions)
-or over arrays of arrays, and as-array are rejected. Integer
+sorts, default values that are arrays, maps of other functions (*, conversions,
+uninterpreted functions of four or more arguments) or over arrays of arrays, and as-array are rejected. Integer
 div, mod, and rem by zero or by a term (SMT-LIB leaves division by zero
 uninterpreted, where Lean's Int division is total; a term divisor is
 nonlinear), and Int

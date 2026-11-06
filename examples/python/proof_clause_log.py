@@ -425,7 +425,9 @@ class _Terms:
                         raise ProofExportError("unsupported map function in the clause log: %s" % head[2])
                     function = application.decl()
                 result = z3.Map(function, *arguments)
-            except z3.Z3Exception:
+            except (z3.Z3Exception, TypeError):
+                # z3py raises TypeError for an operator it does not define
+                # on the elements (unary - of Bool, <= of an uninterpreted sort).
                 raise ProofExportError("ill-sorted map in the clause log") from None
             map_parameters(result)
             return result

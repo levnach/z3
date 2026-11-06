@@ -2840,8 +2840,8 @@ def _map_identities(graph, node, inline):
     """The identities of a map or set operator node that Z3's euf solver or rewriter may apply.
 
     Maps of and and or commute (euf's congruence closure) and are
-    idempotent, so do maps of other commutative functions (_COMMUTATIVE_MAPS),
-    a double complement cancels, a set difference is the map of
+    idempotent, maps of the other commutative functions (_COMMUTATIVE_MAPS)
+    commute too, a double complement cancels, a set difference is the map of
     and over the first set and the complement of the second (by rfl), a map
     of constant arrays is the constant array of the function's value, and
     a map of stores at one
