@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #77: Certify maps of functions, arithmetic, and ite in Lean via clause log</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1d1f23; --muted: #5b616b; --line: #d8dce2;
+  --code-bg: #f3f5f8; --accent: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --tag-bg: #fff4d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171b; --fg: #e4e6ea; --muted: #9aa1ab; --line: #343a43;
+    --code-bg: #1f2329; --accent: #6cb4ff; --ok: #4ac26b; --warn: #d4a72c; --tag-bg: #3a3020;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: .4rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--accent); }
+.meta { color: var(--muted); font-size: .95rem; }
+.tag { display: inline-block; background: var(--tag-bg); color: var(--warn); border-radius: 4px; padding: 0 .45rem; font-weight: 600; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; background: var(--code-bg); padding: 0 .2em; border-radius: 3px; }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .82rem; line-height: 1.4; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+th, td { border: 1px solid var(--line); padding: .35rem .5rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.pending { color: var(--warn); font-weight: 600; }
+.explain { color: var(--muted); margin-top: -.3rem; }
+dt { font-weight: 600; margin-top: .6rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: .6rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify maps of functions, arithmetic, and ite in Lean via clause log</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/77">levnach/z3#77</a> into <code>master</code>
+· State: <span class="tag">OPEN</span>
+· Date: 2026-11-06T08:42:55Z
+· Loop iteration 78
+</p>
+<p>This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/5b077fd3fc9c5b664e0ce24b51121eff09804281"><code>5b077fd</code></a>.
+The PR holds two commits, and this report covers both.</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>Before this PR, the pipeline could certify an <a href="#g-array-map">array map</a> only when the mapped
+function was one of the <a href="#g-connective">connectives</a> <code>not</code>, <code>and</code>, <code>or</code>, or <code>=&gt;</code>.
+Now it also certifies maps of <code>xor</code>, <code>=</code>, <code>distinct</code>, integer and real
+<a href="#g-arithmetic">arithmetic</a> (<code>+</code>, <code>-</code>, and the comparisons), the
+<a href="#g-ite">if-then-else term</a>, and <a href="#g-uf">uninterpreted functions</a> and
+<a href="#g-predicate">predicates</a> of up to three arguments.
+The elements may be of an <a href="#g-uninterpreted-sort">uninterpreted sort</a>, Int, Real, or
+<a href="#g-boolean">Boolean</a>.
+These inputs go through the <a href="#g-clause-log">clause log</a>, and Lean's
+<a href="#g-kernel">kernel</a> checks the resulting <a href="#g-refutation">refutation</a>.
+The PR also closes a gap in the <a href="#g-select">read</a> facts: a read that the
+<a href="#g-rewriter">rewriter</a> pushed past a <a href="#g-store">store</a> into a map now gets its facts.
+The <a href="#g-trust-boundary">trust boundary</a> is unchanged: no <code>sorry</code> and no new
+<a href="#g-axiom">axiom</a>.</p>
+
+<h2>Background</h2>
+<p>The previous PR, #74, added maps over sets, but only for the four connectives.
+Every other map was rejected with the message "maps are supported over the connectives not, and, or, =&gt; only".
+That happened even though Z3 solves such inputs, for example a map of <code>&lt;=</code> as in z3test's <code>t155.smt2</code>.
+Arrays over Bool indices (#75) and nested arrays (#76) were already certified.
+This PR serves Milestone 4, "Broader theories and integration", where
+<a href="#g-array">arrays</a> are one of the listed extensions.</p>
+
+<h2>What changed</h2>
+<ul>
+<li>You can now certify a map of an uninterpreted function or predicate with one, two, or three arguments, even when the input never applies that function directly.</li>
+<li>You can now certify maps of integer and real <code>+</code>, <code>-</code>, <code>&lt;=</code>, <code>&lt;</code>, <code>&gt;=</code>, <code>&gt;</code>, and of <code>xor</code>, <code>=</code>, <code>distinct</code>, and <code>ite</code>.</li>
+<li>Maps of the commutative functions (<code>xor</code>, <code>=</code>, <a href="#g-distinct"><code>distinct</code></a>, <code>+</code>) get a <a href="#g-commutativity">commutativity</a> fact, so "f of a and b equals f of b and a" can be proved for the whole array.</li>
+<li>A read that the rewriter evaluates below a skipped store now gets the map's read facts, so three inputs from a random sweep that failed in Lean now verify.</li>
+<li>A tampered certificate cannot swap the mapped function or its signature, because the reconstructor ties it to the input's own symbol.</li>
+<li>A malformed clause log with an ill-sorted map head is now rejected with a clean error instead of a Python crash.</li>
+</ul>
+<p>By component: the exporter (<code>proof_certificate.py</code>) now names the mapped function and checks its <a href="#g-sort">sorts</a>.
+The clause-log replay (<code>proof_clause_log.py</code>) rebuilds built-in map heads that Z3 logs without a signature.
+The reconstructor (<code>proof_to_lean.py</code>) makes Lean's <code>_map1</code> and <code>_map2</code> work for any element types and adds <code>_map3</code> for three arrays.
+Think of a map as a cookie cutter applied at every index: the reconstructor now accepts any cutter shape, not only four.</p>
+
+<table>
+<thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">277</td><td class="num">83</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="num">395</td><td class="num">14</td></tr>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">59</td><td class="num">27</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">25</td><td class="num">13</td></tr>
+<tr><td><code>examples/python/README</code></td><td class="num">17</td><td class="num">5</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">36</td><td class="num">1</td></tr>
+<tr><th>Total (6 files)</th><th class="num">809</th><th class="num">143</th></tr>
+</tbody>
+</table>
+
+<h2>Worked example</h2>
+<p>This input is the PR's test <code>map_comparison</code>.
+It has the same shape as z3test's <code>t155.smt2</code>.
+The array <code>c</code> holds, at every index, whether <code>a</code> is at most <code>b</code> there.
+At index 3 that is <code>4 &lt;= 5</code>, which is true, yet the last assertion says it is false.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-fun a () (Array Int Int))
+(declare-fun b () (Array Int Int))
+(declare-fun c () (Array Int Bool))
+(assert (= c ((_ map (&lt;= (Int Int) Bool)) a b)))
+(assert (= (select a 3) 4))
+(assert (= (select b 3) 5))
+(assert (not (select c 3)))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the exporter at the PR's base commit</h3>
+<pre><code>proof_certificate.py: error: maps are supported over the connectives not, and, or, =&gt; only: ((_ map &lt;=) a b)</code></pre>
+<p class="explain">The old exporter stopped here with exit code 2, so no certificate and no Lean file existed.</p>
+
+<h3>(c) After: the Lean file the reconstructor generates</h3>
+<pre><code>def _map2 {I E F G : Type} (f : E -&gt; F -&gt; G) (a : I -&gt; E) (b : I -&gt; F) : I -&gt; G := fun _i =&gt; f (a _i) (b _i)
+...
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := _m.arrs_ii 1
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := _m.arrs_ii 2
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := (_map2 (fun (_v0 : Int) (_v1 : Int) =&gt; (_v0 &lt;= _v1)) (term_1 _atoms _vars _m) (term_2 _atoms _vars _m))
+...</code></pre>
+<p class="explain">The arrays <code>a</code> and <code>b</code> become Lean functions, and the map becomes <code>_map2</code> of a <a href="#g-lambda">lambda</a> that compares two integers.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_4 _atoms _vars _m))
+    (_h1 : (formula_8 _atoms _vars _m))
+    (_h2 : (formula_11 _atoms _vars _m))
+    (_h3 : (formula_13 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p class="explain">The theorem says that the four assertions together imply <code>False</code>, for every interpretation of the symbols.</p>
+
+<pre><code>private theorem th_lemma_58 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_48 _atoms _vars _m) := by
+  unfold formula_48 formula_40 formula_28 term_9 term_6 term_5
+  have _t3 : (term_3 _atoms _vars _m) = (_map2 (fun (_v0 : Int) (_v1 : Int) =&gt; (_v0 &lt;= _v1)) ((term_1 _atoms _vars _m)) ((term_2 _atoms _vars _m))) := rfl
+  have _m40 : _select ((term_3 _atoms _vars _m)) (((3 : Int))) = ((_select ((term_1 _atoms _vars _m)) (((3 : Int)))) &lt;= (_select ((term_2 _atoms _vars _m)) (((3 : Int))))) := rfl
+  first | omega | grind (splits := 64)</code></pre>
+<p class="explain">This <a href="#g-lemma">lemma</a> states that reading the map at 3 equals <code>a[3] &lt;= b[3]</code>, proved by <code>rfl</code> and closed by a <a href="#g-tactic">tactic</a>.</p>
+
+<p>The generated file has 318 lines.
+<code>./scripts/check_lean.sh</code> accepted it: "Build completed successfully" and "Lean checks passed."</p>
+
+<h2>How it was verified</h2>
+<p>In plain terms: every test suite the PR ran passed.
+The 29 new map inputs all export, reconstruct, and pass the Lean check.
+A one-off sweep of 200 random map inputs found no failure among the unsat inputs that export.
+The reviewer checked 13 more edge cases by hand, and all passed.</p>
+
+<table>
+<thead><tr><th>Check (run on the final commit)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">OK, 420 tests</td></tr>
+<tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">OK, 110 tests</td></tr>
+<tr><td>Lean build, <code>check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td class="ok">OK, 48 tests</td></tr>
+<tr><td>Matrix, legacy proof object, Boolean inputs</td><td class="ok">6/6 lean-verified</td></tr>
+<tr><td>Matrix, clause log, LRA inputs</td><td class="ok">8/8 lean-verified</td></tr>
+<tr><td>Random map sweep, 200 seeds (one-off, not in the repository)</td><td>90/90 exported unsat inputs verified, 2 rejected explicitly</td></tr>
+<tr><td>Reviewer's extra edge-case inputs</td><td class="ok">13/13 kernel-checked</td></tr>
+<tr><td>This report's worked example</td><td class="ok">Lean checks passed</td></tr>
+</tbody>
+</table>
+<p>No C++ changed, so <code>test-z3</code> and the benchmark tests were not run.
+<code>#print axioms</code> showed only Lean's standard axioms.</p>
+<p><strong>Local gate.</strong> The loop's local gate was still running when this report was written.
+Its result has not been recorded, so this page makes no claim about it.</p>
+<p><strong>GitHub CI.</strong> No CI status had been recorded for this PR when the report was written.
+The loop ran the local gate instead of waiting for CI, because the change touches only paths the gate covers.
+There were no CI fix rounds.</p>
+<table>
+<thead><tr><th>Workflow</th><th>Job and step</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>.github/workflows/ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, "Check native proofs in Lean"</td><td class="pending">Unknown at writing. See <a href="https://github.com/levnach/z3/pull/77/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+
+<h2>Review</h2>
+<p>The reviewer approved the PR with no blocker and no major finding.</p>
+<ul>
+<li><strong>Minor: a crash on a malformed log.</strong>
+The reviewer fed the replay a clause log with an ill-sorted map head, such as <code>&lt;=</code> over an uninterpreted sort.
+Z3 never logs such a head, but a tampered log could.
+The replay crashed with a Python <code>TypeError</code> instead of a clean rejection.
+Nothing reached Lean, so this was not a soundness problem.
+It was fixed: the error is now caught and reported as a rejected map, and a regression test was added.</li>
+<li><strong>Nit: a local path in the plan.</strong>
+The plan cited a sweep script that exists only in the loop's scratch space.
+Readers could not reproduce the claim from it.
+It was fixed: the plan now describes the sweep as a one-off run outside the repository.</li>
+<li><strong>Nit: an incomplete list of rejected maps.</strong>
+The README did not say that functions of four or more arguments are rejected.
+It was fixed in the README and the plan.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li>Each commutative map adds one more <code>grind</code> call. It is cheap on the tests, but map-heavy inputs might get slow.</li>
+<li>A read of a map over a long store chain now states more facts.</li>
+<li>Map bodies copy how terms are printed elsewhere. If one printer changes and the other does not, Lean fails. That is a failure, not unsoundness.</li>
+<li>Z3's native trimmer cannot re-read map logs. Map logs of 4 KB or more fall back to a slower replay, with a warning.</li>
+<li>No z3test file newly certifies, because its other maps are sat or use <code>eval</code>.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+<li>Fix Z3's log printer in C++ so the trimmer can re-read map logs. This is in the backlog.</li>
+<li>Maps of <code>*</code>, conversions, <code>abs</code>, functions of four or more arguments, and maps over arrays of arrays remain rejected.</li>
+<li>The default-map axiom is still unsupported. Two of the sweep's unsat inputs need it.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-arithmetic">arithmetic (linear)</dt>
+<dd>Terms built from numbers, variables, <code>+</code>, <code>-</code>, and comparisons such as <code>&lt;=</code>.</dd>
+<dt id="g-array">array</dt>
+<dd>A total function from an index sort to an element sort. <code>(Array Int Bool)</code> maps each integer to true or false.</dd>
+<dt id="g-array-map">array map</dt>
+<dd>The SMT-LIB term <code>((_ map f) a b)</code>: a new array whose value at each index <code>i</code> is <code>f(a[i], b[i])</code>.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement accepted without proof. Adding new ones would weaken what a Lean check guarantees.</dd>
+<dt id="g-boolean">Boolean</dt>
+<dd>The sort with exactly two values, true and false. SMT-LIB calls it <code>Bool</code>.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of literals, such as <code>p or not q</code>.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>A record of the clauses the solver derived or added while it searched, which can be replayed step by step.</dd>
+<dt id="g-commutativity">commutativity</dt>
+<dd>The property <code>f(x, y) = f(y, x)</code>. Addition is commutative, subtraction is not.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that equal arguments give equal results: if <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+<dt id="g-connective">connective</dt>
+<dd>A Boolean operator such as <code>not</code>, <code>and</code>, <code>or</code>, <code>=&gt;</code>, or <code>xor</code>.</dd>
+<dt id="g-distinct">distinct</dt>
+<dd>The SMT-LIB predicate that is true when its arguments are pairwise different.</dd>
+<dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+<dd><code>(ite c x y)</code> has the value <code>x</code> when <code>c</code> is true and <code>y</code> otherwise.</dd>
+<dt id="g-kernel">kernel</dt>
+<dd>The small core of Lean that checks every proof. Trust in a result rests on it.</dd>
+<dt id="g-lambda">lambda</dt>
+<dd>An unnamed function written inline, such as <code>fun x y =&gt; x &lt;= y</code>.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A small proved statement used as a step in a larger proof.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atomic formula or its negation, such as <code>p</code> or <code>not p</code>.</dd>
+<dt id="g-predicate">predicate</dt>
+<dd>A function whose result is Boolean, such as <code>(p x)</code>.</dd>
+<dt id="g-select">read (<code>select</code>)</dt>
+<dd><code>(select a i)</code> is the value of array <code>a</code> at index <code>i</code>.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to a contradiction, so they cannot all be true.</dd>
+<dt id="g-rewriter">rewriter</dt>
+<dd>The part of Z3 that simplifies terms before solving, for example turning <code>(+ 1 2)</code> into <code>3</code>.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-store">store</dt>
+<dd><code>(store a i v)</code> is the array <code>a</code> with the value at index <code>i</code> replaced by <code>v</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that searches for a proof automatically, such as <code>omega</code> for integer arithmetic or <code>grind</code>.</dd>
+<dt id="g-trust-boundary">trust boundary</dt>
+<dd>The set of things a result relies on without checking them, such as Lean's kernel and its standard axioms.</dd>
+<dt id="g-uf">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. Only congruence is known about it. Example: <code>(declare-fun f (Int) Int)</code>.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+<dd>A sort declared with no built-in meaning, such as <code>(declare-sort E 0)</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+</footer>
+</body>
+</html>
