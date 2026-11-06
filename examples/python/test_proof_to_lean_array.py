@@ -781,6 +781,29 @@ SET_COMBINATOR_INPUTS = {
 (assert (select b x))
 (check-sat)
 """,
+    # A set difference kept as a term: the rewriter turns it into the map of
+    # and over the complement, a different Lean function (the _md identity).
+    "setminus_named": """(declare-fun a () (Array Int Bool))
+(declare-fun b () (Array Int Bool))
+(declare-fun c () (Array Int Bool))
+(declare-fun x () Int)
+(assert (= c (setminus a b)))
+(assert (select c x))
+(assert (select b x))
+(check-sat)
+""",
+    "setminus_as_intersection": """(declare-sort E 0)
+(declare-fun a () (Array E Bool))
+(declare-fun b () (Array E Bool))
+(assert (not (= (setminus a b) (intersection a (complement b)))))
+(check-sat)
+""",
+    "setminus_under_function": """(declare-fun f ((Array Int Bool)) Int)
+(declare-fun a () (Array Int Bool))
+(declare-fun b () (Array Int Bool))
+(assert (not (= (f (setminus a b)) (f (intersection a (complement b))))))
+(check-sat)
+""",
     "real_intersection": """(declare-fun a () (Array Real Bool))
 (declare-fun b () (Array Real Bool))
 (declare-fun x () Real)
@@ -929,9 +952,12 @@ _FRAGMENTS = {"arrays_with_integer_weights": "qf_uflia", "real_read_own_write": 
               "real_set": "qf_uflra"}
 _FRAGMENTS.update((name, "qf_uflia") for name, source in BOOL_ELEMENT_INPUTS.items()
                   if "Array Int Bool" in source)
-_FRAGMENTS.update((name, "qf_uflia" if "Array Int Bool" in source or "Int)" in source
-                   else "qf_uflra" if "Array Real Bool" in source else "qf_uf")
-                  for name, source in SET_COMBINATOR_INPUTS.items())
+# Set combinators are over Int indices (qf_uflia) except these, named
+# explicitly rather than guessed from the source text.
+_SET_COMBINATOR_FRAGMENTS = {"setminus_disjoint": "qf_uf", "setminus_as_intersection": "qf_uf",
+                             "map_equal_sets": "qf_uf", "union_of_variable_sets": "qf_uf",
+                             "union_commutes": "qf_uf", "real_intersection": "qf_uflra"}
+_FRAGMENTS.update((name, _SET_COMBINATOR_FRAGMENTS.get(name, "qf_uflia")) for name in SET_COMBINATOR_INPUTS)
 _FRAGMENTS.update((name, "qf_uflia") for name in list(ARITHMETIC_ARRAY_INPUTS) + list(CONSTANT_ARRAY_INPUTS)
                   if name not in _FRAGMENTS)
 
@@ -1341,6 +1367,16 @@ class TestArrayValidation(unittest.TestCase):
         difference = proof_to_lean.reconstruct(ARRAY_INPUTS["setminus_disjoint"],
                                                self.certificates["setminus_disjoint"])
         self.assertIn("(_map2 (fun _p _q : Prop => And _p (Not _q)) (term_", difference)
+        # Every set operator either shares its Lean function with the map
+        # Z3's rewriter turns it into or, for setminus, states the identity.
+        self.assertEqual({kind: proof_to_lean._SET_OPERATOR_FUNCTIONS[kind] for kind in
+                          (z3.Z3_OP_SET_UNION, z3.Z3_OP_SET_INTERSECT, z3.Z3_OP_SET_COMPLEMENT)},
+                         {z3.Z3_OP_SET_UNION: proof_to_lean._MAP_CONNECTIVES["or"][0],
+                          z3.Z3_OP_SET_INTERSECT: proof_to_lean._MAP_CONNECTIVES["and"][0],
+                          z3.Z3_OP_SET_COMPLEMENT: proof_to_lean._MAP_CONNECTIVES["not"][0]})
+        self.assertEqual(set(proof_to_lean._SET_OPERATOR_FUNCTIONS), set(proof_certificate.SET_OPERATORS))
+        named = proof_to_lean.reconstruct(ARRAY_INPUTS["setminus_named"], self.certificates["setminus_named"])
+        self.assertRegex(named, r"have _md\d+ : .+ = _map2 And .+ \(_map1 Not .+\) := rfl")
         implication = proof_to_lean.reconstruct(ARRAY_INPUTS["implication_map"], self.certificates["implication_map"])
         self.assertIn("(_map2 (fun _p _q : Prop => _p -> _q) (term_", implication)
         constants = proof_to_lean.reconstruct(ARRAY_INPUTS["map_of_store_and_constant"],
@@ -1741,6 +1777,7 @@ class TestArrayLeanIntegration(unittest.TestCase):
         for name, fact in (("z3test_t8", r"have _m\d+_\d+ : "), ("read_of_map_over_constants", r"have _m\d+_\d+ := "),
                            ("union_commutes", r"have _mc\d+ := "), ("complement_twice", r"have _mn\d+ := "),
                            ("intersection_idempotent", r"have _mi\d+ := "), ("map_of_stores", r"have _ms\d+ := "),
+                           ("setminus_named", r"have _md\d+ : "),
                            ("map_of_store_and_constant", r"have _mk\d+_\d+ := "),
                            ("map_of_constants", r"have _mk\d+ : ")):
             with self.subTest(name=name):

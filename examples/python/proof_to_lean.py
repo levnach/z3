@@ -2576,8 +2576,10 @@ def _map_identities(graph, node, inline):
     """The identities of a map or set operator node that Z3's euf solver or rewriter may apply.
 
     Maps of and and or commute (euf's congruence closure) and are
-    idempotent, a double complement cancels, a map of constant arrays is the
-    constant array of the connective's value, and a map of stores at one
+    idempotent, a double complement cancels, a set difference is the map of
+    and over the first set and the complement of the second (by rfl), a map
+    of constant arrays is the constant array of the connective's value, and
+    a map of stores at one
     index (constant arrays count as stores of their value there) is the
     store of the map of the arrays below (array_rewriter::mk_map_core).
     These need funext, so they are theorems (_SET_DEFINITIONS) instantiated
@@ -2593,6 +2595,12 @@ def _map_identities(graph, node, inline):
             helpers.append("  have _mi%d := %s %s" % (node, idempotent, inline(arguments[0])))
     if function == "Not" and _set_function(graph, arguments[0]) == "Not":
         helpers.append("  have _mn%d := _map1_not_not %s" % (node, inline(graph.arguments(arguments[0])[0])))
+    if graph.kind(node) == z3.Z3_OP_SET_DIFFERENCE:
+        # The rewriter turns (setminus a b) into ((_ map and) a ((_ map not)
+        # b)) (array_rewriter::mk_set_difference), a different Lean function;
+        # the other set operators share theirs with the map they become.
+        helpers.append("  have _md%d : %s = _map2 And %s (_map1 Not %s) := rfl" % (
+            node, inline(node), inline(arguments[0]), inline(arguments[1])))
     kinds = [graph.kind(argument) for argument in arguments]
     if all(kind == z3.Z3_OP_CONST_ARRAY for kind in kinds):
         helpers.append("  have _mk%d : %s = @_const_array %s Prop %s := rfl" % (

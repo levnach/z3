@@ -1603,8 +1603,8 @@ constant value is a formula, and a Bool default value is `_default ... :
 Prop`. The array solver's store axiom over a Boolean value, `(= v (select
 (store a i v) i))`, is a Bool equality (Iff); an `array` lemma may compare
 Bool terms only when some array has Bool elements. Bool indices stay
-rejected (a finite index sort), as do arrays of arrays (`map` over sets: see
-below, 2026-11-05).
+rejected (a finite index sort), as do arrays of arrays; `map` over sets is
+supported since 2026-11-05 (below).
 Along the way a gap for every element sort was closed: Z3's rewriter
 evaluates a read of a store over a constant array, `(select (store (const
 v) y w) x)`, without any read of the constant array at `x` in the
@@ -1640,7 +1640,10 @@ nested maps and into the stores and constant arrays below them, which Z3's
 rewriter evaluates in one step. The identities euf and the rewriter apply
 (commutativity and idempotence of `and`/`or` maps, double complement, maps of
 stores at one index, maps of constant arrays) are funext theorems
-instantiated per map node; each is shown necessary by
+instantiated per map node, and a `setminus` node is stated equal, by rfl, to
+the map of `and` over the complement that the rewriter turns it into
+(`setminus_named`; the other set operators share their Lean function with
+the map they become); each is shown necessary by
 `test_map_facts_are_needed`. The default-map axiom is not valid for
 `_default` (a map's arguments need not be constant almost everywhere) and is
 rejected explicitly ("the default value of a map is not certified"); input

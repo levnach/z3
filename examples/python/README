@@ -1072,7 +1072,10 @@ maps are theorems instantiated per map node: maps of and and or commute (euf
 compares them as commutative) and are idempotent, a double complement
 cancels, a map of stores at one index is the store of the map (a constant
 array counting as a store of its value), and a map of constant arrays is
-constant. The array solver's other map axiom, (default (map f a b)) = (f
+constant. The rewriter turns setminus a b into the map of and over a and the
+complement of b, a different Lean function, so each setminus node is stated
+equal to that map by rfl; union, intersection, and complement share their
+Lean function with the map they become. The array solver's other map axiom, (default (map f a b)) = (f
 (default a) (default b)), holds only for arrays constant at all but finitely
 many indices, which _default cannot assume of a map's arguments; the replay
 rejects it explicitly. The solver also introduces default values of maps over
