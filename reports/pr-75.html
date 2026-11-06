@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #75: Certify arrays over Bool indices in Lean via the clause log</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; padding: 0 .5rem; border-radius: 1rem; border: 1px solid var(--warn);
+  color: var(--warn); font-weight: 600; font-size: .85rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+  background: var(--code-bg); padding: .05rem .25rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+  overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: .82rem; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.pending { color: var(--warn); font-weight: 600; }
+.explain { color: var(--muted); margin-top: -.4rem; }
+dt { font-weight: 600; margin-top: .6rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify arrays over Bool indices in Lean via the clause log</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/75">levnach/z3#75</a> into <code>master</code>
+&middot; State: <span class="badge">OPEN</span>
+&middot; Date: 2026-11-06T03:36:31Z
+&middot; Loop iteration 76
+</p>
+<p class="meta">This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/b5621d72906ca0bc1c846a483a6b2d4229f96a10"><code>b5621d7</code></a>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Z3 can now certify <a href="#g-refutation">refutations</a> of inputs that use
+<a href="#g-array">arrays</a> whose <a href="#g-index-sort">index sort</a> is
+<a href="#g-boolean">Bool</a>, written <code>(Array Bool E)</code>, and Lean checks them.
+Before this PR, the exporter and the reconstructor both rejected such inputs outright.
+In Lean, each index becomes a <a href="#g-proposition">proposition</a>, so an array over Bool is a function from
+<code>Prop</code> to its <a href="#g-element-sort">element sort</a>.
+Two smaller gaps had to close along the way.
+Reads through a <a href="#g-store">store</a> at <code>true</code> or <code>false</code> now follow Z3's
+<a href="#g-rewriter">rewriter</a>.
+<a href="#g-unit-resolution">Unit resolution</a> now accepts a <a href="#g-literal">literal</a> under a
+<a href="#g-double-negation">double negation</a>, the way Z3's <a href="#g-sat-solver">SAT solver</a> treats it.
+This unblocks one more z3test regression file and adds no new <a href="#g-axiom">axiom</a>.</p>
+
+<h2 id="background">Background</h2>
+<p>Earlier iterations taught the pipeline <a href="#g-array">arrays</a> whose <a href="#g-index-sort">index sort</a> is an
+<a href="#g-uninterpreted-sort">uninterpreted sort</a>, Int, or Real.
+They also covered Bool as the <a href="#g-element-sort">element sort</a>, which gives
+<a href="#g-set">sets</a>, and <a href="#g-map">maps</a> over sets.
+Bool as the index sort was still refused with an "unsupported sort" error.
+That gap blocked z3test <code>regressions/smt2/5798.smt2</code> and had been on the backlog since iteration 73.
+The work serves milestone 4 of the plan, "Broader theories and integration", where arrays are one of the listed theory extensions.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>You can now export a certificate for an input that declares <code>(Array Bool E)</code>, for any supported element sort.</li>
+<li>The reconstructor now turns such an array into a Lean function over <code>Prop</code>, and the <a href="#g-extensionality">extensionality</a> <a href="#g-witness">witness</a> becomes a formula.</li>
+<li>A read at <code>true</code> past a store at <code>false</code> now gets the fact Lean needs, because the two are treated as different <a href="#g-value">values</a>, like two different numerals.</li>
+<li>A unit-resolution step that drops a double negation, turning <code>(not (not p))</code> into <code>p</code>, is now proved in Lean by contradiction instead of rejected.</li>
+<li>Twelve Bool-index inputs are now checked in Lean on every test run, and three tampered certificates are shown to be rejected.</li>
+</ul>
+<p>Think of an array over Bool as a light switch with two labelled positions.
+Lean does not see "on" and "off" as values.
+It sees statements that are either true or false, and two statements count as the same index when they are equivalent.</p>
+<p><a href="#g-constant-array">Constant arrays</a> and <code>default</code> over Bool indices are still rejected.
+So are arrays of arrays.</p>
+
+<table>
+<thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">13</td><td class="num">9</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">53</td><td class="num">16</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">198</td><td class="num">11</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests</td><td class="num">1</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">17</td><td class="num">3</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">30</td><td class="num">3</td></tr>
+<tr><th>Total, 2 commits</th><th></th><th class="num">312</th><th class="num">43</th></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This input is the test <code>bool_index_negated_stores</code> from the PR.
+It exercises both the new array sort and the new double-negation step.
+All output below comes from real runs of the old and new scripts.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-fun a () (Array Bool Int))
+(declare-fun b () (Array Bool Int))
+(declare-fun p () Bool)
+(assert (= (store a p 0) (store b (not p) 0)))
+(assert (not (= (select a (not p)) (select b p))))
+(check-sat)</code></pre>
+<p class="explain">Both stores write 0, one at <code>p</code> and one at <code>(not p)</code>.
+The two indices always differ, so <code>a</code> at <code>(not p)</code> must equal <code>b</code> at <code>p</code>.
+The second assertion denies this, so the input is unsatisfiable.</p>
+
+<h3>(b) Before this PR</h3>
+<pre><code>proof_certificate.py: error: unsupported sort: Array(Bool, Int) (only arrays over uninterpreted sorts, Int, and Real, with Bool elements too)</code></pre>
+<p class="explain">The old exporter stopped at the array sort.
+Fed the new certificate, the old reconstructor also refused it:</p>
+<pre><code>proof_to_lean.py: error: unsupported array sort: (Array Bool Int)</code></pre>
+<p class="explain">The reviewer also ran the new code with only the double-negation step switched off.
+This same input then failed with "incorrect unit-resolution conclusion at node 40".</p>
+
+<h3>(c) After this PR</h3>
+<p>The new scripts produced a 285-line Lean file, and <code>scripts/check_lean.sh</code> reported
+<span class="ok">"Lean checks passed."</span> Excerpts follow.</p>
+<pre><code>structure Interpretation where
+  ...
+  arrs_bi : Nat -&gt; Prop -&gt; Int</code></pre>
+<p class="explain">Each array over Bool with Int elements is a function from propositions to integers.</p>
+<pre><code>def term_0 ... : (Prop -&gt; Int) := _m.arrs_bi 0
+def formula_1 ... : Prop := _atoms 0
+noncomputable def term_3 ... : (Prop -&gt; Int) := (_store (term_0 _atoms _vars _m) (formula_1 _atoms _vars _m) (term_2 _atoms _vars _m))
+...
+def formula_18 ... : Prop := (Iff (formula_5 _atoms _vars _m) (formula_1 _atoms _vars _m))
+...
+def formula_21 ... : Prop := (Or (formula_19 _atoms _vars _m) (Or (formula_20 _atoms _vars _m) (formula_1 _atoms _vars _m)))</code></pre>
+<p class="explain"><code>term_3</code> is <code>(store a p 0)</code>, and the index is the formula <code>p</code> itself.
+<code>formula_18</code> says the indices <code>(not p)</code> and <code>p</code> are equal, which for propositions is <code>Iff</code>.
+<code>formula_21</code> is the <a href="#g-gate-clause">gate clause</a> <code>(or (not (= (not p) p)) (not (not p)) p)</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_7 _atoms _vars _m))
+    (_h1 : (formula_11 _atoms _vars _m))
+    : False :=</code></pre>
+<p class="explain">For every interpretation, the two assertions together imply <code>False</code>.</p>
+<pre><code>private theorem th_lemma_38 ... : (formula_37 _atoms _vars _m) := by
+  ...
+  have _s35 := _store_apply ((term_0 _atoms _vars _m)) (_atoms 0) (((0 : Int))) ((Not (_atoms 0)))
+  first | omega | grind (splits := 64)</code></pre>
+<p class="explain">This array <a href="#g-lemma">lemma</a> reads <code>(store a p 0)</code> at <code>(not p)</code>, and the <a href="#g-tactic">tactic</a> <code>grind</code> closes it.</p>
+<pre><code>  let _step_40 (_hyp18 : (formula_18 _atoms _vars _m)) : (formula_1 _atoms _vars _m) :=
+    ...
+    (Or.elim (_step_22.resolve_left (fun _literal =&gt; _literal _step_39)) (fun _literal =&gt; (@Decidable.byContradiction (formula_1 _atoms _vars _m) _df1 _literal)) (fun _tail =&gt; _tail))</code></pre>
+<p class="explain">This is the new unit-resolution step: the kept literal <code>(not (not p))</code> is turned into <code>p</code> by contradiction.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>All Python test suites and the Lean project build passed on the author's machine after the review fixes.
+That includes every new Bool-index input, each checked by Lean.
+The reviewer repeated the main suites and got the same results.
+The z3test file <code>5798.smt2</code> was also certified end to end through the regression matrix.</p>
+<table>
+<thead><tr><th>Local command (reported in the PR)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><code>unittest test_proof_to_lean_array.py</code></td><td class="ok">OK, 32 tests, 139 s, Lean ran</td></tr>
+<tr><td><code>unittest discover -p 'test_proof_to_lean*.py'</code></td><td class="ok">OK, 412 tests, 1736 s</td></tr>
+<tr><td><code>unittest discover -p 'test_proof_certificate.py'</code></td><td class="ok">OK, 110 tests, 14 s</td></tr>
+<tr><td><code>./scripts/check_lean.sh</code></td><td class="ok">Build completed, Lean checks passed</td></tr>
+<tr><td>z3test <code>scripts/proofs</code> tests</td><td class="ok">OK, 48 tests</td></tr>
+<tr><td><code>proof_matrix.py --lean</code>, cell <code>smt-clause-log-nopp</code>, <code>5798.smt2</code></td><td class="ok">1/1 lean-verified</td></tr>
+<tr><td><code>proof_matrix.py --lean</code>, cell <code>legacy-proof-object</code>, Boolean inputs</td><td class="ok">6/6 lean-verified</td></tr>
+<tr><td><code>proof_matrix.py --lean</code>, cell <code>smt-clause-log-nopp</code>, <code>lra_*.smt2</code></td><td class="ok">8/8 lean-verified</td></tr>
+</tbody>
+</table>
+<p>The last two rows check that the unit-resolution change does not break other proof paths.
+No C++ code changed, so the C++ build and <code>test-z3</code> were not re-run.</p>
+<p>The loop's local gate was still running when this page was written, and its result is not recorded here.
+No CI status was available to the reporter either.
+CI results are therefore unknown at this time, and the local tests above do not imply them.</p>
+<table>
+<thead><tr><th>CI workflow / job</th><th>Check</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>ci.yml</code>, "Ubuntu build - cmake - releaseClang"</td><td>"Lean reconstruction tests", which runs the new tests</td><td class="pending">Unknown when written</td></tr>
+<tr><td>manylinux wheel job</td><td>Runs only <code>test_proof_to_lean.py</code> and <code>test_proof_certificate.py</code></td><td class="pending">Unknown when written</td></tr>
+</tbody>
+</table>
+<p>Live results are on the <a href="https://github.com/levnach/z3/pull/75/checks">PR checks page</a>.
+There were no CI fix rounds recorded.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR, with no blocker or major findings.
+They also tested beyond the suite.
+They switched off the new unit-resolution path in a scratch copy, and exactly one input failed, the negated-stores one.
+That shows the new path is really needed.
+They also ran six extra Bool-index inputs through Lean, and all passed.</p>
+<table>
+<thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+<tbody>
+<tr><td>minor</td><td>Docs promised functions over Bool-indexed arrays, but no test had one.</td><td>Fixed with a new test input</td></tr>
+<tr><td>nit</td><td>One sentence in the plan mixed tenses and had an over-long line.</td><td>Fixed by rewording</td></tr>
+</tbody>
+</table>
+<p><strong>The missing test.</strong>
+The docs said <a href="#g-uninterpreted-function">uninterpreted functions</a> could take an array over Bool as an argument.
+The reviewer looked for a test and found none.
+An older test that rejected such a function had been changed to use a nested array instead.
+So a later change could break this case and CI would not notice.
+The reviewer tried the case by hand, and it already worked.
+The author added it as a permanent input, <code>function_over_bool_indexed_arrays</code>, plus checks on the Lean text it produces.</p>
+<p><strong>The wording.</strong>
+A sentence in the plan document mixed past and present tense, and one line was too long.
+The author reworded and rewrapped it.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>The unit-resolution change affects every proof path, including the legacy one. It only accepts more, in one narrow shape. Lean still checks each proof, and a tamper test confirms that a wrong conclusion is rejected.</li>
+<li><code>grind</code> must connect Bool equalities, rendered as <code>Iff</code>, to equalities of propositions inside the store facts. It worked on every input tried, but all of them were small.</li>
+<li>Other rules that compare literals exactly may hit the same double-negation shape, for example with Bool arguments to uninterpreted functions. No failing input has been seen yet.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Constant arrays and <code>default</code> over Bool indices. These need a model of how the array solver handles a finite index sort.</li>
+<li>A small fuzz run over Bool-argument inputs with nested <code>not</code>, as the reviewer suggested.</li>
+<li>Other z3test files with Bool-indexed arrays are still blocked by unrelated features, such as nested arrays, <code>maximize</code>, and <code>:opt.priority</code>.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-array">array</dt>
+<dd>A value that maps each index to an element, like a table with one row per index. Its sort is written <code>(Array I E)</code>.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement accepted without proof. A trustworthy certificate adds none of its own.</dd>
+<dt id="g-boolean">Boolean (Bool)</dt>
+<dd>The sort with exactly two values, <code>true</code> and <code>false</code>.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of literals, true when at least one literal is true. Example: <code>(or p (not q))</code>.</dd>
+<dt id="g-constant-array">constant array</dt>
+<dd>An array with the same element at every index, written <code>((as const (Array I E)) v)</code>.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that applying the same function to equal arguments gives equal results. If <code>a = b</code>, then <code>(h a) = (h b)</code>.</dd>
+<dt id="g-double-negation">double negation</dt>
+<dd>A formula negated twice, <code>(not (not p))</code>. In classical logic it is equivalent to <code>p</code>.</dd>
+<dt id="g-element-sort">element sort</dt>
+<dd>The sort of the values stored in an array. In <code>(Array Bool Int)</code> it is Int.</dd>
+<dt id="g-extensionality">extensionality</dt>
+<dd>The rule that two arrays are equal if they agree at every index.</dd>
+<dt id="g-gate-clause">gate clause</dt>
+<dd>A clause that links a compound formula, such as an equality, to its parts, so the SAT solver can reason about it.</dd>
+<dt id="g-index-sort">index sort</dt>
+<dd>The sort of the positions of an array. In <code>(Array Bool Int)</code> it is Bool.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A small proved fact used as a step inside a larger proof.</dd>
+<dt id="g-literal">literal</dt>
+<dd>A Boolean atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+<dt id="g-map">map</dt>
+<dd>An operator that applies a function at every index of one or more arrays, such as <code>((_ map and) a b)</code>.</dd>
+<dt id="g-proposition">proposition</dt>
+<dd>A statement that is true or false. Lean's type of propositions is <code>Prop</code>. Two equivalent propositions are equal, a principle called propositional extensionality.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to a contradiction, so they cannot all hold.</dd>
+<dt id="g-rewriter">rewriter</dt>
+<dd>The part of Z3 that simplifies terms before solving. Example: a read at 3 skips a store at 2.</dd>
+<dt id="g-sat-solver">SAT solver</dt>
+<dd>The engine that searches for an assignment of true and false to literals that makes every clause true.</dd>
+<dt id="g-select">select</dt>
+<dd>Reading an array at an index, written <code>(select a i)</code>.</dd>
+<dt id="g-set">set</dt>
+<dd>An array with Bool elements. The element at an index says whether that index is a member.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, Bool, or an array sort.</dd>
+<dt id="g-store">store</dt>
+<dd>Writing an element at one index, written <code>(store a i v)</code>. It gives a new array that differs from <code>a</code> only at <code>i</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that builds part of a proof automatically. <code>grind</code> and <code>omega</code> are tactics.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. Only <a href="#g-congruence">congruence</a> is known: equal arguments give equal results.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+<dd>A sort declared with <code>declare-sort</code>, whose values have no fixed meaning.</dd>
+<dt id="g-unit-resolution">unit resolution</dt>
+<dd>A proof rule that takes a clause and some literals known to be false, removes those, and concludes what is left.</dd>
+<dt id="g-value">value</dt>
+<dd>A fixed constant such as <code>3</code>, <code>true</code>, or <code>false</code>. Two different values are always distinct.</dd>
+<dt id="g-witness">witness</dt>
+<dd>A specific object that shows a claim holds. The extensionality witness is an index where two unequal arrays differ.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-05.
+</footer>
+</body>
+</html>
