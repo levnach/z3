@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #76: Certify nested arrays in Lean via the clause log</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; margin-bottom: 0.3rem; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2rem; }
+  h3 { margin-bottom: 0.3rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .state { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; border: 1px solid var(--ok); color: var(--ok); font-weight: 600; }
+  code { background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.9em; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; font-size: 0.85rem; }
+  table { border-collapse: collapse; margin: 0.8rem 0; width: 100%; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .explain { color: var(--muted); margin-top: -0.4rem; }
+  dt { font-weight: 600; margin-top: 0.6rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 0.6rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify nested arrays in Lean via the clause log</h1>
+  <p class="meta">
+    <a href="https://github.com/levnach/z3/pull/76">Pull request #76</a> on levnach/z3 ·
+    State: <span class="state">OPEN</span> · Opened 2026-11-06T05:58:41Z · Loop iteration 77
+  </p>
+  <p class="meta">
+    This pull request is open and <strong>not merged</strong>.
+    The change commit is
+    <a href="https://github.com/levnach/z3/commit/da425e9474d2e90bb547faa6348c3f6a231e05a7"><code>da425e9</code></a>.
+  </p>
+</header>
+
+<section>
+<h2>In one paragraph</h2>
+<p>
+  The pipeline now certifies <a href="#g-array">arrays</a> whose index <a href="#g-sort">sort</a> or element sort is itself an array, at any depth.
+  Examples are a matrix <code>(Array Int (Array Int Int))</code> and a table keyed by arrays, <code>(Array (Array Int Int) Bool)</code>.
+  Such inputs come from the QF_ALIA and QF_AUFLIA <a href="#g-fragment">fragments</a>, often from memory models of programs.
+  In Lean each nested array becomes a <a href="#g-function-type">function type</a>, such as <code>Int -&gt; (Int -&gt; Int)</code>.
+  The PR also closes two gaps in the <a href="#g-lemma">lemma</a> proofs.
+  One of them already broke a 7-line input over plain arrays.
+  No new <a href="#g-axiom">axiom</a> is added, so every certified <a href="#g-refutation">refutation</a> still rests only on theorems proved in the generated file.
+</p>
+</section>
+
+<section>
+<h2>Background</h2>
+<p>
+  Earlier PRs (#73 to #75) taught the pipeline arrays over <a href="#g-uninterpreted-sort">uninterpreted sorts</a>, Int, Real, and <a href="#g-boolean">Boolean</a> indices.
+  They also covered <a href="#g-constant-array">constant arrays</a>, <a href="#g-set">sets</a>, and <a href="#g-map">maps</a> over sets, all replayed from the <a href="#g-clause-log">clause log</a>.
+  But any array of arrays, or array indexed by arrays, was rejected by the exporter.
+  The messages were "unsupported array operator: select" or "only arrays over uninterpreted sorts, Int, Real, and Bool".
+  This PR serves milestone 4 of the plan, "Broader theories and integration", which lists arrays as a distinct extension.
+</p>
+</section>
+
+<section>
+<h2>What changed</h2>
+<ul>
+  <li><strong>Exporter.</strong> You can now export an unsat input whose arrays nest other arrays, and a <a href="#g-select">select</a> may return a whole row.</li>
+  <li><strong>Clause-log replay.</strong> The replay now reads nested sort names like <code>(Array Int (Array Int Int))</code>, also inside constant arrays.</li>
+  <li><strong>Reconstructor types.</strong> Lean now receives each nested array as a function returning a function, with a family name such as <code>arrs_iaii</code>.</li>
+  <li><strong>Reconstructor lemmas.</strong> Reads through a row that was just <a href="#g-store">stored</a> now get the facts Lean's <a href="#g-tactic">tactic</a> needs, so these proofs now check.</li>
+  <li><strong>A fix for plain arrays.</strong> A read that is both a lemma atom and a stored value is now unfolded, so the 7-line input <code>stored_read_atom</code> now verifies.</li>
+  <li><strong>Safe rejections.</strong> Maps and set operators over sets indexed by arrays are now rejected, because the <a href="#g-soundness">soundness</a> argument does not cover them.</li>
+</ul>
+<table>
+  <thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_certificate.py</code> (exporter)</td><td class="num">37</td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code> (replay)</td><td class="num">11</td><td class="num">8</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code> (reconstructor)</td><td class="num">216</td><td class="num">62</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="num">414</td><td class="num">17</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">1</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">31</td><td class="num">2</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">32</td><td class="num">0</td></tr>
+    <tr><th>Total (7 files, 2 commits)</th><th class="num">742</th><th class="num">99</th></tr>
+  </tbody>
+</table>
+</section>
+
+<section>
+<h2>Worked example</h2>
+<p>
+  This input is <code>nested_read_own_write_evaluated</code> from the PR's new tests.
+  Think of <code>a</code> as a grid of numbers.
+  We write <code>v</code> into cell <code>(i, j)</code> and read that cell back.
+  The input claims the result is not <code>v</code>, which is impossible.
+</p>
+<h3>(a) The input</h3>
+<pre><code>(declare-fun a () (Array Int (Array Int Int)))
+(declare-fun i () Int)
+(declare-fun j () Int)
+(declare-fun v () Int)
+(assert (not (= (select (select (store a i (store (select a i) j v)) i) j) v)))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the base commit</h3>
+<p>The exporter from the base commit stopped at once:</p>
+<pre><code>proof_certificate.py: error: unsupported array operator: select</code></pre>
+
+<h3>(c) After: the generated Lean file</h3>
+<p>
+  The current exporter and reconstructor produced a 118-line Lean file.
+  The reconstructor reported "Lean checked the refutation".
+  A separate run of the project's Lean check script printed "Lean checks passed."
+</p>
+<pre><code>structure Interpretation where
+  U : Type
+  ...
+  arrs_iaii : Nat -&gt; Int -&gt; (Int -&gt; Int)
+  arrs_ii : Nat -&gt; Int -&gt; Int</code></pre>
+<p class="explain">The grid sort becomes the function type <code>Int -&gt; (Int -&gt; Int)</code>, and a single row becomes <code>Int -&gt; Int</code>.</p>
+
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; (Int -&gt; Int)) := _m.arrs_iaii 0
+...
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_select (term_0 _atoms _vars _m) (term_1 _atoms _vars _m))
+...
+noncomputable def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_2 _atoms _vars _m) (term_3 _atoms _vars _m) (term_4 _atoms _vars _m))
+noncomputable def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; (Int -&gt; Int)) := (_store (term_0 _atoms _vars _m) (term_1 _atoms _vars _m) (term_5 _atoms _vars _m))</code></pre>
+<p class="explain">Each subterm gets a name: <code>term_2</code> is row <code>i</code>, <code>term_5</code> is that row with <code>v</code> stored, and <code>term_6</code> is the grid with the new row stored.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_10 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p class="explain">The main theorem says: in every interpretation, the input's assertion leads to <code>False</code>.</p>
+
+<pre><code>private theorem rewrite_16 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_15 _atoms _vars _m) := by
+  ...
+    | (unfold term_8 term_7 term_3 term_1
+       ...
+       have _s7 := _store_apply ((term_0 _atoms _vars _m)) (_vars 0) ((term_5 _atoms _vars _m)) (_vars 0)
+       have _n8_0 := _store_apply ((_select ((term_0 _atoms _vars _m)) (_vars 0))) (_vars 1) (_vars 2) (_vars 1)
+       first | omega | grind (splits := 64))
+  ...</code></pre>
+<p class="explain">Z3's <a href="#g-rewriter">rewriter</a> simplified the double read to <code>v</code> in one step, and this lemma checks that step. The fact <code>_s7</code> reads the new row back from the grid. The fact <code>_n8_0</code> is the new "stored row" fact: it reads cell <code>j</code> of the stored row, which never appears as its own term in the certificate.</p>
+</section>
+
+<section>
+<h2>How it was verified</h2>
+<p>
+  Every local test suite the implementer ran on the final commit passed.
+  This includes all 28 new nested-array examples, each checked by the Lean <a href="#g-kernel">kernel</a>.
+  Random two-dimensional grid puzzles also passed: every unsat one was certified.
+  The reviewer's own random sweep over arrays indexed by arrays had a few failures.
+  All of them came from a gap that already existed before this PR, listed under risks.
+  A dedicated test removes the new stored-row facts and confirms that Lean then fails, so those facts are really needed.
+  The formal local gate file has not been recorded for this iteration, so its result is unknown.
+</p>
+<table>
+  <thead><tr><th>Local check (PR description, review, and this report)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>All Lean reconstruction tests</td><td><span class="ok">OK</span>, 417 tests</td></tr>
+    <tr><td>Array reconstruction tests only</td><td><span class="ok">OK</span>, 37 tests</td></tr>
+    <tr><td>Exporter tests</td><td><span class="ok">OK</span>, 110 tests</td></tr>
+    <tr><td>Lean project check</td><td><span class="ok">OK</span>, "Lean checks passed."</td></tr>
+    <tr><td>z3test proof script tests</td><td><span class="ok">OK</span>, 48 tests</td></tr>
+    <tr><td>Proof matrix, Boolean regressions, legacy proof objects</td><td><span class="ok">6/6</span> Lean-verified</td></tr>
+    <tr><td>Proof matrix, linear real arithmetic regressions, clause log</td><td><span class="ok">8/8</span> Lean-verified</td></tr>
+    <tr><td>Random 2-D Int sweeps (implementer, then reviewer)</td><td><span class="ok">104 + 38</span> unsat seeds, all kernel-checked</td></tr>
+    <tr><td>Reviewer's random sweep, tables keyed by arrays, with ites</td><td><span class="warn">72 of 76</span> unsat seeds kernel-checked; the 4 failures are the pre-existing ite-over-store gap</td></tr>
+    <tr><td>Worked example above, run for this report</td><td><span class="ok">OK</span>, "Lean checks passed."</td></tr>
+  </tbody>
+</table>
+<p>
+  No CI status files were available when this report was written.
+  The CI results are therefore unknown here, and the local results above do not imply them.
+  There were no CI fix rounds on record.
+</p>
+<table>
+  <thead><tr><th>CI workflow and check</th><th>What it runs</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>ci.yml</code>, job <code>ubuntu-cmake</code>, entry <code>releaseClang</code>, step "Check native proofs in Lean"</td><td>All Lean reconstruction tests, including the new ones</td><td><span class="warn">Not recorded</span></td></tr>
+    <tr><td>Python wheel jobs</td><td>Exporter tests, no Lean needed</td><td><span class="warn">Not recorded</span></td></tr>
+  </tbody>
+</table>
+<p>Live status: <a href="https://github.com/levnach/z3/pull/76/checks">checks page of PR #76</a>.</p>
+</section>
+
+<section>
+<h2>Review</h2>
+<p>The reviewer approved the PR. There were no blocker or major findings. All four findings were resolved in the second commit.</p>
+<ol>
+  <li><strong>Minor: default rows stayed folded.</strong>
+    The reviewer wrote a 6-line input with constant arrays of rows.
+    Z3's array solver added its own <a href="#g-default">default</a> terms whose values are rows.
+    The reconstructor kept those terms opaque, so Lean's <code>grind</code> tactic failed in three lemmas.
+    This mattered because "constant arrays of arrays" was advertised as supported.
+    The fix unfolds these default terms too, and the input became the test <code>const_rows_default</code>.
+    That test fails without the fix and passes with it.</li>
+  <li><strong>Minor: the soundness argument missed maps over array-indexed sets.</strong>
+    The argument places each outer array into Lean's function space, with one fixed value at indices outside the <a href="#g-embedding">embedding</a>.
+    The reviewer noticed that <code>complement</code> flips that fixed value, so the argument no longer applies.
+    The reviewer did not think this was actually unsound.
+    The implementer chose the safe route: such maps are now rejected, and new tests check the rejection.</li>
+  <li><strong>Nit: a crash on absurdly deep sort names.</strong>
+    A tampered certificate with about 2000 nesting levels raised a Python recursion error instead of a clean rejection.
+    The parser now stops at 64 levels, and a 2000-level test checks it.</li>
+  <li><strong>Nit: a stale comment</strong> about select declarations was corrected.</li>
+</ol>
+<p>Two suggestions were left for later: stored-row facts through <a href="#g-ite">if-then-else terms</a>, and a random generator for arrays indexed by arrays.</p>
+</section>
+
+<section>
+<h2>Risks and open questions</h2>
+<ul>
+  <li><strong>A possible soundness gap in older code.</strong> The PR author reasoned, without a Lean check, that sets over uninterpreted indices (from PR #74) may have the same embedding problem as review finding 2. It would only matter if Z3 emitted a wrong unsat proof.</li>
+  <li><strong>Proof size.</strong> Stored-row facts grow with long store chains. With 12 symbolic row stores, Lean still took about 1.5 seconds. A 30-row case was not checked in Lean.</li>
+  <li><strong>Not covered yet.</strong> Reads of an if-then-else over a store fail, also for flat arrays. Constant arrays over array indices and default values that are arrays in the input stay rejected.</li>
+  <li><strong>Limited real-world coverage.</strong> All z3test regressions with nested arrays are sat, so none newly certifies. The random sweep covered only 2-D Int grids.</li>
+</ul>
+</section>
+
+<section>
+<h2>What comes next</h2>
+<ul>
+  <li>Restrict maps over uninterpreted-index sets to safe inputs, or give a different embedding.</li>
+  <li>Extend stored-row facts through if-then-else branches.</li>
+  <li>Add a random generator for arrays indexed by arrays.</li>
+</ul>
+</section>
+
+<section>
+<h2>Glossary</h2>
+<dl>
+  <dt id="g-array">array</dt>
+  <dd>A total map from an index sort to an element sort. <code>(Array Int Bool)</code> maps every integer to true or false.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. A trustworthy certificate adds none of its own.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort with exactly two values, true and false. SMT-LIB calls it <code>Bool</code>.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A record, written by Z3 while solving, of the clauses it learned and the theory lemmas behind them. A clause is a disjunction of literals.</dd>
+  <dt id="g-constant-array">constant array</dt>
+  <dd>An array with the same element at every index, such as <code>((as const (Array Int Int)) 5)</code>.</dd>
+  <dt id="g-default">default value</dt>
+  <dd>The element an array holds at all but finitely many indices. Z3's array solver uses it to reason about constant arrays.</dd>
+  <dt id="g-embedding">embedding</dt>
+  <dd>A one-to-one translation of values from one structure into another that keeps the operations meaningful.</dd>
+  <dt id="g-extensionality">extensionality</dt>
+  <dd>The rule that two arrays are equal if they agree at every index. If they differ, a <em>witness</em> index shows where.</dd>
+  <dt id="g-fragment">fragment</dt>
+  <dd>A named family of SMT inputs. QF_ALIA means quantifier-free arrays with linear integer arithmetic.</dd>
+  <dt id="g-function-type">function type</dt>
+  <dd>The Lean type of functions, written <code>A -&gt; B</code>. <code>Int -&gt; (Int -&gt; Int)</code> returns a function for each integer.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term that picks one of two values by a condition, written <code>(ite c x y)</code> in SMT-LIB.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small core of Lean that finally checks every proof. Trust rests on it.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A helper theorem proved on the way to the main result. Here, each step of Z3's proof becomes one lemma.</dd>
+  <dt id="g-map">map</dt>
+  <dd>An operator that applies a function at every index, such as <code>((_ map not) s)</code>. Set operators are maps over Boolean arrays.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>The part of Z3 that simplifies terms, for example a read right after a write at the same index.</dd>
+  <dt id="g-select">select</dt>
+  <dd>The array read operation. <code>(select a i)</code> is the element of <code>a</code> at index <code>i</code>.</dd>
+  <dt id="g-set">set</dt>
+  <dd>An array with Boolean elements. <code>(select s x)</code> is true when <code>x</code> belongs to <code>s</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, Bool, or <code>(Array Int Int)</code>.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>The guarantee that a checker only accepts true claims. An unsound step could certify a wrong unsat answer.</dd>
+  <dt id="g-store">store</dt>
+  <dd>The array write operation. <code>(store a i v)</code> is <code>a</code> with index <code>i</code> changed to <code>v</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds a proof automatically. <code>grind</code> and <code>omega</code> are tactics.</dd>
+  <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+  <dd>A sort declared with only a name, like <code>(declare-sort U 0)</code>. Nothing is known about its values except equality.</dd>
+</dl>
+</section>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-05.
+</footer>
+
+</body>
+</html>
