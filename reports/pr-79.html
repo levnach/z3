@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #79: Make clause logs with array maps readable by the proof trimmer</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d0d7de; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #30363d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+         background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: .8rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: .82rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); margin: 0; }
+  .badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; font-size: .85rem;
+           border: 1px solid var(--warn); color: var(--warn); font-weight: 600; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .note { border-left: 4px solid var(--border); padding: .2rem .8rem; color: var(--muted); }
+  dt { font-weight: 600; margin-top: .6rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Make clause logs with array maps readable by the proof trimmer</h1>
+<p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/79">levnach/z3#79</a>
+&middot; State: <span class="badge">OPEN</span>
+&middot; Opened 2026-11-06T16:44:58Z &middot; Loop iteration 79</p>
+<p class="meta">This pull request is open and not merged.
+The change it proposes is commit
+<a href="https://github.com/levnach/z3/commit/e4d7e3f783ea0a9a7f66d12a1c45fa06337978a5"><code>e4d7e3f</code></a>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Z3's <a href="#g-proof-trimmer">proof trimmer</a> could not read back any
+<a href="#g-clause-log">clause log</a> that contained an <a href="#g-array-map">array map</a>.
+The log used a mapped <a href="#g-uninterpreted-function">uninterpreted function</a> without a
+<a href="#g-declaration">declaration</a>.
+It also wrote a <a href="#g-built-in-function">built-in function</a> such as <code>&lt;=</code> without its
+<a href="#g-signature">signature</a>.
+The exporter then fell back to the untrimmed log.
+Its <a href="#g-replay">replay</a> rejects any log holding the
+<a href="#g-default-value-axiom">default-value axiom</a> of a map, even when the
+<a href="#g-refutation">refutation</a> never uses that <a href="#g-axiom">axiom</a>.
+This PR makes Z3 declare every mapped function and print every mapped built-in with its signature.
+Now the trimmer reads map logs, drops the unused axiom, and Lean checks the result.
+No Lean code changed, and the <a href="#g-trust-boundary">trust boundary</a> is the same.</p>
+
+<h2 id="background">Background</h2>
+<p>The previous PR certified maps of <a href="#g-boolean">Boolean</a> connectives, arithmetic, comparisons,
+<a href="#g-ite">if-then-else terms</a>, and uninterpreted functions through the clause log.
+Large logs go through the trimmer first, but for map logs that step always failed.
+A random map sweep in the previous iteration found two <code>unsat</code> inputs rejected for this reason.
+This PR serves milestone 4 of the plan, "Broader theories and integration", where arrays are one of the extensions.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li><strong>C++, declaration collector:</strong> a clause log now declares a mapped uninterpreted function, such as <code>f</code>, before the map that uses it.</li>
+  <li><strong>C++, clause-log printer:</strong> a map of a built-in is now written with its signature, as in <code>(_ map (&lt;= (Int Int) Bool))</code>, so Z3's own parser can read it back.</li>
+  <li><strong>Python replay:</strong> the replay reads both the old and the new map form, and rejects a logged signature that does not match the function it rebuilds.</li>
+  <li><strong>End result:</strong> map logs are now trimmed, so an unused default-value axiom no longer causes a rejection.</li>
+  <li><strong>Side effect:</strong> other printers that share the collector, such as <code>Solver.sexpr()</code>, now also declare mapped functions, so their output parses back too.</li>
+</ul>
+<p>An analogy: the old log was a recipe that said "apply <code>f</code> to every cell" but never said what <code>f</code> was.
+A cook could follow it from memory, but a second cook who only had the page could not.
+The trimmer is that second cook.</p>
+
+<table>
+  <thead><tr><th>File</th><th>Component</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/ast/decl_collector.cpp</code></td><td>C++ collector</td><td class="num">2</td><td class="num">0</td></tr>
+    <tr><td><code>src/ast/ast_smt2_pp.cpp</code></td><td>C++ printer</td><td class="num">21</td><td class="num">2</td></tr>
+    <tr><td><code>src/ast/ast_smt2_pp.h</code></td><td>C++ printer</td><td class="num">2</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Python replay</td><td class="num">26</td><td class="num">7</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Tests</td><td class="num">93</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">22</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">25</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">5</td><td class="num">0</td></tr>
+    <tr><th>Total, 8 files</th><th></th><th class="num">196</th><th class="num">10</th></tr>
+  </tbody>
+</table>
+<p>The PR has two commits.
+The first makes the change.
+The second narrows the printer change to maps after the review.</p>
+
+<h2 id="example">Worked example</h2>
+<h3>(a) The input</h3>
+<p>This is seed 151 of the previous iteration's random map sweep, which the PR's new test also uses.
+I packed the declarations onto fewer lines and dropped one unused constant.</p>
+<pre><code>(declare-fun f (Int) Int)
+(declare-fun g (Int Int) Int)
+(declare-const i Int)
+(declare-const a0 (Array Int Int)) (declare-const a1 (Array Int Int))
+(declare-const a2 (Array Int Int)) (declare-const a3 (Array Int Int))
+(declare-const p0 (Array Int Bool)) (declare-const p1 (Array Int Bool))
+(assert (not (select ((_ map (&lt;= (Int Int) Bool)) ((_ map (ite (Bool Int Int) Int)) p1 a0 a3) a3) i)))
+(assert (not (select p0 0)))
+(assert (= a1 ((_ map f) ((_ map g) a1 a2))))
+(assert (not (select ((_ map (&lt;= (Int Int) Bool)) ((_ map (ite (Bool Int Int) Int)) p1 a2 a1) ((_ map (- (Int) Int)) a1)) i)))
+(assert (select ((_ map (&lt;= (Int Int) Bool)) (store a3 1 0) (store a0 1 2)) i))
+(assert (&gt; (select (store a3 1 0) i) (select (store a0 1 2) i)))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>Most of the fix lives in the Z3 binary, and no pre-PR binary was available.
+The pre-PR Python scripts with the new binary accepted the input, because the new binary already prints a readable log.
+So I rewrote the new log to the old printing: bare heads such as <code>(_ map &lt;=)</code>, and no declarations of <code>f</code> and <code>g</code>.
+On that log, the trimmer failed:</p>
+<pre><code>(error "line 24 column 42: invalid function declaration reference, unknown function g")
+(error "line 25 column 42: invalid function declaration reference, unknown function f")
+...
+(error "line 41 column 43: invalid function declaration reference, must provide signature for builtin symbol &lt;=")
+...</code></pre>
+<p>The pre-PR exporter then fell back to the untrimmed log and rejected the input:</p>
+<pre><code>native proof trimming exited with status 1, replaying the untrimmed log: ...
+ProofExportError: the default value of a map is not certified</code></pre>
+
+<h3>(c) After</h3>
+<p>With the current code, the exporter trimmed the log without any warning.
+The reconstructor wrote a Lean file of about 490 lines, and <code>check_lean.sh</code> printed "Lean checks passed."
+The file contains no default-value axiom.</p>
+<pre><code>-- Int function 0: "g"
+-- Int function 1: "f"
+-- Array 0: "p1"
+...
+structure Interpretation where
+  ...
+  ifuns : Nat -&gt; List U -&gt; Int
+  arrs_ib : Nat -&gt; Int -&gt; Prop
+  arrs_ii : Nat -&gt; Int -&gt; Int</code></pre>
+<p>Each uninterpreted function gets a numbered slot, so <code>f</code> and <code>g</code> become <code>ifuns 1</code> and <code>ifuns 0</code>.</p>
+<pre><code>noncomputable def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_map3 (fun (_v0 : Prop) (_v1 : Int) (_v2 : Int) =&gt; (@ite Int _v0 (Classical.propDecidable _) _v1 _v2)) (term_0 _atoms _vars _m) (term_1 _atoms _vars _m) (term_2 _atoms _vars _m))
+noncomputable def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := (_map2 (fun (_v0 : Int) (_v1 : Int) =&gt; (_v0 &lt;= _v1)) (term_3 _atoms _vars _m) (term_2 _atoms _vars _m))
+...
+def term_14 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_map2 (fun (_v0 : Int) (_v1 : Int) =&gt; (_m.ifuns 0 [(_m.int _v0), (_m.int _v1)])) (term_12 _atoms _vars _m) (term_13 _atoms _vars _m))
+def term_15 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_map1 (fun (_v0 : Int) =&gt; (_m.ifuns 1 [(_m.int _v0)])) (term_14 _atoms _vars _m))</code></pre>
+<p>These are the maps the trimmed log kept: <code>ite</code>, <code>&lt;=</code>, <code>g</code>, and <code>f</code>, each applied cell by cell.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_7 _atoms _vars _m))
+    (_h1 : (formula_11 _atoms _vars _m))
+    (_h2 : (formula_16 _atoms _vars _m))
+    (_h3 : (formula_21 _atoms _vars _m))
+    (_h4 : (formula_27 _atoms _vars _m))
+    (_h5 : (formula_30 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p>The theorem says that the six assertions together imply <code>False</code>, for every interpretation.</p>
+<pre><code>private theorem rewrite_87 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_86 _atoms _vars _m) := by
+  unfold formula_86 formula_85 formula_81 formula_7 formula_6 term_5
+  first
+    | ...
+    | (unfold term_71 formula_69 term_65 term_39 term_5
+       ...
+       have _m6 : _select ((term_4 _atoms _vars _m)) (_vars 0) = ((_select ((term_3 _atoms _vars _m)) (_vars 0)) &lt;= (_select ((term_2 _atoms _vars _m)) (_vars 0))) := rfl
+       have _m6_1 : _select ((term_3 _atoms _vars _m)) (_vars 0) = (@ite Int (_select ((term_0 _atoms _vars _m)) (_vars 0)) (Classical.propDecidable _) (_select ((term_1 _atoms _vars _m)) (_vars 0)) (_select ((term_2 _atoms _vars _m)) (_vars 0))) := rfl
+       first | omega | grind (splits := 64))</code></pre>
+<p>This <a href="#g-lemma">lemma</a> reads the <code>&lt;=</code> map at index <code>i</code> as a plain comparison of the cells, and then the <a href="#g-tactic">tactics</a> <code>omega</code> or <code>grind</code> finish it.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>All local test suites passed, from native unit tests to the Lean checks.
+Every <code>unsat</code> input of the previous map sweep now verifies in Lean, including the two rejected before.
+The two <code>proof_matrix.py --lean</code> runs were skipped, because their inputs contain no maps.
+The Lean sweep ran before the review fix and was not repeated.
+No local gate record exists yet for this iteration.</p>
+<table>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Native unit tests, 10 suites, including <code>ast</code> and <code>smt2print_parse</code></td><td class="ok">10 passed, 0 failed</td></tr>
+    <tr><td>z3test SMT-LIB regressions</td><td class="ok">960 files, no failures</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="ok">112 tests OK</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code>, checks Lean</td><td class="ok">420 tests OK</td></tr>
+    <tr><td><code>./scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+    <tr><td>z3test proof scripts</td><td class="ok">48 tests OK</td></tr>
+    <tr><td>Previous map sweep, seeds 1 to 200, with trimming</td><td class="ok">92 of 92 <code>unsat</code> seeds export, no fallback</td></tr>
+    <tr><td>Same sweep, checked in Lean, before the review fix</td><td class="ok">92 of 92 lean-ok; previously 90 ok, 2 rejected</td></tr>
+    <tr><td>Documented array inputs, trimming threshold 0</td><td class="ok">305 of 305 export, no fallback</td></tr>
+    <tr><td>This report's worked example</td><td class="ok">Lean checks passed</td></tr>
+  </tbody>
+</table>
+<p>No CI status was available when this report was written, so the CI results are unknown.
+No CI fix rounds are recorded.
+The PR names the jobs where its new tests run:</p>
+<table>
+  <thead><tr><th>CI job and step</th><th>Tests it runs</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td>The two new tests in <code>test_proof_certificate.py</code></td><td class="unknown">not recorded</td></tr>
+    <tr><td><code>ubuntu</code> job, <code>releaseClang</code>, step "Check native proofs in Lean"</td><td><code>test_the_replay_reads_maps</code> via <code>ci_lean_proofs.sh</code></td><td class="unknown">not recorded</td></tr>
+  </tbody>
+</table>
+<p>See the <a href="https://github.com/levnach/z3/pull/79/checks">checks page of the PR</a> for the live results.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change, with no blocker and no major finding.</p>
+<ul>
+  <li><strong>Minor, fixed.</strong>
+  The reviewer logged small datatype inputs and found that the new printer changed them too.
+  Testers printed as <code>(_ is (nil () L))</code> instead of the standard <code>(_ is nil)</code>.
+  Z3 still read them, but other tools would see a non-standard form.
+  The fix limits signature printing to maps, and a new test pins the standard forms.</li>
+  <li><strong>Nit, fixed.</strong>
+  The plan said "Z3's other output is unchanged," but <code>Solver.sexpr()</code> now declares mapped functions.
+  The document now says so.</li>
+  <li><strong>Suggestion, not changed.</strong>
+  A map of a map, such as <code>(_ map (_ map f))</code>, still lacks an inner signature.
+  It is rare, the replay rejects it cleanly, and it is left as a follow-up.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The collector is shared, so <code>Solver.sexpr()</code> output changes for inputs with a mapped uninterpreted function. No z3test expected output contains a map.</li>
+  <li>One new test relies on Z3's search still producing the default-value axiom for seed 151. A heuristic change could break it.</li>
+  <li>Z3's general printer still prints <code>(_ map &lt;=)</code>, which Z3 cannot parse back.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Give nested maps an inner signature.</li>
+  <li>Scan other log heads, such as built-ins under a map and Skolem constants, for trimmer read failures.</li>
+  <li>Certify inputs whose refutation really needs the default-value axiom. These stay rejected for now.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-array">array</dt>
+  <dd>A value that maps every index to an element, like a table with one cell per index. <code>(Array Int Bool)</code> has Int indices and Bool elements.</dd>
+  <dt id="g-array-map">array map</dt>
+  <dd>The operator <code>(_ map f)</code>, which builds a new array by applying <code>f</code> to each cell. <code>((_ map f) a)</code> holds <code>f(a[i])</code> at every index <code>i</code>.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A fact accepted as a starting point without proof inside the system.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort <code>Bool</code>, with the two values true and false.</dd>
+  <dt id="g-built-in-function">built-in function</dt>
+  <dd>A function whose meaning is fixed by the theory, such as <code>+</code>, <code>&lt;=</code>, or <code>ite</code>. It is also called an interpreted function.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>a or not b</code>. At least one literal must be true.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A file in which the solver records each clause it adds or learns, with a hint on why it holds.</dd>
+  <dt id="g-declaration">declaration</dt>
+  <dd>A line that introduces a name with its sort or signature, such as <code>(declare-fun f (Int) Int)</code>.</dd>
+  <dt id="g-default-value-axiom">default-value axiom</dt>
+  <dd>An axiom about the value an array holds at indices that were never written. Z3 may derive it for a map during its search.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>The term <code>(ite c x y)</code>, which equals <code>x</code> when <code>c</code> is true and <code>y</code> otherwise.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A small proved statement used as a step in a larger proof.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>p</code> or <code>not p</code>.</dd>
+  <dt id="g-proof-trimmer">proof trimmer</dt>
+  <dd>A Z3 mode that reads a clause log and keeps only the steps the final contradiction depends on.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to a contradiction, so they cannot all be true.</dd>
+  <dt id="g-replay">replay</dt>
+  <dd>Re-reading a clause log step by step and rebuilding each step as a checked fact.</dd>
+  <dt id="g-signature">signature</dt>
+  <dd>The argument sorts and the result sort of a function. The signature of <code>&lt;=</code> on integers is <code>(Int Int) Bool</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, Bool, or an array sort.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>omega</code> solves integer arithmetic, and <code>grind</code> combines several reasoning methods.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that Lean has checked.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The line between parts whose output is checked and parts that must be trusted. Here the trimmer stays outside it, because every kept step is replayed and checked in Lean.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning, only a signature. The solver may pick any function that fits the assertions.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+</footer>
+</body>
+</html>
