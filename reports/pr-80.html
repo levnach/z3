@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #80: Certify enumeration datatypes in Lean through the clause log</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#1d2329;--muted:#5b6670;--accent:#0b5cad;--code:#f3f5f7;--border:#d6dbe0;--ok:#1a7f37;--warn:#9a6700}
+@media (prefers-color-scheme:dark){:root{--bg:#14171a;--fg:#e3e7eb;--muted:#9aa5b0;--accent:#6cb6ff;--code:#1f2429;--border:#353c43;--ok:#57c46b;--warn:#d6a336}}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.6}
+h1{font-size:1.6rem;line-height:1.3;margin-bottom:.3rem}
+h2{font-size:1.25rem;margin-top:2.2rem;border-bottom:1px solid var(--border);padding-bottom:.2rem}
+h3{font-size:1.05rem;margin-top:1.4rem}
+a{color:var(--accent)}
+.meta{color:var(--muted);font-size:.95rem}
+.badge{display:inline-block;padding:.05rem .5rem;border-radius:.8rem;border:1px solid var(--warn);color:var(--warn);font-weight:600;font-size:.85rem}
+code{background:var(--code);padding:.05rem .25rem;border-radius:.2rem;font-size:.92em}
+pre{background:var(--code);border:1px solid var(--border);border-radius:.3rem;padding:.7rem;overflow-x:auto;font-size:.85rem;line-height:1.4}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;margin:.8rem 0;font-size:.93rem}
+th,td{border:1px solid var(--border);padding:.3rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--code)}
+td.num{text-align:right}
+.ok{color:var(--ok);font-weight:600}
+.note{color:var(--muted);font-size:.93rem}
+dt{font-weight:600;margin-top:.6rem}
+dd{margin-left:1.2rem}
+footer{margin-top:3rem;border-top:1px solid var(--border);padding-top:.6rem;color:var(--muted);font-size:.9rem}
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify enumeration datatypes in Lean through the clause log</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/80">levnach/z3#80</a> ·
+state <span class="badge">OPEN</span> · opened 2026-11-06T20:37:23Z · loop iteration 80
+</p>
+<p>This pull request is open and <strong>not merged</strong>.
+The change it proposes ends at commit
+<a href="https://github.com/levnach/z3/commit/b3054dc30858a3823462f809b85bd88f1e455a9b"><code>b3054dc30</code></a>.</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>Inputs that declare an <a href="#g-enumeration">enumeration datatype</a> can now be certified in Lean.
+Before this PR, the frontend rejected every datatype declaration.
+Now a <a href="#g-sort">sort</a> whose <a href="#g-constructor">constructors</a> all take no arguments is accepted.
+Its constructors and <a href="#g-recognizer">recognizers</a> become ordinary terms in the Lean theorem.
+The Lean statement gains facts, read only from the input: the constructors differ, and every value equals one of them.
+The <a href="#g-datatype-hint"><code>datatype</code> hints</a> in the <a href="#g-clause-log">clause log</a> become <a href="#g-theory-lemma">theory lemmas</a> that Lean proves from those facts.
+A small C++ change was also needed.
+A <a href="#g-distinct"><code>distinct</code></a> over more terms than the sort has values used to be refuted by an empty <a href="#g-clause">clause</a> with an empty <a href="#g-hint">hint</a>, which certified nothing.
+With proofs on, Z3 now adds the pairwise <a href="#g-disequality">disequalities</a>, so the <a href="#g-refutation">refutation</a> can be checked step by step.</p>
+
+<h2>Background</h2>
+<p>Before this PR, the pipeline handled <a href="#g-uninterpreted-sort">uninterpreted sorts</a>, <a href="#g-uninterpreted-function">uninterpreted functions</a>, linear arithmetic, arrays, sets, and maps.
+Any <code>declare-datatype</code> or <code>declare-datatypes</code> command stopped the export at once.
+An earlier attempt, fork PR #67, was never merged, and later work rewrote much of its base.
+This PR redoes it on the current master.
+It serves milestone 4 of the project plan, "Broader theories and integration", which treats each new theory as its own extension.</p>
+
+<h2>What changed</h2>
+<ul>
+<li>You can now certify inputs that declare an enumeration, such as a <code>Color</code> sort with values <code>red</code>, <code>green</code>, and <code>blue</code>.</li>
+<li>You can now use recognizers, in both the <code>(_ is red)</code> form and the older <code>is-red</code> form.</li>
+<li>You can now certify a <code>distinct</code> that has more terms than the sort has values, which is a <a href="#g-pigeonhole">pigeonhole</a> argument.</li>
+<li>The clause-log replay now tells <code>(= x red)</code> and <code>(= x blue)</code> apart, which it previously could have confused.</li>
+<li>Unsupported shapes are rejected with a clear message: datatypes with fields and their <a href="#g-accessor">accessors</a>, <a href="#g-parametric">parametric datatypes</a>, arrays over an enumeration, and pigeonholes too large for Lean.</li>
+</ul>
+<p>Think of an enumeration as a traffic light.
+It has exactly three colors, no two colors are the same, and the light always shows one of them.
+The new Lean facts say exactly those two things, and nothing more.</p>
+
+<table>
+<tr><th>File</th><th>Component</th><th>Lines added</th><th>Lines removed</th></tr>
+<tr><td><code>src/sat/smt/euf_internalize.cpp</code></td><td>Z3 core, C++</td><td class="num">7</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">124</td><td class="num">8</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">52</td><td class="num">11</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstruction</td><td class="num">172</td><td class="num">17</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_enum.py</code></td><td>New tests</td><td class="num">545</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">36</td><td class="num">3</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">48</td><td class="num">0</td></tr>
+<tr><th>Total, 3 commits</th><th></th><th class="num">984</th><th class="num">40</th></tr>
+</table>
+
+<h2>Worked example</h2>
+<p>This is the <code>pigeonhole</code> input from the PR's new tests.
+Four constants must all differ, but <code>Color</code> has only three values.
+I ran it through the old and the new scripts for this page.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-datatypes ((Color 0)) (((red) (green) (blue))))
+(declare-const a Color)
+(declare-const b Color)
+(declare-const c Color)
+(declare-const d Color)
+(assert (distinct a b c d))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The exporter at the PR's base stops at the first datatype command:</p>
+<pre><code>proof_certificate.py: error: unsupported SMT-LIB command: declare-datatypes</code></pre>
+<p class="note">Without the C++ fix, the PR's <code>z3.14</code> test also failed at export: "inferred clause is not derivable by <a href="#g-unit-propagation">unit propagation</a>: False".
+That message is quoted from the PR, not rerun here.</p>
+
+<h3>(c) After</h3>
+<p>The new scripts produced a 750-line Lean file.
+<code>scripts/check_lean.sh</code> accepted it: "Lean checks passed."
+The excerpts below are trimmed.</p>
+
+<pre><code>-- Enumeration "Color" is part of _m.U with constructors "red", "green", "blue", _m.ctors 0 to 2 (enum_distinct, enum_cases_*, enum_fcases_*).
+...
+structure Interpretation where
+  U : Type
+  elems : Nat -&gt; U
+  ...
+  ctors : Nat -&gt; U
+  enum_distinct : (And (Not (ctors 0 = ctors 1)) (And (Not (ctors 0 = ctors 2)) (Not (ctors 1 = ctors 2))))
+  enum_cases_0 : (Or (elems 0 = ctors 0) (Or (elems 0 = ctors 1) (elems 0 = ctors 2)))
+  ...
+  enum_cases_3 : (Or (elems 3 = ctors 0) (Or (elems 3 = ctors 1) (elems 3 = ctors 2)))</code></pre>
+<p>The interpretation now carries the three colors as <code>ctors 0</code> to <code>ctors 2</code>, states that they differ, and states that each constant <code>a</code> to <code>d</code> is one of them.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    (_h0 : (formula_4 _atoms _m))
+    : False :=
+  ...</code></pre>
+<p>The theorem says: in any interpretation where <code>a</code>, <code>b</code>, <code>c</code>, and <code>d</code> are pairwise different, we reach <code>False</code>.</p>
+
+<pre><code>private theorem th_lemma_12 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_11 _atoms _m) := by
+  unfold formula_11 formula_10 term_9 formula_8 term_7 formula_6 term_5 term_2
+  have _ed := _m.enum_distinct
+  have _ec2 := _m.enum_cases_2
+  grind (splits := 64)</code></pre>
+<p>This lemma is one of Z3's <code>datatype</code> <a href="#g-case-split">case splits</a>, a clause of three <a href="#g-literal">literals</a>: <code>c</code> is <code>blue</code>, <code>red</code>, or <code>green</code>, and Lean's <code>grind</code> <a href="#g-tactic">tactic</a> proves it from the two new facts.</p>
+
+<h2>How it was verified</h2>
+<p>In plain terms, all old and new Lean tests pass, and about 370 random enumeration puzzles were all verified in Lean.
+Removing the C++ fix makes a test fail, which shows the fix is needed.
+The loop's separate local gate has not been recorded yet.</p>
+
+<table>
+<tr><th>Local check (from the PR)</th><th>Result</th></tr>
+<tr><td>All <code>test_proof_to_lean*.py</code> tests, final tree</td><td class="ok">438 run, OK, 6 skipped</td></tr>
+<tr><td>New enumeration tests with the slow tier on</td><td class="ok">18 run, OK</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td class="ok">112 run, OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td class="ok">48 run, OK</td></tr>
+<tr><td>Native C++ unit tests, 7 selected</td><td class="ok">7 passed, 0 failed</td></tr>
+<tr><td>z3test SMT-LIB regressions, before the review fix</td><td class="ok">960 files, no failure</td></tr>
+<tr><td>Proof matrix, two cells, before the review fix</td><td class="ok">6/6 and 8/8 Lean-verified</td></tr>
+<tr><td>Random enumeration sweeps, before the review fix</td><td class="ok">373 distinct unsat seeds, all verified</td></tr>
+<tr><td>Same tests with the C++ fix removed</td><td>z3.14 test fails at export, as expected</td></tr>
+</table>
+
+<table>
+<tr><th>CI workflow / check</th><th>Status</th><th>Link</th></tr>
+<tr><td>All checks</td><td>None reported when this page was generated</td><td><a href="https://github.com/levnach/z3/pull/80/checks">PR checks</a></td></tr>
+</table>
+<p>The new tests will run in CI in the <code>releaseClang</code> job, step "Check native proofs in Lean".
+No CI results exist yet, so none are claimed here.
+There were no CI fix rounds.</p>
+
+<h2>Review</h2>
+<p>The reviewer approved the PR with three findings and no blockers.</p>
+<ul>
+<li><strong>Minor: the pigeonhole limit was too generous.</strong>
+The reviewer built a <code>distinct</code> of 8 terms over 7 constructors.
+The exporter accepted it, but Lean ran out of memory on the result.
+That matters because users were promised a clean rejection, not a late Lean failure.
+New measurements showed that the number of terms matters too.
+The limit is now 5 constructors and 16 terms, and a slow test checks the largest accepted case.</li>
+<li><strong>Minor: proofs can now be slow for large pigeonholes.</strong>
+With proofs on, Z3 now searches the pigeonhole instead of answering instantly, and timed out at 11 constructors.
+This was accepted and documented, because the old fast answer certified nothing.
+Runs without proofs are unchanged.</li>
+<li><strong>Nit: a crash was described as current.</strong>
+On this build the exporter rejects the old empty hint rather than Z3 crashing.
+The wording now credits the crash to iteration 67's build.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li>Large pigeonholes with proofs on are now an exponential search in Z3. A counting lemma would fix this properly.</li>
+<li>Wide <code>distinct</code> terms are costly in Lean, which is why the term limit is 16.</li>
+<li>Only about 6% of the random seeds produce a <code>datatype</code> hint, so the hand-written tests carry most of the coverage.</li>
+<li>A related replay-key defect remains for maps: <code>(_ map and)</code> and <code>(_ map or)</code> can share a key. It is listed in the backlog.</li>
+</ul>
+
+<h2>What comes next</h2>
+<p>The PR lists these follow-ups: a counting lemma for the <code>distinct</code> shortcut, arrays and maps over enumerations, datatypes with fields, and enumerations on the legacy core.</p>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-accessor">accessor</dt><dd>A function that reads a field of a datatype value, such as <code>head</code> of a list. Enumerations have none.</dd>
+<dt id="g-case-split">case split</dt><dd>Reasoning by trying each possible value in turn, such as "c is red, green, or blue".</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>a = red ∨ a = blue</code>.</dd>
+<dt id="g-clause-log">clause log</dt><dd>The file Z3 writes while solving, listing each clause it learns and a hint for why it holds.</dd>
+<dt id="g-constructor">constructor</dt><dd>A function that builds a datatype value. In an enumeration every constructor is nullary, a fixed value such as <code>red</code>.</dd>
+<dt id="g-datatype-hint">datatype hint</dt><dd>The hint Z3's datatype solver attaches to a clause, such as a case split over constructors or a clash between two of them.</dd>
+<dt id="g-disequality">disequality</dt><dd>A statement that two terms differ, such as <code>a ≠ b</code>.</dd>
+<dt id="g-distinct">distinct</dt><dd>The SMT-LIB operator saying all its arguments are pairwise different. <code>(distinct a b c)</code> means a≠b, a≠c, and b≠c.</dd>
+<dt id="g-enumeration">enumeration datatype</dt><dd>A datatype whose constructors all take no arguments and which has no type parameters, such as <code>Color</code> with <code>red</code>, <code>green</code>, <code>blue</code>.</dd>
+<dt id="g-hint">hint</dt><dd>The justification attached to a clause in the clause log, telling the checker which reasoning step produced it.</dd>
+<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>a = red</code> or <code>¬(a = red)</code>.</dd>
+<dt id="g-parametric">parametric datatype</dt><dd>A datatype with a type parameter, such as a list of <code>T</code>. Not supported here.</dd>
+<dt id="g-pigeonhole">pigeonhole principle</dt><dd>If more items than boxes go into boxes, two items share a box. Four distinct constants cannot fit in three colors.</dd>
+<dt id="g-recognizer">recognizer</dt><dd>A predicate that tests which constructor built a value. <code>((_ is red) x)</code> is true exactly when <code>x</code> is <code>red</code>.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that the assertions lead to a contradiction, so they cannot all hold.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Bool</code>, or <code>Color</code>.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically. <code>grind</code> is a tactic that combines case splits and equality reasoning.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that holds because of a theory's meaning, not because of the input, such as "a Color is red, green, or blue".</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning, only the rule that equal arguments give equal results.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A sort with no fixed values, declared with <code>declare-sort</code>.</dd>
+<dt id="g-unit-propagation">unit propagation</dt><dd>Deriving a literal from a clause whose other literals are all false. The replay uses it to check each logged clause.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+</footer>
+</body>
+</html>
