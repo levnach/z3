@@ -1720,55 +1720,86 @@ def _read_cases(graph, node, child, variable_indices):
     array and the stored value of a store (_cases_store), and both branches
     of an ite. Any other array (none that the exporter admits) gives None,
     and the lemma is left to grind without the fact.
+
+    The walk is on an explicit stack (a goal is ("value", node) or ("read",
+    array, index)), so a store chain deeper than Python's recursion limit
+    gets its proof like any other (see test_proof_to_lean_deep.py), and a
+    goal two paths share is proved once.
     """
-    sort, kind, arguments = graph.decl(node).range, graph.kind(node), graph.arguments(node)
-    if kind == z3.Z3_OP_DT_CONSTRUCTOR:
-        position = graph.enumerations[sort].index(graph.decl(node).name)
-        last = position == len(graph.enumerations[sort]) - 1
-        return "(%s%s%s)" % ("Or.inr (" * position, "rfl" if last else "Or.inl rfl", ")" * position)
+    sort = graph.decl(node).range
+    proofs = {}
+    root = ("value", node)
+    pending = [root]
+    while pending:
+        goal = pending[-1]
+        if goal in proofs:
+            pending.pop()
+            continue
+        subgoals = _read_cases_subgoals(graph, goal)
+        missing = [subgoal for subgoal in subgoals if subgoal not in proofs]
+        if missing:
+            pending.extend(reversed(missing))
+            continue
+        pending.pop()
+        parts = [proofs[subgoal] for subgoal in subgoals]
+        proofs[goal] = None if None in parts else _read_cases_proof(graph, goal, parts, sort, child,
+                                                                     variable_indices)
+    return proofs[root]
+
+
+def _read_cases_subgoals(graph, goal):
+    """The goals whose proofs the proof of goal is built from (_read_cases)."""
+    kind, arguments = graph.kind(goal[1]), graph.arguments(goal[1])
+    if goal[0] == "value":
+        if kind == z3.Z3_OP_ITE:
+            return [("value", branch) for branch in arguments[1:]]
+        if kind == z3.Z3_OP_SELECT:
+            return [("read", arguments[0], arguments[1])]
+        return []
+    if kind == z3.Z3_OP_STORE:
+        return [("read", arguments[0], goal[2]), ("value", arguments[2])]
+    if kind == z3.Z3_OP_ITE:
+        return [("read", branch, goal[2]) for branch in arguments[1:]]
+    return []
+
+
+def _read_cases_proof(graph, goal, parts, sort, child, variable_indices):
+    """The proof of goal from the proofs parts of its subgoals, or None (_read_cases)."""
+    node = goal[1]
+    kind, arguments = graph.kind(node), graph.arguments(node)
+    if goal[0] == "value":
+        if kind == z3.Z3_OP_DT_CONSTRUCTOR:
+            position = graph.enumerations[sort].index(graph.decl(node).name)
+            last = position == len(graph.enumerations[sort]) - 1
+            return "(%s%s%s)" % ("Or.inr (" * position, "rfl" if last else "Or.inl rfl", ")" * position)
+        if kind == z3.Z3_OP_UNINTERPRETED:
+            index = variable_indices[graph.nodes[node].declaration]
+            if arguments:
+                return "(_m.enum_fcases_%d %s)" % (index, _application_arguments(graph, arguments, child, child))
+            return "_m.enum_cases_%d" % index
+        if kind == z3.Z3_OP_ITE:
+            return "(_cases_ite (fun _x : _m.U => %s) %s _ %s %s %s %s)" % (
+                _enumeration_cases(graph, sort, "_x"), child(arguments[0]), child(arguments[1]),
+                child(arguments[2]), parts[0], parts[1])
+        if kind == z3.Z3_OP_SELECT:
+            return parts[0]
+        return None
+    read = goal[2]
     if kind == z3.Z3_OP_UNINTERPRETED:
         index = variable_indices[graph.nodes[node].declaration]
-        if arguments:
-            return "(_m.enum_fcases_%d %s)" % (index, _application_arguments(graph, arguments, child, child))
-        return "_m.enum_cases_%d" % index
-    if kind == z3.Z3_OP_ITE:
-        branches = [_read_cases(graph, branch, child, variable_indices) for branch in arguments[1:]]
-        if None in branches:
-            return None
-        return "(_cases_ite (fun _x : _m.U => %s) %s _ %s %s %s %s)" % (
-            _enumeration_cases(graph, sort, "_x"), child(arguments[0]), child(arguments[1]), child(arguments[2]),
-            branches[0], branches[1])
-    if kind == z3.Z3_OP_SELECT:
-        return _array_read_cases(graph, arguments[0], arguments[1], sort, child, variable_indices)
-    return None
-
-
-def _array_read_cases(graph, array, read, sort, child, variable_indices):
-    """A Lean proof that the read of array at read is one of the constructors of sort, or None (_read_cases)."""
-    kind, arguments = graph.kind(array), graph.arguments(array)
-    cases = "(fun _a : %s -> _m.U => %s)" % (_array_types(graph.decl(array).range)[0], _enumeration_cases(
-        graph, sort, "_select _a %s" % child(read)))
-    if kind == z3.Z3_OP_UNINTERPRETED:
-        index = variable_indices[graph.nodes[array].declaration]
         if arguments:
             return "(_m.enum_afcases_%d %s %s)" % (
                 index, _application_arguments(graph, arguments, child, child), child(read))
         return "(_m.enum_acases_%d %s)" % (index, child(read))
     if kind == z3.Z3_OP_STORE:
-        below, value = (_array_read_cases(graph, arguments[0], read, sort, child, variable_indices),
-                        _read_cases(graph, arguments[2], child, variable_indices))
-        if below is None or value is None:
-            return None
         return "(_cases_store (fun _x : _m.U => %s) %s %s %s %s %s %s)" % (
             _enumeration_cases(graph, sort, "_x"), child(arguments[0]), child(arguments[1]), child(arguments[2]),
-            child(read), below, value)
+            child(read), parts[0], parts[1])
     if kind == z3.Z3_OP_ITE:
-        branches = [_array_read_cases(graph, branch, read, sort, child, variable_indices)
-                    for branch in arguments[1:]]
-        if None in branches:
-            return None
+        cases = "(fun _a : %s -> _m.U => %s)" % (_array_types(graph.decl(node).range)[0], _enumeration_cases(
+            graph, sort, "_select _a %s" % child(read)))
         return "(_cases_ite %s %s _ %s %s %s %s)" % (cases, child(arguments[0]), child(arguments[1]),
-                                                     child(arguments[2]), branches[0], branches[1])
+                                                     child(arguments[2]), parts[0], parts[1])
     return None
 
 
