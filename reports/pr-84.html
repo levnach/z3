@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #84: Certify Z3's rewriting of store chains over two constant arrays</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --badge-bg: #fff8c5; --badge-fg: #6f4b00;
+    --ok: #1a7f37; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --badge-bg: #3b2e00; --badge-fg: #f2cc60;
+      --ok: #3fb950; --warn: #d29922;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .badge { display: inline-block; background: var(--badge-bg); color: var(--badge-fg);
+           border: 1px solid var(--border); border-radius: 1rem; padding: 0 0.6rem; font-weight: 600; font-size: 0.85rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -0.4rem; color: var(--fg); }
+  dt { font-weight: 600; margin-top: 0.7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify Z3's rewriting of store chains over two constant arrays</h1>
+<p class="meta">
+  Pull request <a href="https://github.com/levnach/z3/pull/84">levnach/z3#84</a> into <code>master</code>
+  · State: <span class="badge">OPEN</span>
+  · Date: 2026-11-07T04:21:48Z
+  · Loop iteration 84
+</p>
+<p class="meta">
+  This pull request is open and <strong>not merged</strong>.
+  Its change commit is
+  <a href="https://github.com/levnach/z3/commit/8ff7d94b686dc3ea8e09c849ce6926979be25f9e"><code>8ff7d94b6</code></a>.
+</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+Z3's <a href="#g-rewriter">rewriter</a> decides whether two <a href="#g-store-chain">store chains</a>
+over two <a href="#g-constant-array">constant arrays</a> are equal.
+It compares their values at the stored indices and compares the two constants.
+Lean could already follow one direction of that equivalence, by <a href="#g-congruence">congruence</a>.
+The other direction needs <a href="#g-extensionality">extensionality</a>, and the
+<a href="#g-grind"><code>grind</code></a> <a href="#g-tactic">tactic</a> does not do that.
+This PR makes the reconstructor write that direction as a small proved fact inside each affected
+<a href="#g-lemma">lemma</a>.
+It also lets the <a href="#g-simp-set">simp set</a> drop an <a href="#g-ite">if-then-else term</a>
+whose two branches are equal.
+Lean used to reject the <a href="#g-refutation">refutations</a> of three randomly generated inputs. They now check.
+No new <a href="#g-axiom">axiom</a> is added, so the trusted base is unchanged.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR, the pipeline handled <a href="#g-array">arrays</a> over <code>Int</code> and <code>Real</code> indices,
+constant arrays, and several of the rewriter's evaluations of them.
+For an equality between a constant array and a <a href="#g-store">store</a>, it covered only one store
+into the same constant array.
+The previous iteration found its gaps with a generator of arrays over an
+<a href="#g-enumeration">enumeration</a> <a href="#g-sort">sort</a>.
+No random generator yet covered plain <code>(Array Int Int)</code> with constant arrays in the
+<a href="#g-qf-alia">QF_ALIA</a> logic.
+This PR adds that generator and fixes the three gaps it found.
+It serves milestone 4 of the project plan, "Broader theories and integration", which treats arrays as one
+of the extensions.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>A rewrite of <code>(= S T)</code>, for store chains S and T over constant arrays, can now be checked in Lean even when its proof needs extensionality.</li>
+  <li>This also works for chains of different lengths, and for an <code>ite</code> whose two branches are the same constant array.</li>
+  <li>Storing <code>(ite p c c)</code> into a constant array of <code>c</code> now folds back to that constant array in Lean, as it does in Z3.</li>
+  <li>Developers can generate random constant-array inputs with a new test generator, and the three seeds it broke are pinned as regression tests.</li>
+  <li>A new test shows each new fact is needed: without it, all five new hand-written inputs fail in Lean.</li>
+</ul>
+<p>
+An analogy: picture each array as an endless shelf, where a store refills one slot.
+If two shelves agree at every refilled slot and share the same background fill, they are the same shelf.
+The new <a href="#g-theorem">theorem</a> <code>_store_off</code> supplies the "untouched slots keep their fill" part.
+The PR has two commits. The second removed a code branch that no test needed.
+</p>
+<table>
+  <thead><tr><th>File</th><th>What it holds</th><th>Added</th><th>Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: new fact, new theorem, simp set</td><td class="num">84</td><td class="num">7</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>New inputs, generator, pinned seeds, tests</td><td class="num">227</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Documentation paragraph</td><td class="num">7</td><td class="num">2</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan section</td><td class="num">24</td><td class="num">0</td></tr>
+    <tr><th colspan="2">Total, 4 files</th><th class="num">342</th><th class="num">11</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+The input is the PR's new test <code>store_over_another_constant</code>, run through both versions for this report.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_ALIA)
+(declare-const x Int)
+(declare-const y Int)
+(declare-const k Int)
+(declare-const p Bool)
+(assert (or p (not (= (store ((as const (Array Int Int)) x) k y) ((as const (Array Int Int)) y)))))
+(assert (not p))
+(assert (= x y))
+(check-sat)</code></pre>
+<p class="explain">
+Storing y at index k into an array full of x gives an array full of y when x = y.
+Then the <a href="#g-literal">literal</a> <code>(not (= …))</code> is false, and <code>p</code> is false too.
+So nothing can satisfy the first <a href="#g-clause">clause</a>.
+</p>
+
+<h3>(b) Before: the PR's base</h3>
+<p>The old exporter succeeded, but Lean rejected the old reconstructor's file:</p>
+<pre><code>z3_proof_….lean:186:33: error: `grind` failed
+case grind.1
+...
+Lean checking failed; no proof was published.</code></pre>
+<p class="explain">
+The failure is in the rewrite lemma, where <code>grind</code> could not show the two arrays equal.
+</p>
+
+<h3>(c) After: this PR</h3>
+<p>The new reconstructor wrote the file below, and <strong>Lean accepted it</strong> ("Lean checks passed.").</p>
+<pre><code>-- Atom 0: "p"
+-- Variable 0: "x"
+-- Variable 1: "k"
+-- Variable 2: "y"
+...
+noncomputable def _store {I E : Type} (a : I -&gt; E) (i : I) (v : E) : I -&gt; E :=
+  fun _j =&gt; @ite E (_j = i) (Classical.propDecidable _) v (a _j)
+...
+def _const_array (I : Type) {E : Type} (v : E) : I -&gt; E := fun _ =&gt; v</code></pre>
+<p class="explain">An array is a Lean function, a store changes one index, and a constant array returns the same value everywhere.</p>
+
+<pre><code>private theorem _store_off {I E : Type} (a : I -&gt; E) (i : I) (v : E) (j : I) (h : Not (j = i)) :
+    _store a i v j = a j := by
+  simp [_store, h]</code></pre>
+<p class="explain">This new prelude theorem says that a store does not change any other index.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_9 _atoms _vars _m))
+    (_h1 : (formula_10 _atoms _vars _m))
+    (_h2 : (formula_11 _atoms _vars _m))
+    : False :=
+...</code></pre>
+<p class="explain">The final theorem says that the three assertions together imply <code>False</code>.</p>
+
+<pre><code>private theorem rewrite_17 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_16 _atoms _vars _m) := by
+  first
+    | (unfold formula_16 formula_15 formula_14 formula_13 formula_9 formula_8 formula_7 term_4 term_1 formula_0
+       ...
+       have _e7_3 : ((term_5 _atoms _vars _m)) = ((term_6 _atoms _vars _m)) -&gt; _select ((term_5 _atoms _vars _m)) (_vars 1) = _select ((term_6 _atoms _vars _m)) (_vars 1) := congrArg (fun _x =&gt; _select _x (_vars 1))
+       have _x7 : _select ((term_5 _atoms _vars _m)) (_vars 1) = _select ((term_6 _atoms _vars _m)) (_vars 1) -&gt; (_vars 0) = (_vars 2) -&gt; ((term_5 _atoms _vars _m)) = ((term_6 _atoms _vars _m)) := by intro _h0 _hv; funext _j; by_cases _c0 : _j = (_vars 1); (subst _c0; exact _h0); exact ((_store_off ((term_2 _atoms _vars _m)) (_vars 1) (_vars 2) _j _c0).trans (rfl)).trans (_hv.trans (rfl).symm)
+       ...
+       first | omega | grind (splits := 64))
+    ...</code></pre>
+<p class="explain">
+The rewrite step claims that the first assertion is equivalent to <code>(or p (not (= y x)))</code>.
+The older fact <code>_e7_3</code> is the congruence direction.
+The new fact <code>_x7</code> is the extensionality direction: if the arrays agree at index k and x = y, they are equal.
+Its proof splits on whether an index is k, and otherwise uses <code>_store_off</code>.
+</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+All proof-script test suites passed on the final tree.
+About 700 random unsatisfiable array puzzles all checked in Lean, where three had failed before.
+Eight hand-made edge cases from the reviewer passed too.
+The sweeps ran on the first commit, but the second gives byte-identical Lean text on them.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Who</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_proof_to_lean*.py</code></td><td>Implementer</td><td class="ok">454 tests OK, 6 skipped as before</td></tr>
+    <tr><td><code>test_proof_to_lean_array.py</code></td><td>Implementer, reviewer</td><td class="ok">44 tests OK</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td>Implementer, reviewer</td><td class="ok">112 tests OK</td></tr>
+    <tr><td>z3test proof scripts</td><td>Implementer, reviewer</td><td class="ok">48 tests OK</td></tr>
+    <tr><td><code>check_lean.sh</code> on the Lean project</td><td>Implementer</td><td class="ok">Passed</td></tr>
+    <tr><td>Regression matrix, legacy proof object, Boolean inputs</td><td>Implementer</td><td class="ok">6 of 6 verified in Lean</td></tr>
+    <tr><td>Regression matrix, clause log, LRA inputs</td><td>Implementer</td><td class="ok">8 of 8 verified in Lean</td></tr>
+    <tr><td>Random sweeps, 4 configurations</td><td>Implementer</td><td class="ok">528 of 528 unsat seeds verified</td></tr>
+    <tr><td>Random sweeps, 2 configurations</td><td>Reviewer</td><td class="ok">169 of 169 unsat seeds verified</td></tr>
+    <tr><td>Edge inputs</td><td>Reviewer</td><td class="ok">8 of 8 verified</td></tr>
+    <tr><td>Worked example above</td><td>This report</td><td class="ok">Lean accepted</td></tr>
+  </tbody>
+</table>
+<p>
+C++ tests were not run because no C++ changed.
+The loop's local gate has not been recorded yet for this PR.
+</p>
+<h3>Continuous integration</h3>
+<p>
+No CI results or fix rounds were recorded when this report was written, so CI status is unknown.
+The table lists the jobs the PR names. See the <a href="https://github.com/levnach/z3/pull/84/checks">PR's checks page</a> for current status.
+</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Job or check</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>.github/workflows/ci.yml</code></td><td><code>releaseClang</code>, step "Check native proofs in Lean", check "Lean reconstruction tests"</td><td class="warn">Unknown</td></tr>
+    <tr><td><code>.github/workflows/lean-proofs.yml</code></td><td>Runs the same Lean proof script</td><td class="warn">Unknown</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR. There were no blocker or major findings.</p>
+<table>
+  <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr><td>Minor</td><td>A code branch for <code>(ite p c c)</code> had no test that needed it</td><td class="ok">Fixed by removing the branch</td></tr>
+    <tr><td>Minor</td><td>A broken new fact could sink a lemma that used to pass</td><td>Not changed, follow-up</td></tr>
+    <tr><td>Nit</td><td>A new test runs Lean without a timeout</td><td>Not changed, follow-up</td></tr>
+  </tbody>
+</table>
+<p>
+<strong>The untested branch.</strong>
+The reviewer undid only the new <code>(ite p c c)</code> branch and reran the two inputs it was meant for.
+Both still passed, so the docs credited the branch with a fix it did not make.
+The implementer removed it and found identical Lean output on all 528 seeds.
+The <code>ite_self</code> simp entry did the real work, and a test still covers it.
+</p>
+<p>
+<strong>One bad fact sinks the lemma.</strong>
+The new facts sit in a block that every proof attempt of a lemma repeats.
+If one failed to check, a lemma that used to pass would fail.
+That loses a proof but never accepts a wrong one.
+The reviewer found no such case, even on a 24-store chain, which checked a little slower.
+</p>
+<table>
+  <thead><tr><th>24-store chain</th><th>Before</th><th>After</th></tr></thead>
+  <tbody><tr><td>Lean check time</td><td class="num">8.7 s</td><td class="num">11.1 s</td></tr></tbody>
+</table>
+<p>
+<strong>No timeout.</strong>
+A new test calls Lean without a time limit, so a hang would last until the CI job times out.
+Its sibling tests do the same, so the fix belongs in their shared helper.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>A new fact that fails to check would turn a passing lemma into a rejection. This hurts <a href="#g-completeness">completeness</a>, not <a href="#g-soundness">soundness</a>.</li>
+  <li>For large comparisons, the per-index read facts are dropped above a cap, but the new fact is still stated. <code>grind</code> may then lack what it needs.</li>
+  <li>The pinned seeds depend on Z3's answers and on Python's random numbers. The test checks that each seed is still unsatisfiable, so drift fails loudly.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>State the new fact only when the rewrite has the matching shape, or try it as a separate proof attempt.</li>
+  <li>State read facts only at the stored indices, so large chains stay provable.</li>
+  <li>Add a generator variant with <code>Real</code> elements.</li>
+  <li>Cover the rewriter's other ways to compare stores, including indices built from <a href="#g-uf">uninterpreted functions</a>.</li>
+  <li>Add a process-group timeout to the shared Lean test helper.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-array">array</dt>
+  <dd>A map from an index sort to an element sort. <code>(Array Int Int)</code> maps integers to integers.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement Lean accepts without proof. Adding one would enlarge what must be trusted.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>(or p (not q))</code>.</dd>
+  <dt id="g-completeness">completeness</dt>
+  <dd>Whether every correct result can be certified. A completeness gap means a true proof is rejected.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>Equal inputs give equal outputs. If S = T, then <code>(select S i)</code> = <code>(select T i)</code>.</dd>
+  <dt id="g-constant-array">constant array</dt>
+  <dd>An array with the same value at every index, written <code>((as const (Array Int Int)) x)</code>.</dd>
+  <dt id="g-enumeration">enumeration</dt>
+  <dd>A sort with a fixed finite list of values, such as <code>Color</code> with <code>red</code>, <code>green</code>, <code>blue</code>.</dd>
+  <dt id="g-extensionality">extensionality</dt>
+  <dd>Two arrays are equal if they agree at every index. In Lean this is <code>funext</code>.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A Lean tactic that searches for a proof using equalities, case splits, and arithmetic.</dd>
+  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+  <dd>A term that picks one of two values by a Boolean condition. <code>(ite p a b)</code> is <code>a</code> when <code>p</code> holds, else <code>b</code>.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A helper theorem. Here each step of Z3's proof becomes one lemma.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>A Boolean atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+  <dt id="g-qf-alia">QF_ALIA</dt>
+  <dd>The SMT-LIB logic of quantifier-free formulas over arrays and linear integer arithmetic.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>The part of Z3 that replaces a term by a simpler equivalent one. Each replacement is a rewrite step in the proof.</dd>
+  <dt id="g-simp-set">simp set</dt>
+  <dd>The list of equations Lean's <code>simp</code> tactic uses to simplify. <code>ite_self</code> turns <code>(ite p c c)</code> into <code>c</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as <code>Int</code>, <code>Real</code>, <code>Bool</code>, or an array sort.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>The guarantee that nothing false is ever certified. A soundness bug would be serious.</dd>
+  <dt id="g-store">store</dt>
+  <dd>An array with one index changed. <code>(store a i v)</code> equals <code>a</code> except at <code>i</code>, where it holds <code>v</code>.</dd>
+  <dt id="g-store-chain">store chain</dt>
+  <dd>Several stores applied one after another, such as <code>(store (store a i u) j v)</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A command that tells Lean how to build a proof step, such as <code>simp</code>, <code>grind</code>, or <code>by_cases</code>.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that Lean's kernel has checked.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning, only that equal arguments give equal results.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+</footer>
+</body>
+</html>
