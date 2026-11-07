@@ -1668,6 +1668,21 @@ four sweep configurations verify, none rejected. Five documented inputs (one
 over Real indices) fail Lean with grind errors only without the new facts
 (`test_constant_chain_facts_are_needed`).
 
+Long chains (2026-11-06, later). The read facts of
+`_constant_array_comparisons` are every store and constant array of the sort
+read at every index stored into it, quadratic; above `_COMPARISON_READS` (64)
+they were all dropped, so the `_x` facts lost the evaluations of their
+premises and two chains of five numeral stores already failed Lean. Above the
+cap the facts are now the reads the rewriter evaluates in each comparison of
+store chains over constant arrays (`_chain_comparison_reads`): each side read
+at the indices stored into either side, down to the outermost store at that
+index or to the constant. A random sweep of such comparisons
+(`random_chain_comparison_instance`, three chains of 3 to 10 stores over Int
+or Real indices) went from 20 of 45 unsat seeds verified to 145 of 145 (seeds
+1-300, 91 above the cap); two chains of 32 numeral stores check in about 9 s.
+Seeds 13 and 14 are pinned, and the documented input
+`long_store_chains_over_two_constants` fails Lean without its read facts.
+
 ### Constant arrays of enumerations, and the rewriter's constant-array evaluations (2026-11-06)
 
 Constant arrays of an enumeration, `((as const (Array Int Color)) c)` over
