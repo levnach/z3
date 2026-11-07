@@ -5,107 +5,110 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PR #88: Certify store identities over numeral expressions of one value</title>
 <style>
-:root {
-  color-scheme: light dark;
-  --bg: #ffffff; --fg: #1d1f23; --muted: #5a606b; --accent: #0b62c4;
-  --code-bg: #f3f4f6; --border: #d9dce1; --ok: #1a7f37; --warn: #9a6700; --head: #f7f8fa;
-}
-@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #15171b; --fg: #e4e6ea; --muted: #9aa1ad; --accent: #6cb0ff;
-    --code-bg: #1f2329; --border: #343a44; --ok: #56d364; --warn: #e3b341; --head: #1b1e23;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --pass: #1a7f37; --warn: #9a6700;
   }
-}
-body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-a { color: var(--accent); }
-h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
-h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
-h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-.meta { color: var(--muted); margin: .2rem 0; }
-.badge { display: inline-block; padding: .05rem .5rem; border-radius: .8rem; border: 1px solid var(--warn);
-  color: var(--warn); font-size: .85rem; font-weight: 600; }
-code { background: var(--code-bg); padding: .05rem .25rem; border-radius: 3px; font-size: .9em; }
-pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
-  overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .82rem; line-height: 1.45; }
-pre code { background: none; padding: 0; }
-table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
-th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
-th { background: var(--head); }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.ok { color: var(--ok); font-weight: 600; }
-.pending { color: var(--warn); font-weight: 600; }
-.explain { color: var(--muted); margin-top: -.3rem; }
-dl dt { font-weight: 600; margin-top: .7rem; }
-dl dd { margin-left: 1.2rem; }
-footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--border); padding-top: .6rem; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --pass: #3fb950; --warn: #d29922;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.3rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+  .meta dd { margin-left: 9rem; }
+  .badge { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; font-size: 0.85rem;
+           font-weight: 600; color: #fff; background: #8250df; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: 0.82rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--pass); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.93rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
 
 <header>
 <h1>Certify store identities over numeral expressions of one value</h1>
-<p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/88">levnach/z3#88</a> into <code>master</code>
- · state <span class="badge">OPEN</span> · 2026-11-07T08:36:07Z · loop iteration 88</p>
-<p class="meta">This pull request is open and <strong>not merged</strong>.
-The change under review is commit
-<a href="https://github.com/levnach/z3/commit/8f5883c926115c0d0f9862668affba60b734f48f"><code>8f5883c92</code></a>.</p>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/88">levnach/z3#88</a></dd>
+  <dt>State</dt><dd><span class="badge">MERGED</span></dd>
+  <dt>Merged</dt><dd>2026-11-07T08:46:18Z</dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/4e82c445148c03dae276b9690b99d62aa7e4c7fd"><code>4e82c445148c03dae276b9690b99d62aa7e4c7fd</code></a></dd>
+  <dt>Base commit</dt><dd><code>e6c0ca797e58c735c36f95c986ceaeb945122bcc</code></dd>
+  <dt>Loop iteration</dt><dd>88</dd>
+</dl>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>This PR lets Lean check <a href="#g-rewrite-step">rewrite steps</a> where Z3 applied a
-<a href="#g-store-identity">store identity</a> to an <a href="#g-index">index</a> or value written as a
-<a href="#g-numeral-expression">numeral expression</a>.
-Z3's <a href="#g-rewriter">rewriter</a> compares such indices by value.
-It treats <code>(* 1 2)</code> and <code>(- 3 1)</code> as the same index, 2.
-The <a href="#g-reconstructor">reconstructor</a> compared them as written.
-So the <a href="#g-simp">simp</a> call in the generated <a href="#g-lemma">lemma</a> never fired, and
-<a href="#g-grind">grind</a> failed.
-Now each numeral expression first gets a small proved fact, such as <code>1 * 2 = 2</code>.
-After that, the store identities match, as they did for Z3.
-Valid <a href="#g-certificate">certificates</a> from such inputs now become Lean-checked
-<a href="#g-refutation">refutations</a>.
-Every new fact is proved inside Lean, so nothing new is trusted.</p>
+<p>
+Z3's <a href="#g-rewrite-step">rewriter</a> simplifies <a href="#g-array">array</a> terms by value.
+It sees that the <a href="#g-store">store</a> index <code>(* 1 2)</code> and the index <code>(- 3 1)</code> are both 2.
+It then applies a <a href="#g-store-identity">store identity</a> and drops the inner store.
+The Lean reconstructor only matched indices that were the very same term.
+So Lean rejected these <a href="#g-rewrite-step">rewrite steps</a>, and the whole <a href="#g-refutation">refutation</a> failed.
+This PR compares <a href="#g-numeral-expression">numeral expressions</a> by their value.
+It also writes each value as a small <a href="#g-lemma">lemma</a> that the <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a> proves inside Lean.
+The <a href="#g-simp">simp</a> tactic then uses these lemmas with <a href="#g-pre-order">pre-order rewriting</a> before it applies the store identity.
+More array <a href="#g-certificate">certificates</a> now check in Lean.
+No <a href="#g-axiom">axiom</a>, no <a href="#g-sorry">sorry</a>, and no <a href="#g-trusted-hint">trusted hint</a> were added.
+</p>
 
 <h2 id="background">Background</h2>
-<p>Before this PR, the pipeline already certified many <a href="#g-array">array</a> inputs.
-These included chains of <a href="#g-store">stores</a>, <a href="#g-select">selects</a>, and
-<a href="#g-constant-array">constant arrays</a> over Int and Real <a href="#g-sort">sorts</a>.
-It recognized a store identity only when both indices were the very same term.
-An index such as <code>(/ 2 2)</code> next to <code>1.0</code> broke that check.
-The project plan listed this as still open after iteration 86, as "unnormalized numeral indices".
-The work serves milestone 4, "Broader theories and integration", where arrays are one of the planned extensions.</p>
+<p>
+Earlier iterations taught the reconstructor the store identities for arrays and <a href="#g-constant-array">constant arrays</a>.
+These worked only when the two indices were the same node in the certificate, such as <code>2</code> and <code>2</code>.
+They failed when one side was written <code>(/ 2 2)</code> and the other <code>1.0</code>.
+The plan listed this as the open item "Unnormalized <a href="#g-numeral">numeral</a> indices", found in iteration 86.
+The work serves milestone 4, "Broader theories and integration", where arrays are one of the extensions.
+</p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-<li>You can now get a Lean proof for a rewrite step that collapses two stores at indices like <code>(* 1 2)</code> and <code>(- 3 1)</code>.</li>
-<li>A value read back and stored at an equal index, as in <code>(store a (/ 2 2) (select a 1.0))</code>, now folds to <code>a</code> in Lean too.</li>
-<li>A constant stored into its own constant array is recognized even when written as <code>(+ 1 0)</code>.</li>
-<li>Each numeral expression is replaced by its value first, using a fact that grind proves, applied in <a href="#g-pre-order">pre-order</a>.</li>
-<li>Division by zero is never evaluated, because Z3 leaves it uninterpreted while Lean defines <code>x / 0 = 0</code>.</li>
-<li>Six new documented inputs, a test that removes the new facts, and a random generator option now guard this behavior.</li>
+  <li>The reconstructor now treats two indices or stored values as equal when both are numeral expressions with the same value, such as <code>(/ 2 2)</code> and <code>1.0</code>.</li>
+  <li>For such steps, the generated Lean states the value of each outermost numeral expression as a lemma, and grind proves it.</li>
+  <li>Simp applies those lemmas outside-in, so a bigger expression is rewritten before a smaller one inside it can change its shape.</li>
+  <li>Division by an expression whose value is zero is never evaluated, because Z3 and Lean disagree on what <code>x / 0</code> means.</li>
+  <li>Six new test inputs, a test proving the lemmas are needed, and a new knob on the random generator now guard this case.</li>
 </ul>
-<p>An analogy helps here.
-Picture a librarian who files books on shelf "1×2" and shelf "3−1" as two different shelves.
-Z3 knows both labels mean shelf 2.
-The new facts tell Lean the same thing before it starts sorting.</p>
-<p>The new logic lives in the reconstructor, <code>proof_to_lean.py</code>.
-The tests sit in the array test module.
-The plan document gained a dated note that closes the open item.
-A second commit, made after review, caches each expression's value and stops early on non-numeral arguments.</p>
+<p>
+An analogy: two letters are addressed to "house two dozen" and "house 24".
+Before sorting them, you first write both addresses as plain numbers.
+Then the sorter can see they go to the same house.
+</p>
 <table>
-<thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
-<tbody>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">124</td><td class="num">6</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="num">141</td><td class="num">9</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">10</td><td class="num">0</td></tr>
-<tr><th>Total, 3 files, 2 commits</th><th class="num">275</th><th class="num">15</th></tr>
-</tbody>
+  <thead><tr><th>File</th><th>What it is</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>The Lean reconstructor</td><td class="num">124</td><td class="num">6</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Array reconstruction tests</td><td class="num">141</td><td class="num">9</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, dated note closing the open item</td><td class="num">10</td><td class="num">0</td></tr>
+  </tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
-<p>This input is <code>store_over_a_store_at_products</code>, one of the six new test inputs.
-All three pieces below come from real runs of the pipeline for this report.</p>
+<p>
+This input is the test <code>store_over_a_store_at_products</code> from the PR.
+All three pieces below come from real runs of the pre-change and post-change scripts.
+</p>
 
 <h3>(a) The input</h3>
 <pre><code>(set-logic ALL)
@@ -118,31 +121,30 @@ All three pieces below come from real runs of the pipeline for this report.</p>
 (assert (not p))
 (assert (not (= b (store a 2 w))))
 (check-sat)</code></pre>
-<p class="explain">Writing <code>w</code> at index 2 overwrites <code>v</code> at index 2, so <code>b</code> must equal <code>(store a 2 w)</code>. The last assertion denies that.</p>
+<p>Writing <code>v</code> at index 2 and then <code>w</code> at index 2 is the same as writing only <code>w</code> there, so the assertions contradict each other.</p>
 
 <h3>(b) Before</h3>
-<p>The pre-change exporter produced a certificate, and the pre-change reconstructor wrote a Lean file without complaint.
-Lean then rejected the rewrite step.
-The first error line, and the hypothesis grind got stuck on, were:</p>
-<pre><code>example.lean:95:33: error: `grind` failed
-...
-left : _atoms 0 ∨ term_1 _atoms _vars _m = _store (_store (term_2 _atoms _vars _m) 2 (_vars 0)) 2 (_vars 1)</code></pre>
-<p class="explain">Grind does see both indices as 2, but it has no rule that collapses two stores at one index.</p>
+<p>The old exporter produced a certificate, and the old reconstructor produced a Lean file. Lean rejected that file:</p>
+<pre><code>example.lean:95:33: error: `grind` failed</code></pre>
+<p>The old simp call had no way to see that <code>1 * 2</code> and <code>3 - 1</code> are the same index:</p>
+<pre><code>       try (set_option linter.unusedSimpArgs false in simp only [_t7, _t11, _t15, _store_store, _store_select] at *)</code></pre>
 
 <h3>(c) After</h3>
-<p>Lean accepted the new file. The check script printed "Lean checks passed."</p>
+<p>The current scripts produce the file below, and <code>scripts/check_lean.sh</code> reported "Lean checks passed."</p>
 <pre><code>def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((term_3 _atoms _vars _m) * (term_4 _atoms _vars _m))
+noncomputable def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_2 _atoms _vars _m) (term_5 _atoms _vars _m) (term_6 _atoms _vars _m))
 ...
 def term_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((term_8 _atoms _vars _m) - (term_3 _atoms _vars _m))
 ...
-noncomputable def term_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_7 _atoms _vars _m) (term_9 _atoms _vars _m) (term_10 _atoms _vars _m))</code></pre>
-<p class="explain">The two indices are kept exactly as written, <code>1 * 2</code> and <code>3 - 1</code>, and the second store sits on top of the first.</p>
+noncomputable def term_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_7 _atoms _vars _m) (term_9 _atoms _vars _m) (term_10 _atoms _vars _m))
+...</code></pre>
+<p>These declarations are the input's terms: <code>term_5</code> is <code>1 * 2</code>, <code>term_9</code> is <code>3 - 1</code>, and <code>term_11</code> is the store chain.</p>
 
 <pre><code>private theorem _store_store {I E : Type} (a : I -&gt; E) (i : I) (v w : E) :
     _store (_store a i v) i w = _store a i w := by
   funext _j
   by_cases _h : _j = i &lt;;&gt; simp [_store, _h]</code></pre>
-<p class="explain">This is the store identity itself, proved in Lean. It only applies when both indices are syntactically the same <code>i</code>.</p>
+<p>This is the store identity, proved in Lean: a second store at the same index hides the first one.</p>
 
 <pre><code>private theorem rewrite_21 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     : (formula_20 _atoms _vars _m) := by
@@ -156,7 +158,7 @@ noncomputable def term_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m 
        have _nv9 : (((((3 : Int))) - (((1 : Int))))) = ((2 : Int)) := by grind
        try (set_option linter.unusedSimpArgs false in simp only [↓ _nv5, ↓ _nv9, _t7, _t11, _t15, _store_store, _store_select] at *)
        all_goals first | omega | grind (splits := 64))</code></pre>
-<p class="explain">The two new <code>have</code> lines prove each index equals 2. Simp uses them first, so <code>_store_store</code> can then fire.</p>
+<p>This is the new part: <code>_nv5</code> and <code>_nv9</code> say both indices equal 2, and the arrow <code>↓</code> makes simp use them first, so <code>_store_store</code> then matches.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     (_h0 : (formula_13 _atoms _vars _m))
@@ -164,105 +166,135 @@ noncomputable def term_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m 
     (_h2 : (formula_17 _atoms _vars _m))
     : False :=
   ...</code></pre>
-<p class="explain">The final theorem says the three assertions together imply False.</p>
+<p>The final theorem says the three assertions together imply <code>False</code>.</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>All the Python and Lean test suites passed on the final branch head, including the post-review commit.
-Random array puzzles with numerals written as expressions gained one verified case and lost none.
-The reviewer also confirmed that all six new inputs fail Lean with the old code.
-The loop's local gate had not recorded a result when this report was written.</p>
+<p>
+Every local test suite passed on the final branch head.
+The loop merged the PR on its local gate, because the change touches only Python examples and documentation.
+The gate mirrors the CI steps that exercise this work.
+In random sweeps with numerals written as expressions, one more seed now verifies than before.
+</p>
 <table>
-<thead><tr><th>Check</th><th>Who ran it</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>integrator, reviewer</td><td class="ok">462 tests OK, 6 skipped</td></tr>
-<tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td>integrator, reviewer</td><td class="ok">112 tests OK</td></tr>
-<tr><td><code>scripts/check_lean.sh</code></td><td>integrator, reviewer</td><td class="ok">"Lean checks passed."</td></tr>
-<tr><td>z3test proof tests</td><td>integrator</td><td class="ok">48 tests OK</td></tr>
-<tr><td>Proof matrix, Boolean inputs and <code>lra_*</code> inputs</td><td>implementer</td><td class="ok">6/6 and 8/8 lean-verified</td></tr>
-<tr><td>Six old-code runs of the new inputs</td><td>reviewer</td><td class="ok">all 6 fail with "`grind` failed", as expected</td></tr>
-<tr><td>Timing on a deep shared index, 16 levels</td><td>integrator</td><td>0.62 s before the cache, 0.35 s after</td></tr>
-<tr><td>Local gate</td><td>loop driver</td><td class="pending">not yet recorded</td></tr>
-</tbody>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">462 tests OK, 6 skipped</td></tr>
+    <tr><td>Certificate exporter tests</td><td class="pass">112 tests OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">48 tests OK</td></tr>
+    <tr><td>Boolean matrix, Lean-certified</td><td class="pass">6 of 6 lean-verified</td></tr>
+    <tr><td>QF_LRA matrix, Lean-certified</td><td class="pass">8 of 8 lean-verified</td></tr>
+    <tr><td>Six new inputs on the pre-change reconstructor, run by the reviewer</td><td>all 6 fail with "`grind` failed"</td></tr>
+  </tbody>
 </table>
-<p>Random sweeps with <code>unnormalized=0.8</code>, reported by the implementer:</p>
 <table>
-<thead><tr><th>Index / element sorts, seeds</th><th>Before (unsat seeds verified)</th><th>After</th></tr></thead>
-<tbody>
-<tr><td>Real/Real, 1-300</td><td class="num">198/198</td><td class="num">198/198</td></tr>
-<tr><td>Int/Int, 1-300</td><td class="num">174/175</td><td class="num">175/175</td></tr>
-<tr><td>Real/Int, 1-200</td><td class="num">143/144</td><td class="num">143/144</td></tr>
-<tr><td>Int/Real, 1-200</td><td class="num">156/156</td><td class="num">156/156</td></tr>
-<tr><th>Total</th><th class="num">671/673</th><th class="num">672/673</th></tr>
-</tbody>
+  <thead><tr><th>Random sweep, <code>unnormalized=0.8</code></th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>Real/Real seeds 1-300</td><td>198/198</td><td>198/198</td></tr>
+    <tr><td>Int/Int seeds 1-300</td><td>174/175</td><td>175/175</td></tr>
+    <tr><td>Real/Int seeds 1-200</td><td>143/144</td><td>143/144</td></tr>
+    <tr><td>Int/Real seeds 1-200</td><td>156/156</td><td>156/156</td></tr>
+  </tbody>
 </table>
-<p>The remaining failure, Real/Int <a href="#g-seed">seed</a> 102, is a different gap. It is listed under open questions.</p>
-<p>CI status was not available to this report. No CI result files and no CI fix rounds were recorded.
-See the <a href="https://github.com/levnach/z3/pull/88/checks">PR checks page</a> for live results.</p>
+<p class="note">The sweeps were reported by the implementer and not rerun by the integrator. The remaining Real/Int failure, seed 102, is a different gap.</p>
+
 <table>
-<thead><tr><th>Workflow</th><th>Job or step that runs the new tests</th><th>Status</th></tr></thead>
-<tbody>
-<tr><td><code>.github/workflows/ci.yml</code></td><td>"Ubuntu build - cmake - releaseClang", step "Check native proofs in Lean"</td><td class="pending">unknown at report time</td></tr>
-<tr><td><code>.github/workflows/lean-proofs.yml</code></td><td>runs the same <code>scripts/ci_lean_proofs.sh</code></td><td class="pending">unknown at report time</td></tr>
-</tbody>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">13 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">565 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">17 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  </tbody>
 </table>
-<p>No C++ code changed, so the native Z3 tests and the z3test regressions were not rerun.</p>
+
+<table>
+  <thead><tr><th>GitHub CI workflow / check</th><th>Result</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td><code>CI / Ubuntu build - cmake - releaseClang</code>, step "Check native proofs in Lean"</td><td class="warn">not recorded</td><td><a href="https://github.com/levnach/z3/pull/88/checks">PR checks</a></td></tr>
+    <tr><td><code>lean-proofs.yml</code></td><td class="warn">not recorded</td><td><a href="https://github.com/levnach/z3/commit/4e82c445148c03dae276b9690b99d62aa7e4c7fd">merge commit</a></td></tr>
+  </tbody>
+</table>
+<p class="note">No CI status files were recorded for this PR, so CI results are unknown here. GitHub CI runs on <code>master</code> after the merge. There were no CI fix rounds. No C++ code changed, so the native Z3 tests were not rerun.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved the PR. There were no blocker, major, or minor findings. Two small "nit" findings came up.</p>
-<p><strong>Nit 1, repeated work.</strong>
-The reviewer built indices that double at each level, <code>(+ t t)</code> nested 16 deep.
-The value function had no memory, so it recomputed shared parts again and again.
-Reconstruction took 0.62 seconds.
-This mattered because certificates share subterms heavily, and repeated work can grow fast.
-The fix caches each node's value and stops at the first argument that is not a numeral.
-Time dropped to 0.35 seconds. The rest is the existing rendering of a large output.</p>
-<p><strong>Nit 2, extra facts.</strong>
-The reviewer noticed that every numeral expression in a step gets a fact, not only store indices and values.
-An unrelated <code>(+ 1.0 1.0)</code> in an arithmetic atom also gets one.
-This is harmless, because each fact is a closed identity proved by grind.
-The facts appear only in the last fallback.
-The author left it unchanged. Limiting the facts would need more code and could miss a needed fact.</p>
+<p>The reviewer approved the PR. There were no blocker, major, or minor findings. There were two nits.</p>
+<ul>
+  <li><strong>Nit, fixed: repeated work.</strong>
+  The reviewer built indices that double themselves sixteen times, like <code>(+ t t)</code> nested inside itself.
+  The new value function recomputed shared parts again and again, and it evaluated every argument before giving up.
+  Reconstruction took 0.62 s on that input.
+  The fix caches each node's value and stops at the first argument that is not a numeral expression.
+  The time dropped to 0.35 s. This matters because certificates share subterms heavily.</li>
+  <li><strong>Nit, not changed: extra lemmas.</strong>
+  The reviewer noticed lemmas for numeral expressions that no store depends on, such as <code>(+ 1.0 1.0)</code> in an arithmetic atom.
+  Each such lemma is a closed fact that grind proves, and it appears only in the last-resort alternative.
+  Trimming them would mean following reads through stores, which adds code and new ways to miss a needed lemma.
+  The author kept the simpler version.</li>
+</ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li>If grind ever failed to prove one numeral fact, that fallback would fail where it once succeeded. No such failure appeared in the tests or the 673 sweep certificates.</li>
-<li>The store-identity check now says yes more often. A step that fails anyway costs one more attempt. This affects time, not soundness.</li>
-<li>Comparing an <a href="#g-ite">if-then-else term</a> of store chains with a store chain over constant arrays still fails Lean. This is Real/Int seed 102, and it fails with plain numerals too.</li>
-<li>Two helpers that state read facts still stop at stores by exact identity. With value-equal indices they state extra facts. This is sound but not minimal.</li>
+  <li>If grind ever failed to prove a value lemma, the last alternative would fail where it once succeeded. No such failure appeared in the tests or the 673 sweep certificates.</li>
+  <li>The store-identity check now says yes more often. A step that fails anyway costs one more attempt. This is a time cost, not a soundness issue.</li>
+  <li>Two helper functions still compare store indices by node identity. With equal-valued indices they state extra facts. That is sound but not minimal.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
-<p>The reviewer and the author both name the seed 102 case as the next candidate.
-The proposed fix adds a converse fact for each branch of the if-then-else term.
-Making the read facts minimal under value-equal indices is a smaller follow-up.</p>
+<p>
+The PR names a follow-up from Real/Int seed 102.
+An <a href="#g-ite">if-then-else term</a> whose branches are store chains is compared with a store chain over constant arrays.
+Lean rejects that step even with plain numerals.
+A fact per branch, comparing it with the other side, would likely cover it.
+</p>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
-<dt id="g-array">array</dt><dd>A map from indices to values. <code>(Array Int Int)</code> maps Int indices to Int values.</dd>
-<dt id="g-boolean">Boolean</dt><dd>A value that is either true or false, of sort <code>Bool</code>.</dd>
-<dt id="g-certificate">certificate</dt><dd>The proof record Z3 exports for an unsat result. The reconstructor reads it.</dd>
-<dt id="g-constant-array">constant array</dt><dd>An array with the same value at every index, such as <code>((as const (Array Int Int)) 1)</code>.</dd>
-<dt id="g-grind">grind</dt><dd>A Lean tactic that combines equality reasoning, arithmetic, and case splits to close a goal.</dd>
-<dt id="g-ite">if-then-else term (<code>ite</code>)</dt><dd>A term that picks one of two values using a <a href="#g-boolean">Boolean</a> condition: <code>(ite c x y)</code>.</dd>
-<dt id="g-index">index</dt><dd>The position at which an array is read or written.</dd>
-<dt id="g-lemma">lemma</dt><dd>A small proved statement used inside a larger proof. Each rewrite step becomes one lemma in the generated file.</dd>
-<dt id="g-numeral">numeral</dt><dd>A number written directly, such as <code>2</code> or <code>1.0</code>.</dd>
-<dt id="g-numeral-expression">numeral expression</dt><dd>Numerals combined by <code>+ - * /</code> or <code>to_real</code>, such as <code>(* 1 2)</code>. Its value is a fixed number.</dd>
-<dt id="g-pre-order">pre-order rewriting</dt><dd>Rewriting a term before its subterms. In simp, <code>↓</code> marks a rule for this. It stops an inner rewrite from spoiling a match on the outer term.</dd>
-<dt id="g-reconstructor">reconstructor</dt><dd>The program that turns a certificate into a Lean file.</dd>
-<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions implies False.</dd>
-<dt id="g-rewrite-step">rewrite step</dt><dd>A proof step where a term is replaced by an equal, simpler term.</dd>
-<dt id="g-rewriter">rewriter</dt><dd>The part of Z3 that simplifies terms by fixed rules, such as evaluating <code>(* 1 2)</code> to <code>2</code>.</dd>
-<dt id="g-seed">seed</dt><dd>A number that fixes a random generator's choices, so a random input can be recreated.</dd>
-<dt id="g-select">select</dt><dd>Reading an array. <code>(select a i)</code> is the value of <code>a</code> at index <code>i</code>.</dd>
-<dt id="g-simp">simp</dt><dd>A Lean tactic that rewrites a goal with a given list of equations.</dd>
-<dt id="g-sort">sort</dt><dd>The type of a term, such as Int, Real, Bool, or <code>(Array Int Int)</code>.</dd>
-<dt id="g-store">store</dt><dd>Writing an array. <code>(store a i v)</code> is a copy of <code>a</code> with value <code>v</code> at index <code>i</code>.</dd>
-<dt id="g-store-identity">store identity</dt><dd>An equation that removes a redundant store. Example: <code>(store (store a i v) i w)</code> equals <code>(store a i w)</code>.</dd>
-<dt id="g-subterm">subterm</dt><dd>A term that appears inside a larger term. <code>(+ 1 1)</code> is a subterm of <code>(- (+ 1 1) 0)</code>.</dd>
-<dt id="g-tactic">tactic</dt><dd>A command that tells Lean how to build part of a proof.</dd>
+<dl class="glossary">
+  <dt id="g-array">array</dt>
+  <dd>A map from indices to values, like a function. <code>(Array Int Int)</code> maps integers to integers.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement Lean accepts without proof. Adding one would add trust.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The file Z3 exports that records each step of its proof, so another tool can check it.</dd>
+  <dt id="g-constant-array">constant array</dt>
+  <dd>An array that holds the same value at every index, written <code>((as const (Array Int Int)) 1)</code>.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A Lean tactic that combines equality reasoning, arithmetic, and case splits to close a goal automatically.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term that picks one of two values by a Boolean condition, written <code>(ite c x y)</code> in SMT-LIB.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A small proved statement used as a step toward a bigger proof. In the generated Lean these appear as <code>have</code> lines.</dd>
+  <dt id="g-numeral">numeral</dt>
+  <dd>A constant number written directly, such as <code>2</code>, <code>1.0</code>, or <code>(/ 1 2)</code>.</dd>
+  <dt id="g-numeral-expression">numeral expression</dt>
+  <dd>Numerals combined only by <code>+ - * /</code> or <code>to_real</code>, such as <code>(* 1 2)</code>. It has one fixed value.</dd>
+  <dt id="g-pre-order">pre-order rewriting</dt>
+  <dd>Rewriting a term before its subterms, outside-in. In Lean's simp it is marked with <code>↓</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
+  <dt id="g-rewrite-step">rewrite step, rewriter</dt>
+  <dd>A proof step where Z3 replaces a term by a simpler equal term. The rewriter is the Z3 component that does this.</dd>
+  <dt id="g-select">select</dt>
+  <dd>Reading an array at an index, written <code>(select a i)</code>.</dd>
+  <dt id="g-simp">simp</dt>
+  <dd>A Lean tactic that repeatedly rewrites a goal with a given list of equations.</dd>
+  <dt id="g-sorry">sorry</dt>
+  <dd>A Lean placeholder that skips a proof. A checked file must not contain it.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, Bool, or an array sort.</dd>
+  <dt id="g-store">store</dt>
+  <dd>Writing a value into an array at an index, written <code>(store a i v)</code>. It returns a new array.</dd>
+  <dt id="g-store-identity">store identity</dt>
+  <dd>An array law that removes a store. Examples: <code>(store (store a i v) i w)</code> equals <code>(store a i w)</code>, and <code>(store a i (select a i))</code> equals <code>a</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically.</dd>
+  <dt id="g-trusted-hint">trusted hint</dt>
+  <dd>Information from Z3 that the checker accepts without checking it. The project avoids adding new ones.</dd>
 </dl>
 
-<footer>Generated by the Lean certificate improvement loop on 2026-11-07.</footer>
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-07.
+</footer>
 </body>
 </html>
