@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #81: Tell maps of different functions apart in the clause-log replay keys</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --code-bg: #f6f8fa; --link: #0969da; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
+  --badge-bg: #ddf4ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+    --code-bg: #151b23; --link: #4493f8; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+    --badge-bg: #12263f;
+  }
+}
+body { background: var(--bg); color: var(--fg); margin: 0;
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+  background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+th, td { border: 1px solid var(--line); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.meta { color: var(--muted); margin: 0.2rem 0; }
+.badge { display: inline-block; background: var(--badge-bg); border: 1px solid var(--line);
+  border-radius: 999px; padding: 0 0.6rem; font-size: 0.85rem; font-weight: 600; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.explain { margin-top: -0.3rem; color: var(--muted); }
+dt { font-weight: 600; margin-top: 0.7rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+<h1>Tell maps of different functions apart in the clause-log replay keys</h1>
+<p class="meta"><a href="https://github.com/levnach/z3/pull/81">Pull request #81 on levnach/z3</a> · <span class="badge">OPEN</span> · 2026-11-07T00:41:21Z · loop iteration 81</p>
+<p class="meta">This pull request is open and not merged. The change commit is
+<a href="https://github.com/levnach/z3/commit/0a834da3c70e199d226f7b60f9b7b988b20aaa12"><code>0a834da3c</code></a>.
+The pull request has two commits: the fix <code>293ffa2db</code> and a review follow-up <code>0a834da3c</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>The <a href="#g-replay">clause-log replay</a> matches each <a href="#g-clause">clause</a> that the <a href="#g-clause-log">clause log</a> assumes to an input <a href="#g-conjunct">conjunct</a>. It does this by comparing <a href="#g-structural-key">structural keys</a>. Before this PR, the key of an <a href="#g-array-map">array map</a> ignored which function was mapped. So <code>((_ map and) a b)</code> and <code>((_ map or) a b)</code> got the same key. Maps of two <a href="#g-uninterpreted-function">uninterpreted functions</a>, and maps of <code>+</code> and <code>-</code>, collided the same way. After <a href="#g-preprocessing">preprocessing</a> split a conjunction, the replay could pick the wrong conjunct. It then emitted a <a href="#g-rewrite-step">rewrite step</a> that the <a href="#g-tactic">tactic</a> <code>grind</code> could not prove, and Lean rejected the whole <a href="#g-certificate">certificate</a>. Now a map's key names its function by its <a href="#g-signature">signature</a>, and a <a href="#g-constant-array">constant array</a>'s key names its <a href="#g-sort">sort</a>. Such <a href="#g-refutation">refutations</a> now pass Lean. No Lean file, <a href="#g-axiom">axiom</a>, or trust setting changed.</p>
+
+<h2 id="background">Background</h2>
+<p>Recent iterations taught the pipeline to certify <a href="#g-array">arrays</a>, array maps, sets, and enumeration datatypes through the clause log. Iteration 80 noticed that map keys collide, but it found no input that failed because of it. This iteration found three. Each one exported and reconstructed, and then Lean rejected it. That was a <a href="#g-completeness">completeness</a> gap, not a <a href="#g-soundness">soundness</a> hole, because Lean caught the bad step. The work serves milestone 4 of the plan, "Broader theories and integration", where arrays are one of the listed extensions.</p>
+
+<h2 id="changes">What changed</h2>
+<p>Think of a coat check that writes only "black coat" on each ticket. Two guests with black coats can get each other's coats back. The fix writes the owner's name on the ticket too.</p>
+<ul>
+<li>The replay can now tell <code>((_ map and) a b)</code> from <code>((_ map or) a b)</code>, because a map's key includes its function's signature.</li>
+<li>Maps of two different uninterpreted functions, or of two built-in operators such as <code>+</code> and <code>-</code>, now get different keys as well.</li>
+<li>Constant arrays of different sorts, such as <code>(Array Int Bool)</code> and <code>(Array Real Bool)</code>, no longer share a key.</li>
+<li>Three small inputs that Lean used to reject are now tests that check in Lean on every run of the suite.</li>
+<li>The plan document records the fix and lists the operators that will need the same treatment later.</li>
+</ul>
+<table>
+<thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay keys</td><td class="num">14</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">82</td><td class="num">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">21</td><td class="num">0</td></tr>
+<tr><th colspan="2">Total, 3 files</th><th class="num">117</th><th class="num">2</th></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This input is the PR's new test <code>conjuncts_map_and_or</code>. I ran it through the current code and through the scripts from the base commit <code>a8070934d</code>.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-fun a () (Array Int Bool))
+(declare-fun b () (Array Int Bool))
+(declare-fun c () (Array Int Bool))
+(declare-fun d () (Array Int Bool))
+(declare-fun q () Bool)
+(declare-fun r () Bool)
+(assert (and q (= c ((_ map and) a b))))
+(assert (and r (= c ((_ map or) a b)) (= c d)))
+(assert (select a 0))
+(assert (not (select b 0)))
+(check-sat)</code></pre>
+<p class="explain">At index 0, <code>a</code> is true and <code>b</code> is false. So "a and b" is false there, "a or b" is true, and <code>c</code> cannot equal both maps.</p>
+
+<h3>(b) Before</h3>
+<p>The old exporter and reconstructor both succeeded. The Lean check then failed:</p>
+<pre><code>z3_proof_oqwak7sq.lean:235:18: error: `grind` failed
+...
+h : (term_1 _atoms _vars _m = term_4 _atoms _vars _m) = ¬term_1 _atoms _vars _m = term_8 _atoms _vars _m
+...
+Lean checking failed; no proof was published.</code></pre>
+<p class="explain">Line 235 is a rewrite step. It tried to derive "c equals the or-map" from the input's "c equals the and-map", because both had the same key. That step is false, so <code>grind</code> could not prove it.</p>
+
+<h3>(c) After</h3>
+<p>The current reconstructor wrote a 667-line file. <code>scripts/check_lean.sh</code> reported "Lean checks passed."</p>
+<pre><code>def term_4 ... : (Int -&gt; Prop) := (_map2 And (term_2 _atoms _vars _m) (term_3 _atoms _vars _m))
+def formula_5 ... : Prop := ((term_1 _atoms _vars _m) = (term_4 _atoms _vars _m))
+...
+def term_8 ... : (Int -&gt; Prop) := (_map2 Or (term_2 _atoms _vars _m) (term_3 _atoms _vars _m))
+def formula_9 ... : Prop := ((term_1 _atoms _vars _m) = (term_8 _atoms _vars _m))
+...
+def formula_12 ... : Prop := (And (formula_7 _atoms _vars _m) (And (formula_9 _atoms _vars _m) (formula_11 _atoms _vars _m)))</code></pre>
+<p class="explain">Each array becomes a function from Int to Prop, and the two maps become <code>_map2 And</code> and <code>_map2 Or</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_6 _atoms _vars _m))
+    (_h1 : (formula_12 _atoms _vars _m))
+    (_h2 : (formula_14 _atoms _vars _m))
+    (_h3 : (formula_16 _atoms _vars _m))
+    : False :=</code></pre>
+<p class="explain">The theorem says the four assertions together imply False.</p>
+<pre><code>  let _step_22 : (formula_12 _atoms _vars _m) :=
+    _h1
+  ...
+  let _step_24 : (formula_9 _atoms _vars _m) :=
+    _step_22.2.1</code></pre>
+<p class="explain">This is the fix at work: "c equals the or-map" now comes straight from the second assertion, with no rewrite step.</p>
+<pre><code>private theorem th_lemma_113 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_112 _atoms _vars _m) := by
+  ...
+  have _m84 : _select ((term_8 _atoms _vars _m)) (((0 : Int))) = (Or (_select ((term_2 _atoms _vars _m)) (((0 : Int)))) (_select ((term_3 _atoms _vars _m)) (((0 : Int))))) := rfl
+  have _m97 : _select ((term_4 _atoms _vars _m)) (((0 : Int))) = (And (_select ((term_2 _atoms _vars _m)) (((0 : Int)))) (_select ((term_3 _atoms _vars _m)) (((0 : Int))))) := rfl
+  ...</code></pre>
+<p class="explain">This <a href="#g-theory-lemma">theory lemma</a> reads both maps at index 0 and finds the contradiction.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>All the project's Python and Lean test suites passed on this branch. The three new inputs failed in Lean before the fix and pass after it. In a random sweep of map-heavy inputs, five failures before the fix all disappeared after it.</p>
+<table>
+<thead><tr><th>Check</th><th>Run by</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><code>test_proof_to_lean*.py</code></td><td>implementer, reviewer</td><td class="ok">439 tests OK, 6 slow tests skipped</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td>implementer, reviewer</td><td class="ok">112 tests OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code> project build</td><td>implementer</td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td>implementer</td><td class="ok">48 tests OK</td></tr>
+<tr><td><code>proof_matrix.py --lean</code>, Boolean and unit-resolution inputs</td><td>implementer</td><td class="ok">6/6 verified</td></tr>
+<tr><td><code>proof_matrix.py --lean</code>, linear real arithmetic inputs</td><td>implementer</td><td class="ok">8/8 verified</td></tr>
+<tr><td>Three new inputs in Lean, before / after</td><td>implementer, reviewer</td><td>0/3 / <span class="ok">3/3</span></td></tr>
+<tr><td>New key test, before / after</td><td>implementer, reviewer</td><td><span class="bad">4 distinct keys of 10</span> / <span class="ok">10 of 10</span></td></tr>
+<tr><td>Random sweep, seeds 1 to 200, 41 unsat</td><td>implementer</td><td>36/41 before / <span class="ok">41/41</span> after</td></tr>
+<tr><td>Worked example above, before / after</td><td>this report</td><td><span class="bad"><code>grind</code> failed</span> / <span class="ok">Lean checks passed</span></td></tr>
+</tbody>
+</table>
+<p>C++ tests and <code>test_benchmarks.py</code> were not run, because no C++ changed. No local gate record exists yet, so the local gate result is not known here.</p>
+<p>No CI results were available when this page was written, so their state is unknown.</p>
+<table>
+<thead><tr><th>Workflow</th><th>Job and step</th><th>Runs the new tests?</th><th>State</th></tr></thead>
+<tbody>
+<tr><td><code>.github/workflows/ci.yml</code></td><td><code>releaseClang</code>, "Check native proofs in Lean"</td><td>Yes</td><td class="warn">Unknown, see <a href="https://github.com/levnach/z3/pull/81/checks">PR checks</a></td></tr>
+<tr><td><code>.github/workflows/ci.yml</code></td><td>manylinux wheel step</td><td>No, it runs only <code>test_proof_to_lean.py</code></td><td class="warn">Unknown</td></tr>
+</tbody>
+</table>
+<p>No CI fix rounds were recorded.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change and found no blockers or majors. The reviewer reproduced the failure, confirmed the fix, and checked that the new test fails without it.</p>
+<ul>
+<li><strong>Minor, fixed.</strong> The plan and one test comment pointed to a sweep script in a scratch folder outside the repository. A future reader could not rerun or check it. Commit <code>0a834da3c</code> now describes the sweep in words only. The three new test inputs pin the failure in CI.</li>
+<li><strong>Nit, deferred.</strong> The reviewer saw that other parameterized operators still key without their parameters. Examples are datatype accessors, bit-vector <code>extract</code>, and <code>as-array</code>. The author checked that the exporter rejects all of them before any replay runs, so no input can fail this way today. The plan now notes them.</li>
+<li><strong>Nit, fixed.</strong> Two test comments were sentence fragments. They were rewritten in <code>0a834da3c</code>.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li><strong>Fewer key matches.</strong> The same map written two ways might now miss its key. A miss falls back to a slower solver-based equivalence check, which is still sound. The reviewer tried nested maps and two constant arrays, and both verified.</li>
+<li><strong>Text keys.</strong> Keys use the signature text Z3 prints. That text is stable within one context.</li>
+<li><strong>Numerals of different sorts.</strong> <code>0</code> and <code>0.0</code> still share a key as arguments of built-in operators.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Key numerals by sort as well as value.</li>
+<li>Key accessors, bit-vector operators, and <code>as-array</code> once the exporter supports them.</li>
+<li>Turn the random map sweep into a pinned-seed test.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-array">array</dt><dd>A total map from an index sort to an element sort, read with <code>select</code> and updated with <code>store</code>. Example: <code>(Array Int Bool)</code>.</dd>
+<dt id="g-array-map">array map</dt><dd>An array built by applying one function at every index of other arrays. <code>((_ map and) a b)</code> holds "a[i] and b[i]" at each index i.</dd>
+<dt id="g-axiom">axiom</dt><dd>A statement that Lean accepts without proof. Adding one widens what must be trusted.</dd>
+<dt id="g-certificate">certificate</dt><dd>The evidence Z3 exports for an unsat result, which the reconstructor turns into a Lean proof.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>p ∨ ¬q</code>. A literal is a Boolean atom or its negation.</dd>
+<dt id="g-clause-log">clause log</dt><dd>The record of clauses Z3's solver assumed and derived while it searched for a refutation.</dd>
+<dt id="g-replay">clause-log replay</dt><dd>The exporter's pass that walks the clause log and justifies each step against the original input.</dd>
+<dt id="g-completeness">completeness</dt><dd>The checker accepts every correct proof. A completeness gap means some valid results are rejected.</dd>
+<dt id="g-conjunct">conjunct</dt><dd>One part of a conjunction. In <code>(and q r)</code>, <code>q</code> and <code>r</code> are the conjuncts.</dd>
+<dt id="g-constant-array">constant array</dt><dd>An array with the same value at every index, written <code>((as const (Array Int Bool)) p)</code>.</dd>
+<dt id="g-preprocessing">preprocessing</dt><dd>Simplifications Z3 applies before the main search, such as splitting a conjunction into separate assertions.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions implies False.</dd>
+<dt id="g-rewrite-step">rewrite step</dt><dd>A proof step claiming that one formula equals or follows from another after rewriting.</dd>
+<dt id="g-signature">signature</dt><dd>A function's name with its argument sorts and result sort, such as <code>(declare-fun f (Int) Int)</code>.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value in SMT-LIB, such as Int, Bool, or <code>(Array Int Bool)</code>.</dd>
+<dt id="g-soundness">soundness</dt><dd>The checker accepts only correct proofs. A soundness hole would let a false claim through.</dd>
+<dt id="g-structural-key">structural key</dt><dd>A value computed from a formula's shape, used to find matching formulas quickly. Two formulas should share a key only if they mean the same thing.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically. <code>grind</code> and <code>omega</code> are tactics.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that holds because of a theory, here arrays, rather than by Boolean logic alone.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning. The only thing known is that equal arguments give equal results. Example: <code>f</code> in <code>(declare-fun f (Int) Int)</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+</footer>
+</main>
+</body>
+</html>
