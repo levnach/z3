@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>PR #83: Certify constant arrays of enumerations and constant-array rewrites</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+         font: 16px/1.6 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .badge { display: inline-block; padding: .05rem .55rem; border-radius: 1rem; font-size: .85rem;
+           font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+         background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: .8rem 1rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: .82rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -.4rem; color: var(--muted); }
+  dt { font-weight: 600; margin-top: .7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border);
+           color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+<h1>Certify constant arrays of enumerations and constant-array rewrites</h1>
+<p class="meta">
+  Pull request <a href="https://github.com/levnach/z3/pull/83">levnach/z3#83</a>
+  · State: <span class="badge">OPEN</span>
+  · Date: 2026-11-07T03:16:24Z
+  · Loop iteration 83
+</p>
+<p class="meta">
+  This pull request is open and <strong>not merged</strong>.
+  The change commit is
+  <a href="https://github.com/levnach/z3/commit/7823e020dd8a5af59146828cade6ed1a8bed7ba1"><code>7823e020d</code></a>.
+  The pull request holds two commits in total.
+</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+  Lean can now check <a href="#g-refutation">refutations</a> that use a
+  <a href="#g-constant-array">constant array</a> whose elements belong to an
+  <a href="#g-enumeration">enumeration datatype</a>, such as an array of colors that is
+  <code>red</code> at every index. It can also check reasoning about the
+  <a href="#g-default-value">default value</a> of such an array, when the array is built from constant arrays
+  by <a href="#g-store">store</a> and <a href="#g-ite">if-then-else terms</a>.
+  While testing this, the loop found four places where Z3's <a href="#g-rewriter">rewriter</a>
+  simplifies constant arrays in ways the generated Lean file never restated.
+  Those gaps broke plain <code>(Array Int Int)</code> inputs too, so this pull request closes them for all
+  <a href="#g-array">arrays</a>. Every new step is a <a href="#g-theorem">theorem</a> proved inside the
+  generated Lean file. No <a href="#g-axiom">axiom</a> was added, so the
+  <a href="#g-trust-boundary">trust boundary</a> stays the same.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+  The previous iteration added arrays whose elements are an
+  <a href="#g-enumeration">enumeration</a>, certified through the <a href="#g-clause-log">clause log</a>.
+  It still rejected two shapes. A <a href="#g-constant-array">constant array</a> of an enumeration was refused.
+  So was every <code>default</code> over such an array. A random sweep from that iteration also left
+  four seeds failing in Lean. They involved a <a href="#g-select">read</a> through an
+  <a href="#g-ite">ite</a> over arrays. This work belongs to milestone 4 of the project plan,
+  "Broader theories and integration", which treats arrays as one of the theory extensions.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>The exporter now accepts constant arrays of an enumeration over Int or Real indices, instead of rejecting them.</li>
+  <li>The exporter accepts <code>(default a)</code> over an enumeration array when <code>a</code> is built only from constant arrays, stores, and ites.</li>
+  <li>The Lean reconstructor can prove that such a read or default value is one of the enumeration's constructors, using three new proved theorems.</li>
+  <li>Four rewriter simplifications of constant arrays now have matching Lean facts or <a href="#g-simp-lemma">simp lemmas</a>, so those inputs verify for any element sort.</li>
+  <li>After review, the exporter's default-value check visits each shared subterm once, so deeply shared inputs no longer hang it.</li>
+</ul>
+<p>
+  The four rewriter gaps are easiest to see as shortcuts. The rewriter is like a student who skips steps in homework.
+  Lean is the teacher who wants every step written down. The fix writes down each skipped step as a small proved lemma:
+</p>
+<ul>
+  <li>Comparing two stores into constant arrays inside a <a href="#g-cnf">cnf</a> step, which now gets the same default-value facts that rewrite steps already had.</li>
+  <li>Folding <code>(store (const c) i (select (const c) j))</code> back into <code>(const c)</code>.</li>
+  <li>Deciding <code>(= (const c) (store (const c) i v))</code> as <code>(= c v)</code>, in either order. One direction needs <a href="#g-extensionality">extensionality</a>, which the automatic <a href="#g-tactic">tactic</a> does not do by itself.</li>
+  <li>Pushing a read into an ite over arrays and evaluating each branch's read.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">157</td><td class="num">32</td></tr>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">29</td><td class="num">7</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_enum.py</code></td><td>Tests, enumerations</td><td class="num">187</td><td class="num">14</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests, arrays</td><td class="num">100</td><td class="num">7</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Documentation</td><td class="num">20</td><td class="num">8</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Project plan</td><td class="num">32</td><td class="num">2</td></tr>
+    <tr><th>Total, 6 files</th><th></th><th class="num">525</th><th class="num">70</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+  This input is the PR's test <code>default_of_constant_arrays</code>. The array <code>k</code> is either a store into a constant array
+  of <code>c</code>, or the constant array of <code>blue</code>. The three assertions use a <a href="#g-recognizer">recognizer</a> each to say its default value is none of the three colors.
+  That is impossible, so the input is unsatisfiable. All outputs below come from real runs on this input.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-datatypes ((Color 0)) (((red) (green) (blue))))
+(declare-const c Color)
+(declare-const i Int)
+(declare-const p Bool)
+(define-fun k () (Array Int Color)
+  (ite p (store ((as const (Array Int Color)) c) i green) ((as const (Array Int Color)) blue)))
+(assert (not ((_ is red) (default k))))
+(assert (not ((_ is green) (default k))))
+(assert (not ((_ is blue) (default k))))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the base commit's exporter</h3>
+<pre><code>proof_certificate.py: error: unsupported operator over an enumeration: default</code></pre>
+<p class="explain">The old exporter stopped at the first <code>default</code> and produced no certificate at all.</p>
+
+<h3>(c) After: the generated Lean file</h3>
+<p>The reconstructor reported "Lean checked the refutation". A separate run of <code>scripts/check_lean.sh</code> on the file printed "Lean checks passed."</p>
+<pre><code>structure Interpretation where
+  U : Type
+  ...
+  ctors : Nat -&gt; U
+  enum_distinct : (And (Not (ctors 0 = ctors 1)) (And (Not (ctors 0 = ctors 2)) (Not (ctors 1 = ctors 2))))
+  enum_cases_0 : (Or (elems 0 = ctors 0) (Or (elems 0 = ctors 1) (elems 0 = ctors 2)))
+...
+def _const_array (I : Type) {E : Type} (v : E) : I -&gt; E := fun _ =&gt; v</code></pre>
+<p class="explain">The colors are three distinct constructors, the constant <code>c</code> is one of them, and a constant array is a function that ignores its index.</p>
+
+<pre><code>private theorem _cases_default_const {I E : Type} (P : E -&gt; Prop)
+    (h : forall l : List I, Exists (fun x : I =&gt; Not (List.Mem x l))) (v : E) (hv : P v) :
+    P (_default h (_const_array I v)) := by
+  rw [_default_const]
+  exact hv
+
+private theorem _cases_default_store {I E : Type} (P : E -&gt; Prop)
+    (h : forall l : List I, Exists (fun x : I =&gt; Not (List.Mem x l))) (a : I -&gt; E) (i : I) (v : E)
+    (ha : P (_default h a)) : P (_default h (_store a i v)) := by
+  rw [_default_store]
+  exact ha</code></pre>
+<p class="explain">Two of the new theorems: the default value of a constant array is its value, and a store does not change an array's default value.</p>
+
+<pre><code>private theorem th_lemma_50 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_49 _atoms _vars _m) := by
+  ...
+  have _ec9 : (Or (((_default _int_unbounded ((term_8 _atoms _vars _m)))) = _m.ctors 0) ...) := (_cases_ite ... (_cases_default_store ... (_cases_default_const ... (_m.elems 0) _m.enum_cases_0)) (_cases_default_const ... (_m.ctors 2) (Or.inr (Or.inr (rfl)))))
+  first | omega | grind (splits := 64)</code></pre>
+<p class="explain">This lemma chains the theorems through the ite, the store, and both constant arrays, so it proves the default of <code>k</code> is red, green, or blue.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_11 _atoms _vars _m))
+    (_h1 : (formula_13 _atoms _vars _m))
+    (_h2 : (formula_15 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p class="explain">The final theorem says the three assertions together imply <code>False</code>, for every interpretation.</p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+  The full Lean reconstruction test suite passed on the final tree. So did the exporter tests and the Lean build check.
+  In random sweeps, every unsatisfiable puzzle with constant arrays of colors exported and verified.
+  The four seeds left failing by the previous iteration now verify too.
+  The reviewer ran the new tests against the old code, and they failed there, so they really test this change.
+  A file named <code>LOCAL_GATE.md</code> was not present, so the loop's local gate result has not been recorded.
+</p>
+<table>
+  <thead><tr><th>Local check, as reported in the pull request</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">452 tests OK, 6 skipped</td></tr>
+    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">112 tests OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>z3test proof tests</td><td class="pass">48 tests OK</td></tr>
+    <tr><td>Boolean matrix, legacy proof object</td><td class="pass">6 of 6 verified</td></tr>
+    <tr><td>QF_LRA matrix, clause log</td><td class="pass">8 of 8 verified</td></tr>
+    <tr><td>Constant-array sweep, seeds 1 to 300</td><td class="pass">178 of 178 unsat seeds verified</td></tr>
+    <tr><td>Previous iteration's review sweep, seeds 200 to 259</td><td class="pass">37 of 37 verified, previously 33 of 37</td></tr>
+    <tr><td>New tests run against the base code, by the reviewer</td><td class="pass">9 failures, as expected</td></tr>
+    <tr><td>Shared 30-level input, old check against fixed check</td><td class="pass">old: killed after 30 s, fixed: milliseconds</td></tr>
+    <tr><td>This report's worked example</td><td class="pass">Lean checks passed</td></tr>
+  </tbody>
+</table>
+<p>
+  No CI status was recorded when this report was written. The table below lists the check that runs the new tests.
+  Its result is unknown here. See the <a href="https://github.com/levnach/z3/pull/83/checks">checks page</a> for the current state.
+  No CI fix rounds were recorded.
+</p>
+<table>
+  <thead><tr><th>CI workflow and job</th><th>Step</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>ubuntu-cmake</code>, matrix <code>releaseClang</code></td><td>"Check native proofs in Lean", which runs <code>scripts/ci_lean_proofs.sh</code></td><td class="unknown">not recorded</td></tr>
+    <tr><td>All other checks</td><td>see the <a href="https://github.com/levnach/z3/pull/83/checks">checks page</a></td><td class="unknown">not recorded</td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change. There were no blocker or major findings.</p>
+<ul>
+  <li><strong>Minor: the default-value check could hang.</strong>
+    The reviewer built a chain of ites in which each level refers to the level below twice.
+    The exporter's new check walked the term as a tree, not as a shared graph.
+    So the work doubled with each level: 150 seconds at 22 levels, and practically forever near 30.
+    Nothing wrong would be certified, but the tool would stall.
+    The fix keeps a set of already visited terms, and a 30-level test now passes in milliseconds.</li>
+  <li><strong>Nit: a stale backlog marker.</strong>
+    The project plan still listed the ite-read problem as open, although this change fixed it.
+    Someone searching for open work could have chased a solved item. It is now marked done.</li>
+  <li><strong>Nit: an inaccurate README sentence.</strong>
+    It said an ite's default value is "that of the arrays below it". In fact it is the default of one of the two branches.
+    The sentence was corrected.</li>
+</ul>
+<p>Two suggestions were not taken and are listed as follow-ups. One asks for an input that needs <code>_cases_const</code> alone. The other asks for a cap on the new per-branch read facts.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The theorem <code>_cases_const</code> is sound, but no known input needs it alone. The automatic tactic finds the same cases another way.</li>
+  <li>The new read facts for ites over arrays have no size cap. A wide ite tree over long store chains could make files large.</li>
+  <li>The rule that a default value must be over constant arrays is enforced only by the exporter. A tampered certificate would still fail in Lean, so soundness is kept.</li>
+  <li>Proof text over a heavily shared ite graph can still grow quickly. This pattern existed before this change.</li>
+  <li>CI results were not available to this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<p>
+  Several shapes are still rejected: the default value of an array constant of an enumeration,
+  arrays indexed by an enumeration, arrays of an enumeration nested in other arrays,
+  maps over arrays of an enumeration, and equalities between a constant array and a chain of more than one store into it.
+  The pull request suggests a general "store chain over a constant equals the constant" lemma for the last one.
+</p>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-array">array</dt>
+  <dd>A value that maps each index to an element, like a function. <code>(Array Int Color)</code> maps integers to colors.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement Lean accepts without proof. Adding one means trusting it.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>The record of clauses Z3 learns while solving, which the exporter turns into a certificate.</dd>
+  <dt id="g-cnf">cnf step</dt>
+  <dd>A step that rewrites a formula into conjunctive normal form, an AND of clauses. A clause is an OR of literals.</dd>
+  <dt id="g-constant-array">constant array</dt>
+  <dd>An array with the same element at every index. <code>((as const (Array Int Color)) red)</code> is red everywhere.</dd>
+  <dt id="g-constructor">constructor</dt>
+  <dd>One of the named values of a datatype. <code>red</code>, <code>green</code>, and <code>blue</code> are the constructors of <code>Color</code>.</dd>
+  <dt id="g-default-value">default value</dt>
+  <dd>The element an array holds at all but finitely many indices. <code>(default a)</code> in Z3. The default of a constant array of <code>red</code> is <code>red</code>.</dd>
+  <dt id="g-enumeration">enumeration datatype</dt>
+  <dd>A sort with a fixed, finite list of constructors and no fields, such as <code>Color</code> with red, green, and blue.</dd>
+  <dt id="g-extensionality">extensionality</dt>
+  <dd>The rule that two arrays are equal if they agree at every index.</dd>
+  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+  <dd>A term that picks one of two values by a Boolean condition. <code>(ite p a b)</code> is <code>a</code> when <code>p</code> holds, else <code>b</code>.</dd>
+  <dt id="g-select">read (<code>select</code>)</dt>
+  <dd>Looking up the element of an array at an index. <code>(select a i)</code>.</dd>
+  <dt id="g-recognizer">recognizer</dt>
+  <dd>A test for which constructor a value is. <code>((_ is red) x)</code> is true exactly when <code>x</code> is <code>red</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>The part of Z3 that simplifies terms before and during solving, for example turning a read of a constant array into its value.</dd>
+  <dt id="g-simp-lemma">simp lemma</dt>
+  <dd>A proved equation that Lean's <code>simp</code> tactic uses to rewrite goals automatically.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, Bool, or <code>Color</code>.</dd>
+  <dt id="g-store">store</dt>
+  <dd>Writing one element into an array. <code>(store a i v)</code> is <code>a</code> except that index <code>i</code> now holds <code>v</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically, such as <code>grind</code> or <code>omega</code>.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that Lean has checked.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The set of things a reader must take on faith, such as Lean's kernel and any axioms. Everything else is checked.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-06.
+</footer>
+
+</main>
+</body>
+</html>
