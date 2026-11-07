@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #90: Certify distincts of more than 32 terms and wide distincts over Int</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; border: 1px solid var(--warn); color: var(--warn); font-weight: 600; font-size: .85rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; background: var(--code-bg); padding: .05rem .25rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .8rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.unk { color: var(--warn); font-weight: 600; }
+.explain { margin-top: -.4rem; color: var(--muted); font-size: .93rem; }
+dt { font-weight: 600; margin-top: .6rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .6rem; color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify distincts of more than 32 terms and wide distincts over Int</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/90">levnach/z3#90</a> &middot;
+state <span class="badge">OPEN</span> &middot; opened 2026-11-07T10:49:04Z &middot; loop iteration 90
+</p>
+<p class="meta">
+This pull request is <strong>not merged</strong>. The change under review is commit
+<a href="https://github.com/levnach/z3/commit/53a2d5482cdd0bd54f9674668a94986f01b25910"><code>53a2d5482</code></a>,
+on top of base <code>2c5225f74</code>.
+</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+This PR lets the pipeline certify inputs that assert a wide <a href="#g-distinct"><code>distinct</code></a>.
+Two things blocked them. Above 32 arguments, the solver encoded the <code>distinct</code> with
+<a href="#g-fresh-symbol">fresh symbols</a>, including a new <a href="#g-sort">sort</a> and an
+<a href="#g-uninterpreted-function">uninterpreted function</a>. The <a href="#g-clause-log">clause log</a>
+replay rejected those. Now, when proofs are on, Z3 <a href="#g-clausify">clausifies</a> the <code>distinct</code>
+pairwise at any width. The second block was in Lean. The <a href="#g-certificate">certificate</a> keeps only the few
+<a href="#g-equality">pair equalities</a> the <a href="#g-refutation">refutation</a> uses. The reconstructor then
+treated the whole <code>distinct</code> as one <a href="#g-leaf">opaque leaf</a>. Its <a href="#g-cnf-lemma">cnf lemmas</a>
+fell to <a href="#g-tactic">tactics</a> that ran out of <a href="#g-heartbeat">heartbeats</a> over Int from
+30 arguments. Now each missing pair becomes a placeholder leaf, so a short
+<a href="#g-propagation">propagation proof</a> can pick out the one <a href="#g-conjunct">conjunct</a> it needs.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR, a <a href="#g-distinct"><code>distinct</code></a> of up to 32 terms could be exported.
+The reconstructor already split it into its pair <a href="#g-disequality">disequalities</a>, but only when every
+pair had its own node in the certificate. Over <a href="#g-qf-uf">QF_UF</a>, the fallback
+<a href="#g-tactic">tactic</a> coped. Over <a href="#g-lia">linear integer arithmetic</a>, it timed out from about
+30 terms. Any root <code>distinct</code> wider than 32 terms failed at export, in every fragment.
+The work serves Milestone 3 of the plan, "Equality and linear arithmetic", which completes
+<a href="#g-uninterpreted-function">uninterpreted functions</a> and integer arithmetic end to end.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>A proof-logging run on a <code>distinct</code> of more than 32 terms now writes plain pair clauses, so the export no longer rejects it.</li>
+<li>A <code>distinct</code> of which only a few pairs appear in the certificate is now split into all its pairs, with placeholders for the missing ones.</li>
+<li>A cnf lemma such as "the <code>distinct</code> is false, or <code>c0</code> differs from <code>c1</code>" now gets a three-step proof in Lean instead of a large search.</li>
+<li>Runs without proofs behave exactly as before, and the old search is kept as a fallback after each new proof.</li>
+<li>The plan and the Python README now describe the new rule and its known limits.</li>
+</ul>
+<p>
+An analogy helps with the second and third bullets. Picture a seating rule: "no two of 30 students share a seat."
+That rule has 435 pairs. The proof only needs one of them, say "Ann and Bob do not share a seat." Before, Lean had to
+re-read the whole rule and search every pair. Now it points at the right line of the rule and stops.
+</p>
+<table>
+<thead><tr><th>File</th><th>Component</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>src/sat/smt/euf_internalize.cpp</code></td><td>Z3 core: how a <code>distinct</code> is clausified</td><td class="num">11</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">30</td><td class="num">14</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Export tests</td><td class="num">58</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Lean tests, integer arithmetic</td><td class="num">68</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Lean tests, uninterpreted functions</td><td class="num">48</td><td class="num">10</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan</td><td class="num">35</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">2</td><td class="num">1</td></tr>
+</tbody>
+</table>
+<p>The PR has two commits. The first makes the change. The second only updates comments and docs after review.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+This input comes from the PR's new test generator <code>wide_distinct_source</code> with 30 Int terms.
+The declarations are packed ten per line to keep it short. Thirty values that are all different cannot squeeze four of them into
+the range 0 to 2, so the input is unsat.
+</p>
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIA)
+(declare-const c0 Int) (declare-const c1 Int) (declare-const c2 Int) (declare-const c3 Int) (declare-const c4 Int) (declare-const c5 Int) (declare-const c6 Int) (declare-const c7 Int) (declare-const c8 Int) (declare-const c9 Int)
+(declare-const c10 Int) (declare-const c11 Int) (declare-const c12 Int) (declare-const c13 Int) (declare-const c14 Int) (declare-const c15 Int) (declare-const c16 Int) (declare-const c17 Int) (declare-const c18 Int) (declare-const c19 Int)
+(declare-const c20 Int) (declare-const c21 Int) (declare-const c22 Int) (declare-const c23 Int) (declare-const c24 Int) (declare-const c25 Int) (declare-const c26 Int) (declare-const c27 Int) (declare-const c28 Int) (declare-const c29 Int)
+(assert (distinct c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 c15 c16 c17 c18 c19 c20 c21 c22 c23 c24 c25 c26 c27 c28 c29))
+(assert (and (&lt;= 0 c0) (&lt;= c0 2)))
+(assert (and (&lt;= 0 c1) (&lt;= c1 2)))
+(assert (and (&lt;= 0 c2) (&lt;= c2 2)))
+(assert (and (&lt;= 0 c3) (&lt;= c3 2)))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>
+We ran the base revision's Python scripts on this input with the current Z3 build. At 30 terms the C++ change does not apply,
+so this isolates the reconstructor change. The export succeeded. The old reconstructor wrote a Lean file, and Lean rejected it
+with six heartbeat timeouts and one follow-on error. The first error:
+</p>
+<pre><code>old_example.lean:209:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached</code></pre>
+<p>Line 209 is this cnf lemma in the old output. It unfolds all 435 pairs and hands them to a search tactic:</p>
+<pre><code>private theorem th_lemma_78 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_77 _atoms _vars) := by
+  unfold formula_77 formula_76 formula_75 formula_71 formula_30 term_29 term_28 ... term_1 term_0
+  first | omega | grind (splits := 64)</code></pre>
+<p>
+The other gap, a <code>distinct</code> over more than 32 terms, needs the old Z3 binary to reproduce. Only the new binary was built, so
+we quote the PR instead: the export failed with "the clause log declares a sort absent from the input: distinct-elems!0".
+</p>
+
+<h3>(c) After</h3>
+<p>The current scripts produced <code>example.lean</code>. <span class="ok">Lean accepted it</span> ("Lean checks passed.").</p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+...
+def formula_30 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (Not ((term_0 _atoms _vars) = (term_1 _atoms _vars))) (And (Not ((term_0 _atoms _vars) = (term_2 _atoms _vars))) ... (Not ((term_28 _atoms _vars) = (term_29 _atoms _vars))) ...)</code></pre>
+<p class="explain">Each constant becomes a Lean term, and the <code>distinct</code> becomes a chain of 435 "not equal" conjuncts.</p>
+<pre><code>def formula_71 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars) = (term_1 _atoms _vars))
+def formula_75 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_30 _atoms _vars))
+def formula_76 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_71 _atoms _vars))
+def formula_77 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_75 _atoms _vars) (formula_76 _atoms _vars))</code></pre>
+<p class="explain"><code>formula_77</code> is the clause "the distinct is false, or <code>c0 = c1</code> is false", one of the pair equalities the proof logged.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_30 _atoms _vars))
+    (_h1 : (formula_35 _atoms _vars))
+    (_h2 : (formula_38 _atoms _vars))
+    (_h3 : (formula_41 _atoms _vars))
+    (_h4 : (formula_44 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p class="explain">The theorem says the five assertions together imply <code>False</code>. That is the refutation Lean checks.</p>
+<pre><code>private theorem th_lemma_78 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_77 _atoms _vars) := by
+  first
+    | (refine Classical.byContradiction ?_
+       refine (fun (_f1 : (Not (formula_77 _atoms _vars))) =&gt; ?_)
+       have _f2 := (mt (@Or.inl _ _) _f1)
+       have _f3 := (mt (@Or.inr _ _) _f1)
+       have _f4 : (Not (formula_30 _atoms _vars)) := (mt (@And.left _ _) _f3)
+       exact (False.elim (_f4 (Classical.byContradiction (fun _g =&gt; _f2 _g)))))
+    | (unfold formula_77 formula_76 formula_75 formula_71 formula_30 term_29 ... term_0
+       first | omega | grind (splits := 64))</code></pre>
+<p class="explain">
+This is the new feature. The proof assumes the clause is false, so the distinct holds and <code>c0 = c1</code>.
+<code>And.left</code> takes the distinct's first conjunct, <code>c0 ≠ c1</code>, which contradicts that. The old search stays as a second branch.
+</p>
+<p>The new file has six such propagation proofs. The old file had none, which matches its six timeouts.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+Locally, the whole test suite passed on the final branch. That includes several hundred Lean reconstruction tests, the
+export tests, the Lean check script, and about a thousand regression files. The implementer also ran before-and-after checks.
+With the C++ change removed, the new export test failed in all four subtests. With the old reconstructor, the 30-term and 40-term Int
+inputs timed out in Lean. With the change, they verify in about a second. The first full Lean test run had one failure and two errors.
+A placeholder id was a tuple, but the prover sorts leaves by id, so it was changed to a negative integer. The reviewer re-ran the
+targeted tests and the full suite independently. No <code>LOCAL_GATE.md</code> was recorded for this iteration.
+</p>
+<table>
+<thead><tr><th>Check</th><th>Who ran it</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Build and targeted <code>test-z3</code> proof tests</td><td>integrator</td><td class="ok">4 passed, 0 failed</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td>integrator</td><td class="ok">113 OK</td></tr>
+<tr><td><code>test_proof_to_lean*.py</code></td><td>integrator</td><td class="ok">466 OK, 6 skipped, 569 s</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td>integrator</td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td>integrator</td><td class="ok">48 OK</td></tr>
+<tr><td><code>test-z3 /a</code></td><td>implementer</td><td class="ok">127 passed</td></tr>
+<tr><td>z3test SMT-LIB regressions</td><td>implementer</td><td class="ok">rc 0, 960 files</td></tr>
+<tr><td>Proof matrix, <code>legacy-proof-object</code> cell</td><td>implementer</td><td class="ok">6/6 Lean-verified</td></tr>
+<tr><td>Proof matrix, <code>smt-clause-log-nopp</code> cell on <code>lra_*</code></td><td>implementer</td><td class="ok">8/8 Lean-verified</td></tr>
+<tr><td><code>test_proof_to_lean*.py</code>, independent re-run</td><td>reviewer</td><td class="ok">466 OK, 6 skipped, 578 s</td></tr>
+<tr><td>Worked example above</td><td>this report</td><td class="ok">Lean accepted; base version rejected</td></tr>
+</tbody>
+</table>
+<p>
+The inputs to this report contain no recorded CI results. CI may still be running. The table lists the jobs the PR says run the new
+tests. See the <a href="https://github.com/levnach/z3/pull/90/checks">PR checks page</a> for live status. There were no CI fix rounds.
+</p>
+<table>
+<thead><tr><th>CI workflow / job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel (<code>test_proof_certificate.py</code>)</td><td class="unk">not recorded &middot; <a href="https://github.com/levnach/z3/pull/90/checks">checks</a></td></tr>
+<tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean (<code>test_proof_to_lean*.py</code>)</td><td class="unk">not recorded &middot; <a href="https://github.com/levnach/z3/pull/90/checks">checks</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR, with no blocker or major findings.</p>
+<p>
+<strong>Minor: proof logging is now quadratic.</strong> The reviewer asked how far the new pairwise encoding scales. They timed
+distincts of up to 2000 terms. Without a proof log, Z3 stays under a tenth of a second. With a log, 1000 terms took about 8 seconds and
+2000 terms took about 48 seconds, with a 137 MB log. This matters because every tool that reads the log pays that price. The authors
+chose to document it instead of adding a cap. A cap would bring back the old encoding, which no checker can verify, so those inputs
+would still fail, only earlier. Proof logging is opt-in, and no z3test regression has a distinct wider than 32 terms. The cost is now
+stated in the C++ comments and in the plan.
+</p>
+<table>
+<thead><tr><th>Terms</th><th>No log</th><th>With proof log</th></tr></thead>
+<tbody>
+<tr><td class="num">33</td><td class="num">0.02 s</td><td class="num">0.03 s</td></tr>
+<tr><td class="num">200</td><td class="num">0.02 s</td><td class="num">0.24 s</td></tr>
+<tr><td class="num">1000</td><td class="num">0.02 s</td><td class="num">7.96 s</td></tr>
+<tr><td class="num">2000</td><td class="num">0.06 s</td><td class="num">48.1 s</td></tr>
+</tbody>
+</table>
+<p>
+<strong>Nit: outdated README.</strong> The Python README still said a distinct is split only when every pair was logged.
+That would mislead the next reader. It was fixed.
+</p>
+<p>
+<strong>Suggestion: record a limit found while probing.</strong> The reviewer tried four extra inputs. Three verified. One failed:
+a wide distinct with an <a href="#g-ite"><code>ite</code></a> argument whose clauses Z3 had simplified under a
+<a href="#g-unit-clause">unit clause</a>. The reviewer showed this failure predates the PR. At 30 terms, the base and new
+reconstructors write byte-identical Lean text. The limit was added to the plan's "still open" list.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Proof logs for very wide distincts grow with the square of the width, as measured above.</li>
+<li>The structural prover now sees split distincts in more cnf lemmas. Its work is bounded, and a failed attempt falls back to the old proof.</li>
+<li>A placeholder leaf must print exactly like the distinct's conjunct. A test pins this. A mismatch would make Lean reject a proof, never accept a wrong one.</li>
+<li>The trust boundary is unchanged. Theorem statements are built as before, and no axioms or <code>sorry</code> were added.</li>
+<li>Whether the CI checks pass is unknown to this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>A negated wide distinct, where the proof refutes every pair, exports but gives quadratic Lean text. It needs a tail split of the long <a href="#g-disjunction">disjunction</a> and a structural rewrite of <code>not distinct</code>.</li>
+<li>Two distincts over the same terms in different orders still fail over Int.</li>
+<li>Placeholder leaves have no bridge to a pair logged with swapped sides, such as <code>(= b a)</code>.</li>
+<li>The older <code>ite</code> case from the review still times out in Lean.</li>
+<li>A clear rejection message above some width remains a possible follow-up.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-certificate">certificate</dt>
+<dd>The JSON file Z3 exports that records the proof steps, so a separate checker can rebuild and verify them.</dd>
+<dt id="g-clause">clause</dt>
+<dd>An "or" of literals. <code>(or (not p) q)</code> is a clause with two literals.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>The record of every clause the solver adds or derives while it searches. The exporter replays it against the input.</dd>
+<dt id="g-clausify">clausify</dt>
+<dd>To rewrite a formula as a set of clauses. A distinct of n terms clausifies to n(n-1)/2 pair disequalities.</dd>
+<dt id="g-cnf-lemma">cnf lemma</dt>
+<dd>A proof step that links a formula to the clauses it was turned into. Example: "the distinct is false, or <code>c0 ≠ c1</code>".</dd>
+<dt id="g-conjunct">conjunct</dt>
+<dd>One part of an "and". In <code>A ∧ B</code>, both <code>A</code> and <code>B</code> are conjuncts.</dd>
+<dt id="g-disequality">disequality</dt>
+<dd>A statement that two terms differ, written <code>(not (= a b))</code> or <code>a ≠ b</code>.</dd>
+<dt id="g-disjunction">disjunction</dt>
+<dd>An "or" of several formulas. A clause is a disjunction of literals.</dd>
+<dt id="g-distinct">distinct</dt>
+<dd>The SMT-LIB operator saying all its arguments are pairwise different. <code>(distinct a b c)</code> means a ≠ b, a ≠ c, and b ≠ c.</dd>
+<dt id="g-equality">equality</dt>
+<dd>A statement that two terms have the same value, written <code>(= a b)</code>.</dd>
+<dt id="g-fresh-symbol">fresh symbol</dt>
+<dd>A name the solver invents during solving that does not appear in the input, such as <code>distinct-elems</code> here.</dd>
+<dt id="g-heartbeat">heartbeat</dt>
+<dd>Lean's unit of work. A proof that uses more than its heartbeat limit is stopped with a timeout error.</dd>
+<dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+<dd>A term whose value depends on a condition. <code>(ite (&gt; x 0) a b)</code> is <code>a</code> when x &gt; 0 and <code>b</code> otherwise.</dd>
+<dt id="g-lia">linear integer arithmetic (QF_LIA)</dt>
+<dd>Formulas over Int with addition, constants, and multiplication by numbers, and no quantifiers.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atomic formula or its negation, such as <code>(= c0 c1)</code> or <code>(not (= c0 c1))</code>.</dd>
+<dt id="g-leaf">opaque leaf</dt>
+<dd>A sub-formula the reconstructor treats as one unit without looking inside. A placeholder leaf stands for a pair that has no node of its own.</dd>
+<dt id="g-propagation">propagation proof</dt>
+<dd>A short Lean proof that follows the and/or/not structure of a formula to reach a clause, without a general search.</dd>
+<dt id="g-qf-uf">QF_UF</dt>
+<dd>Formulas with uninterpreted sorts and functions, equality, and no quantifiers.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, Bool, or a declared sort like <code>U</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that builds part of a proof automatically. <code>omega</code> solves integer arithmetic goals, and <code>grind</code> searches more broadly.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt>
+<dd>A function with a name and a type but no fixed meaning. The solver only knows that equal inputs give equal outputs.</dd>
+<dt id="g-unit-clause">unit clause</dt>
+<dd>A clause with a single literal, so that literal must be true.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-07, for
+<a href="https://github.com/levnach/z3/pull/90">PR #90</a> (iteration 90).
+</footer>
+</body>
+</html>
