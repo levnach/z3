@@ -1643,6 +1643,35 @@ documented inputs `ENUM_ARRAY_INPUTS`, four pinned seeds, the fields, the
 rejections, the replay's constructors of element sorts, and the read cases
 failing Lean when dropped).
 
+### Constant arrays of enumerations, and the rewriter's constant-array evaluations (2026-11-06)
+
+Constant arrays of an enumeration, `((as const (Array Int Color)) c)` over
+Int or Real indices, are certified through the clause log, and so are default
+values of arrays built from constant arrays by store and ite. A read of a
+constant array is its value (`_cases_const`), the default value of one is
+too (`_cases_default_const`), and the default value of a store is that of
+the array below (`_cases_default_store`), so `_read_cases` walks on through
+them. The default value of an array constant or application is rejected
+explicitly by the exporter: `_default` of an array that is not constant
+almost everywhere is an arbitrary value of `_m.U`, not provably a
+constructor. Random sweeps of `random_enum_array_instance(constant=True)`
+(seeds 1-300, 178 unsatisfiable) exposed four gaps that are not specific to
+enumerations and fail `(Array Int Int)` inputs alike; each is closed:
+the exporter's cnf th-lemmas now get the default and read facts of
+constant-array comparisons that rewrites get (the old backlog item
+"constant-array comparisons outside rewrites"); the array rewrite
+alternative's simp set evaluates reads of constant arrays (`_select_const`),
+folds `(store (const c) i c)` into `(const c)` (`_const_store_self`, moved
+from the map prelude into the constant-array prelude), and decides `(= (const
+c) (store (const c) i v))` as `(= c v)` either way round (`_const_eq_store`,
+`_store_eq_const`); and a read of an ite over arrays gets the facts of a read
+of each store or constant-array branch (`_si` facts), which also closes the
+iter-082 review's failures of seeds 219, 223, 224, and 251 (all 37
+unsatisfiable seeds of that sweep verify). All 178 unsatisfiable constant
+seeds verify. Tests: `test_proof_to_lean_enum.py` (`ENUM_CONSTANT_INPUTS`,
+`ENUM_CONSTANT_SEEDS`, seeds 219 and 251) and `test_proof_to_lean_array.py`
+(five QF_ALIA inputs, one per gap).
+
 ### Nested arrays (2026-11-05)
 
 Arrays of arrays, and arrays indexed by arrays, were rejected ("unsupported
