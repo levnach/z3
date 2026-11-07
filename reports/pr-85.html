@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>PR #85: Certify long store-chain comparisons over constant arrays in Lean</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  --note-bg: #ddf4ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --note-bg: #12263f;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.6; font-size: 16px;
+}
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .5rem; }
+h2 { font-size: 1.3rem; margin-top: 2.2rem; padding-bottom: .3rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+  background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: .8rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; padding: .05rem .55rem; border-radius: 1rem; font-size: .85rem;
+  font-weight: 600; border: 1px solid currentColor; }
+.open { color: var(--ok); }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.unknown { color: var(--warn); font-weight: 600; }
+.note { background: var(--note-bg); border-left: 4px solid var(--accent); padding: .6rem .9rem; border-radius: 4px; }
+.explain { margin-top: -.4rem; color: var(--fg); }
+dl dt { font-weight: 600; margin-top: .8rem; }
+dl dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+<h1>Certify long store-chain comparisons over constant arrays in Lean</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/85">levnach/z3#85</a> ·
+state <span class="badge open">OPEN</span> · 2026-11-07T05:28:55Z · loop iteration 85
+</p>
+<p class="note">This pull request is open and <strong>not merged</strong>.
+The change it proposes is commit
+<a href="https://github.com/levnach/z3/commit/3ee5355a3d5ab5a6a35d931f91ac9b9651d6012e"><code>3ee5355a3</code></a>,
+on top of base commit <code>5fb92d433</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Z3's <a href="#g-rewrite-step">rewriter</a> decides whether two
+<a href="#g-store-chain">store chains</a> over <a href="#g-constant-array">constant arrays</a>
+are equal by comparing them at each stored index.
+Lean proves each such <a href="#g-rewrite-step">rewrite step</a> with the
+<a href="#g-grind"><code>grind</code></a> <a href="#g-tactic">tactic</a>, helped by
+<a href="#g-read-fact">read facts</a> about what each <a href="#g-select">select</a> returns.
+Their number grows quadratically, so above a cap of 64 the reconstructor dropped them all.
+Two chains of five <a href="#g-store">stores</a> then already failed in Lean.
+This PR keeps, above the cap, only the reads the rewriter itself performs.
+Long chain comparisons now end in a <a href="#g-refutation">refutation</a> that Lean accepts.
+A second cap at 640 reads protects Lean's memory on very long chains.</p>
+
+<h2 id="background">Background</h2>
+<p>Iteration 84 added an <a href="#g-extensionality">extensionality</a> fact for store-chain comparisons.
+Its premises are the values of both chains at each stored index.
+At or below 64 read facts, the reconstructor supplied them.
+Above that it kept only the <a href="#g-default-value">default value</a> facts, and 25 of 45 unsat seeds in a random sweep failed.
+The work serves milestone 4 of the plan, "Broader theories and integration", for the theory of
+<a href="#g-array">arrays</a>.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>Long store-chain comparisons now verify, because the reconstructor states the reads Z3's rewriter evaluates.</li>
+<li>Each read walks down a chain only to the outermost store at its index, so the facts follow the compared chains only.</li>
+<li>Past 640 targeted reads, a second cap drops all read facts, so very long chains cost no more than before.</li>
+<li>New tests cover a documented input, two pinned random seeds, and the second cap.</li>
+</ul>
+<p>The first of the two commits adds the targeted reads, and the second adds the cap after review.
+No C++ changed, and no axiom or <code>sorry</code> was added.</p>
+<table>
+<thead><tr><th>File</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">65</td><td class="num">5</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="num">147</td><td class="num">2</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">22</td><td class="num">0</td></tr>
+<tr><th>Total (3 files)</th><th class="num">234</th><th class="num">7</th></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>Think of a store chain as a stack of notes over a default board.
+To read a slot, you look from the newest note down and stop at the first note for that slot.
+The new read facts record exactly those looks.</p>
+
+<h3>(a) The input</h3>
+<p>This input shortens the PR's test input <code>long_store_chains_over_two_constants</code>.
+Its stored values come from an <a href="#g-uninterpreted-function">uninterpreted function</a>.
+Both chains store the same values at indices 0 to 4, in opposite order.
+The <a href="#g-boolean">Boolean</a> <code>p</code> is false, so the chains must differ, yet <code>x = y</code> makes them equal.</p>
+<pre><code>(set-logic QF_ALIA)
+(declare-const x Int)
+(declare-const y Int)
+(declare-const p Bool)
+(declare-fun u (Int) Int)
+(assert (or p (not (= (store (store (store (store (store ((as const (Array Int Int)) x) 0 (u 0)) 1 (u 1)) 2 (u 2)) 3 (u 3)) 4 (u 4))
+                      (store (store (store (store (store ((as const (Array Int Int)) y) 4 (u 4)) 3 (u 3)) 2 (u 2)) 1 (u 1)) 0 (u 0))))))
+(assert (not p))
+(assert (= x y))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The base commit's exporter accepted the input.
+Its reconstructor was called directly, since the extracted script could not find the Lean checker.
+Lean rejected the generated file in the rewrite lemma:</p>
+<pre><code>old_example.lean:235:33: error: `grind` failed
+case grind.1.1.1.1.1</code></pre>
+<p>The old count was 65 reads, one over the cap, so the old file stated none of them.</p>
+
+<h3>(c) After</h3>
+<p>With the PR's code, Lean accepted the generated file: <span class="ok">"Lean checks passed."</span></p>
+<pre><code>def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (@_const_array Int Int (term_1 _atoms _vars _m))
+...
+noncomputable def term_17 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_14 _atoms _vars _m) (term_15 _atoms _vars _m) (term_16 _atoms _vars _m))
+...
+noncomputable def term_24 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_23 _atoms _vars _m) (term_3 _atoms _vars _m) (term_4 _atoms _vars _m))
+def formula_25 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_17 _atoms _vars _m) = (term_24 _atoms _vars _m))</code></pre>
+<p class="explain">These declare the constant array of <code>x</code>, the outermost store of each chain, and the chains' equality.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_27 _atoms _vars _m))
+    (_h1 : (formula_28 _atoms _vars _m))
+    (_h2 : (formula_29 _atoms _vars _m))
+    : False :=
+...</code></pre>
+<p class="explain">The theorem says the three assertions together imply <code>False</code>.</p>
+
+<pre><code>private theorem rewrite_34 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_33 _atoms _vars _m) := by
+  first
+    | (unfold formula_33 formula_32 formula_31 formula_29 formula_27 formula_26 formula_25 term_18 term_1 formula_0
+       ...
+       have _e25_9 : ((term_17 _atoms _vars _m)) = ((term_24 _atoms _vars _m)) -&gt; _select ((term_17 _atoms _vars _m)) (((2 : Int))) = _select ((term_24 _atoms _vars _m)) (((2 : Int))) := congrArg (fun _x =&gt; _select _x (((2 : Int))))
+       ...
+       have _x25 : _select ((term_17 _atoms _vars _m)) (((0 : Int))) = _select ((term_24 _atoms _vars _m)) (((0 : Int))) -&gt; ... -&gt; (_vars 0) = (_vars 1) -&gt; ((term_17 _atoms _vars _m)) = ((term_24 _atoms _vars _m)) := by intro _h0 _h1 _h2 _h3 _h4 _hv; funext _j; ...</code></pre>
+<p class="explain">This lemma proves the rewrite step: the <code>_e</code> facts read both chains at each stored index by <a href="#g-congruence">congruence</a>, feeding the extensionality fact.</p>
+
+<pre><code>       have _ds17_9 := _store_apply ((term_14 _atoms _vars _m)) (((4 : Int))) (_m.ifuns 0 [(_m.int (((4 : Int))))]) (((2 : Int)))
+       have _ds14_9 := _store_apply ((term_11 _atoms _vars _m)) (((3 : Int))) (_m.ifuns 0 [(_m.int (((3 : Int))))]) (((2 : Int)))
+       have _ds11_9 := _store_apply ((term_8 _atoms _vars _m)) (((2 : Int))) (_m.ifuns 0 [(_m.int (((2 : Int))))]) (((2 : Int)))
+       ...
+       have _ds24_9 := _store_apply ((term_23 _atoms _vars _m)) (((0 : Int))) (_m.ifuns 0 [(_m.int (((0 : Int))))]) (((2 : Int)))
+       have _ds23_9 := _store_apply ((term_22 _atoms _vars _m)) (((1 : Int))) (_m.ifuns 0 [(_m.int (((1 : Int))))]) (((2 : Int)))
+       have _ds22_9 := _store_apply ((term_21 _atoms _vars _m)) (((2 : Int))) (_m.ifuns 0 [(_m.int (((2 : Int))))]) (((2 : Int)))
+       first | omega | grind (splits := 64))
+    | ...</code></pre>
+<p class="explain">These new read facts at index 2 walk each chain past two other stores and stop at the store at index 2.</p>
+
+<table>
+<thead><tr><th>Measure, this example</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>Reads counted against the cap of 64</td><td class="num">65</td><td class="num">65</td></tr>
+<tr><td>Read facts stated in the rewrite lemma</td><td class="num">0</td><td class="num">35</td></tr>
+<tr><td>Lean file size</td><td class="num">23,652 bytes</td><td class="num">33,792 bytes</td></tr>
+<tr><td>Lean result</td><td class="bad">grind failed</td><td class="ok">passed</td></tr>
+</tbody>
+</table>
+
+<h2 id="verification">How it was verified</h2>
+<p>All test suites passed on the final commit on macOS.
+Random chain comparisons went from fewer than half verified to all verified.
+The reviewer confirmed that the new tests fail without the change.
+The matrix runs were skipped, since their inputs have no arrays.</p>
+<table>
+<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><code>test_proof_to_lean*.py</code></td><td>456 tests OK, 6 slow tests skipped, 549 s</td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td>112 tests OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td>"Lean checks passed."</td></tr>
+<tr><td>z3test proof tests</td><td>48 tests OK</td></tr>
+<tr><td>Random chain comparisons, before</td><td>20 of 45 unsat seeds verified, seeds 1 to 100</td></tr>
+<tr><td>Random chain comparisons, after</td><td>145 of 145 unsat seeds verified, seeds 1 to 300, 91 above the old cap, at most 122 targeted reads</td></tr>
+<tr><td>Iteration 84's generator, regression sweep</td><td>64 of 64 verified, seeds 1 to 80</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Single Lean check</th><th>Targeted reads</th><th>Time</th><th>Peak memory</th></tr></thead>
+<tbody>
+<tr><td>Two 24-store chains that need their reads</td><td>under 640</td><td class="num">3.2 s</td><td class="num">1.1 GB</td></tr>
+<tr><td>Two 24-store chains, different defaults</td><td class="num">624</td><td class="num">2.8 s</td><td class="num">1.5 GB</td></tr>
+<tr><td>32 stores, uncapped</td><td class="num">1088</td><td class="num">7.7 s</td><td class="num">3.5 GB</td></tr>
+<tr><td>40 stores, uncapped</td><td class="num">1680</td><td class="num">20.4 s</td><td class="num">7.6 GB</td></tr>
+<tr><td>Reviewer's 64-store case, with the cap</td><td>none stated</td><td class="num">1.2 s</td><td class="num">590 MB</td></tr>
+</tbody>
+</table>
+<p>The local gate was still running when this report was written, so its result is unknown.
+No CI results were recorded either, and there were no CI fix rounds.</p>
+<table>
+<thead><tr><th>CI workflow</th><th>Where the new tests run</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>ci.yml</code>, job <code>ubuntu-cmake</code></td><td>Step "Check native proofs in Lean"</td><td class="unknown">not recorded</td></tr>
+<tr><td><code>lean-proofs.yml</code></td><td>"Lean reconstruction tests" in <code>scripts/ci_lean_proofs.sh</code></td><td class="unknown">not recorded</td></tr>
+</tbody>
+</table>
+<p>Live check results are on the <a href="https://github.com/levnach/z3/pull/85/checks">PR's checks page</a>.</p>
+
+<h2 id="review">Review</h2>
+<p>The first review asked for changes, with one major finding and one nit.</p>
+<h3>Major: the targeted reads had no bound</h3>
+<p>The reviewer compared two 64-store chains over constant arrays holding 0 and 1.
+Z3 decides this from the defaults alone, and Lean checked it in 1.2 seconds before the PR.
+With the first commit, Lean was killed at about 13.5 GB of memory.
+Chains this long are normal in memory-model encodings, so inputs that certified before would have failed.
+The fix is the second cap: past 640 targeted reads, no read facts are stated, as before.
+The reviewer's input checks in 1.2 seconds again, and a new test guards the cap.</p>
+<h3>Nit: a test compared a hand-computed number</h3>
+<p>One test checked a hand-written constant against the cap, which proved nothing about the input.
+The test now rebuilds the input with the cap disabled and counts exactly 84 read facts.
+A suggestion to share read facts across proof branches was deferred as a follow-up.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Equal chains of about 25 or more stores exceed 640 reads, so Lean still rejects them, as before.</li>
+<li>The cap was calibrated on one macOS machine, and CI runners may use more memory.</li>
+<li>Above the old cap, an equality with a plain array on one side still gets no read facts. No failing input is known.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Share the read facts across the branches of the rewrite proof, cutting their cost by about two thirds.</li>
+<li>Add a generator that mixes long chains with plain array constants, and sweep chains of 20 to 50 stores.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-array">array</dt>
+<dd>A map from indices to elements, read with <code>select</code> and updated with <code>store</code>. Example: <code>(Array Int Int)</code>.</dd>
+<dt id="g-boolean">Boolean</dt>
+<dd>The sort with the two values true and false, written <code>Bool</code>.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that equal inputs give equal outputs: if <code>a = b</code>, then <code>f a = f b</code>.</dd>
+<dt id="g-constant-array">constant array</dt>
+<dd>An array with the same element at every index. Example: <code>((as const (Array Int Int)) x)</code>.</dd>
+<dt id="g-default-value">default value</dt>
+<dd>The element an array holds at all but finitely many indices, such as <code>x</code> for a constant array of <code>x</code> with a few stores.</dd>
+<dt id="g-extensionality">extensionality</dt>
+<dd>The rule that two arrays are equal when they agree at every index.</dd>
+<dt id="g-grind"><code>grind</code></dt>
+<dd>A Lean tactic that proves goals by combining congruence, case splits, and arithmetic.</dd>
+<dt id="g-read-fact">read fact</dt>
+<dd>In this project, a lemma that states the value of one <code>select</code> from an array at one index.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+<dt id="g-rewrite-step">rewrite step, rewriter</dt>
+<dd>A step that replaces a term with a simpler, equivalent term. The rewriter is the part of Z3 that performs these steps, and each one needs its own proof in Lean.</dd>
+<dt id="g-select">select</dt>
+<dd>Reading an array at an index. <code>(select a i)</code> is the element of <code>a</code> at <code>i</code>.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as <code>Int</code>, <code>Bool</code>, or <code>(Array Int Int)</code>.</dd>
+<dt id="g-store">store</dt>
+<dd>Writing an array at an index. <code>(store a i v)</code> is <code>a</code> with the element at <code>i</code> replaced by <code>v</code>.</dd>
+<dt id="g-store-chain">store chain</dt>
+<dd>Several stores nested on top of one array. Example: <code>(store (store a 0 u) 1 w)</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A command that tells Lean how to build a proof, such as <code>omega</code> or <code>grind</code>.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning, only its sort. Equal arguments still give equal results. Example: <code>(declare-fun u (Int) Int)</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+Report for <a href="https://github.com/levnach/z3/pull/85">levnach/z3#85</a>, iteration 85.
+</footer>
+
+</main>
+</body>
+</html>
