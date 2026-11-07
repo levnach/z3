@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #86: Certify reads of arrays equated to constants and commuted array-ext</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f3f4f6; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 50rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; margin-bottom: .3rem; }
+h2 { border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.4rem; }
+.meta { color: var(--muted); }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; border: 1px solid var(--warn);
+  color: var(--warn); font-weight: 600; font-size: .9rem; }
+code { background: var(--code-bg); padding: .05rem .25rem; border-radius: 4px; font-size: .92em; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+  overflow-x: auto; font-size: .85rem; line-height: 1.4; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; margin: 1rem 0; width: 100%; }
+th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.pending { color: var(--warn); font-weight: 600; }
+.explain { margin-top: -.4rem; color: var(--muted); }
+dl dt { font-weight: 600; margin-top: .7rem; }
+dl dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify reads of arrays equated to constants and commuted array-ext</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/86">levnach/z3#86</a> ·
+State: <span class="badge">OPEN</span> · Opened 2026-11-07T06:35:04Z · Loop iteration 86
+</p>
+<p>This pull request is <strong>not merged</strong>. The change under review is commit
+<a href="https://github.com/levnach/z3/commit/9981202224e1d0fb0d0d0504fe1b087a1730020f"><code>9981202</code></a>.
+It contains two commits on top of <code>master</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>This PR closes two gaps in the Lean reconstruction of proofs about
+<a href="#g-constant-array">constant arrays</a>.
+First, a <a href="#g-cnf-lemma">CNF lemma</a> may read an <a href="#g-array">array</a> that an
+<a href="#g-equality">equality</a> ties to a constant array.
+No fact gave the constant array's value at that <a href="#g-index">index</a>, so the
+<a href="#g-tactic">tactic</a> <code>grind</code> could not finish.
+The reconstructor now states that value, and <code>grind</code> links the two reads by
+<a href="#g-congruence">congruence</a>.
+Second, Z3's <a href="#g-congruence-closure">congruence closure</a> treats the
+<a href="#g-extensionality-witness">extensionality witness</a> of two arrays as
+<a href="#g-commutative">commutative</a>.
+Lean had no matching fact, so each generated file now proves one as a <a href="#g-theorem">theorem</a>.
+Both additions are proved in the file, so the <a href="#g-trusted-base">trusted base</a> does not grow.
+Two Real-<a href="#g-sort">sorted</a> <a href="#g-refutation">refutations</a> that Lean rejected now check.</p>
+
+<h2 id="background">Background</h2>
+<p>Before this PR, the pipeline already certified many constant-array problems, including long
+<a href="#g-store">store</a> chains compared with constant arrays.
+But its random test generator only built arrays with Int indices and Int elements.
+A new sweep over Real sorts found two <a href="#g-seed">seeds</a>, 48 and 87, that Lean rejected.
+Each failure also has a small Int input, so neither is really about Real numbers.
+This work serves milestone 4 of the project plan, "Broader theories and integration".
+That milestone treats arrays as a separate extension to be completed end to end.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li><strong>Reconstructor:</strong> a CNF lemma reading an array equated to a constant array now gets the constant array's value at each read index.</li>
+<li><strong>Reconstructor:</strong> each extensionality witness now has a proved fact that swapping its two arrays gives the same witness.</li>
+<li><strong>Test generator:</strong> random constant-array problems can now use Int or Real index and element sorts, with unchanged Int problems per seed.</li>
+<li><strong>Regression tests:</strong> three small inputs and the two failing Real seeds are now permanent tests, each checked for its expected <a href="#g-fragment">fragment</a>.</li>
+<li><strong>Documentation:</strong> the project plan and the examples README describe both new facts.</li>
+</ul>
+<p>Two analogies help. If box <code>a</code> is a copy of a box holding 1 in every slot, you still must read slot <code>k</code> of the original to know slot <code>k</code> of the copy.
+The new facts do that reading, at most 64 per lemma.
+And just as the distance from A to B equals the distance from B to A, a spot where <code>a</code> and <code>b</code> differ is a spot where <code>b</code> and <code>a</code> differ.</p>
+
+<table>
+<thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">57</td><td class="num">4</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>array tests and random generator</td><td class="num">114</td><td class="num">25</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>project plan note</td><td class="num">25</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>description of array facts</td><td class="num">8</td><td class="num">2</td></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This input is the PR's new test <code>read_of_an_array_equated_to_a_constant</code>. All outputs come from real runs for this report.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic ALL)
+(declare-const a (Array Int Int))
+(declare-const k Int)
+(assert (= a ((as const (Array Int Int)) 1)))
+(assert (distinct 3 (select a k) (select a 0)))
+(check-sat)</code></pre>
+<p class="explain">Array <code>a</code> equals the constant array of 1s, yet the input demands three
+pairwise <a href="#g-distinct">distinct</a> values, which is impossible.</p>
+
+<h3>(b) Before: the pre-PR reconstructor</h3>
+<p>The exporter succeeded, but Lean rejected the old reconstructor's file. Trimmed output:</p>
+<pre><code>z3_proof_j4xjlctf.lean:175:18: error: `grind` failed
+case grind
+...
+_t2 : term_2 _atoms _vars _m = _const_array Int 1
+...
+_dc2 : _default _int_unbounded (_const_array Int 1) = 1
+left : term_0 _atoms _vars _m = term_2 _atoms _vars _m
+right : 3 = _select (term_0 _atoms _vars _m) (_vars 0)
+⊢ False
+...
+z3_proof_j4xjlctf.lean:184:18: error: `grind` failed
+...
+Lean checking failed; no proof was published.</code></pre>
+<p class="explain"><code>grind</code> knew <code>a</code> equals the constant array and slot <code>k</code> of <code>a</code> holds 3.
+Nothing said slot <code>k</code> of the constant array holds 1. The second error is the same gap at index 0.</p>
+
+<h3>(c) After: the Lean file the reconstructor now generates</h3>
+<p>The reconstructor reported "Lean checked the refutation", and a separate run of
+<code>scripts/check_lean.sh</code> on the file printed "Lean checks passed."</p>
+<pre><code>def term_0 ... : (Int -&gt; Int) := _m.arrs_ii 0
+def term_2 ... : (Int -&gt; Int) := (@_const_array Int Int (term_1 _atoms _vars _m))
+def formula_3 ... : Prop := ((term_0 _atoms _vars _m) = (term_2 _atoms _vars _m))
+def term_6 ... : Int := (_select (term_0 _atoms _vars _m) (term_5 _atoms _vars _m))
+...</code></pre>
+<p class="explain">These declarations name the array <code>a</code>, the constant array of 1s, the equality
+between them, and the read of <code>a</code> at <code>k</code>.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_3 _atoms _vars _m))
+    (_h1 : (formula_9 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p class="explain">The main theorem says that the two assertions together imply False, for every interpretation.</p>
+
+<pre><code>private theorem th_lemma_15 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_14 _atoms _vars _m) := by
+  unfold formula_14 formula_13 formula_12 formula_11 term_6 term_5 term_4 formula_3
+  have _t2 : (term_2 _atoms _vars _m) = (@_const_array Int Int (((1 : Int)))) := rfl
+  ...
+  have _dc2_5 := _select_const (I := Int) (((1 : Int))) (_vars 0)
+  first | omega | grind (splits := 64)</code></pre>
+<p class="explain">This is the CNF lemma that failed before. The new line <code>_dc2_5</code> states that
+slot <code>k</code> of the constant array holds 1, and now <code>grind</code> succeeds.</p>
+
+<pre><code>private theorem _array_diff_comm {I E : Type} (h : Nonempty I) (a b : I -&gt; E) :
+    _array_diff h a b = _array_diff h b a := by
+  have _p : (fun _j =&gt; Not (a _j = b _j)) = (fun _j =&gt; Not (b _j = a _j)) :=
+    funext (fun _j =&gt; propext (Iff.intro (fun _n _e =&gt; _n _e.symm) (fun _n _e =&gt; _n _e.symm)))
+  exact congrArg (@Classical.epsilon I h) _p</code></pre>
+<p class="explain">This new theorem, the second fix, appears in every generated file. This input never uses it, but the test <code>commuted_extensionality_witnesses</code> does.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>About 300 random Real-sorted puzzles were tried, and every unsat one now verifies, where two failed before.
+The full test suite and all Lean checks passed.
+The new tests fail against the old reconstructor, as expected.
+These results come from the implementer and reviewer. The local gate had not recorded a result when this page was written.</p>
+
+<table>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Reconstruction tests (<code>test_proof_to_lean*.py</code>)</td><td class="ok">458 OK, 6 skipped</td></tr>
+<tr><td>Certificate exporter tests (<code>test_proof_certificate.py</code>)</td><td class="ok">112 OK</td></tr>
+<tr><td>z3test proof scripts</td><td class="ok">48 OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>Proof matrix, Boolean inputs, legacy proof object</td><td class="ok">6 of 6 Lean-verified</td></tr>
+<tr><td>Proof matrix, LRA inputs, clause log</td><td class="ok">8 of 8 Lean-verified</td></tr>
+<tr><td>Sweep Real/Real, seeds 1–300</td><td>before 188 of 190 unsat, after 190 of 190</td></tr>
+<tr><td>Sweep Int/Real, seeds 1–150</td><td class="ok">105 of 105</td></tr>
+<tr><td>Sweep Real/Int, seeds 1–150</td><td>100 of 101, seed 103 rejected explicitly</td></tr>
+<tr><td>Sweep Int/Int, seeds 1–200 (regression)</td><td class="ok">133 of 133</td></tr>
+<tr><td>Worked example above, run for this report</td><td class="ok">Lean accepted</td></tr>
+</tbody>
+</table>
+<p>There are no C++ changes, so the native unit tests and the z3test regressions were not rerun.</p>
+
+<h3>CI</h3>
+<p>CI results were not available when this page was written. No CI fix rounds were recorded.</p>
+<table>
+<thead><tr><th>Workflow</th><th>Job and step</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>.github/workflows/ci.yml</code></td><td><code>ubuntu-cmake</code> (<code>releaseClang</code>), step "Check native proofs in Lean", which runs the new tests</td>
+<td class="pending">Not recorded. <a href="https://github.com/levnach/z3/pull/86/checks">See checks</a></td></tr>
+<tr><td>All other workflows</td><td>not listed in the inputs</td><td class="pending">Unknown. <a href="https://github.com/levnach/z3/pull/86/checks">See checks</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blocker or major findings. They confirmed the new theorem is sound and adds no axiom.</p>
+<ul>
+<li><strong>Minor, fixed.</strong> The reviewer imagined someone auditing a generated file and finding the new facts unexplained.
+The README had not been updated. Commit <code>998120222</code> fixed it.</li>
+<li><strong>Nit, fixed.</strong> The pinned-seed test guessed the fragment by looking for the word "Real" in the input.
+A seed mixing Int and Real would fail for a reason unrelated to Lean.
+The test now derives the fragment from the chosen sorts.</li>
+<li><strong>Suggestion, not changed.</strong> One lemma could get up to 640 chain reads plus 64 new reads.
+That is still bounded, so it stays a follow-up.</li>
+<li><strong>Suggestion, kept.</strong> A test asserts exactly two witnesses, which could break if the certificate shape changes.
+It was kept because it shows both argument orders are exercised.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Lemmas over constant arrays carry more facts, capped at 64. Sweeps showed no slowdown.</li>
+<li>CI and local gate results were not available for this page.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Indices written as unsimplified numerals, such as <code>(/ 2 2)</code> next to <code>1.0</code>, which <code>grind</code> keeps apart.</li>
+<li>The "arithmetic step over both Int and Real atoms" rejection for Real-indexed arrays of Int elements.</li>
+<li>Simpler CNF lemmas, by preferring the assertion a clause was split from.</li>
+<li>One shared limit for the new reads and the chain reads.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-array">array</dt>
+<dd>A total map from an index sort to an element sort. <code>(Array Int Int)</code> maps every integer to an integer.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of literals: at least one of them must be true.</dd>
+<dt id="g-cnf-lemma">CNF lemma</dt>
+<dd>A clause, proved on its own, that links a learned clause to the original assertions. CNF stands for conjunctive normal form.</dd>
+<dt id="g-commutative">commutative</dt>
+<dd>An operation is commutative if swapping its two arguments does not change the result, as with <code>x + y = y + x</code>.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that equal inputs give equal outputs: if <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+<dt id="g-congruence-closure">congruence closure</dt>
+<dd>The algorithm that groups terms into classes of equal terms, using equalities and congruence.</dd>
+<dt id="g-constant-array">constant array</dt>
+<dd>An array holding the same value at every index, written <code>((as const (Array Int Int)) 1)</code> in SMT-LIB.</dd>
+<dt id="g-distinct">distinct</dt>
+<dd>The SMT-LIB predicate saying its arguments are pairwise different.</dd>
+<dt id="g-equality">equality</dt>
+<dd>A formula <code>(= s t)</code> stating that two terms denote the same value. Between arrays, it means equal at every index.</dd>
+<dt id="g-extensionality-witness">extensionality witness</dt>
+<dd>For two arrays, an index where they differ, if any exists. Z3 writes it <code>(_ array-ext 0)</code>. Extensionality says arrays equal at every index are equal.</dd>
+<dt id="g-fragment">fragment</dt>
+<dd>A restricted logic named by the theories it allows, such as <code>qf_uflra</code>: quantifier-free, uninterpreted functions, linear real arithmetic.</dd>
+<dt id="g-index">index</dt>
+<dd>The position at which an array is read or written.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to a contradiction, that is, to False.</dd>
+<dt id="g-seed">seed</dt>
+<dd>A number that fixes a random generator's choices, so the same seed always gives the same test problem.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, Bool, or <code>(Array Real Real)</code>.</dd>
+<dt id="g-store">store</dt>
+<dd>The array update <code>(store a i v)</code>: an array equal to <code>a</code> except that index <code>i</code> holds <code>v</code>. Reading uses <code>select</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that builds part of a proof automatically. <code>grind</code> is a tactic that combines congruence closure with arithmetic.</dd>
+<dt id="g-theorem">theorem</dt>
+<dd>A statement together with a proof that Lean has checked.</dd>
+<dt id="g-trusted-base">trusted base</dt>
+<dd>The parts of a check that are accepted without proof, such as axioms. Keeping it small makes the result more reliable.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+Report for <a href="https://github.com/levnach/z3/pull/86">PR #86</a>, loop iteration 86.
+</footer>
+</body>
+</html>
