@@ -3499,6 +3499,19 @@ def _array_helpers(graph, reachable, atom_indices, variable_indices):
 
 # At most this many read facts per rewrite in _constant_array_comparisons.
 _COMPARISON_READS = 64
+# Above _COMPARISON_READS, at most this many reads of compared store chains
+# (_chain_comparison_reads) per rewrite; past it no read facts are stated.
+# They are about n * (n + 2) for two n-store chains at distinct numerals, and
+# each is repeated in every case of the rewrite's proof: on iteration 85's
+# macOS build two 24-store chains (624 reads) checked in 2.8 s and 1.5 GB,
+# 32 stores (1088) in 7.7 s and 3.5 GB, 40 (1680) in 20 s and 7.6 GB, and
+# 64 (4224) exceeded the 12 GB watchdog.
+_CHAIN_COMPARISON_READS = 640
+
+
+def _read_count(reads):
+    """The number of reads in a map from nodes to their sets of indices."""
+    return sum(len(indices) for indices in reads.values())
 
 
 def _constant_array_comparisons(graph, reachable, atom_indices, variable_indices):
@@ -3518,7 +3531,9 @@ def _constant_array_comparisons(graph, reachable, atom_indices, variable_indices
     quadratic (indices times arrays), so above _COMPARISON_READS of them
     only the reads the rewriter evaluates in such a comparison are stated
     (_chain_comparison_reads): each side's chain read at the indices stored
-    into either side, which the converse's premises need.
+    into either side, which the converse's premises need. Those are still
+    quadratic in the chains' length, so above _CHAIN_COMPARISON_READS of
+    them no read facts are stated at all.
     """
     if not any(graph.kind(node) == z3.Z3_OP_CONST_ARRAY for node in reachable):
         return []
@@ -3541,6 +3556,8 @@ def _constant_array_comparisons(graph, reachable, atom_indices, variable_indices
         len(indices.get(graph.decl(graph.arguments(node)[0]).range, ())) for node in equalities)
     if reads > _COMPARISON_READS:
         compared, levels = _chain_comparison_reads(graph, equalities)
+        if _read_count(compared) + _read_count(levels) > _CHAIN_COMPARISON_READS:
+            compared, levels = {}, {}
     else:
         # Every equality and array at every index stored into its sort.
         compared = {node: indices.get(graph.decl(graph.arguments(node)[0]).range, ()) for node in equalities}

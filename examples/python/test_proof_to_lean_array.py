@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import z3
 
@@ -2032,6 +2033,11 @@ class TestArrayValidation(unittest.TestCase):
         text = proof_to_lean.reconstruct(ARRAY_INPUTS["long_store_chains_over_two_constants"],
                                          self.certificates["long_store_chains_over_two_constants"])
         rewrite = text.split("private theorem rewrite_", 1)[1].split("\n    | ", 2)[1]
+        with mock.patch.object(proof_to_lean, "_COMPARISON_READS", 10 ** 9):
+            full = proof_to_lean.reconstruct(ARRAY_INPUTS["long_store_chains_over_two_constants"],
+                                             self.certificates["long_store_chains_over_two_constants"])
+        full = full.split("private theorem rewrite_", 1)[1].split("\n    | ", 2)[1]
+        self.assertEqual(len(re.findall(r"have _(?:e|ds|dc)\d+_\d+ ", full)), 13 * 6 + 6, full)
         self.assertGreater(13 * 6 + 6, proof_to_lean._COMPARISON_READS)
         self.assertEqual(len(re.findall(r"have _e\d+_\d+ ", rewrite)), 6, rewrite)
         self.assertEqual(len(re.findall(r"have _ds\d+_\d+ := _store_apply ", rewrite)), 21 + 15 + 5, rewrite)
@@ -2041,6 +2047,36 @@ class TestArrayValidation(unittest.TestCase):
         text = proof_to_lean.reconstruct(ARRAY_INPUTS["read_of_an_ite_over_a_constant"],
                                          self.certificates["read_of_an_ite_over_a_constant"])
         self.assertRegex(text, r"have _si\d+_0 := _select_const \(I := Int\) \(_vars \d+\) ")
+
+    def test_chain_comparison_reads_are_bounded(self):
+        """Above _CHAIN_COMPARISON_READS the compared chains' reads are dropped too.
+
+        Two 32-store chains over (const 0) and (const 1), equal under a
+        guard, have 32 * 34 reads. With them Lean took 7.7 s and 3.5 GB, and
+        at 64 stores more than the 12 GB watchdog; without them it checks
+        in about 1 s, since the rewriter decides the comparison by the
+        defaults alone.
+        """
+        def chain(default):
+            array = "((as const (Array Int Int)) %d)" % default
+            for k in range(32):
+                array = "(store %s %d u%d)" % (array, k, k)
+            return array
+
+        source = "\n".join(["(set-logic QF_ALIA)", "(declare-const p Bool)"] +
+                           ["(declare-const u%d Int)" % k for k in range(32)] +
+                           ["(assert (or p (= %s %s)))" % (chain(0), chain(1)), "(assert (not p))",
+                            "(check-sat)"]) + "\n"
+        certificate = _export(source)
+        read = re.compile(r"have _(?:e|ds|dc)\d+_\d+ ")
+        with mock.patch.object(proof_to_lean, "_CHAIN_COMPARISON_READS", 10 ** 9):
+            unbounded = proof_to_lean.reconstruct(source, certificate)
+        rewrite = unbounded.split("private theorem rewrite_", 1)[1].split("\n    | ", 2)[1]
+        self.assertEqual(len(read.findall(rewrite)), 32 * 34)
+        self.assertGreater(32 * 34, proof_to_lean._CHAIN_COMPARISON_READS)
+        text = proof_to_lean.reconstruct(source, certificate)
+        self.assertNotRegex(text, read)
+        self.assertRegex(text, r"have _e\d+ : ")
 
     def test_tampered_constant_arrays_are_rejected(self):
         def declaration(certificate, kind):

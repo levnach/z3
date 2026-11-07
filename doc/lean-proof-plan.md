@@ -1679,9 +1679,16 @@ at the indices stored into either side, down to the outermost store at that
 index or to the constant. A random sweep of such comparisons
 (`random_chain_comparison_instance`, three chains of 3 to 10 stores over Int
 or Real indices) went from 20 of 45 unsat seeds verified to 145 of 145 (seeds
-1-300, 91 above the cap); two chains of 32 numeral stores check in about 9 s.
-Seeds 13 and 14 are pinned, and the documented input
-`long_store_chains_over_two_constants` fails Lean without its read facts.
+1-300, 91 above the cap, at most 122 targeted reads). Seeds 13 and 14 are
+pinned, and the documented input `long_store_chains_over_two_constants` fails
+Lean without its read facts. The targeted reads are still quadratic, about
+n(n+2) for two n-store chains, and each is repeated in every case of the
+rewrite's proof, so they have a cap of their own, `_CHAIN_COMPARISON_READS`
+(640), above which no read facts are stated, as before. Two 24-store chains
+(624 reads) check in 2.8 s and 1.5 GB; uncapped, 32 stores took 3.5 GB, 40
+stores 7.6 GB, and two 64-store chains over `(const 0)` and `(const 1)`, which
+checked in 1.2 s without read facts, exceeded the 12 GB watchdog
+(`test_chain_comparison_reads_are_bounded`).
 
 ### Constant arrays of enumerations, and the rewriter's constant-array evaluations (2026-11-06)
 
