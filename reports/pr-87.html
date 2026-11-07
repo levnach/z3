@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #87: Certify arithmetic steps over ites with conditions of the other sort</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --accent: #ddf4ff;
+  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --accent: #12263f;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+       line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+a { color: var(--link); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; border: 1px solid var(--ok);
+         color: var(--ok); font-weight: 600; font-size: 0.85rem; }
+.note { background: var(--accent); border-left: 4px solid var(--link); padding: 0.5rem 0.8rem; border-radius: 4px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+       background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
+      overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pass { color: var(--ok); font-weight: 600; }
+.unknown { color: var(--warn); font-weight: 600; }
+.fail { color: var(--bad); font-weight: 600; }
+.explain { margin-top: -0.4rem; color: var(--muted); }
+dl dt { font-weight: 700; margin-top: 0.7rem; }
+dl dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify arithmetic steps over ites with conditions of the other sort</h1>
+<p class="meta">
+  Pull request <a href="https://github.com/levnach/z3/pull/87">levnach/z3#87</a> into <code>master</code>
+  · State: <span class="badge">OPEN</span>
+  · Opened 2026-11-07T07:28:51Z · Loop iteration 87
+</p>
+<p class="note">This pull request is open and <strong>not merged</strong>.
+  The change described here is commit
+  <a href="https://github.com/levnach/z3/commit/6b4109c7be2a962edf886b1e5c4fe90d05944ebb"><code>6b4109c</code></a>.
+  It contains two commits: the code change and a README update made after review.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+In inputs that mix <code>Int</code> and <code>Real</code>, the Lean reconstructor used to reject a
+<a href="#g-theory-lemma">theory lemma</a> that touched an
+<a href="#g-ite">if-then-else term</a> whose result has one <a href="#g-sort">sort</a>
+but whose condition compares values of the other sort.
+An example is an <code>Int</code> ite chosen by the condition <code>x &gt; y</code> over <code>Real</code> values.
+The reconstructor treated the condition's values as <a href="#g-atom">atoms</a> of the step.
+It then saw both sorts and gave up.
+Now the ite counts as a single atom of its own sort, and its condition is left out.
+These steps get a Lean proof, and Lean's <a href="#g-kernel">kernel check</a> still checks every one.
+No <a href="#g-axiom">axiom</a> or <a href="#g-sorry"><code>sorry</code></a> was added.
+More mixed-sort <a href="#g-refutation">refutations</a> from Z3 can now be certified end to end.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+The <a href="#g-fragment">fragments</a> <code>qf_lira</code> and <code>qf_uflira</code> already worked when each
+arithmetic step stayed within one sort.
+An <a href="#g-uninterpreted-function">uninterpreted function</a> application was already treated as one atom, whatever the sorts of its arguments.
+An ite was not.
+The project plan listed this as a known gap in its <code>qf_uflira</code> section.
+The gap also appeared without any ite in the input.
+Z3's <a href="#g-rewriter">rewriter</a> turns an <a href="#g-array">array read of a store</a> over
+<code>(Array Real Int)</code> into an <code>Int</code> ite over a <code>Real</code> equality.
+That is why one random <a href="#g-seed">seed</a> (103) was rejected in iteration 86.
+This PR serves milestone 3 of the plan, "Equality and linear arithmetic".
+It also helps the array work of milestone 4.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>The reconstructor now certifies an arithmetic step over an <code>Int</code> ite whose condition compares <code>Real</code> values, and the reverse case too.</li>
+  <li>A step whose own <a href="#g-literal">literals</a> really mix both sorts is still rejected, exactly as before.</li>
+  <li>Reads of stores into Real-indexed arrays of Int elements, which the rewriter turns into such ites, now verify in Lean.</li>
+  <li>The random test generator for mixed problems can now wrap variables in ites over conditions of the other sort, so tests can find these cases.</li>
+  <li>The project plan and the examples README now say that an arithmetic ite's condition does not decide the step's sort.</li>
+</ul>
+<p>
+Think of an ite as a sealed envelope that always holds an integer.
+The label on the outside may talk about real numbers, but the arithmetic only cares about what is inside.
+The code change is three lines in one helper.
+It stops the helper from looking into the condition, which is the first argument of an arithmetic ite.
+</p>
+<table>
+  <thead><tr><th>File</th><th>What it is</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: the fix and two docstrings</td><td class="num">12</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td>Two new inputs, a new validation test, the <code>ites</code> generator option, three pinned seeds</td><td class="num">78</td><td class="num">5</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>One new array input, seed 103 pinned</td><td class="num">20</td><td class="num">4</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Documentation of the new exception</td><td class="num">8</td><td class="num">2</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated update closing the known gap</td><td class="num">15</td><td class="num">0</td></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+This input is the PR's new test input <code>lira_int_ite_over_real_condition</code>.
+It was run through the pipeline before and after the change for this report.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIRA)
+(declare-const x Real)
+(declare-const y Real)
+(declare-const a Int)
+(declare-const b Int)
+(assert (&lt; (+ (ite (&gt; x y) a b) 1) a))
+(assert (&lt; a (+ b 1)))
+(check-sat)</code></pre>
+<p class="explain">The ite picks <code>a</code> or <code>b</code>, both Int, using a condition over Reals. If it picks <code>a</code>, the first assertion says <code>a + 1 &lt; a</code>. If it picks <code>b</code>, the two assertions say <code>b + 1 &lt; a &lt; b + 1</code>. Both are impossible.</p>
+
+<h3>(b) Before: the base commit's scripts</h3>
+<p>The old exporter produced a certificate. The old reconstructor then stopped with this error:</p>
+<pre><code>proof_to_lean.py: error: arithmetic step over both Int and Real atoms at node 38</code></pre>
+<p class="explain">Node 38 is a <a href="#g-farkas">Farkas lemma</a> over the ite. The old code counted <code>x</code> and <code>y</code> from the condition as atoms of that step.</p>
+
+<h3>(c) After: the generated Lean, trimmed</h3>
+<pre><code>def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars _ivars) &gt; (term_1 _atoms _vars _ivars))
+...
+noncomputable def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Int := (@ite Int (formula_2 _atoms _vars _ivars) (Classical.propDecidable _) (term_3 _atoms _vars _ivars) (term_4 _atoms _vars _ivars))
+...
+noncomputable def term_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) : Int := (@ite Int (formula_11 _atoms _vars _ivars) (Classical.propDecidable _) (term_4 _atoms _vars _ivars) (term_3 _atoms _vars _ivars))</code></pre>
+<p class="explain">The ite is declared with result type <code>Int</code>. Its condition <code>formula_2</code> compares two <code>Rat</code> values. Z3 rewrote it into <code>term_13</code>, the same choice with the condition flipped to <code>x &lt;= y</code>.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
+    (_h0 : (formula_8 _atoms _vars _ivars))
+    (_h1 : (formula_10 _atoms _vars _ivars))
+    : False :=
+  ...</code></pre>
+<p class="explain">The main theorem says that the two assertions, <code>_h0</code> and <code>_h1</code>, together imply <code>False</code> for every value of the variables.</p>
+
+<pre><code>private theorem th_lemma_38 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
+    : (formula_37 _atoms _vars _ivars) := by
+  unfold formula_37 formula_36 formula_35 formula_30 term_29 term_28 formula_22 term_21 term_6 term_4 term_3
+  first
+    | (generalize (term_13 _atoms _vars _ivars) = _o0
+       omega)
+    | (unfold term_13 formula_11 term_4 term_3 term_1 term_0
+       have _g13_0 : (((_vars 0) &lt;= (_vars 1))) -&gt; ((@ite Int ...)) = (_ivars 3) := fun _h =&gt; ite_eq_left _h
+       have _g13_1 : (Not (((_vars 0) &lt;= (_vars 1)))) -&gt; ((@ite Int ...)) = (_ivars 2) := fun _h =&gt; ite_eq_right _h
+       first | omega | grind (splits := 64))</code></pre>
+<p class="explain">This is the step that was rejected before. It now proves its <a href="#g-clause">clause</a> as pure Int arithmetic: it replaces the ite by an unknown integer <code>_o0</code> and calls the <a href="#g-tactic">tactic</a> <code>omega</code>. A fallback unfolds the ite and adds its two <a href="#g-gate-clause">gate</a> facts.</p>
+
+<p><strong>Lean accepted the file.</strong> The reconstructor reported "Lean checked the refutation".
+The repository's Lean check script then printed "Lean checks passed."</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+In plain terms, all existing and new tests passed on macOS.
+Every new case was rejected by the old code and is accepted now.
+Several hundred random problems with cross-sort ites all verified in Lean.
+The PR's text says these runs used the final branch head, one Lean-using command at a time.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">460 tests OK, 6 skipped, 561 s</td></tr>
+    <tr><td>Lean project check, <code>check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">112 tests OK</td></tr>
+    <tr><td>z3test proof tests</td><td class="pass">48 tests OK</td></tr>
+    <tr><td>New cases with the base commit's reconstructor</td><td>12 of 12 rejected. New validation test fails with 4 errors.</td></tr>
+    <tr><td>Constant-array sweep, Real indices and Int elements, seeds 1-300</td><td class="pass">192 of 192 unsatisfiable seeds verify</td></tr>
+    <tr><td>Mixed sweep with <code>ites=0.3</code>, seeds 1-150, both cores</td><td class="pass">70 of 70 runs verify. Before: 25 runs rejected.</td></tr>
+    <tr><td>Reviewer sweep, <code>ites=0.5</code>, seeds 1-120</td><td class="pass">54 of 54 runs verify</td></tr>
+    <tr><td>Reviewer sweep, <code>ites=0.3</code>, seeds 151-250</td><td>38 runs verify. Seeds 201 and 242 fail earlier in the clause-log exporter, a pre-existing gap.</td></tr>
+    <tr><td>Reviewer edge probes, 5 inputs on both cores</td><td class="pass">10 of 10 pass Lean</td></tr>
+    <tr><td>Reviewer coefficient tampering</td><td class="pass">Nothing invalid accepted</td></tr>
+    <tr><td>This report's worked example</td><td class="pass">Lean checks passed</td></tr>
+  </tbody>
+</table>
+<p>
+No C++ changed, so the native <code>test-z3</code> and z3test regressions were not rerun.
+The loop runs a local gate for changes like this one instead of waiting for GitHub CI.
+That local gate had not recorded a result when this page was written, so its outcome is unknown here.
+</p>
+<p>The PR names two CI places where the new tests run. No CI status was available when this page was written.</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Job and step</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>ubuntu-cmake</td><td>matrix <code>releaseClang</code>, step "Check native proofs in Lean"</td><td class="unknown">Not recorded</td></tr>
+    <tr><td>Lean proofs (<code>lean-proofs.yml</code>)</td><td>step "Check native proofs in Lean"</td><td class="unknown">Not recorded</td></tr>
+  </tbody>
+</table>
+<p>Current check results are on the <a href="https://github.com/levnach/z3/pull/87/checks">PR's checks page</a>. No CI fix rounds were recorded.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change. There were no blockers and no major findings.</p>
+<ul>
+  <li><strong>Minor, fixed.</strong> The reviewer compared the new behavior with the examples README.
+    They built a probe with a <a href="#g-cast"><code>to_real</code></a> inside an ite's condition.
+    The README said such a step is a cast step, but the code now treats it as a plain Int step.
+    Documentation that disagrees with the code misleads the next person who changes it.
+    A second commit added the ite exception to both README paragraphs.</li>
+  <li><strong>Suggestion, not changed.</strong> The reviewer noticed that one pinned test's pattern only checks the Int-ite-over-Real direction.
+    The reverse direction is already covered by its own documented input and by the new validation test.</li>
+  <li><strong>Suggestion, out of scope.</strong> While sweeping, the reviewer hit an exporter error on seeds 201 and 242:
+    "unsupported operator in the clause log: +".
+    That error comes from a file this PR does not touch, so it was recorded as a follow-up.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>A step whose only <code>to_real</code> sits inside an ite's condition used to take the cast path. It now takes the Int or Real path. The PR argues this is sound because Int rounding over atoms that are all Int is valid. Lean also checks every step.</li>
+  <li>No random sweep yet puts cross-sort ites outside function applications in <code>qf_uflira</code>. The reviewer's hand probe of that case passed.</li>
+  <li>The CI and local gate results were not known when this page was written.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Fix the clause-log exporter so it accepts <code>+</code> in the mixed ite instances from seeds 201 and 242.</li>
+  <li>Handle numeral indices that are not normalized, such as <code>(/ 2 2)</code> next to <code>1.0</code>. This is still open from iteration 86.</li>
+  <li>Add a random sweep with cross-sort ites outside function applications in <code>qf_uflira</code>.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-array">array read and store</dt>
+  <dd>Array operations in SMT-LIB. <code>(select a i)</code> reads index <code>i</code> of array <code>a</code>. <code>(store a i v)</code> is a copy of <code>a</code> with <code>v</code> written at <code>i</code>.</dd>
+  <dt id="g-atom">atom</dt>
+  <dd>The smallest piece the arithmetic reasoning treats as one unknown value. A variable like <code>a</code> is an atom. After this PR, a whole ite is one atom too.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. A trustworthy certificate must not add new ones.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort of truth values, true and false. Conditions such as <code>(&gt; x y)</code> are Boolean.</dd>
+  <dt id="g-cast">cast (<code>to_real</code>)</dt>
+  <dd>A conversion from one sort to another. <code>(to_real n)</code> turns the Int <code>n</code> into the same Real number.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals: at least one of them must be true. Example: <code>p or not q or x &lt; 3</code>.</dd>
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A theory lemma backed by coefficients. Multiplying the inequalities by those numbers and adding them gives an obvious contradiction such as <code>0 &lt; 0</code>.</dd>
+  <dt id="g-fragment">fragment</dt>
+  <dd>A family of inputs the pipeline supports, named after SMT-LIB logics. <code>qf_lira</code> is quantifier-free linear Int and Real arithmetic. <code>qf_uflira</code> adds uninterpreted functions.</dd>
+  <dt id="g-gate-clause">gate clause</dt>
+  <dd>A clause that ties a compound term to its parts. For an ite, one gate clause says "if the condition holds, the ite equals the then-branch".</dd>
+  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+  <dd>A term <code>(ite c t e)</code> whose value is <code>t</code> when the Boolean condition <code>c</code> holds and <code>e</code> otherwise. Its sort is the sort of <code>t</code> and <code>e</code>.</dd>
+  <dt id="g-kernel">kernel check</dt>
+  <dd>The final check by Lean's small trusted core. Every proof step must pass it, whatever tactic produced it.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or the negation of an atom, used as one part of a clause. Example: <code>not (x &lt;= y)</code>.</dd>
+  <dt id="g-core">proof core</dt>
+  <dd>One of the two ways the pipeline gets evidence from Z3: the clause log or the legacy proof object. New tests run on both.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold together.</dd>
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>The part of Z3 that simplifies terms before solving. For example, it can turn a read of a store into an ite.</dd>
+  <dt id="g-seed">seed</dt>
+  <dd>A number that fixes the choices of a random generator. The same seed always gives the same test problem, so a failing case can be repeated and pinned.</dd>
+  <dt id="g-sorry"><code>sorry</code></dt>
+  <dd>A Lean placeholder that skips a proof. A certified file must not contain it.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>omega</code> proves facts about Int linear arithmetic. <code>grind</code> is a more general search.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that holds because of the meaning of arithmetic, arrays, or equality, not because of Boolean logic alone. Each one is a separate proof step.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only rule is that equal arguments give equal results. Example: <code>f : Int -&gt; Real</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+</footer>
+</body>
+</html>
