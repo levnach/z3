@@ -3778,7 +3778,10 @@ def _chain_comparison_reads(graph, equalities):
     For (= S T) with S and T store chains over constant arrays (through ites
     of an array with itself, _constant_chain, or ites of such chains, whose
     leaves are all compared at the indices stored into any of them,
-    _constant_chain_leaves), Z3's rewriter compares S and T
+    _constant_chain_leaves, when there are at most _ITE_CHAIN_PAIRS pairs
+    of leaves, as for _ite_chain_extensionality; above that the equality
+    gets no converse, so its reads would only use up the budget of
+    _CHAIN_COMPARISON_READS), Z3's rewriter compares S and T
     at every index stored into either chain (array_rewriter::mk_eq_core) and
     evaluates each read down the chain, past the stores at other indices to
     the constant array. So each equality gets those indices, and each store
@@ -3791,7 +3794,7 @@ def _chain_comparison_reads(graph, equalities):
     compared, levels = {}, {}
     for node in equalities:
         sides = [_constant_chain_leaves(graph, argument) for argument in graph.arguments(node)]
-        if None in sides:
+        if None in sides or len(sides[0]) * len(sides[1]) > _ITE_CHAIN_PAIRS:
             continue
         leaves = sides[0] + sides[1]
         indices = {graph.arguments(store)[1] for leaf in leaves for store in _constant_chain(graph, leaf)[1]}
@@ -3856,13 +3859,15 @@ def _constant_chain_leaves(graph, node):
     """The store chains over constant arrays at the leaves of a tree of array ites, or None if one is not such a chain.
 
     The leaves are in node order, each once; a chain is a leaf even below
-    an ite of it with itself (_constant_chain).
+    an ite of it with itself (_constant_chain). Each node is visited once,
+    so a tree that shares its ites is walked in linear time.
     """
-    leaves, pending = set(), [node]
+    leaves, pending, seen = set(), [node], set()
     while pending:
         current = pending.pop()
-        if current in leaves:
+        if current in seen:
             continue
+        seen.add(current)
         if _constant_chain(graph, current) is not None:
             leaves.add(current)
         elif graph.kind(current) == z3.Z3_OP_ITE:

@@ -1735,7 +1735,10 @@ one side's ite tree with a different leaf of the other now gets one
 the reads above the cap walk every leaf (`_chain_comparison_reads`). Seed 102
 (Real/Int) now verifies and is pinned; three documented Int inputs (an ite on
 one side, on both, nested) failed Lean before and fail with grind errors
-without the new facts.
+without the new facts. The leaf walk visits each ite once (a shared ite DAG
+took exponential time otherwise), and an equality above the 16-pair cap gets
+no chain-comparison reads, so it cannot push the others over
+`_CHAIN_COMPARISON_READS`.
 
 ### Constant arrays of enumerations, and the rewriter's constant-array evaluations (2026-11-06)
 

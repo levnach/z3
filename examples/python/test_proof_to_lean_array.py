@@ -2234,6 +2234,51 @@ class TestArrayValidation(unittest.TestCase):
                                          self.certificates["read_of_an_ite_over_a_constant"])
         self.assertRegex(text, r"have _si\d+_0 := _select_const \(I := Int\) \(_vars \d+\) ")
 
+    def test_ites_of_store_chains_are_walked_once(self):
+        """The leaves of a shared ite DAG are found in linear time, and an equality with more than _ITE_CHAIN_PAIRS
+        pairs of leaves has no chain-comparison reads (it gets no converse to use them)."""
+
+        class Graph:
+            def __init__(self):
+                self.nodes = []
+
+            def add(self, kind, *arguments):
+                self.nodes.append((kind, arguments))
+                return len(self.nodes) - 1
+
+            def kind(self, node):
+                return self.nodes[node][0]
+
+            def arguments(self, node):
+                return self.nodes[node][1]
+
+        graph = Graph()
+        condition = graph.add(z3.Z3_OP_UNINTERPRETED)
+        value = graph.add(z3.Z3_OP_UNINTERPRETED)
+        constant = graph.add(z3.Z3_OP_CONST_ARRAY, value)
+        store = graph.add(z3.Z3_OP_STORE, constant, value, value)
+        # a_{i+1} = ite(p, a_i, b_i), b_{i+1} = ite(p, b_i, a_i): 2^60 paths
+        # to the two leaves when shared ites are walked as a tree.
+        first, second = store, constant
+        for _ in range(60):
+            first, second = (graph.add(z3.Z3_OP_ITE, condition, first, second),
+                             graph.add(z3.Z3_OP_ITE, condition, second, first))
+        self.assertEqual(proof_to_lean._constant_chain_leaves(graph, first), [constant, store])
+        equality = graph.add(z3.Z3_OP_EQ, first, store)
+        compared, _ = proof_to_lean._chain_comparison_reads(graph, [equality])
+        self.assertEqual(compared, {equality: {value}})
+        # One side with n different chains against a chain: n pairs.
+        for chains, expected in ((proof_to_lean._ITE_CHAIN_PAIRS, True), (proof_to_lean._ITE_CHAIN_PAIRS + 1, False)):
+            with self.subTest(chains=chains):
+                side = graph.add(z3.Z3_OP_STORE, constant, graph.add(z3.Z3_OP_UNINTERPRETED), value)
+                for _ in range(chains - 1):
+                    leaf = graph.add(z3.Z3_OP_STORE, constant, graph.add(z3.Z3_OP_UNINTERPRETED), value)
+                    side = graph.add(z3.Z3_OP_ITE, condition, leaf, side)
+                self.assertEqual(len(proof_to_lean._constant_chain_leaves(graph, side)), chains)
+                equality = graph.add(z3.Z3_OP_EQ, side, store)
+                compared, _ = proof_to_lean._chain_comparison_reads(graph, [equality])
+                self.assertEqual(equality in compared, expected)
+
     def test_reads_of_arrays_compared_with_constant_arrays(self):
         """A cnf lemma reading an array equated to a constant array gets the constant array's reads.
 
