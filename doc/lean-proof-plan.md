@@ -1633,8 +1633,9 @@ predates this section and affects `(Array Int Int)` alike: `_array_helpers`
 states `_store_apply` only for a read whose array is itself a store, so a
 read through an ite over a store, `(select (ite p (store a1 k c) a0) k)`,
 which Z3's rewriter evaluates to `(ite p c (select a0 k))`, gets no value
-(BACKLOG: walk the ite branches there as `_read_cases` does; seed 219 is
-the regression input). The read cases are built on an explicit stack, so a
+(done 2026-11-06: the `_si` facts walk the ite branches, see "Constant
+arrays of enumerations, and the rewriter's constant-array evaluations";
+seeds 219 and 251 are pinned). The read cases are built on an explicit stack, so a
 read through 1,100 nested stores is reconstructed without RecursionError
 (`test_proof_to_lean_deep.py`, reconstruction only: its 1,100 enumeration
 constants are 1,100 fields, a structure that alone runs out of heartbeats;

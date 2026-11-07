@@ -1025,8 +1025,10 @@ constructor by the cases of what it may evaluate to (the theorems
 _cases_store and _cases_ite); each lemma that reaches a read gets that proof,
 built along the read's array down to array constants and applications. A
 read of a constant array is its value (_cases_const), and so is the default
-value of one; the default value of a store or an ite is that of the arrays
-below it (_cases_default_const, _cases_default_store).
+value of one (_cases_default_const); the default value of a store is that
+of the array below it (_cases_default_store), and the default value of an
+ite is that of one of its branches, so it is a constructor if both
+branches' default values are (_cases_ite).
 
 An array sort (Array I E) of the clause log is the Lean function type
 _m.U -> _m.U, and the array constants are one more field of the

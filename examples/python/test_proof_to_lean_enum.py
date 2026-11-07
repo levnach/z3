@@ -16,6 +16,7 @@ from pathlib import Path
 import random
 import sys
 import tempfile
+import time
 import unittest
 
 import z3
@@ -627,6 +628,24 @@ class TestEnumerationExport(unittest.TestCase):
                 _, found = proof_certificate.parse_assertions(ENUM_CONSTANT_INPUTS[name], z3.Context(),
                                                               integer=True)
                 self.assertEqual(found, fragment)
+
+    def test_default_check_visits_shared_arrays_once(self):
+        # Thirty ites, each over a store into the one below and that one
+        # itself: as a tree the default's array has 2^30 leaves, as a DAG 61
+        # nodes. The check walks the DAG (it took 150 s at 22 levels when it
+        # walked the tree).
+        levels = 30
+        lines = [_COLOR, "(define-fun k0 () (Array Int Color) ((as const (Array Int Color)) red))"]
+        for level in range(levels):
+            lines.append("(declare-const p%d Bool)" % level)
+            lines.append("(define-fun k%d () (Array Int Color) (ite p%d (store k%d %d green) k%d))"
+                         % (level + 1, level, level, level, level))
+        start = time.monotonic()
+        _, found = proof_certificate.parse_assertions(
+            "\n".join(lines + ["(assert (= (default k%d) blue))" % levels, "(check-sat)"]), z3.Context(),
+            integer=True)
+        self.assertEqual(found, "qf_uflia")
+        self.assertLess(time.monotonic() - start, 10.0)
 
     def test_clause_log_knows_the_constructors_of_array_elements(self):
         # No term of Color occurs, only arrays of it: the replay still knows

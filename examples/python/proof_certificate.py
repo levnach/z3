@@ -827,10 +827,14 @@ def _require_default(expr):
         # constructor only through constant arrays (the value of one, the
         # default of a store is that of the array below, both branches of an
         # ite); the default value of an array constant or a function's value
-        # is an arbitrary value of _m.U (proof_to_lean._read_cases).
-        pending = [expr.arg(0)]
+        # is an arbitrary value of _m.U (proof_to_lean._read_cases). Shared
+        # subterms are visited once, so a DAG of ites over stores is linear.
+        pending, seen = [expr.arg(0)], set()
         while pending:
             array = pending.pop()
+            if array.get_id() in seen:
+                continue
+            seen.add(array.get_id())
             if z3.is_store(array):
                 pending.append(array.arg(0))
             elif z3.is_app(array) and array.decl().kind() == z3.Z3_OP_ITE:
