@@ -1625,11 +1625,23 @@ finitely many values, which the Lean function type over `_m.U` does not
 have), arrays of an enumeration nested in other arrays, constant arrays,
 default values, and maps over them. Random sweeps
 (`random_enum_array_instance`, seeds 1-150 over Int and over uninterpreted
-indices, 1-100 of a deeper configuration): 200 unsatisfiable seeds, all
-verify. Tests: `test_proof_to_lean_enum.py` (eight documented inputs
-`ENUM_ARRAY_INPUTS`, four pinned seeds, the fields, the rejections, the
-replay's constructors of element sorts, and the read cases failing Lean when
-dropped).
+indices, 1-100 of `variables=3, constraints=16, depth=3`): 200
+unsatisfiable seeds, all verify. They are not complete: in the review's
+sweep of `index="U", constraints=14, depth=3`, 4 of 37 unsatisfiable seeds
+(200-259: 219, 223, 224, 251) fail Lean with grind errors. The cause
+predates this section and affects `(Array Int Int)` alike: `_array_helpers`
+states `_store_apply` only for a read whose array is itself a store, so a
+read through an ite over a store, `(select (ite p (store a1 k c) a0) k)`,
+which Z3's rewriter evaluates to `(ite p c (select a0 k))`, gets no value
+(BACKLOG: walk the ite branches there as `_read_cases` does; seed 219 is
+the regression input). The read cases are built on an explicit stack, so a
+read through 1,100 nested stores is reconstructed without RecursionError
+(`test_proof_to_lean_deep.py`, reconstruction only: its 1,100 enumeration
+constants are 1,100 fields, a structure that alone runs out of heartbeats;
+the same chain 200 levels deep passes Lean). Tests: `test_proof_to_lean_enum.py` (eight
+documented inputs `ENUM_ARRAY_INPUTS`, four pinned seeds, the fields, the
+rejections, the replay's constructors of element sorts, and the read cases
+failing Lean when dropped).
 
 ### Nested arrays (2026-11-05)
 

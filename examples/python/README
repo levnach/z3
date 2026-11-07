@@ -179,15 +179,14 @@ and ite over the enumeration, its constructors, and its recognizers
 ((_ is c) t or SMT-LIB 2.5's (is-c t), which is (= t c)) are accepted,
 through the clause log only (the legacy core rejects them explicitly), and
 so are arrays whose element sort is an enumeration, (Array I Color) over the
-index sorts above: their constants, functions into them, store, ite, select,
-and equality. Any other datatype, an array indexed by an enumeration, an
-array of an enumeration nested in another array (as its rows or indices),
-constant arrays, default values, and maps of arrays of an enumeration, and a
-distinct with more
-arguments than its enumeration has constructors (with proofs Z3 refutes it
-by an exponential pigeonhole search) over more than five constructors or
-with more than sixteen arguments, past which Lean runs out of memory, are
-rejected.
+index sorts above: their constants, functions into and over them, store,
+ite, select, equality, and extensionality. Any other datatype, an array
+indexed by an enumeration, an array of an enumeration nested in another
+array (as its rows or indices), constant arrays, default values, and maps of
+arrays of an enumeration, and a distinct with more arguments than its
+enumeration has constructors (with proofs Z3 refutes it by an exponential
+pigeonhole search) over more than five constructors or with more than
+sixteen arguments, past which Lean runs out of memory, are rejected.
 Integer div, mod, and rem by zero or by a term (SMT-LIB leaves division by zero
 uninterpreted, where Lean's Int division is total; a term divisor is
 nonlinear), and Int
