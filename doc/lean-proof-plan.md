@@ -1710,9 +1710,12 @@ a conjunct with one map was derived from the input's conjunct with the
 other, and Lean rejected the step (`grind` failed). The key of a map now
 names its function by signature (`(declare-fun f (Int) Int)`, built-ins
 alike), and that of a constant array its sort. A random sweep of maps of
-several functions over the same arrays inside guarded conjunctions
-(`state/iter-081/scratch/sweep.py`, seeds 1-200) had 5 of 41 unsat seeds
-fail in Lean before and 41 of 41 verify after. Tests:
+several functions over the same arrays inside guarded conjunctions (200
+seeds, not kept in the repository) had 5 of 41 unsat seeds fail in Lean
+before and 41 of 41 verify after. Other parameterized heads (datatype
+accessors, bit-vector `extract`, `as-array`) still key without their
+parameters; the export rejects them today, so they must be keyed when
+they become supported. Tests:
 `test_replay_keys_tell_maps_and_constant_arrays_apart` and the documented
 inputs `conjuncts_map_and_or`, `conjuncts_map_f_g`,
 `conjuncts_map_plus_minus` (`test_proof_to_lean_array.py`).

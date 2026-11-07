@@ -1195,8 +1195,8 @@ MAP_FUNCTION_INPUTS = {
     # Maps of two functions over the same arrays, as conjuncts: the replay
     # ties the split conjuncts to the input by key, and the two maps shared
     # one key (the mapped function was not in it), so the map of or was
-    # derived from the map of and and Lean rejected the step (random sweep
-    # state/iter-081 seeds 16, 80, 141, 191, 193).
+    # derived from the map of and and Lean rejected the step (found by a
+    # random sweep of such conjunctions).
     "conjuncts_map_and_or": """(declare-fun a () (Array Int Bool))
 (declare-fun b () (Array Int Bool))
 (declare-fun c () (Array Int Bool))
@@ -1209,7 +1209,7 @@ MAP_FUNCTION_INPUTS = {
 (assert (not (select b 0)))
 (check-sat)
 """,
-    # The same with two declared functions,
+    # The same collision with maps of two declared functions.
     "conjuncts_map_f_g": """(declare-fun a () (Array Int Int))
 (declare-fun c () (Array Int Int))
 (declare-fun d () (Array Int Int))
@@ -1222,7 +1222,7 @@ MAP_FUNCTION_INPUTS = {
 (assert (not (= (f (select a 0)) (g (select a 0)))))
 (check-sat)
 """,
-    # and with addition and subtraction.
+    # The same collision with maps of addition and subtraction.
     "conjuncts_map_plus_minus": """(declare-fun a () (Array Int Int))
 (declare-fun b () (Array Int Int))
 (declare-fun c () (Array Int Int))
