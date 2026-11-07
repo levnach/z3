@@ -6,39 +6,42 @@
 <title>PR #89: Certify ites of store chains compared with store chains in Lean</title>
 <style>
 :root {
-  color-scheme: light dark;
-  --bg: #ffffff; --fg: #1d1f23; --muted: #5b6270; --accent: #0b5cad;
-  --code-bg: #f3f4f6; --border: #d8dbe0; --ok: #1a7f37; --warn: #9a6700; --pending: #6e7781;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #15171b; --fg: #e4e6eb; --muted: #9aa3b2; --accent: #6cb6ff;
-    --code-bg: #22262d; --border: #3a3f48; --ok: #57c86d; --warn: #e3b341; --pending: #9aa3b2;
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
   }
 }
-body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
-h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+html { background: var(--bg); color: var(--fg); }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+       max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-top: 2rem; }
 h3 { font-size: 1.05rem; margin-top: 1.4rem; }
 a { color: var(--accent); }
-.meta { color: var(--muted); font-size: .95rem; }
-.badge { display: inline-block; padding: 0 .5rem; border-radius: .7rem; border: 1px solid var(--border); font-size: .85rem; font-weight: 600; }
-.open { color: var(--ok); border-color: var(--ok); }
-code { background: var(--code-bg); padding: 0 .25rem; border-radius: 3px; font-size: .9em; }
-pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; overflow-x: auto;
-  white-space: pre-wrap; overflow-wrap: anywhere; font-size: .82rem; line-height: 1.45; }
-pre code { background: none; padding: 0; }
-table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .92rem; }
-th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; font-weight: 600;
+         font-size: 0.85rem; color: #fff; background: #8250df; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+       background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
 th { background: var(--code-bg); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pass { color: var(--ok); font-weight: 600; }
-.unknown { color: var(--pending); font-weight: 600; }
-.note { color: var(--muted); font-size: .92rem; }
-dt { font-weight: 600; margin-top: .6rem; }
+.unknown { color: var(--warn); font-weight: 600; }
+.fail { color: var(--bad); font-weight: 600; }
+.explain { margin-top: -0.4rem; color: var(--muted); }
+dt { font-weight: 600; margin-top: 0.6rem; }
 dd { margin-left: 1.2rem; }
-footer { margin-top: 3rem; color: var(--muted); font-size: .88rem; border-top: 1px solid var(--border); padding-top: .6rem; }
+footer { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+         color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
@@ -46,57 +49,72 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .88rem; border-top: 1
 <header>
 <h1>Certify ites of store chains compared with store chains in Lean</h1>
 <p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/89">levnach/z3#89</a> ·
-<span class="badge open">OPEN</span> · opened 2026-11-07T09:34:22Z · loop iteration 89
+  Pull request <a href="https://github.com/levnach/z3/pull/89">levnach/z3#89</a>
+  &middot; <span class="badge">MERGED</span>
+  &middot; merged 2026-11-07T09:44:32Z
+  &middot; merge commit <a href="https://github.com/levnach/z3/commit/2c5225f7498e1012f7c34892dd63bb194ae576dc"><code>2c5225f</code></a>
+  &middot; loop iteration 89
 </p>
-<p>This pull request is open and <strong>not merged</strong>.
-The change it proposes is commit
-<a href="https://github.com/levnach/z3/commit/52467036a84fc9a38497a125c54786caaa2ccbb9"><code>52467036a</code></a>,
-on top of an earlier commit of the same PR.</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>Some inputs equate an <a href="#g-ite">if-then-else term</a> whose branches are
-<a href="#g-store-chain">store chains</a> over <a href="#g-const-array">constant arrays</a> with another store chain.
-Z3 handles such an <a href="#g-equality">equality</a> with a <a href="#g-rewrite">rewrite step</a> that replaces it by a simpler equality between the values.
-Lean rejected that step, because the <a href="#g-tactic">tactic</a> <code>grind</code> could not prove a branch equal to the other side without <a href="#g-extensionality">extensionality</a>.
-The reconstructor now states a Lean-proved <a href="#g-converse">converse</a> <a href="#g-lemma">lemma</a> for each pair of leaves of the two sides.
-No new <a href="#g-axiom">axiom</a> or trusted step is added.
-One more family of Z3 <a href="#g-refutation">refutations</a> is now checked end to end.</p>
+<p>
+Some inputs equate an <a href="#g-ite">if-then-else term</a> whose branches are
+<a href="#g-store-chain">store chains</a> over <a href="#g-constant-array">constant arrays</a>
+with another store chain. Z3 logs such an <a href="#g-assertion">assertion</a> as the outcome of
+comparing each branch with the other side, and links the two by a <a href="#g-rewrite">rewrite step</a>.
+Lean's <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a> could split the
+<a href="#g-ite">ite</a>, but it could not prove a branch equal to the other side.
+That proof needs <a href="#g-extensionality">extensionality</a>.
+This PR makes the Lean reconstructor state that missing <a href="#g-converse">converse</a>
+as a small proved <a href="#g-lemma">lemma</a> for each pair of <a href="#g-leaf">leaves</a>.
+The rewrite step now checks, so the whole <a href="#g-refutation">refutation</a> is certified.
+Nothing new is trusted: every added fact is proved inside Lean.
+</p>
 
 <h2 id="background">Background</h2>
-<p>Before this PR, the reconstructor already stated extensionality converses when both sides of an array equality were plain store chains over constant arrays.
-It also accepted an <a href="#g-ite">ite</a> whose two branches are the same <a href="#g-array">array</a>.
-It had nothing for an ite of two <em>different</em> chains, so the <a href="#g-rewrite">rewrite step</a> from the <a href="#g-clause-log">clause log</a> failed in Lean.
-In iteration 88, the random constant-array tests left exactly one such failure: seed 102, with Real as the index <a href="#g-sort">sort</a> and Int as the element sort.
-The work serves milestone 4 of the project plan, "Broader theories and integration", where arrays are one of the listed extensions.</p>
+<p>
+Before this PR, the reconstructor already proved the converse for an equality between two
+<a href="#g-store-chain">store chains</a> over <a href="#g-constant-array">constant arrays</a>.
+It accepted an <a href="#g-ite">ite</a> only when both branches were the same
+<a href="#g-array">array</a>. An ite of two different chains got no converse, so Lean rejected the
+<a href="#g-rewrite">rewrite step</a> with "grind failed". This was the last failure in the
+random constant-array sweeps of iteration 88: seed 102, with Real indices and Int elements.
+The work serves milestone 4 of the plan, "Broader theories and integration", which treats arrays
+as a separate extension.
+</p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-<li>An equality with an ite of different store chains on one side, both sides, or nested ites now gets a Lean-proved converse for every pair of leaves.</li>
-<li>At most 16 leaf pairs per equality get these lemmas, so Lean's work stays bounded on wide ite trees.</li>
-<li>The helper that collects the leaves visits each shared node once, so a deeply shared ite <a href="#g-dag">DAG</a> no longer takes exponential time.</li>
-<li>Equalities above the 16-pair cap no longer use up the shared budget of <a href="#g-select">read</a> facts, so they cannot crowd out reads that other comparisons need.</li>
-<li>Three new documented inputs and the pinned random seed 102 are now checked in Lean by the test suite.</li>
+  <li>An equality with an ite of different store chains on one side, both sides, or nested ites now certifies in Lean.</li>
+  <li>The reconstructor states one Lean-proved converse per pair of different leaves, capped at 16 pairs per equality.</li>
+  <li>A shared ite <a href="#g-dag">DAG</a> is now walked once per node, so deep sharing no longer takes exponential time.</li>
+  <li>Equalities above the 16-pair cap no longer use up the shared budget of read facts that other comparisons rely on.</li>
+  <li>Three new documented inputs and the pinned seed 102 now run in the test suite and in CI.</li>
 </ul>
-<p>An analogy: each array is a row of lockers holding one default item, except a few changed lockers.
-To compare two rows, you open only the changed lockers and compare the defaults.
-An ite is a switch that picks one of two rows. Lean now gets this argument for every row the switch could pick.</p>
-
+<p>
+An analogy helps with the new lemma. Picture two shelves of numbered boxes, each filled with one
+default item, with a few boxes swapped out. To show the shelves are equal, you only check the
+swapped boxes and the default item. That is what each converse says about two leaves.
+</p>
 <table>
-<thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
-<tbody>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">82</td><td class="num">11</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Array tests</td><td class="num">127</td><td class="num">9</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, dated note closing the open item</td><td class="num">15</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/README</code></td><td>Docs, array section</td><td class="num">4</td><td class="num">0</td></tr>
-<tr><th>Total (4 files, 2 commits)</th><th></th><th class="num">228</th><th class="num">20</th></tr>
-</tbody>
+  <thead><tr><th>File</th><th>What it holds</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">+82</td><td class="num">&minus;11</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Array tests</td><td class="num">+127</td><td class="num">&minus;9</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note closing the open item</td><td class="num">+15</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Array section of the guide</td><td class="num">+4</td><td class="num">0</td></tr>
+    <tr><th>Total</th><th>4 files</th><th class="num">+228</th><th class="num">&minus;20</th></tr>
+  </tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
+<p>
+This is the PR's new documented input <code>ite_of_chains_against_a_chain</code>. All three
+pieces below come from a real run of the old and new scripts.
+</p>
+
 <h3>(a) The input</h3>
-<p>This is the PR's new test input <code>ite_of_chains_against_a_chain</code>.</p>
 <pre><code>(set-logic QF_ALIA)
 (declare-const p Bool)
 (declare-const k0 Int)
@@ -108,118 +126,177 @@ An ite is a switch that picks one of two rows. Lean now gets this argument for e
 (assert (= ((as const (Array Int Int)) x0) (store ((as const (Array Int Int)) x1) 2 y)))
 (assert (not (= y x1)))
 (check-sat)</code></pre>
-<p>The first assertion compares an ite of two different chains with a third chain. Z3 rewrites it to <code>x0 = x1</code>.</p>
+<p class="explain">The first assertion is the new shape: an ite of two different chains equated with a third chain.</p>
 
 <h3>(b) Before</h3>
-<p>The old exporter produced the same certificate. The old reconstructor failed in Lean on the rewrite step:</p>
-<pre><code>example.lean:255:33: error: `grind` failed
+<p>
+The old exporter accepted the input. Its certificate was byte-identical to the new one.
+The old reconstructor then failed the Lean check:
+</p>
+<pre><code>z3_proof_u05re08j.lean:255:33: error: `grind` failed
 case grind.2.1.2
 ...
+h_3 : ¬_atoms 0
+w : Int
+h_4 :
+  ¬(if _atoms 0 then _store (_const_array Int (_vars 0)) (_vars 1) (_vars 2) else _const_array Int (_vars 0)) w =
+      _store (_const_array Int (_vars 2)) 1 (_vars 0) w
+⊢ False
+...
 Lean checking failed; no proof was published.</code></pre>
+<p class="explain">grind took the "else" branch but could not show that branch equals the right side at every index <code>w</code>.</p>
 
 <h3>(c) After</h3>
-<p>The new reconstructor's file was accepted: <code>check_lean.sh</code> printed "Lean checks passed." Here <code>_vars 0</code> is <code>x0</code>, <code>_vars 1</code> is <code>k0</code>, <code>_vars 2</code> is <code>x1</code>, and <code>_atoms 0</code> is <code>p</code>.</p>
-<pre><code>noncomputable def term_5 ... : (Int -&gt; Int) := (_store (term_2 _atoms _vars _m) (term_3 _atoms _vars _m) (term_4 _atoms _vars _m))
-noncomputable def term_6 ... : (Int -&gt; Int) := (@ite (Int -&gt; Int) (formula_0 _atoms _vars _m) (Classical.propDecidable _) (term_5 _atoms _vars _m) (term_2 _atoms _vars _m))
-noncomputable def term_9 ... : (Int -&gt; Int) := (_store (term_7 _atoms _vars _m) (term_8 _atoms _vars _m) (term_1 _atoms _vars _m))
-def formula_10 ... : Prop := ((term_6 _atoms _vars _m) = (term_9 _atoms _vars _m))
-def formula_32 ... : Prop := ((term_1 _atoms _vars _m) = (term_4 _atoms _vars _m))
-def formula_33 ... : Prop := (Iff (formula_10 _atoms _vars _m) (formula_32 _atoms _vars _m))</code></pre>
-<p>The ite of the two chains is <code>term_6</code>, the other chain is <code>term_9</code>, and the rewrite claims <code>formula_33</code>: the array equality holds exactly when <code>x0 = x1</code>.</p>
+<pre><code>-- Atom 0: "p"
+-- Variable 0: "x0"
+-- Variable 1: "k0"
+-- Variable 2: "x1"
+-- Variable 3: "y"
+...
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (@_const_array Int Int (term_1 _atoms _vars _m))
+...
+noncomputable def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_2 _atoms _vars _m) (term_3 _atoms _vars _m) (term_4 _atoms _vars _m))
+noncomputable def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (@ite (Int -&gt; Int) (formula_0 _atoms _vars _m) (Classical.propDecidable _) (term_5 _atoms _vars _m) (term_2 _atoms _vars _m))
+def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (@_const_array Int Int (term_4 _atoms _vars _m))
+...
+noncomputable def term_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_7 _atoms _vars _m) (term_8 _atoms _vars _m) (term_1 _atoms _vars _m))
+def formula_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_6 _atoms _vars _m) = (term_9 _atoms _vars _m))
+...
+def formula_32 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_1 _atoms _vars _m) = (term_4 _atoms _vars _m))
+def formula_33 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := (Iff (formula_10 _atoms _vars _m) (formula_32 _atoms _vars _m))</code></pre>
+<p class="explain">The terms rebuild the input: <code>term_6</code> is the ite, <code>term_9</code> is the right-hand chain, and <code>formula_33</code> is the rewrite step "the assertion holds exactly when x0 = x1".</p>
+
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     (_h0 : (formula_10 _atoms _vars _m))
     (_h1 : (formula_14 _atoms _vars _m))
     (_h2 : (formula_16 _atoms _vars _m))
     : False :=
-  ...</code></pre>
-<p>The theorem says the three assertions together imply <code>False</code>.</p>
+...</code></pre>
+<p class="explain">The theorem says the three assertions together imply False.</p>
+
 <pre><code>private theorem rewrite_34 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     : (formula_33 _atoms _vars _m) := by
   first
     | (unfold formula_33 formula_32 formula_10 term_4 term_1
-       ...
+...
        have _x10_0 : _select ((term_2 _atoms _vars _m)) (((1 : Int))) = _select ((term_9 _atoms _vars _m)) (((1 : Int))) -&gt; (_vars 0) = (_vars 2) -&gt; ((term_2 _atoms _vars _m)) = ((term_9 _atoms _vars _m)) := by intro _h0 _hv; funext _j; by_cases _c0 : _j = (((1 : Int))); (subst _c0; exact _h0); exact (rfl).trans (_hv.trans ((_store_off ((term_7 _atoms _vars _m)) (((1 : Int))) (_vars 0) _j _c0).trans (rfl)).symm)
        have _x10_1 : _select ((term_5 _atoms _vars _m)) (_vars 1) = _select ((term_9 _atoms _vars _m)) (_vars 1) -&gt; _select ((term_5 _atoms _vars _m)) (((1 : Int))) = _select ((term_9 _atoms _vars _m)) (((1 : Int))) -&gt; (_vars 0) = (_vars 2) -&gt; ((term_5 _atoms _vars _m)) = ((term_9 _atoms _vars _m)) := by intro _h0 _h1 _hv; funext _j; by_cases _c0 : _j = (_vars 1); (subst _c0; exact _h0); by_cases _c1 : _j = (((1 : Int))); (subst _c1; exact _h1); exact ((_store_off ((term_2 _atoms _vars _m)) (_vars 1) (_vars 2) _j _c0).trans (rfl)).trans (_hv.trans ((_store_off ((term_7 _atoms _vars _m)) (((1 : Int))) (_vars 0) _j _c1).trans (rfl)).symm)
-       ...
+...
        first | omega | grind (splits := 64))
-    | ...</code></pre>
-<p>The two new lemmas cover the two branches: each says a branch equals the other chain if their reads at the stored indices agree and <code>x0 = x1</code>. Lean proves each by <code>funext</code>, and <code>grind</code> then closes the rewrite step.</p>
+...</code></pre>
+<p class="explain">
+<code>_x10_0</code> and <code>_x10_1</code> are the new facts, one per leaf of the ite against the right side.
+Each says: if the reads at the stored indices agree and the constants agree, the two arrays are equal.
+Lean proves each one by <a href="#g-funext">funext</a> and a <a href="#g-case-split">case split</a> per stored index.
+</p>
+<p>
+<strong>Result:</strong> the new reconstructor printed "Lean checked the refutation", and
+<code>check_lean.sh</code> reported <span class="pass">"Lean checks passed."</span>
+</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>All Lean reconstruction tests passed after the review fixes. About 1,100 random array puzzles verified, including the one that failed before. Those sweeps ran before the review fixes, which do not change output below the 16-pair cap.</p>
+<p>
+Every local test passed, including about 1,100 random constant-array puzzles. Seed 102 failed on
+the old code and passes now. This PR was merged on the loop's local gate, which mirrors the Lean
+steps of the CI job on a macOS arm64 machine. The gate passed.
+</p>
 <table>
-<thead><tr><th>Check</th><th>Who, when</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td><code>test_proof_to_lean*.py</code> with Lean</td><td>Integrator, after review fixes</td><td class="pass">463 OK, 6 skipped, 564 s</td></tr>
-<tr><td><code>scripts/check_lean.sh</code></td><td>Integrator</td><td class="pass">passed</td></tr>
-<tr><td><code>test_proof_certificate.py</code></td><td>Integrator</td><td class="pass">112 OK</td></tr>
-<tr><td>Leaf walk on a 22-level shared DAG, old vs fixed code</td><td>Integrator</td><td class="pass">1.03 s before, 0.00 s now</td></tr>
-<tr><td><code>test_proof_to_lean*.py</code> with Lean</td><td>Reviewer, before fixes</td><td class="pass">462 OK, 6 skipped</td></tr>
-<tr><td>z3test <code>scripts/proofs</code> tests</td><td>Implementer, before fixes</td><td class="pass">OK</td></tr>
-<tr><td><code>proof_matrix.py --lean</code>, legacy proof objects</td><td>Implementer</td><td class="pass">6/6 lean-verified</td></tr>
-<tr><td><code>proof_matrix.py --lean</code>, clause log on <code>lra_*.smt2</code></td><td>Implementer</td><td class="pass">8/8 lean-verified</td></tr>
-<tr><td>Random constant-array sweeps, 7 configurations</td><td>Implementer</td><td class="pass">1114/1114 unsat seeds verified</td></tr>
-<tr><td>Worked example on this page</td><td>Reporter</td><td class="pass">old code: grind failed. New code: Lean accepted</td></tr>
-<tr><td>Local gate</td><td>Driver</td><td class="unknown">Not recorded. It was still running when this page was written.</td></tr>
-</tbody>
+  <thead><tr><th>Local check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Gate: certificate exporter tests</td><td class="pass">pass, 14 s</td></tr>
+    <tr><td>Gate: Lean reconstruction tests</td><td class="pass">pass, 564 s</td></tr>
+    <tr><td>Gate: z3test proof script tests</td><td class="pass">pass, 17 s</td></tr>
+    <tr><td>Gate: Boolean matrix, legacy proof object</td><td class="pass">pass, 5 s</td></tr>
+    <tr><td>Gate: QF_LRA matrix, clause log</td><td class="pass">pass, 6 s</td></tr>
+    <tr><td>Lean reconstruction suite after review fixes</td><td class="pass">463 OK, 6 skipped</td></tr>
+    <tr><td>Certificate exporter suite</td><td class="pass">112 OK</td></tr>
+    <tr><td>Random constant-array sweeps, seven configurations, before review fixes</td><td class="pass">1114 / 1114 verified</td></tr>
+    <tr><td>Same sweep, Real/Int seeds 1&ndash;200, old code</td><td class="fail">143 / 144, seed 102 failed</td></tr>
+  </tbody>
 </table>
-<p>No C++ or <code>scripts/</code> files changed, so the native solver tests and SMT2 regressions were not rerun.</p>
-<p>No GitHub CI status was available when this page was written, so CI results are unknown. The check that runs the new Lean tests is below.</p>
+<p>
+The review fixes leave the output below the cap unchanged, so the earlier sweep still applies. No GitHub CI status files were recorded
+for this PR. CI runs on <code>master</code> after the merge, and its result is not known here.
+There were no CI fix rounds.
+</p>
 <table>
-<thead><tr><th>Workflow</th><th>Job / step</th><th>Status</th></tr></thead>
-<tbody>
-<tr><td><code>ci.yml</code></td><td>"Ubuntu build - cmake - releaseClang", step "Check native proofs in Lean"</td><td class="unknown">Unknown at report time. See the <a href="https://github.com/levnach/z3/pull/89/checks">PR checks page</a>.</td></tr>
-</tbody>
+  <thead><tr><th>CI workflow / job / step</th><th>Status</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td><code>ci.yml</code> / Ubuntu build - cmake - releaseClang / Check native proofs in Lean</td>
+        <td class="unknown">not recorded</td>
+        <td><a href="https://github.com/levnach/z3/commit/2c5225f7498e1012f7c34892dd63bb194ae576dc">merge commit</a></td></tr>
+  </tbody>
 </table>
-<p>No CI fix rounds were recorded.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved. There were no blocker or major findings, one minor finding, and two nits.</p>
-<table>
-<thead><tr><th>Severity</th><th>Count</th></tr></thead>
-<tbody><tr><td>Blocker</td><td class="num">0</td></tr><tr><td>Major</td><td class="num">0</td></tr><tr><td>Minor</td><td class="num">1</td></tr><tr><td>Nit</td><td class="num">2</td></tr></tbody>
-</table>
-<p><strong>Minor: exponential walk.</strong> The reviewer built ites that share sub-terms, so many paths reach the same leaves. The leaf collector walked every path, and the time grew about fourfold every two levels. That could hang an export. The fix remembers visited nodes, and a new test walks a 60-level shared DAG.</p>
-<p><strong>Nit: read budget.</strong> The reviewer put two long chains and a small ite equality in one rewrite step. The ite's reads pushed the total over the shared budget, so all read facts were dropped. Lean still passed, but a nearby input might not. Equalities above the 16-pair cap are now skipped when counting. Per-pair read indices were not adopted, because the cap already bounds the cost.</p>
-<p><strong>Nit: README.</strong> The README did not mention the new converses for ites of chains. One paragraph was added.</p>
+<p>The reviewer approved the change with no blockers and no major findings.</p>
+<ul>
+  <li><strong>Minor, fixed.</strong> The reviewer built an ite <a href="#g-dag">DAG</a> where each level reuses the two ites below it.
+    The leaf walk treated it as a tree, so its time roughly doubled per level. At 22 levels it took about one second, and deeper inputs could hang.
+    The walk now remembers the nodes it has visited. A new test walks 60 levels instantly, which would never finish without the fix.</li>
+  <li><strong>Nit, fixed.</strong> The reviewer put an ite equality next to two long chains in one rewrite step.
+    Its reads counted toward a shared budget, which could push the step over and drop all read facts.
+    Lean still verified that probe. Now equalities above the cap are skipped, and the new test checks the 16-pair edge.</li>
+  <li><strong>Nit, fixed.</strong> The README did not mention the new converses. One paragraph was added to its array section.</li>
+</ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li>Lean's work grows with leaf pairs times stored indices. The 16-pair cap and the read budget bound it.</li>
-<li>A <code>store</code> over an ite of different arrays is not a chain, so it gets no converse. No failing input has been seen.</li>
-<li>An ite of chains equated with an array variable, an application, or a map gets no converse either.</li>
-<li>CI and the local gate had not reported when this page was written.</li>
+  <li>Lean's work grows with the number of leaf pairs times the stored indices. The 16-pair cap bounds it. A wider ite tree gets no facts, as before.</li>
+  <li>A store on top of an ite of different arrays, such as <code>(store (ite p (const x) (const y)) k v)</code>, is still not a chain and gets no converse.</li>
+  <li>An ite of chains equated with an array variable, a function application, or a map also gets no converse. No failing input has been seen for either case.</li>
+  <li>The GitHub CI result on <code>master</code> is not recorded in the inputs.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
-<p>The random generator hit this shape once in about 1,100 seeds. A generator that deliberately builds ites of store chains would test the new code harder. The two uncovered shapes above come next if a failing input appears.</p>
+<p>
+No generator deliberately produces ites of chains. The constant-array generator hit this shape
+once in about 1,100 seeds. A targeted generator would be a useful follow-up.
+</p>
 
 <h2 id="glossary">Glossary</h2>
 <dl>
-<dt id="g-array">array</dt><dd>A value that maps each index to an element, like a function. <code>(Array Int Int)</code> maps integers to integers.</dd>
-<dt id="g-axiom">axiom</dt><dd>A statement Lean accepts without proof. Adding one means trusting it.</dd>
-<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>a or not b</code>.</dd>
-<dt id="g-clause-log">clause log</dt><dd>The record Z3 writes of each clause it derives, with a hint saying why. The reconstructor replays it in Lean.</dd>
-<dt id="g-const-array">constant array</dt><dd>An array that holds the same element at every index. In SMT-LIB it is written <code>((as const (Array Int Int)) x0)</code>.</dd>
-<dt id="g-converse">converse</dt><dd>The reverse direction of an implication. If "A implies B" is known, its converse is "B implies A".</dd>
-<dt id="g-dag">DAG</dt><dd>Directed acyclic graph. Here, a term tree where identical sub-terms are stored once and shared.</dd>
-<dt id="g-equality">equality</dt><dd>A formula <code>(= s t)</code> stating that two terms have the same value.</dd>
-<dt id="g-extensionality">extensionality</dt><dd>The rule that two arrays are equal if they agree at every index. In Lean, <code>funext</code> applies it.</dd>
-<dt id="g-ite">if-then-else term (ite)</dt><dd>A term <code>(ite c a b)</code> whose value is <code>a</code> when the Boolean <code>c</code> is true and <code>b</code> otherwise.</dd>
-<dt id="g-lemma">lemma</dt><dd>A small proved statement used as a step toward a larger proof.</dd>
-<dt id="g-literal">literal</dt><dd>A Boolean variable or atom, or its negation.</dd>
-<dt id="g-select">read (select)</dt><dd>Looking up an array at an index: <code>(select a i)</code>.</dd>
-<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to <code>False</code>.</dd>
-<dt id="g-rewrite">rewrite step</dt><dd>A proof step that replaces a formula by an equivalent, simpler one, such as an array equality by <code>x0 = x1</code>.</dd>
-<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, Bool, or <code>(Array Int Int)</code>.</dd>
-<dt id="g-store">store</dt><dd>An array update: <code>(store a i v)</code> equals <code>a</code> except that index <code>i</code> now holds <code>v</code>.</dd>
-<dt id="g-store-chain">store chain</dt><dd>Several stores applied one after another to a base array, here a constant array.</dd>
-<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically. <code>grind</code>, <code>omega</code>, and <code>funext</code> are tactics.</dd>
-<dt id="g-theorem">theorem</dt><dd>A named statement together with its proof, checked by Lean.</dd>
+  <dt id="g-array">array</dt>
+  <dd>A value of sort <code>(Array I E)</code> that maps each index of sort I to an element of sort E. In Lean it is a function <code>I -&gt; E</code>.</dd>
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula the input states as true, written <code>(assert ...)</code>.</dd>
+  <dt id="g-case-split">case split</dt>
+  <dd>Proving a goal twice, once assuming a condition holds and once assuming it does not. Example: either j = 1 or j &ne; 1.</dd>
+  <dt id="g-constant-array">constant array</dt>
+  <dd>An array with the same element at every index, written <code>((as const (Array Int Int)) v)</code>.</dd>
+  <dt id="g-converse">converse</dt>
+  <dd>The statement read in the other direction. If "A implies B" is known, its converse is "B implies A".</dd>
+  <dt id="g-dag">DAG</dt>
+  <dd>A directed acyclic graph. Terms share subterms, so one node can appear under many parents.</dd>
+  <dt id="g-extensionality">extensionality</dt>
+  <dd>The rule that two arrays are equal when they agree at every index.</dd>
+  <dt id="g-funext">funext</dt>
+  <dd>Lean's function extensionality: to prove two functions equal, prove they agree on every argument.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A Lean tactic that searches for a proof using case splits, congruence, and arithmetic.</dd>
+  <dt id="g-ite">if-then-else term (ite)</dt>
+  <dd>A term <code>(ite c a b)</code> that equals a when the Boolean c is true, and b otherwise.</dd>
+  <dt id="g-leaf">leaf</dt>
+  <dd>In a tree of nested ites, a branch that is not itself an ite. In <code>(ite p A (ite q B C))</code> the leaves are A, B, and C.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A small proved statement used as a step in a larger proof.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that the assertions together lead to False.</dd>
+  <dt id="g-rewrite">rewrite step</dt>
+  <dd>A proof step saying one formula is equivalent to a simpler one, as the solver's simplifier rewrote it.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, Bool, or <code>(Array Int Int)</code>.</dd>
+  <dt id="g-store">store and select</dt>
+  <dd><code>(store a i v)</code> is array a with index i changed to v. <code>(select a i)</code> reads a at index i.</dd>
+  <dt id="g-store-chain">store chain</dt>
+  <dd>Several stores applied one after another to a base array, such as <code>(store (store a 1 x) 2 y)</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically, such as <code>funext</code> or <code>grind</code>.</dd>
 </dl>
 
 <footer>
 Generated by the Lean certificate improvement loop on 2026-11-07.
 </footer>
+
 </body>
 </html>
