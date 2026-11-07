@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #91: Certify negated distincts whose every pair is refuted in Lean</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.82em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93em; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); margin: 0.2rem 0; }
+  .badge { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 1rem; font-size: 0.85em;
+           font-weight: 600; border: 1px solid currentColor; }
+  .open { color: var(--ok); }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -0.4rem; color: var(--muted); }
+  dl dt { font-weight: 600; margin-top: 0.6rem; }
+  dl dd { margin-left: 1.2rem; }
+  footer { margin-top: 2.5rem; border-top: 1px solid var(--border); padding-top: 0.6rem;
+           color: var(--muted); font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Certify negated distincts whose every pair is refuted in Lean</h1>
+  <p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/91">levnach/z3 #91</a>
+    &middot; state <span class="badge open">OPEN</span>
+    &middot; opened 2026-11-07T23:05:53Z &middot; loop iteration 91</p>
+  <p class="meta">This pull request is open and <strong>not merged</strong>.
+    The change under review is commit
+    <a href="https://github.com/levnach/z3/commit/432b82ead392f77bad9d476ee849554cae80ebeb"><code>432b82e</code></a>,
+    on top of base <code>aa82260</code>.</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>An input that asserts the negation of a <a href="#g-distinct">distinct</a> over many Int terms, while pinning every
+term to a different number, now passes the Lean check. Z3 already produced a <a href="#g-refutation">refutation</a>
+for it, but the Lean file failed. The <a href="#g-rewrite">rewrite step</a> that turns the negated distinct into a
+<a href="#g-disjunction">disjunction</a> of pair equalities was handed to the <a href="#g-grind">grind</a>
+<a href="#g-tactic">tactic</a>, which ran out of <a href="#g-heartbeat">heartbeats</a>. It is now proved by one
+<a href="#g-de-morgan">De Morgan</a> step per pair. Two further changes keep very wide inputs fast. The
+<a href="#g-lemma-step">lemma steps</a> that refute each <a href="#g-literal">literal</a> of a wide
+<a href="#g-clause">clause</a> now produce <a href="#g-linear">linear</a> text instead of quadratic text. And
+<a href="#g-outlining">outlining</a> now counts a very wide step by its width. The 40-term case now checks in about
+8 seconds. Every new proof is still checked by Lean, so the <a href="#g-trust-boundary">trust boundary</a> does not
+move.</p>
+
+<h2>Background</h2>
+<p>The previous iteration taught the pipeline to handle a positive <a href="#g-distinct">distinct</a> of more than
+32 terms. Its notes listed one gap as "still open". A negated wide distinct, where the proof refutes every pair,
+exported through the <a href="#g-clause-log">clause log</a> but produced Lean text that grew quadratically and failed.
+The PR describes failures at 30 and 40 terms. In our run for this report, the old pipeline already failed at 8
+terms. This work serves milestone 3 of the project plan, "Equality and linear arithmetic".</p>
+
+<h2>What changed</h2>
+<ul>
+  <li>The rewrite of <code>(not (distinct ...))</code> into the disjunction of its pairs is now proved one pair at a
+    time, the way you peel an onion layer by layer, instead of asking <a href="#g-grind">grind</a> to search the whole thing.</li>
+  <li>A pair that is written the other way round, such as <code>(= x1 x0)</code>, is also handled, using the
+    <a href="#g-symmetry">symmetry</a> of equality. Any other shape still falls back to grind as before.</li>
+  <li>Refuting the <a href="#g-hypothesis">hypotheses</a> of a clause wider than 32 literals now starts from a saved "tail" of the negated clause.
+    It is like putting a bookmark every 32 pages, so you never count from page one again.</li>
+  <li>When long proofs are split into separate Lean theorems, a step with more than 64 premises or literals now counts
+    as that many steps. A mover counts a piano as many boxes for the same reason.</li>
+  <li>New tests cover 40 Int terms, 12 terms over an <a href="#g-uninterpreted-sort">uninterpreted sort</a>, and the
+    reversed-pair case.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th>What it is</th><th>Added</th><th>Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">112</td><td class="num">18</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Int tests</td><td class="num">106</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Uninterpreted-sort tests</td><td class="num">11</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Project plan</td><td class="num">27</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>User notes</td><td class="num">4</td><td class="num">1</td></tr>
+    <tr><th>Total (5 files, 2 commits)</th><th></th><th class="num">260</th><th class="num">20</th></tr>
+  </tbody>
+</table>
+<p>There is no C++ change.</p>
+
+<h2>Worked example</h2>
+<p>Eight Int constants are pinned to different numbers, and the input claims they are not all distinct. These are
+the commands of the test helper <code>pinned_negated_distinct_source(8)</code>, several per line. The old and new
+exporters produced the same <a href="#g-certificate">certificate</a>. With 6 terms the old pipeline still passed.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIA)
+(declare-const x0 Int) (declare-const x1 Int) (declare-const x2 Int) (declare-const x3 Int)
+(declare-const x4 Int) (declare-const x5 Int) (declare-const x6 Int) (declare-const x7 Int)
+(assert (not (distinct x0 x1 x2 x3 x4 x5 x6 x7)))
+(assert (= x0 0)) (assert (= x1 1)) (assert (= x2 2)) (assert (= x3 3))
+(assert (= x4 4)) (assert (= x5 5)) (assert (= x6 6)) (assert (= x7 7))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>We ran the base commit's scripts, adjusting only the path to the Lean checker. The exporter succeeded. Lean
+rejected the old reconstructor's file after about 52 seconds:</p>
+<pre><code>Checking z3_proof_8ohbz84w.lean
+z3_proof_8ohbz84w.lean:165:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+...
+z3_proof_8ohbz84w.lean:384:8: error: (kernel) unknown constant '_private._stdin.0.Z3Proofs.NativeCertificate.p69a0dd96...bfc10.rewrite_64'
+Lean checking failed; no proof was published.</code></pre>
+<p class="explain">Line 165 is the theorem below. Its grind call timed out, so the final proof could not use it.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_64 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_63 _atoms _vars) := by
+  unfold formula_63 formula_62 formula_61 formula_60 formula_59 ... term_1 term_0
+  first | omega | grind (splits := 64)</code></pre>
+
+<h3>(c) After</h3>
+<p>The current reconstructor wrote the file below, and <code>scripts/check_lean.sh</code> printed
+<span class="ok">"Lean checks passed."</span> in under one second.</p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+...
+def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 7
+def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (Not ((term_0 _atoms _vars) = (term_1 _atoms _vars))) (And (Not ((term_0 _atoms _vars) = (term_2 _atoms _vars))) ... (Not ((term_6 _atoms _vars) = (term_7 _atoms _vars))) ...)
+def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_8 _atoms _vars))
+...
+def formula_35 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars) = (term_1 _atoms _vars))
+...
+def formula_62 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_35 _atoms _vars) (Or (formula_36 _atoms _vars) ... (formula_61 _atoms _vars) ...)
+def formula_63 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Iff (formula_9 _atoms _vars) (formula_62 _atoms _vars))</code></pre>
+<p class="explain">The distinct becomes a <a href="#g-conjunction">conjunction</a> of 28
+<a href="#g-disequality">disequalities</a>. Its negation must be shown equivalent to the disjunction of the 28 pair equalities.</p>
+<pre><code>private theorem rewrite_64 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_63 _atoms _vars) := by
+  unfold formula_63 formula_9 formula_8 formula_62
+  refine Iff.trans Classical.not_and_iff_not_or_not (or_congr Classical.not_not ?_)
+  refine Iff.trans Classical.not_and_iff_not_or_not (or_congr Classical.not_not ?_)
+  ...
+  refine Iff.trans Classical.not_and_iff_not_or_not (or_congr Classical.not_not ?_)
+  exact Classical.not_not</code></pre>
+<p class="explain">Each line peels one pair. De Morgan turns "not (A and rest)" into "not A or not rest".
+<a href="#g-double-negation">Double negation</a> turns "not not (x = y)" into "x = y". The
+<a href="#g-congruence">congruence</a> <code>or_congr</code> leaves the rest for the next line. There are 27 such lines
+and one final <code>exact</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_9 _atoms _vars))
+    (_h1 : (formula_11 _atoms _vars))
+    ...
+    (_h8 : (formula_25 _atoms _vars))
+    : False :=
+  ...</code></pre>
+<p class="explain">The final theorem takes the nine original assertions as hypotheses and proves <code>False</code>.</p>
+<p>This example is too small to show the other two changes. Those start at 33 literals and 500 steps.</p>
+
+<h2>How it was verified</h2>
+<p>Every reconstructor test passed on the final branch, about 470 of them, including the new Lean tests. Output is
+byte-for-byte unchanged on every existing proof regression. The tables list what the PR reports.</p>
+<table>
+  <thead><tr><th>Check (run by the implementer, after the second commit)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>All <code>test_proof_to_lean*.py</code> tests</td><td><span class="ok">OK</span>: 471 tests, 712 s, 6 skipped</td></tr>
+    <tr><td>The two new Lean tests run alone</td><td><span class="ok">OK</span>: 2 tests, 9.0 s</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td><span class="ok">OK</span>: 113 tests</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code> (Lean project build)</td><td><span class="ok">Lean checks passed</span></td></tr>
+    <tr><td>z3test proof tests</td><td><span class="ok">OK</span>: 48 tests</td></tr>
+    <tr><td>Proof matrix, Boolean inputs, legacy proof object</td><td><span class="ok">6/6</span> Lean-verified</td></tr>
+    <tr><td>Proof matrix, linear real arithmetic inputs, clause log</td><td><span class="ok">8/8</span> Lean-verified</td></tr>
+    <tr><td>Reviewer: output compared with the base on z3test proof regressions</td><td>Identical on all 18 inputs, both exporters</td></tr>
+    <tr><td>Tamper test: <code>eq_comm</code> removed from a reversed-pair file</td><td>Lean rejected it, as it should</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Manual input</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>30 pinned Int terms</td><td class="bad">2.0 MB, fails</td><td class="ok">1.1 MB, passes in 8 s</td></tr>
+    <tr><td>40 pinned Int terms</td><td class="bad">5.8 MB, fails</td><td class="ok">2.2 MB, passes in 7 s</td></tr>
+    <tr><td>33-term strict order chain</td><td>25 MB</td><td class="ok">8.5 MB, passes in 88 s</td></tr>
+    <tr><td>34 terms over an uninterpreted sort</td><td>38 MB</td><td class="ok">12.8 MB, passes in 150 s</td></tr>
+  </tbody>
+</table>
+<p>The C++ tests were not run because no C++ code changed. The loop's local gate had not recorded a result when
+this report was written.</p>
+
+<h3>Continuous integration</h3>
+<p>No CI results were available to this report, and there were no CI fix rounds. See the PR page for the live state.</p>
+<table>
+  <thead><tr><th>Workflow / job</th><th>Step that runs the new Lean tests</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>ubuntu-cmake</code> (releaseClang)</td><td>"Check native proofs in Lean", check "Lean reconstruction tests"</td>
+      <td><span class="unknown">not recorded</span> &middot; <a href="https://github.com/levnach/z3/pull/91/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+
+<h2>Review</h2>
+<p>The reviewer approved the change, with no blockers and no major findings.</p>
+<ul>
+  <li><strong>Minor, test coverage: fixed.</strong> The reviewer looked for an input where Z3 writes a pair as
+    <code>(= x1 x0)</code>. The rewriter never did, so the <code>eq_comm</code> line went untested. A mistake there
+    could break real inputs while every test stayed green. The new test reverses two pairs of a real certificate.
+    Lean accepts it, and rejects a copy without <code>eq_comm</code>.</li>
+  <li><strong>Nit, verbosity: not changed.</strong> The 40-term proof splits into about 1,284 small theorems. This is
+    correct and fast. Grouping them would change the outlining design, so it is a follow-up.</li>
+  <li><strong>Nit, documentation: fixed.</strong> The comment on <code>_outline_boundaries</code> did not mention width
+    weighting. It now does.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li>Splitting into theorems changes only for proofs with more than 500 steps and a step wider than 64. Those proofs
+    now have more, smaller theorems.</li>
+  <li>The lemma-step text changes only for clauses wider than 32 literals.</li>
+  <li>The new proof uses three standard Lean lemmas. They stay within the <a href="#g-axioms">standard axioms</a>.</li>
+  <li>The 33-term chain and the 34-term uninterpreted-sort input still take 90 to 150 s. That is too slow for CI.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Group the single-use premises of a very wide <a href="#g-unit-resolution">unit resolution</a> into shared theorems.</li>
+  <li>A positive distinct rewritten into its conjunction of disequalities still goes to grind.</li>
+  <li>Other candidates from the previous iteration remain open, such as reordered distincts over the same terms.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-axioms">axioms (standard)</dt>
+  <dd>The few basic facts Lean assumes without proof, such as classical logic. A proof that uses only these trusts nothing else.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>A file in which Z3 records the steps of its proof so that another tool can check them.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>x = 1 or not p or y &lt; 3</code>.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A record of the clauses Z3's solver learns while it works. It is one source of proof steps for the certificate.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>Replacing a part of an expression by an equal or equivalent part. If <code>A</code> is equivalent to <code>C</code>,
+    then <code>A or B</code> is equivalent to <code>C or B</code>.</dd>
+  <dt id="g-conjunction">conjunction</dt>
+  <dd>Formulas joined by "and". It is true only when every part is true.</dd>
+  <dt id="g-de-morgan">De Morgan's law</dt>
+  <dd>"Not (A and B)" is equivalent to "(not A) or (not B)".</dd>
+  <dt id="g-disequality">disequality</dt>
+  <dd>A statement that two terms are different, written <code>x ≠ y</code> or <code>(not (= x y))</code>.</dd>
+  <dt id="g-disjunction">disjunction</dt>
+  <dd>Formulas joined by "or". It is true when at least one part is true.</dd>
+  <dt id="g-distinct">distinct</dt>
+  <dd>The SMT-LIB operator that says all its arguments differ. <code>(distinct a b c)</code> means
+    <code>a ≠ b</code>, <code>a ≠ c</code> and <code>b ≠ c</code>. With n terms there are n(n-1)/2 pairs.</dd>
+  <dt id="g-double-negation">double negation</dt>
+  <dd>"Not not A" is equivalent to "A". This is a law of classical logic.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A general-purpose Lean tactic that searches for a proof on its own. It is powerful but can be slow on large goals.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit for counting work. When a proof uses more than its limit, Lean stops with a timeout error.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A fact assumed for the moment inside a proof, to be discharged later.</dd>
+  <dt id="g-lemma-step">lemma step</dt>
+  <dd>A proof rule that turns a refutation built under some hypotheses into a clause. The clause says at least one hypothesis is false.</dd>
+  <dt id="g-linear">linear and quadratic</dt>
+  <dd>How size grows with input. Linear: twice the input gives twice the text. Quadratic: twice the input gives four times the text.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>x = y</code> or <code>not (x = y)</code>.</dd>
+  <dt id="g-outlining">outlining</dt>
+  <dd>Splitting a long proof into several separate Lean theorems so that each stays within the heartbeat limit.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
+  <dt id="g-rewrite">rewrite step</dt>
+  <dd>A proof step that replaces a formula by an equivalent, usually simpler, one.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Real</code> or <code>Bool</code>.</dd>
+  <dt id="g-symmetry">symmetry of equality</dt>
+  <dd><code>x = y</code> is equivalent to <code>y = x</code>. In Lean this is <code>eq_comm</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A command in a Lean proof that tells Lean how to make progress on the current goal.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The line between what is checked and what is simply believed. Here, only Lean and its standard axioms are trusted.</dd>
+  <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+  <dd>A <a href="#g-sort">sort</a> declared by the user with no built-in meaning, such as <code>(declare-sort U 0)</code>. Only equality between its values is known.</dd>
+  <dt id="g-unit-resolution">unit resolution</dt>
+  <dd>A proof rule that removes literals from a clause using facts that contradict them, until one literal or <code>False</code> is left.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-07.
+</footer>
+
+</body>
+</html>
