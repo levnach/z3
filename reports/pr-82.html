@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #82: Certify arrays of enumerations in Lean through the clause log</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --badge-bg: #fff8c5; --badge-fg: #6a4a00;
+  --ok: #1a7f37; --warn: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --badge-bg: #3b2e00; --badge-fg: #f2cc60;
+    --ok: #3fb950; --warn: #d29922;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--link); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.4rem; }
+.meta { color: var(--muted); }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; background: var(--badge-bg); color: var(--badge-fg); font-weight: 600; font-size: .9rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; background: var(--code-bg); padding: .05rem .25rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: .82rem; }
+table { border-collapse: collapse; margin: .8rem 0; width: 100%; }
+th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.explain { margin-top: -.3rem; color: var(--muted); }
+dt { font-weight: 600; margin-top: .6rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .6rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify arrays of enumerations in Lean through the clause log</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/82">levnach/z3 #82</a> ·
+state <span class="badge">OPEN</span> · 2026-11-07T02:08:13Z · loop iteration 82
+</p>
+<p>This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/2216463fc3a2fbebd45e11cdd4478ab1a97d3184"><code>2216463fc</code></a>,
+the last of three commits in the PR.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+Inputs that use an <a href="#g-array">array</a> whose element <a href="#g-sort">sort</a> is an
+<a href="#g-enumeration">enumeration</a>, such as <code>(Array Int Color)</code>, can now be
+certified in Lean through the <a href="#g-clause-log">clause log</a>.
+Z3 proves such inputs with a <a href="#g-case-split">case split</a> on each
+<a href="#g-select">select</a>: the read is red, green, or blue.
+Lean must therefore know that every read is one of the <a href="#g-constructor">constructors</a>.
+The <a href="#g-interpretation">interpretation</a> now states this for each array constant.
+For reads through a <a href="#g-store">store</a> or an <a href="#g-ite">if-then-else term</a>,
+the reconstructor builds a small <a href="#g-proof-term">proof term</a> that the
+<a href="#g-kernel">kernel</a> checks.
+No <code>sorry</code> or new axiom is added, so each accepted <a href="#g-refutation">refutation</a>
+stays fully checked.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Iteration 80 added <a href="#g-enumeration">enumeration</a> datatypes to the clause-log path.
+It still rejected every <a href="#g-array">array</a> <a href="#g-sort">sort</a> with an enumeration in it.
+Lean knew the cases of enumeration constants and of <a href="#g-uninterpreted-function">uninterpreted function</a>
+applications, but not of array reads.
+So simply letting these inputs through the front end would only have produced Lean files that fail.
+This PR closes the backlog item “Arrays and maps over enumerations” for element sorts.
+It serves milestone 4 of the project plan, “Broader theories and integration”, which lists arrays as a separate extension.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>You can now give the exporter an array of an enumeration over Int, Real, Bool, <a href="#g-uninterpreted-sort">uninterpreted</a>, or array indices, and get a certificate.</li>
+<li>Lean now knows that every read of an array constant, or of a function’s array value, is a <a href="#g-constructor">constructor</a>.</li>
+<li>A read through any chain of stores and if-then-else terms now gets its cases as a kernel-checked proof term, built from two new prelude theorems for stores and if-then-else terms.</li>
+<li>The clause-log replay now learns an enumeration’s constructors and <a href="#g-recognizer">recognizers</a> from an array’s element sort, even when no plain enumeration term appears.</li>
+<li>Arrays indexed by an enumeration, nested arrays of an enumeration, constant arrays, default values, and maps of them are still rejected, each with its own message.</li>
+<li>A read through 1,100 nested stores no longer crashes the reconstructor, because the walk now uses an explicit stack.</li>
+</ul>
+
+<table>
+<thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">169</td><td class="num">20</td></tr>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Certificate exporter</td><td class="num">41</td><td class="num">14</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">18</td><td class="num">13</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_enum.py</code></td><td>Tests</td><td class="num">279</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_deep.py</code></td><td>Tests</td><td class="num">34</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">21</td><td class="num">8</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">40</td><td class="num">0</td></tr>
+</tbody>
+</table>
+<p>The PR has three commits.
+The first, <code>14c076270</code>, adds the feature.
+The second, <code>d0a821855</code>, moves the read walk onto an explicit stack.
+The third, <code>2216463fc</code>, documents a known gap.</p>
+
+<h2 id="example">Worked example</h2>
+<p>This is the input <code>read_of_a_store</code> from the PR’s new tests.
+A read of <code>a</code> after a store at another index is neither red, green, nor blue.
+That is impossible, because the read is either the stored value <code>c</code> or an old read of <code>a</code>.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-datatypes ((Color 0)) (((red) (green) (blue))))
+(declare-const a (Array Int Color))
+(declare-const i Int)
+(declare-const j Int)
+(declare-const c Color)
+(assert (not (= (select (store a i c) j) red)))
+(assert (not (= (select (store a i c) j) green)))
+(assert (not (= (select (store a i c) j) blue)))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The base commit’s exporter, run on this file, stopped at once:</p>
+<pre><code>proof_certificate.py: error: unsupported operator over an enumeration: select</code></pre>
+
+<h3>(c) After</h3>
+<p>The current exporter and reconstructor produced a 131-line Lean file.
+<code>./scripts/check_lean.sh</code> reported “Lean checks passed.” for it.
+Trimmed excerpts follow.</p>
+
+<pre><code>structure Interpretation where
+  U : Type
+  elems : Nat -&gt; U
+  ...
+  arrs_iu : Nat -&gt; Int -&gt; U
+  ctors : Nat -&gt; U
+  enum_distinct : (And (Not (ctors 0 = ctors 1)) (And (Not (ctors 0 = ctors 2)) (Not (ctors 1 = ctors 2))))
+  enum_cases_0 : (Or (elems 0 = ctors 0) (Or (elems 0 = ctors 1) (elems 0 = ctors 2)))
+  enum_acases_0 : forall _i : Int, (Or (arrs_iu 0 _i = ctors 0) (Or (arrs_iu 0 _i = ctors 1) (arrs_iu 0 _i = ctors 2)))</code></pre>
+<p class="explain">The last field is new: every read of the array <code>a</code>, at every index, is red, green, or blue.</p>
+
+<pre><code>private theorem _cases_store {I E : Type} (P : E -&gt; Prop) (a : I -&gt; E) (i : I) (v : E) (j : I)
+    (ha : P (_select a j)) (hv : P v) : P (_select (_store a i v) j) := by
+  rw [_store_apply]
+  split &lt;;&gt; assumption</code></pre>
+<p class="explain">This new prelude theorem says: if the old read and the stored value both have a property, the read after the store has it too.</p>
+
+<pre><code>private theorem th_lemma_24 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_23 _atoms _vars _m) := by
+  ...
+  have _ec5 : (Or (((_select ((term_3 _atoms _vars _m)) (_vars 1))) = _m.ctors 0) (Or ... = _m.ctors 1) (... = _m.ctors 2))) :=
+    (_cases_store (fun _x : _m.U =&gt; (Or (_x = _m.ctors 0) (Or (_x = _m.ctors 1) (_x = _m.ctors 2))))
+      ((term_0 _atoms _vars _m)) (_vars 0) (_m.elems 0) (_vars 1) (_m.enum_acases_0 (_vars 1)) _m.enum_cases_0)
+  first | omega | grind (splits := 64)</code></pre>
+<p class="explain">This theory lemma first proves that the read of the store is a constructor, then lets the <code>grind</code> tactic close the case split.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_8 _atoms _vars _m))
+    (_h1 : (formula_11 _atoms _vars _m))
+    (_h2 : (formula_14 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p class="explain">The theorem states that the three assertions, under any interpretation, imply False.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+The PR’s full Lean reconstruction suite passed on the final commit.
+Every new documented input and pinned random seed was checked by Lean.
+In the implementer’s random sweeps, all 200 unsatisfiable puzzles were verified. The review’s deeper sweep found 4 failures, described below.
+A new test also shows the read facts are really needed: without them, Lean rejects four files.
+</p>
+<p>
+The loop’s own local gate had <strong>not recorded results</strong> when this page was written.
+Its log showed only the start of the first step.
+The numbers below come from the PR description and the review.
+</p>
+<table>
+<thead><tr><th>Check (run by the implementer on <code>2216463fc</code>)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">446 tests OK, 6 skipped (539 s)</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">112 tests OK</td></tr>
+<tr><td><code>./scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td class="ok">48 tests OK</td></tr>
+<tr><td>Emitted Lean unchanged by the stack rewrite (SHA-256 compare)</td><td class="ok">56 of 56 inputs identical</td></tr>
+<tr><td>Store chain 200 levels deep</td><td class="ok">Lean passed</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Random sweep (on <code>14c076270</code>)</th><th>Seeds</th><th>Unsat</th><th>Verified</th></tr></thead>
+<tbody>
+<tr><td>Int index</td><td>1–150</td><td class="num">67</td><td class="num">67</td></tr>
+<tr><td>Uninterpreted index</td><td>1–150</td><td class="num">73</td><td class="num">73</td></tr>
+<tr><td>3 variables, 16 constraints, depth 3</td><td>1–100</td><td class="num">60</td><td class="num">60</td></tr>
+<tr><td>Review: uninterpreted index, 14 constraints, depth 3</td><td>200–259</td><td class="num">37</td><td class="num">33</td></tr>
+</tbody>
+</table>
+
+<h3>Continuous integration</h3>
+<p>No CI status was recorded for this report, so the results are <strong>unknown</strong> here.
+See the <a href="https://github.com/levnach/z3/pull/82/checks">PR’s checks page</a> for the live state.
+There were no CI fix rounds.</p>
+<table>
+<thead><tr><th>Workflow / job / step</th><th>What it covers</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>ci.yml</code> / <code>releaseClang</code> / “Check native proofs in Lean”</td><td>All <code>test_proof_to_lean*.py</code>, including the new tests</td><td class="warn">not recorded</td></tr>
+<tr><td>Python-wheel job</td><td>Only <code>test_proof_to_lean.py</code> and <code>test_proof_certificate.py</code></td><td class="warn">not recorded</td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blocker or major findings.
+They also tried tampered certificates, and each one was rejected.</p>
+<ol>
+<li><strong>Minor: a deep store chain crashed the reconstructor.</strong>
+The reviewer built a read through 1,100 nested stores.
+The new read walk called itself once per store, and Python ran out of stack.
+The user got a raw traceback instead of a certificate or a clean rejection.
+This mattered because the repository promises that deep inputs are handled like any other.
+The fix walks the chain with an explicit stack, like a to-do list instead of nested phone calls.
+A new test reconstructs the 1,100-level chain.
+That test skips Lean: 1,100 constants make an interpretation too large to check, a limit from iteration 80.</li>
+<li><strong>Minor: the plan said “all verify”, but some inputs fail.</strong>
+The reviewer ran a deeper random configuration.
+About 1 in 10 unsatisfiable seeds failed Lean with a <code>grind</code> error.
+The cause is older than this PR: a read through an if-then-else term over a store gets no value fact.
+The same gap hits <code>(Array Int Int)</code> with the base commit’s code.
+It is not a <a href="#g-soundness">soundness</a> problem, because Lean rejects and nothing false is accepted.
+The plan now names the failing seeds and records the fix as backlog.</li>
+<li><strong>Nit: README wording.</strong> A sentence was badly wrapped, and the list of supported operations was incomplete. Both were fixed.</li>
+</ol>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>The new fields are sound only if the <a href="#g-embedding">embedding</a> of a model’s arrays gives a constructor outside the index sort. The PR argues this, and the reviewer agreed.</li>
+<li>Reads through an if-then-else term over a store still fail Lean, for every element sort. Seed 219 is the recorded regression input.</li>
+<li>Around 1,000 enumeration constants make the interpretation too large for Lean’s time budget.</li>
+<li>Each read’s proof term grows with its store chain, and terms are not shared across lemmas. This was not measured beyond depth 3 in sweeps.</li>
+<li>The random generator rarely needs the read facts: only 1 of 14 hint seeds failed without them.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Walk if-then-else branches in the array helpers, which fixes the gap for all element sorts.</li>
+<li>Support arrays indexed by an enumeration. This needs a Lean index type with exactly the constructors.</li>
+<li>Support constant arrays, default values, maps, and nested arrays of an enumeration.</li>
+<li>Write a generator that compares reads only with reads and constructors, to stress the new walk.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-array">array</dt><dd>A total map from an index sort to an element sort. <code>(Array Int Color)</code> gives a color for every integer.</dd>
+<dt id="g-case-split">case split</dt><dd>Reasoning by trying each possibility in turn. “The read is red, or green, or blue.”</dd>
+<dt id="g-clause-log">clause log</dt><dd>A record of every clause the solver learned, with a hint for why each one holds. The reconstructor replays it.</dd>
+<dt id="g-constructor">constructor</dt><dd>One of the named values of a datatype. <code>red</code>, <code>green</code>, and <code>blue</code> are the constructors of <code>Color</code>.</dd>
+<dt id="g-embedding">embedding</dt><dd>A one-to-one way to represent one structure inside another. Here, a model’s arrays become Lean functions.</dd>
+<dt id="g-enumeration">enumeration</dt><dd>A datatype whose constructors take no arguments, so it has exactly that many distinct values.</dd>
+<dt id="g-extensionality">extensionality</dt><dd>The rule that two arrays are equal if they agree at every index.</dd>
+<dt id="g-ite">if-then-else term (<code>ite</code>)</dt><dd>A term that picks one of two values by a Boolean condition. <code>(ite p a b)</code> is <code>a</code> when <code>p</code> holds, else <code>b</code>.</dd>
+<dt id="g-interpretation">interpretation</dt><dd>An assignment of meanings to every symbol of the input. In the Lean file, it is a structure whose fields are facts every model satisfies.</dd>
+<dt id="g-kernel">kernel</dt><dd>The small trusted core of Lean that checks every proof term.</dd>
+<dt id="g-lemma">lemma (theory lemma)</dt><dd>A clause justified by a theory, such as arrays or datatypes, rather than by Boolean reasoning alone.</dd>
+<dt id="g-model">model</dt><dd>An interpretation that makes all assertions true.</dd>
+<dt id="g-proof-term">proof term</dt><dd>A proof written as an explicit expression that the kernel can check step by step.</dd>
+<dt id="g-recognizer">recognizer</dt><dd>A Boolean test for a constructor. <code>((_ is red) x)</code> is true when <code>x</code> is <code>red</code>.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to a contradiction, that is, to False.</dd>
+<dt id="g-rewrite">rewrite</dt><dd>A step that replaces a term with an equal, simpler term.</dd>
+<dt id="g-select">select</dt><dd>The array read. <code>(select a i)</code> is the value of <code>a</code> at index <code>i</code>.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Bool, or <code>Color</code>.</dd>
+<dt id="g-soundness">soundness</dt><dd>The guarantee that a checker never accepts a false claim.</dd>
+<dt id="g-store">store</dt><dd>The array write. <code>(store a i v)</code> is <code>a</code> with the value at <code>i</code> replaced by <code>v</code>.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that searches for a proof automatically. <code>grind</code> and <code>omega</code> are tactics.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning, only that equal arguments give equal results.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A sort with no fixed values, declared with <code>declare-sort</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-06.
+</footer>
+</body>
+</html>
