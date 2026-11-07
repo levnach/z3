@@ -3193,13 +3193,16 @@ class TestArrayLeanIntegration(unittest.TestCase):
         for arguments, seed in CONSTANT_ARRAY_SEEDS:
             source = random_constant_array_instance(seed, **arguments)
             self.assertIsNotNone(source, "seed %d is no longer unsatisfiable" % seed)
-            sort = "(Array %s %s)" % (arguments.get("index", "Int"), arguments.get("element", "Int"))
-            self.assertIn("(as const %s)" % sort, source)
-            sources.append((seed, source, _export(source)))
-        lean_test_support.prefetch((source, certificate) for _, source, certificate in sources)
-        for seed, source, certificate in sources:
+            sorts = {arguments.get("index", "Int"), arguments.get("element", "Int")}
+            self.assertIn("(as const (Array %s %s))" % (arguments.get("index", "Int"), arguments.get("element", "Int")),
+                          source)
+            fragment = {frozenset({"Int"}): "qf_uflia", frozenset({"Real"}): "qf_uflra"}.get(frozenset(sorts),
+                                                                                             "qf_uflira")
+            sources.append((seed, source, fragment, _export(source)))
+        lean_test_support.prefetch((source, certificate) for _, source, _, certificate in sources)
+        for seed, source, fragment, certificate in sources:
             with self.subTest(seed=seed):
-                self.assertEqual(certificate["fragment"], "qf_uflra" if "Real" in source else "qf_uflia")
+                self.assertEqual(certificate["fragment"], fragment)
                 _, report = lean_test_support.check(self, source, certificate)
                 self.assertTrue(_STANDARD_AXIOMS in report or "does not depend on any axioms" in report, report)
 
