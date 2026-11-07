@@ -1620,7 +1620,10 @@ clause let-bound every 32 literals. And a step with hundreds of premises or
 clause literals elaborated about ten times slower inside a 500-step outlined
 chunk than alone, so outlining counts a step wider than 64 by its width
 (`_outline_weight`). The 40-term input now checks in about 8 s
-(`test_negated_wide_distincts_verify`, `test_proof_to_lean_lia.py`); a
+(`test_negated_wide_distincts_verify`, `test_proof_to_lean_lia.py`). Z3's
+rewriter writes every pair `(= ai aj)`, so the `eq_comm` congruence is
+checked on a certificate with reversed pairs
+(`test_negated_distinct_rewrites_of_reversed_pairs_verify`); a
 33-term strict order chain checks in 90 s, and 34 terms over U with distinct
 f-images in 150 s (12.8 MB of Lean, mostly many small lemmas), neither in
 CI.

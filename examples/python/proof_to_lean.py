@@ -7086,7 +7086,10 @@ def _outline_boundaries(graph):
     A subproof used by several steps is checked once. A long chain without
     sharing is cut whenever a step would otherwise nest more than
     _OUTLINE_CHUNK_STEPS steps, so each lemma stays within the elaborator's
-    default heartbeat budget. Only steps the root uses are outlined; the log
+    default heartbeat budget. A step counts as _outline_weight steps: a step
+    wider than _OUTLINE_WIDE_STEP counts its width, so it is cut from the
+    chain around it, and its hypothesis premises stay inline as its binders
+    rather than being cut. Only steps the root uses are outlined; the log
     may record derivations the refutation never needs. Arguments precede
     their node, so one increasing pass sees every premise's final size before
     its consumer.
