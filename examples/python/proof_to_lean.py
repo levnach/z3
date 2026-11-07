@@ -651,15 +651,29 @@ def _numeral_expression_value(graph, node):
     Division by an expression of value 0 is not evaluated: Z3 leaves it
     uninterpreted, while Lean's x / 0 is 0. Unlike _numeral_value, this
     reads no linear form, so the divisor is a numeral expression too.
+    Values are cached in graph.numeral_values, and evaluation stops at the
+    first argument that is not a numeral expression.
     """
+    if node not in graph.numeral_values:
+        graph.numeral_values[node] = _evaluate_numeral_expression(graph, node)
+    return graph.numeral_values[node]
+
+
+def _evaluate_numeral_expression(graph, node):
+    """_numeral_expression_value of a node, given those of its arguments."""
     if not graph.is_arith(node):
         return None
     kind, arguments = graph.kind(node), graph.arguments(node)
     if kind == z3.Z3_OP_ANUM:
         return Fraction(graph.decl(node).name)
-    values = [_numeral_expression_value(graph, argument) for argument in arguments]
-    if not arguments or None in values:
+    if not arguments:
         return None
+    values = []
+    for argument in arguments:
+        value = _numeral_expression_value(graph, argument)
+        if value is None:
+            return None
+        values.append(value)
     if kind == z3.Z3_OP_DIV:
         return None if len(values) != 2 or values[1] == 0 else values[0] / values[1]
     if kind == z3.Z3_OP_TO_REAL:
@@ -1093,6 +1107,9 @@ class _Graph:
     # names in declaration order (read from the input by _bind_input, never
     # from the certificate).
     enumerations: dict = field(default_factory=dict, compare=False, repr=False)
+    # The value of each node evaluated by _numeral_expression_value, None if
+    # it is not a numeral expression (a cache: the nodes form a shared DAG).
+    numeral_values: dict = field(default_factory=dict, compare=False, repr=False)
 
     def constructor_index(self, name, sort):
         """The index of a constructor in _m.ctors: the enumerations by sort name, each in declaration order."""
