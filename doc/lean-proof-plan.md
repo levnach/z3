@@ -1603,6 +1603,41 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Distincts of more than 32 terms (2026-11-07)
+
+Every input with a root `distinct` of more than 32 arguments, in any
+fragment, failed to export through the clause log: the sat.smt core
+encoded it over a fresh sort and function (`distinct-elems`, `dist-f`, and
+an at-least-2 constraint for a negated one), which the replay rejects ("the
+clause log declares a sort absent from the input"). With proofs
+(`use_drat()`) `add_distinct_axiom` and `add_not_distinct_axiom` in
+`src/sat/smt/euf_internalize.cpp` now log the pairwise clauses at any width,
+as they did up to 32 arguments; without proofs nothing changes. Second, the
+certificate keeps only the pair equalities the proof uses, and a distinct
+with any pair missing was one opaque leaf in the cnf lemmas tying a logged
+`(not (= a b))` to it, so those lemmas fell back to omega and grind over the
+unfolded distinct, which ran out of heartbeats over Int from 30 arguments
+(435 pairs). A missing pair is now a synthetic leaf rendered as the
+distinct's conjunct (`_distinct_pair_leaves`), and the propagation proof
+projects the logged pairs. Wide distincts over U and Int verify in about a
+second. Tests: `test_wide_distincts_are_clausified_pairwise_under_proofs`
+(`test_proof_certificate.py`), `test_cnf_lemmas_project_the_logged_pairs_of_a_wide_distinct`
+and `test_wide_distincts_verify_through_their_logged_pairs`
+(`test_proof_to_lean_lia.py`), `test_distincts_of_more_than_32_terms_verify`
+(`test_proof_to_lean_uf.py`). Still open: a negated wide distinct whose
+every pair the proof refutes exports, but its Lean text is quadratic (528
+pairs under a strict order give 25 MB; the 528-literal clause is projected
+by `Or.inr` chains, and over Int the rewrite of the negated distinct into
+the disjunction goes to grind). Also open, and older than this change: a
+wide distinct with an ite argument whose clauses Z3 simplified under a unit
+(34 `f` applications, `(+ x 1)`, and `(ite (> x 0) (f 3) (f 4))` with
+`x = 2`) still sends the cnf lemmas over the ite's value to grind over the
+unfolded distinct, which runs out of heartbeats from about 30 arguments; the
+base reconstructor emits the same text at 30 arguments. Clausifying pairwise
+under proofs is quadratic in the width (1000 arguments: about 8 s and 34 MB
+of clause log, against 0.02 s without a log); the encoding is not capped,
+as the fresh-symbol encoding above the cap could not be certified anyway.
+
 ### Arrays of enumerations (2026-11-06)
 
 Every array sort with an enumeration component was rejected ("unsupported
