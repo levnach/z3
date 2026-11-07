@@ -597,10 +597,10 @@ def _store_identity_instance(graph, nodes):
     That is (store (store a i v) i w) or (store a i (select a i)), with the
     same index and array nodes (the certificate's terms are shared), a
     store into a constant array of its own value, (store (const c) i c),
-    the value possibly a read of a constant array of c or an ite of c with
-    itself (Z3's rewriter evaluates the read, and drops the ite, first), or
-    an equality between a constant array and a store into it, (= (const c)
-    (store (const c) i v)), either way round.
+    the value possibly a read of a constant array of c (Z3's rewriter
+    evaluates the read to c first), or an equality between a constant array
+    and a store into it, (= (const c) (store (const c) i v)), either way
+    round.
     """
     for node in nodes:
         if graph.kind(node) == z3.Z3_OP_EQ and graph.is_array(graph.arguments(node)[0]):
@@ -621,16 +621,10 @@ def _store_identity_instance(graph, nodes):
 
 
 def _constant_value(graph, node):
-    """The node a term evaluates to through reads of constant arrays, (select (const c) j) to c, and
-    through ites of a term with itself, (ite p c c) to c."""
-    while True:
-        arguments = graph.arguments(node)
-        if graph.kind(node) == z3.Z3_OP_SELECT and graph.kind(arguments[0]) == z3.Z3_OP_CONST_ARRAY:
-            node = graph.arguments(arguments[0])[0]
-        elif graph.kind(node) == z3.Z3_OP_ITE and arguments[1] == arguments[2]:
-            node = arguments[1]
-        else:
-            return node
+    """The node a term evaluates to through reads of constant arrays, (select (const c) j) to c."""
+    while graph.kind(node) == z3.Z3_OP_SELECT and graph.kind(graph.arguments(node)[0]) == z3.Z3_OP_CONST_ARRAY:
+        node = graph.arguments(graph.arguments(node)[0])[0]
+    return node
 
 
 def _set_function(graph, node):

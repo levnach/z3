@@ -1659,9 +1659,10 @@ does not do, and `_const_eq_store` covered only one store over one constant
 array. `_constant_chain_extensionality` now states and proves the converse
 per such equality (`_x` facts: funext, a case split on the stored indices,
 and the new prelude theorem `_store_off` down to the constants). Second,
-`(store (const c) i (ite p c c))` folds into `(const c)`: `_constant_value`
-sees through an ite of a term with itself and the array rewrite
-alternative's simp set has `ite_self`. Seeds 131, 139, and 246 failed Lean
+`(store (const c) i (ite p c c))` folds into `(const c)`: the array rewrite
+alternative's simp set has `ite_self`, so simp drops the ite before
+`_const_store_self` folds the store (rewrite steps with a store always get
+that alternative; on the 528 seeds no other step needed it). Seeds 131, 139, and 246 failed Lean
 before and are pinned (`CONSTANT_ARRAY_SEEDS`); 528 unsatisfiable seeds of
 four sweep configurations verify, none rejected. Five documented inputs (one
 over Real indices) fail Lean with grind errors only without the new facts
