@@ -10,6 +10,7 @@ from fractions import Fraction
 import json
 from pathlib import Path
 import random
+import re
 import subprocess
 import sys
 import tempfile
@@ -980,6 +981,25 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 text, report = lean_test_support.check(self, source, certificate)
                 self.assertIn(_STANDARD_AXIOMS, report)
                 self.assertEqual("_bool_distinct3 _h" in text, name == "3524")
+
+    def test_one_argument_applications_after_a_false_assertion_through_the_clause_log(self):
+        # (+ t), (* t), and (distinct t) in the assertions after one that
+        # folds to false, which the clause log prints unsimplified: the
+        # replay rebuilds the input's terms, and Lean renders them as t and
+        # True (see test_one_argument_sums_products_and_distincts_after_a_
+        # false_assertion in test_proof_certificate.py).
+        from test_proof_certificate import ONE_ARGUMENT_INPUTS
+        for name, source in ONE_ARGUMENT_INPUTS.items():
+            with self.subTest(name=name):
+                certificate = proof_certificate.export_clause_log_certificate(source)
+                _, report = lean_test_support.check(self, source, certificate)
+                # Each refutation is the folded assertion; the axioms it uses
+                # differ by encoding, but stay among the standard ones.
+                axioms = re.search(r"depends on axioms: \[([^\]]*)\]", report)
+                if axioms is None:
+                    self.assertIn("does not depend on any axioms", report)
+                else:
+                    self.assertLessEqual(set(axioms.group(1).split(", ")), {"propext", "Classical.choice", "Quot.sound"})
 
     def test_boolean_input_with_a_query_inside_a_scope_through_the_clause_log(self):
         # z3test 3632.smt2 kept verbatim: the only check-sat sits inside
