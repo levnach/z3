@@ -1121,8 +1121,8 @@ unary `+` and a chained `<`), and `z3.29.smt2` query 1
 `assert-soft` and `:opt.*` options (they change what check-sat answers),
 `get-consequences` (a query of its own), `include`, `:error-behavior`, and
 `:global-decls true`; the other newly parsed files are satisfiable or
-leave the fragments (quantifiers, nonlinear arithmetic, strings). (The
-optimization commands are accepted since, see the next note.)
+leave the fragments (quantifiers, nonlinear arithmetic, strings). (Since
+2026-11-07 the optimization commands are accepted; see the next note.)
 
 **Optimization commands; distincts of Booleans (2026-11-07).** With a soft
 assertion or an objective in scope, Z3's `check-sat` runs the optimization

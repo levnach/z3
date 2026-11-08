@@ -2749,13 +2749,18 @@ def _trivial_distinct(graph, node):
     return graph.kind(node) == z3.Z3_OP_DISTINCT and len(graph.arguments(node)) == 1
 
 
-def _inline(graph, node, atom_indices, variable_indices):
+def _inline(graph, node, atom_indices, variable_indices, generalized=None):
     """Render a formula or term with every definition expanded, as unfold would.
 
     Array terms stay folded, as unfold leaves them (see _definition_names).
+    generalized maps nodes to names they were generalized to, rendered in
+    their place.
     """
+    if generalized and node in generalized:
+        return generalized[node]
+
     def child(sub):
-        return "(%s)" % _inline(graph, sub, atom_indices, variable_indices)
+        return "(%s)" % _inline(graph, sub, atom_indices, variable_indices, generalized)
     if _folded_array(graph, node):
         return _term(graph, node)
     if graph.is_term(node):
@@ -3021,20 +3026,6 @@ def _boolean_distinct_facts(graph, reachable, atom_indices, variable_indices, ge
     which the facts then state in their place. Returns the tactic lines and
     the facts' names.
     """
-    generalized = generalized or {}
-
-    def render(node):
-        if node in generalized:
-            return generalized[node]
-        if _folded_array(graph, node):
-            return _term(graph, node)
-
-        def child(sub):
-            return "(%s)" % render(sub)
-        if graph.is_term(node):
-            return _term_body(graph, node, variable_indices, child, child)
-        return _formula_body(graph, node, atom_indices, child, child)
-
     facts, names = [], []
     for formula in sorted(reachable):
         if not _boolean_distinct(graph, formula):
@@ -3045,7 +3036,7 @@ def _boolean_distinct_facts(graph, reachable, atom_indices, variable_indices, ge
             # The index-th of the count conjuncts of a right-nested And chain.
             return "_h" + ".2" * index + (".1" if index < count - 1 else "")
         facts.append("have _bd%d : Not %s := fun _h => _bool_distinct3 %s %s %s" % (
-            formula, render(formula),
+            formula, _inline(graph, formula, atom_indices, variable_indices, generalized),
             conjunct(0), conjunct(1), conjunct(len(graph.arguments(formula)) - 1)))
         names.append("_bd%d" % formula)
     return facts, names
