@@ -4184,9 +4184,10 @@ def _farkas_combination(graph, node):
     tightened by one, an equality oriented by the sign of its multiplier),
     stated as the fact 0 <= upper - lower by a core lemma; the facts scaled
     by their integer multipliers sum to a negative constant, an identity
-    omega checks before any hypothesis is in scope, where it only has to
-    normalize the sum. With the bounds in scope omega searches for the
-    combination itself: two 21-literal Farkas lemmas over twenty variables
+    checked before any hypothesis is in scope (_sum_identity: `simp +arith`
+    first, omega as the fallback), where it only has to normalize the sum,
+    a balanced tree (_balanced_sum). With the bounds in scope omega
+    searches for the combination itself: two 21-literal Farkas lemmas over twenty variables
     with eight-digit coefficients (QF_LIA cut_lemma_03_012 of z3test's
     smtlib-sample) ran for ten minutes without an answer. Inequality
     multipliers are the hint's coefficients; equality multipliers are solved
@@ -4217,10 +4218,11 @@ def _farkas_combination(graph, node):
     if summed is None:
         return None
     combination, nonnegative, total, sides = summed
-    # The identity goes first, while omega sees no hypothesis but the
-    # valuation, over the atoms of the linear forms left folded (delta
-    # unfolds the sums, products, and numerals above them in one pass, and
-    # omega reads a folded atom as one variable). The rest is one
+    # The identity goes first, while `simp +arith` (and omega, its fallback)
+    # sees no hypothesis but the valuation, over the atoms of the linear
+    # forms left folded (delta unfolds the sums, products, and numerals
+    # above them in one pass, and both read a folded `term_N _atoms _vars`
+    # atom as one opaque variable). The rest is one
     # term, typed by the ascription of the sum: a tactic `have` per fact
     # cost Lean about two megabytes per lemma, which a certificate of 800
     # two-literal Farkas lemmas (the wide division seed) could not afford.

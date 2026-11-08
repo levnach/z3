@@ -1303,6 +1303,8 @@ class TestIntegerValidation(unittest.TestCase):
         summands = ["s%d" % i for i in range(202)]
         tree, _ = proof_to_lean._balanced_sum(summands, summands)
         self.assertEqual(re.findall(r"s\d+", tree), summands)
+        # The leaves s0 ... s201 hold no parentheses, so the deepest
+        # parenthesis nesting is the depth of the tree.
         depth, nesting = 0, 0
         for character in tree:
             nesting += {"(": 1, ")": -1}.get(character, 0)
