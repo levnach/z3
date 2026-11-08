@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1d2127; --muted: #5a6370; --accent: #0b5cad;
-  --code-bg: #f3f5f8; --border: #d6dbe2; --ok: #1a7f37; --warn: #9a6700; --bad: #b42318;
+  --code-bg: #f3f5f8; --border: #d6dbe2; --ok: #1a7f37; --warn: #9a6700; --bad: #b42318; --merged: #8250df;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171c; --fg: #e3e7ed; --muted: #9aa4b2; --accent: #6cb6ff;
-    --code-bg: #1d2229; --border: #343b45; --ok: #4ac26b; --warn: #d4a72c; --bad: #ff7b72;
+    --code-bg: #1d2229; --border: #343b45; --ok: #4ac26b; --warn: #d4a72c; --bad: #ff7b72; --merged: #b392f0;
   }
 }
 body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -31,7 +31,7 @@ th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: le
 th { background: var(--code-bg); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .meta { color: var(--muted); font-size: .95rem; }
-.badge { display: inline-block; padding: .05rem .5rem; border-radius: 999px; border: 1px solid var(--warn); color: var(--warn); font-weight: 600; font-size: .85rem; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 999px; border: 1px solid var(--merged); color: var(--merged); font-weight: 600; font-size: .85rem; }
 .ok { color: var(--ok); font-weight: 600; }
 .bad { color: var(--bad); font-weight: 600; }
 .pending { color: var(--warn); font-weight: 600; }
@@ -47,20 +47,21 @@ footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8r
 <h1>Retry failed cnf lemma searches over a z3 unsat core of the gates</h1>
 <p class="meta">
 Pull request <a href="https://github.com/levnach/z3/pull/97">levnach/z3#97</a> ·
-State: <span class="badge">OPEN</span> · Opened 2026-11-08T07:31:36Z · Loop iteration 97
+State: <span class="badge">MERGED</span> · 2026-11-08T07:45:08Z · Loop iteration 97
 </p>
 <p class="meta">
-This pull request is <strong>not merged</strong>. The change it proposes ends at commit
-<a href="https://github.com/levnach/z3/commit/00b99a83d91b1a6603831c512d8aa9f5d965b1b1"><code>00b99a83d</code></a>.
-It contains three commits on top of <code>7115198</code>.
+Merged on 2026-11-08T07:45:08Z as commit
+<a href="https://github.com/levnach/z3/commit/0fda57aef7161187cdfae397f2fb3eafcccceafe"><code>0fda57aef</code></a> on <code>master</code>.
+The PR had three commits on top of <code>7115198</code>.
 </p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
 <p>
 A search proves each <a href="#g-cnf-lemma">cnf lemma</a> in Lean by <a href="#g-propagation">propagation</a> and <a href="#g-case-split">case splits</a> over its <a href="#g-gate">gates</a>.
-When it ran out of budget, the pipeline fell back to one <a href="#g-tactic">tactic</a> call, <code>grind</code>, which can fail on large inputs.
-Now the reconstructor first asks z3 for an <a href="#g-unsat-core">unsat core</a> of the lemma's <a href="#g-propositional-abstraction">propositional abstraction</a>, then searches again over the core's gates only.
+When that search ran out of budget, the pipeline fell back to one <a href="#g-tactic">tactic</a> call, <code>grind</code>, which can fail on large inputs.
+Now the reconstructor first asks z3 for an <a href="#g-unsat-core">unsat core</a> of the lemma's <a href="#g-propositional-abstraction">propositional abstraction</a>.
+It then searches again, over the core's gates only.
 The core is an <a href="#g-oracle">untrusted oracle</a>: it only steers the search, and the Lean <a href="#g-kernel">kernel</a> still checks every step.
 No <a href="#g-axiom">axiom</a> or <code>sorry</code> is added.
 This matters because the failing cnf lemma of a <a href="#g-qf-idl">QF_IDL</a> benchmark now gets a step-by-step <a href="#g-refutation">refutation</a> instead of a fallback that Lean rejects.
@@ -68,19 +69,21 @@ This matters because the failing cnf lemma of a <a href="#g-qf-idl">QF_IDL</a> b
 
 <h2 id="background">Background</h2>
 <p>
-Before this PR, the propositional prover always chose the true <a href="#g-disjunction">disjunction</a> with the fewest open disjuncts, earliest first.
-On QF_IDL <code>planning/plan-21</code>, a single assertion holds one disjunction per time step.
-The prover worked through about fifty earlier steps before reaching the one the <a href="#g-clause">clause</a> is about, and ran out of budget.
+Before this PR, the propositional prover always split the true <a href="#g-disjunction">disjunction</a> with the fewest open disjuncts, earliest first.
+On QF_IDL <code>planning/plan-21</code>, the single assertion holds one disjunction per time step.
+The prover worked through about fifty earlier steps before reaching the one the <a href="#g-clause">clause</a> is about.
+It ran out of budget, even at twenty times the usual budget.
 The <code>grind</code> fallback then failed in Lean with "maximum number of steps exceeded".
 This work serves milestone 2, the kernel-checked Boolean slice, on inputs from the QF_IDL regression scans.
 </p>
 
 <h2 id="changes">What changed</h2>
+<p>All code changes are in the Lean reconstructor, <code>proof_to_lean.py</code>. No C++ or Lean library file changed.</p>
 <ul>
-<li>When the search for a cnf lemma gives up, the reconstructor now retries over the gates z3's unsat core says are needed.</li>
-<li>The retried search ignores gates outside the core, so it no longer wastes its budget on unrelated time steps.</li>
-<li>A gate outside the core that feeds a needed gate is now split like an <a href="#g-atom">atom</a>, using the <a href="#g-excluded-middle">law of excluded middle</a>.</li>
-<li>If z3 finds the abstraction <a href="#g-satisfiable">satisfiable</a>, or hits its <a href="#g-rlimit">resource limit</a>, the old <code>grind</code> fallback still applies.</li>
+<li>When the search for a cnf lemma gives up, the reconstructor now retries over the gates that z3's unsat core says are needed.</li>
+<li>The retried search ignores gates outside the core, so it no longer spends its budget on unrelated time steps.</li>
+<li>A gate outside the core that feeds a needed gate can now be split like an <a href="#g-atom">atom</a>, by the <a href="#g-excluded-middle">law of excluded middle</a>.</li>
+<li>If z3 finds the abstraction <a href="#g-satisfiable">satisfiable</a>, or reaches its <a href="#g-rlimit">resource limit</a>, the old <code>grind</code> fallback still applies.</li>
 <li>Lemmas that the first search already proves get exactly the same Lean output as before.</li>
 </ul>
 <p>
@@ -99,9 +102,11 @@ You still read those pages yourself, so a wrong hint costs time, never correctne
 
 <h2 id="example">Worked example</h2>
 <p>
-Small hand-built inputs did not trigger the change, because the first search already succeeds on them.
+Small inputs do not trigger the change, because the first search already succeeds on them.
+An earlier attempt with hand-built inputs of about ten lines gave identical old and new output at every budget tried.
 So this example uses the input of the PR's new test, the 97 KB benchmark FISCHER6-4.
-Like that test, both real runs lower the search budget to 25,000 characters to imitate a larger input.
+Like that test, both runs lower the search budget to 25,000 characters to imitate a larger input.
+Both runs below were repeated for this page on the merged code and on the base commit.
 </p>
 
 <h3>(a) The input (excerpt)</h3>
@@ -118,20 +123,20 @@ Like that test, both real runs lower the search budget to 25,000 characters to i
 
 <h3>(b) Before: the pipeline at the base commit</h3>
 <pre><code>Build completed successfully (4 jobs).
-Checking .../z3_proof_lf_lo9kl.lean
+Checking .../z3_proof_yr4922si.lean
 Lean checking failed; no proof was published.</code></pre>
 <p class="explain">
-All seven cnf lemmas fell back to <code>grind</code>.
-Rechecked by hand, Lean was terminated with exit status 143 after about 56 seconds, at about 13.5 GB, with no error message.
+The run ended after about 58 seconds with exit status 143, and Lean printed no error message.
+All seven cnf lemmas had fallen back to <code>grind</code>.
 At the default budget the old code proves these lemmas, so this is a stand-in for the real plan-21 failure.
 </p>
 <pre><code>private theorem th_lemma_7754 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_7753 _atoms _vars) := by
   unfold formula_7753 formula_7752 formula_5777 formula_5776 ...
   first | omega | grind (splits := 64)</code></pre>
-<p class="explain">This is the old lemma: unfold everything and hope one tactic call finds the proof.</p>
+<p class="explain">This is the old lemma, from the same run with the Lean check skipped: unfold everything and hope one tactic call finds the proof.</p>
 
-<h3>(c) After: Lean generated by the new reconstructor</h3>
+<h3>(c) After: Lean generated by the merged reconstructor</h3>
 <pre><code>-- Atom 176: "AT0_PROC3_SW_C_CS_TAU"
 ...
 def formula_1841 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_1111 _atoms _vars))
@@ -140,7 +145,7 @@ def formula_5777 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (An
 ...
 def formula_7752 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_5777 _atoms _vars))
 def formula_7753 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_7752 _atoms _vars) (formula_1841 _atoms _vars))</code></pre>
-<p class="explain"><code>formula_5777</code> is the whole assertion. The lemma's clause says "the assertion is false, or atom 176 is false".</p>
+<p class="explain"><code>formula_5777</code> is the whole assertion, and the lemma's clause says "the assertion is false, or atom 176 is false".</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_5777 _atoms _vars))
@@ -158,8 +163,6 @@ private theorem th_lemma_7754 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
        refine (fun (_f55 : (Not (formula_7753 _atoms _vars))) =&gt; ?_)
        have _f56 := (mt (@Or.inl _ _) _f55)
        have _f57 := (mt (@Or.inr _ _) _f55)
-       have _f58 : (formula_5777 _atoms _vars) := (Classical.byContradiction (fun _g =&gt; _f56 _g))
-       have _f59 := _f58.1
        ...
        have _f465 := (Or.elim _f464 (fun _g =&gt; absurd _g _f57) (fun _g =&gt; _g))
        ...
@@ -169,17 +172,19 @@ private theorem th_lemma_7754 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     | (unfold formula_7753 formula_7752 formula_5777 ...
        first | omega | grind (splits := 64))</code></pre>
 <p class="explain">
-The new lemma assumes the clause is false and derives a contradiction step by step, only through gates in the core.
-The old grind proof stays behind <code>first</code> as a backup.
+The new lemma assumes the clause is false and derives a contradiction one step at a time, only through gates in the core.
+The old <code>grind</code> proof stays behind <code>first</code> as a backup.
 </p>
 <p>
-The new pipeline printed "Lean checked the refutation".
-With the grind backup removed from all seven lemmas, as in the PR's test, Lean accepted the file too.
+The merged pipeline printed "Lean checked the refutation".
+In all seven new lemmas, the guided search needed only propagation, with no case split.
+With the <code>grind</code> backup removed from all seven lemmas, as in the PR's test, Lean also accepted the file.
 </p>
 
 <h2 id="verification">How it was verified</h2>
 <p>
 In plain terms, every local test suite passed, including a run without Lean that imitates the wheel CI job.
+The loop's local gate then passed all five of its steps, and the loop merged on that gate.
 </p>
 <table>
 <tr><th>Local command (from the PR)</th><th>Result</th></tr>
@@ -191,24 +196,33 @@ In plain terms, every local test suite passed, including a run without Lean that
 <tr><td>proof matrix, Boolean inputs, legacy proof object</td><td class="ok">6 of 6 Lean-verified</td></tr>
 <tr><td>proof matrix, LRA inputs, clause log</td><td class="ok">8 of 8 Lean-verified</td></tr>
 </table>
+<table>
+<tr><th>Local gate step (Darwin arm64)</th><th>Result</th><th>Time</th></tr>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">20 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">752 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">21 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="ok">pass</td><td class="num">9 s</td></tr>
+</table>
 <p>
-The loop's local gate had not been recorded when this page was written.
-Its log showed the exporter tests passing and the Lean reconstruction tests still running.
-The driver used that gate instead of waiting for GitHub CI, so no CI results were available here.
+The change touches only documentation, Python examples, and tests, so the gate replaced the wait for GitHub CI.
+GitHub CI runs on <code>master</code> after the merge, but its results were not among this report's inputs.
+There were no CI fix rounds.
 </p>
 <table>
 <tr><th>CI job (from the PR description)</th><th>What it runs for this PR</th><th>Status</th></tr>
-<tr><td><code>manylinux-python-amd64</code>, step "Test Python wheel"</td><td>Python-only halves of the new tests</td><td class="pending">not recorded</td></tr>
-<tr><td><code>releaseClang</code>, step "Check native proofs in Lean"</td><td>Lean checks of the new refutations and FISCHER6-4</td><td class="pending">not recorded</td></tr>
+<tr><td><code>manylinux-python-amd64</code>, step "Test Python wheel"</td><td>Python-only halves of the new tests</td><td class="pending">unknown</td></tr>
+<tr><td><code>releaseClang</code>, step "Check native proofs in Lean"</td><td>Lean checks of the new refutations and FISCHER6-4</td><td class="pending">unknown</td></tr>
 </table>
-<p>Live check results are on the PR's <a href="https://github.com/levnach/z3/pull/97/checks">checks page</a>. There were no CI fix rounds.</p>
+<p>Check results for the merged commit are on its <a href="https://github.com/levnach/z3/commit/0fda57aef7161187cdfae397f2fb3eafcccceafe">commit page</a>.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer first asked for changes, with one blocker, one minor finding, and two nits.</p>
+<p>The reviewer first asked for changes, with one blocker, one minor finding, and two nits. The inputs contain no second review after the fixes.</p>
 <ul>
 <li><strong>Blocker, fixed.</strong>
 The reviewer ran the tests with Lean hidden, as in the wheel CI job.
-The two new tests failed with "elan was not found", so every PR would have failed that job.
+The two new tests failed with "elan was not found".
+Every PR would have failed that job.
 Their Lean checks moved to the integration module, and the run without Lean then passed.</li>
 <li><strong>Minor, left as a follow-up.</strong>
 On RTCL <code>tf_20</code> the second search also fails.
@@ -218,17 +232,17 @@ Three measured inputs are too few to pick a core-size cutoff, so the cost is rec
 A check in the frontier code looked redundant.
 Without it, an atom in the relevant set would never be split, and the search would become incomplete.</li>
 <li><strong>Nit, not a defect.</strong>
-The excluded-middle split line is not counted in the character budget, like the other split lines.</li>
+The excluded-middle split line is not counted in the character budget.
+The other split lines are not counted either, and the step budget still bounds the number of splits.</li>
 </ul>
-<p>The inputs contain no second review after these fixes.</p>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li>A failed first search now also costs a z3 call and a second search.</li>
-<li>The core is not minimized. A large core only makes the retry fail, never unsound.</li>
-<li>plan-21 as a whole still does not verify. Its 33 MB Lean file runs out of kernel memory elsewhere.</li>
-<li>The worked example shows the gain only under a reduced budget, and the cause of its "before" failure is unknown.</li>
-<li>GitHub CI results were not available to this report.</li>
+<li>A failed first search now also costs a z3 call and a second full-budget search.</li>
+<li>The core is not minimized. A large core only makes the retry fail. It never affects soundness.</li>
+<li>plan-21 as a whole still does not verify. Its 33 MB Lean file hits kernel memory errors in other theorems.</li>
+<li>The worked example shows the gain only under a reduced budget. The cause of its silent "before" failure is not known.</li>
+<li>GitHub CI results for the merged commit were not available to this report.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
@@ -236,7 +250,7 @@ The excluded-middle split line is not counted in the character budget, like the 
 <li>Bound the second search once more inputs are measured.</li>
 <li>Make plan-21's outlined proof steps lighter so the file fits in memory.</li>
 <li>Replay SAT refutations for RTCL inputs such as <code>tf_20</code>, where core guidance is not enough.</li>
-<li>Let the rewrite provers retry over a core too.</li>
+<li>Let the other rewrite provers retry over a core too.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
