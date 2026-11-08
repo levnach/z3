@@ -986,13 +986,13 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         # (+ t), (* t), and (distinct t) in the assertions after one that
         # folds to false, which the clause log prints unsimplified: the
         # replay rebuilds the input's terms, and Lean renders them as t and
-        # True (see test_one_argument_sums_products_and_distincts_after_a_
-        # false_assertion in test_proof_certificate.py).
+        # True. See, in test_proof_certificate.py,
+        # test_one_argument_sums_products_and_distincts_after_a_false_assertion.
         from test_proof_certificate import ONE_ARGUMENT_INPUTS
         for name, source in ONE_ARGUMENT_INPUTS.items():
             with self.subTest(name=name):
-                certificate = proof_certificate.export_clause_log_certificate(source)
-                _, report = lean_test_support.check(self, source, certificate)
+                # self.check also requires one hypothesis per assertion.
+                _, report = self.check(source)
                 # Each refutation is the folded assertion; the axioms it uses
                 # differ by encoding, but stay among the standard ones.
                 axioms = re.search(r"depends on axioms: \[([^\]]*)\]", report)

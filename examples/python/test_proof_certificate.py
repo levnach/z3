@@ -3231,6 +3231,19 @@ class TestClauseLogReplay(unittest.TestCase):
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "unsupported operator"):
             self.replay(UNARY_XOR_GATES, UNARY_XOR_GATES_LOG.replace("(xor p)", "(xor)"))
 
+    def test_one_argument_builders_make_the_parsers_terms(self):
+        # Needs only the bindings: the API over one argument builds the
+        # hash-consed term the parser makes for (+ x), (* x), and (distinct x).
+        context = z3.Context()
+        x = z3.Int("x", ctx=context)
+        for head, kind in [("+", z3.Z3_OP_ADD), ("*", z3.Z3_OP_MUL), ("distinct", z3.Z3_OP_DISTINCT)]:
+            with self.subTest(head=head):
+                term = proof_clause_log._ONE_ARGUMENT_HEADS[head](context, x)
+                self.assertEqual((term.decl().kind(), term.num_args()), (kind, 1))
+                parsed = z3.parse_smt2_string("(declare-const x Int)(assert (= (%s x) (%s x)))" % (head, head),
+                                              ctx=context)[0].arg(0)
+                self.assertTrue(term.eq(parsed))
+
     @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
     def test_one_argument_sums_products_and_distincts_after_a_false_assertion(self):
         z3_executable = proof_certificate.default_z3_executable()
@@ -3250,16 +3263,7 @@ class TestClauseLogReplay(unittest.TestCase):
                 built = {declarations[node["declaration"]]["name"] for node in nodes
                          if len(node["arguments"]) == 1}
                 self.assertLessEqual(logged, built)
-        # The builders make the parser's terms; a zero-argument sum and a sum
-        # of a Boolean are still rejected.
-        context = z3.Context()
-        x = z3.Int("x", ctx=context)
-        for head, kind in [("+", z3.Z3_OP_ADD), ("*", z3.Z3_OP_MUL), ("distinct", z3.Z3_OP_DISTINCT)]:
-            term = proof_clause_log._ONE_ARGUMENT_HEADS[head](context, x)
-            self.assertEqual((term.decl().kind(), term.num_args()), (kind, 1))
-            parsed = z3.parse_smt2_string("(declare-const x Int)(assert (= (%s x) (%s x)))" % (head, head),
-                                          ctx=context)[0].arg(0)
-            self.assertTrue(term.eq(parsed))
+        # A zero-argument sum and a sum of a Boolean are still rejected.
         source = ONE_ARGUMENT_INPUTS["lia"]
         log = proof_clause_log.run_clause_log(z3_executable, source)
         sum_of_one = re.search(r"Int \(\+ (\$\d+)\)\)", log)
