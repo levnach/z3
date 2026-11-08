@@ -4233,8 +4233,17 @@ def _farkas_combination(graph, node):
 
 
 def _sum_identity(graph, name, combination, total, sides):
-    """The tactic line stating that a combination of facts sums to its constant, proved by omega."""
-    return "have %s : %s = ((%d : Int)) := by %somega" % (
+    """The tactic line stating that a combination of facts sums to its constant.
+
+    The identity is linear arithmetic without hypotheses, so the linear
+    normalization of `simp +arith` decides it, with omega as the fallback.
+    omega alone is quadratic here: the 202-bound combination of QF_LIA
+    bofill-scheduling ex11200_2600_100 (428 atoms) took it about five million
+    heartbeats, past the lemma's budget, and an exhausted budget is not an
+    error `first` catches, so the unfolded fallback never ran; `simp +arith`
+    took about two seconds.
+    """
+    return "have %s : %s = ((%d : Int)) := by %sfirst | (simp +arith only []; done) | omega" % (
         name, combination, total, "delta %s; " % " ".join(_definition_names(graph, sides)) if sides else "")
 
 
@@ -4328,11 +4337,23 @@ def _combination_sum(bounds, multipliers):
         proofs.append("(Int.mul_nonneg (by decide) (Int.sub_nonneg_of_le %s))" % proof)
     if not summands or total >= 0 or (total * scale).denominator != 1:
         return None
-    combination, nonnegative = summands[-1], proofs[-1]
-    for summand, proof in zip(reversed(summands[:-1]), reversed(proofs[:-1])):
-        combination = "(%s + %s)" % (summand, combination)
-        nonnegative = "(Int.add_nonneg %s %s)" % (proof, nonnegative)
+    combination, nonnegative = _balanced_sum(summands, proofs)
     return combination, nonnegative, int(total * scale), sides
+
+
+def _balanced_sum(summands, proofs):
+    """The sum of summands as a balanced tree, and its proof of 0 <= sum from proofs of 0 <= summand.
+
+    Normalizing a sum costs omega and `simp +arith` the size of each partial
+    sum: right-nested, the 202 summands of a wide Farkas combination made
+    that quadratic in the summands and atoms (_sum_identity).
+    """
+    if len(summands) == 1:
+        return summands[0], proofs[0]
+    middle = (len(summands) + 1) // 2
+    left, left_proof = _balanced_sum(summands[:middle], proofs[:middle])
+    right, right_proof = _balanced_sum(summands[middle:], proofs[middle:])
+    return "(%s + %s)" % (left, right), "(Int.add_nonneg %s %s)" % (left_proof, right_proof)
 
 
 def _split_combination(graph, node):
