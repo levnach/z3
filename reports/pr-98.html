@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #98: Prove Int Farkas identities by simp +arith over balanced sums</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2127; --muted: #5a6370; --accent: #0b5cad;
+    --code-bg: #f3f5f8; --border: #d7dce2; --ok: #1a7f37; --bad: #c4291c; --warn: #9a6700;
+    --badge-bg: #fff4d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171b; --fg: #e3e7ec; --muted: #9aa4b0; --accent: #6cb0ff;
+      --code-bg: #1e2329; --border: #343b44; --ok: #4ac26b; --bad: #ff7b72; --warn: #d4a72c;
+      --badge-bg: #3a2f10;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.2rem 3rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+  .meta dd { margin-left: 9.5rem; }
+  .badge { display: inline-block; background: var(--badge-bg); color: var(--warn); font-weight: 600;
+           padding: 0 .5rem; border-radius: .3rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+         background: var(--code-bg); padding: .05rem .25rem; border-radius: .2rem; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: .4rem;
+        padding: .8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: .82rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .unk { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -.3rem; color: var(--fg); }
+  dl.glossary dt { font-weight: 600; margin-top: .6rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove Int Farkas identities by simp +arith over balanced sums</h1>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/98">levnach/z3 #98</a></dd>
+  <dt>State</dt><dd><span class="badge">OPEN</span> This pull request is not merged.</dd>
+  <dt>Change commit</dt><dd><a href="https://github.com/levnach/z3/commit/8050f733176b9c2f1ed45da3e5fd2deed4a685c2"><code>8050f73</code></a></dd>
+  <dt>Date</dt><dd>2026-11-08T09:29:06Z</dd>
+  <dt>Loop iteration</dt><dd>98</dd>
+</dl>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+Lean proves a large integer <a href="#g-farkas-lemma">Farkas lemma</a> by adding up its scaled <a href="#g-bound">bounds</a>.
+The last step is an <a href="#g-identity">identity</a>: the sum equals a negative constant.
+Before this PR, that sum was a <a href="#g-right-nested-sum">right-nested sum</a> proved by <a href="#g-omega">omega</a>.
+On lemmas of about 200 bounds, this ran out of <a href="#g-heartbeat">heartbeats</a>, and the whole <a href="#g-refutation">refutation</a> failed to check.
+Now the sum is a <a href="#g-balanced-tree">balanced tree</a>, and the <a href="#g-tactic">tactic</a> <a href="#g-simp-arith"><code>simp +arith</code></a> proves the identity, with omega as the fallback.
+Two <a href="#g-qf-lia">QF_LIA</a> files with <a href="#g-regression">regressions</a> verify again.
+The <a href="#g-kernel">kernel</a> still checks every proof, and no theorem statement changes.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+The reconstructor already proved wide Int <a href="#g-farkas-lemma">Farkas lemmas</a> by their direct combination.
+A rescan of z3test's <code>smtlib-sample</code> found two QF_LIA files that had verified before but now failed.
+In each, one <a href="#g-theory-lemma">theory lemma</a> had 202 bounds over 428 <a href="#g-atom">atoms</a>.
+Its identity needed about five million heartbeats against a budget of one million.
+Lean's <code>first</code> combinator does not catch that error, so the fallback proofs never ran.
+This work serves milestone 3, <a href="#g-linear-arithmetic">linear arithmetic</a>, and the regression methodology the plan names as its top priority.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>Int Farkas lemmas of about 200 wide bounds now check in Lean instead of running out of heartbeats.</li>
+  <li>The scaled sum and its proof of nonnegativity are now a balanced tree, so a 202-term sum nests 8 levels deep instead of 201.</li>
+  <li>The identity is now tried with <code>simp +arith</code> first, and omega still runs if simp does not close the goal.</li>
+  <li>Proofs by one <a href="#g-case-split">case split</a> and two combinations now use the same faster identity on both sides.</li>
+  <li>Two new tests fail on the old code: one checks the tree shape and tactic text, and one checks a 140-bound conflict in Lean.</li>
+</ul>
+<p>
+Think of adding 200 receipts.
+One at a time, you rewrite the whole running total after each receipt.
+In pairs, then pairs of pairs, like a knockout tournament, each partial total stays small.
+The cost was in the kernel checking the <a href="#g-reflective-proof">reflective proof</a>, which <a href="#g-normalization">normalizes</a> each partial sum.
+</p>
+<table>
+  <thead><tr><th>File</th><th>What it is</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">36</td><td class="num">13</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Integer arithmetic tests</td><td class="num">86</td><td class="num">3</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td class="num">42</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Combination paragraph</td><td class="num">4</td><td class="num">2</td></tr>
+    <tr><th colspan="2">Total, 4 files, 2 commits</th><th class="num">168</th><th class="num">18</th></tr>
+  </tbody>
+</table>
+<p>There is no C++ change.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+All outputs below come from real runs for this report.
+The failure needs scale, so a tiny input shows the new Lean text, and the PR's 140-bound test instance shows the old failure.
+</p>
+
+<h3>(a) The input</h3>
+<p>Fifteen integers are each at least 1, but their sum is at most 14.</p>
+<pre><code>(set-logic QF_LIA)
+(declare-const x1 Int) (declare-const x2 Int) (declare-const x3 Int) (declare-const x4 Int) (declare-const x5 Int)
+(declare-const x6 Int) (declare-const x7 Int) (declare-const x8 Int) (declare-const x9 Int) (declare-const x10 Int)
+(declare-const x11 Int) (declare-const x12 Int) (declare-const x13 Int) (declare-const x14 Int) (declare-const x15 Int)
+(assert (and (&gt;= x1 1) (&gt;= x2 1) (&gt;= x3 1) (&gt;= x4 1) (&gt;= x5 1) (&gt;= x6 1) (&gt;= x7 1) (&gt;= x8 1)))
+(assert (and (&gt;= x9 1) (&gt;= x10 1) (&gt;= x11 1) (&gt;= x12 1) (&gt;= x13 1) (&gt;= x14 1) (&gt;= x15 1)))
+(assert (&lt;= (+ x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15) 14))
+(check-sat)</code></pre>
+<p>Z3's refutation has one Farkas lemma of 16 bounds, and the last bound spans 15 atoms. That is enough for the direct combination.</p>
+<p>The second input is the PR's test generator <code>two_partitions_instance(1)</code>, 841 lines long. An excerpt:</p>
+<pre><code>(set-logic QF_LIA)
+(declare-const x0 Int)
+(declare-const x1 Int)
+...
+(declare-const x699 Int)
+(assert (&gt;= (+ x372 x162 x699 x544 x269 x4 x256 x450 x429 x383) -3))
+(assert (&gt;= (+ x511 x28 x664 x93 x667 x622 x280 x43 x132 x537) 20))
+...</code></pre>
+
+<h3>(b) Before</h3>
+<p>The old code accepted the tiny input. Its identity was a right-nested sum proved by omega alone:</p>
+<pre><code>have _sum : (((1 : Int)) * ((term_30 _atoms _vars) - (term_1 _atoms _vars)) + (((1 : Int)) * ((term_0 _atoms _vars) - (term_1 _atoms _vars)) + ( ... + ((1 : Int)) * ((term_34 _atoms _vars) - (term_33 _atoms _vars))))))))))))))))) = ((-1 : Int)) := by delta term_34 term_33 term_1; omega</code></pre>
+<p class="explain">Each new summand wraps everything after it, so the parentheses pile up at the end.</p>
+<p>On the 140-bound instance, Lean rejected the old output. The file path is shortened:</p>
+<pre><code>z3_proof_….lean:2172:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+...
+Lean checking failed; no proof was published.</code></pre>
+<p class="explain">One lemma used up its heartbeat budget, so no proof of the whole input was published.</p>
+
+<h3>(c) After</h3>
+<p>The new code generated this Lean file for the tiny input. Long lines are cut with "...".</p>
+<pre><code>-- Variable 0: "x1"
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((1 : Int))
+def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars) &gt;= (term_1 _atoms _vars))
+...
+def term_33 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (((((((((((((((term_0 _atoms _vars) + (term_3 _atoms _vars)) + ...
+def term_34 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((14 : Int))
+def formula_35 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_33 _atoms _vars) &lt;= (term_34 _atoms _vars))</code></pre>
+<p class="explain">Each variable, term, and assertion becomes a Lean definition over a <a href="#g-valuation">valuation</a> of the variables.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_17 _atoms _vars))
+    (_h1 : (formula_32 _atoms _vars))
+    (_h2 : (formula_35 _atoms _vars))
+    : False :=
+...</code></pre>
+<p class="explain">The theorem says the three assertions together imply False, for every valuation.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_135 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_134 _atoms _vars) := by
+  first
+    | (have _sum : ((((((1 : Int)) * ((term_30 _atoms _vars) - (term_1 _atoms _vars)) + ((1 : Int)) * ((term_0 _atoms _vars) - (term_1 _atoms _vars))) + ( ... )) + ( ... )) + ( ... )) = ((-1 : Int)) := by delta term_34 term_33 term_1; first | (simp +arith only []; done) | omega
+       exact Classical.byContradiction fun _hn =&gt; absurd (Int.le_trans ((Int.add_nonneg (Int.add_nonneg (Int.add_nonneg (Int.add_nonneg (Int.mul_nonneg (by decide) ...) ...) ...) ...) ...) : ((0 : Int)) &lt;= ...) (Int.le_of_eq _sum)) (by decide))
+    | (unfold formula_134 formula_133 ...
+       first | omega | grind (splits := 64))</code></pre>
+<p class="explain">The 16 scaled bounds now pair up four levels deep, and <code>simp +arith</code> proves that they sum to -1 before omega is tried.</p>
+<p class="explain">The nested <code>Int.add_nonneg</code> proof has the same balanced shape, so 0 ≤ sum = -1 gives the contradiction.</p>
+<p>
+<span class="ok">Lean accepted the file.</span> The check script printed "Lean checks passed."
+The new code also passed Lean on the 140-bound instance.
+</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+The implementer and reviewer ran the full Lean reconstruction suite, and every test passed.
+Both motivating files now verify, and a slow cut-heavy test got about twice as fast.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td><span class="ok">OK</span>: 486 tests, 6 skipped, about 747 s</td></tr>
+    <tr><td>Lean library build and checks, <code>check_lean.sh</code></td><td><span class="ok">passed</span></td></tr>
+    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td><span class="ok">OK</span>: 119 tests</td></tr>
+    <tr><td>z3test proof tests</td><td><span class="ok">OK</span>: 48 tests</td></tr>
+    <tr><td>Matrix, legacy proof object, Boolean inputs</td><td><span class="ok">6/6</span> lean-verified</td></tr>
+    <tr><td>Matrix, clause log, LRA inputs</td><td><span class="ok">8/8</span> lean-verified</td></tr>
+    <tr><td>Slow test on <code>cut_lemma_02_002</code></td><td><span class="ok">OK</span>: 78 s, peak 3.8 GB</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Input</th><th>Before</th><th>Now</th></tr></thead>
+  <tbody>
+    <tr><td><code>ex11200_2600_100</code></td><td><span class="bad">heartbeat failure</span></td><td><span class="ok">verified</span>, 37 s, 3.5 GB</td></tr>
+    <tr><td><code>ex2360_2400_100</code></td><td><span class="bad">heartbeat failure</span></td><td><span class="ok">verified</span>, 42 s, 4.1 GB</td></tr>
+    <tr><td><code>cut_lemma_02_002</code></td><td>150 s</td><td>69 s, 3.8 GB</td></tr>
+    <tr><td>two partitions, 140 bounds</td><td><span class="bad">heartbeat failure</span></td><td>9 s, 3.0 GB</td></tr>
+    <tr><td>two partitions, 100 bounds</td><td>20 s, 3.3 GB</td><td>5 s, 1.75 GB</td></tr>
+  </tbody>
+</table>
+<p>
+The loop's local gate had not recorded a result when this page was written.
+No CI status was recorded either, so both outcomes are unknown here.
+See the <a href="https://github.com/levnach/z3/pull/98/checks">PR's checks page</a> for live status.
+No CI fix rounds were recorded.
+</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Job and step</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>.github/workflows/ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td><span class="unk">unknown, not recorded</span></td></tr>
+  </tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR. There were no blocker, major, or minor findings.</p>
+<p>
+The reviewer asked whether the new test really catches the bug.
+They ran the 140-bound instance with the old right-nested sum and omega alone, and Lean ran out of heartbeats.
+A balanced sum with omega alone passed but was about five times slower than simp.
+So simp carries most of the gain.
+</p>
+<table>
+  <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr><td>nit</td><td>A docstring still said omega checks the identity.</td><td><span class="ok">Fixed</span>: it now names simp first and omega as the fallback.</td></tr>
+    <tr><td>nit</td><td>An inline comment described only omega.</td><td><span class="ok">Fixed</span>: it now says both tactics treat a folded atom as one opaque variable.</td></tr>
+    <tr><td>suggestion</td><td>Explain why the depth check in the unit test works.</td><td><span class="ok">Done</span>: a comment was added.</td></tr>
+    <tr><td>suggestion</td><td>Give simp its own heartbeat budget.</td><td>Not done. No identity that simp leaves open was seen.</td></tr>
+  </tbody>
+</table>
+<p>The nits mattered because a reader of the old text would blame omega for a heartbeat problem.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>If simp ever exhausts the budget, that error would escape <code>first</code> just as omega's did. No such case was seen.</li>
+  <li>Dense bounds stay costly. A synthetic 202-bound lemma with one 300-atom bound checks, but slowly.</li>
+  <li>CI and the local gate had no recorded results for this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>A proof term that states each bound's normal form once might keep the kernel's work linear on dense bounds.</li>
+  <li>Heartbeat exhaustion escaping <code>first</code> remains a general hazard wherever omega has a fallback tactic.</li>
+  <li>A few QF_LRA files from the rescan still hit the clause-log time limit, and one known failure remains.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-atom">atom</dt>
+  <dd>A smallest term the arithmetic treats as one variable, such as <code>x3</code>.</dd>
+  <dt id="g-balanced-tree">balanced tree</dt>
+  <dd>A nesting where both halves have about the same size at every level, such as <code>((a + b) + (c + d))</code>.</dd>
+  <dt id="g-bound">bound</dt>
+  <dd>An inequality that limits a linear expression, such as <code>x1 + x2 ≤ 14</code>.</dd>
+  <dt id="g-case-split">case split</dt>
+  <dd>A proof that considers two cases that cover everything, such as <code>s ≤ k</code> or <code>s &gt; k</code>, and proves the goal in each.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>x1 &lt; 1 ∨ x2 &lt; 1</code>. A literal is an atom or its negation.</dd>
+  <dt id="g-farkas-lemma">Farkas lemma</dt>
+  <dd>A proof that some linear bounds conflict: scaled by nonnegative multipliers and added, they give an impossible fact such as 0 ≤ -1.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work. Each declaration has a budget, and running out stops elaboration with an error.</dd>
+  <dt id="g-identity">identity</dt>
+  <dd>An equation true for all values of its variables, such as <code>(y - x) + (x - y - 1) = -1</code>.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small trusted core of Lean that checks every finished proof term.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Reasoning about sums of variables times constants, with no variable multiplied by another.</dd>
+  <dt id="g-normalization">normalization</dt>
+  <dd>Rewriting an expression into one standard form, such as collecting like terms in <code>x + 2 + x</code> to get <code>2x + 2</code>.</dd>
+  <dt id="g-omega">omega</dt>
+  <dd>A Lean tactic that decides linear arithmetic over integers and natural numbers.</dd>
+  <dt id="g-qf-lia">QF_LIA</dt>
+  <dd>The SMT-LIB logic of quantifier-free linear integer arithmetic.</dd>
+  <dt id="g-reflective-proof">reflective proof</dt>
+  <dd>A proof in which the kernel runs a computation, such as a normalizer, to confirm a fact.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to False.</dd>
+  <dt id="g-regression">regression</dt>
+  <dd>An input that used to pass and now fails.</dd>
+  <dt id="g-right-nested-sum">right-nested sum</dt>
+  <dd>A sum nested to the right, such as <code>a + (b + (c + d))</code>. Its depth grows with every term.</dd>
+  <dt id="g-simp-arith">simp +arith</dt>
+  <dd>Lean's simplifier with linear arithmetic normalization turned on. It can close linear identities.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof, such as <code>omega</code> or <code>simp</code>.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A <a href="#g-clause">clause</a> that a theory solver, here arithmetic, asserts as valid. Lean must prove it.</dd>
+  <dt id="g-valuation">valuation</dt>
+  <dd>An assignment of a value to every variable. In the generated Lean, <code>_vars</code> plays this role.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-08.
+</footer>
+</body>
+</html>
