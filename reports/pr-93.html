@@ -5,251 +5,281 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PR #93: Certify scripts with print-only commands, define-const, and exit</title>
 <style>
-:root {
-  color-scheme: light dark;
-  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da;
-  --code-bg: #f6f8fa; --border: #d1d9e0; --accent: #ddf4ff;
-  --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
-}
-@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8;
-    --code-bg: #161b22; --border: #3d444d; --accent: #0c2d4b;
-    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
   }
-}
-body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-a { color: var(--link); }
-h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
-h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2rem; }
-h3 { font-size: 1.05rem; margin-bottom: .3rem; }
-.meta { color: var(--muted); font-size: .95rem; }
-.status { display: inline-block; padding: .1rem .5rem; border-radius: 1rem; background: var(--accent); font-weight: 600; }
-code { background: var(--code-bg); padding: .1rem .3rem; border-radius: 4px; font-size: .9em; }
-pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; overflow-x: auto; }
-pre code { background: none; padding: 0; font-size: .85rem; }
-table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .92rem; }
-th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
-th { background: var(--code-bg); }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.ok { color: var(--ok); font-weight: 600; }
-.warn { color: var(--warn); font-weight: 600; }
-.bad { color: var(--bad); font-weight: 600; }
-.caption { color: var(--muted); margin-top: -.4rem; }
-dt { font-weight: 600; margin-top: .6rem; }
-dd { margin-left: 1.2rem; }
-footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .6rem; color: var(--muted); font-size: .9rem; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.2rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem 1rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; font-size: 0.85em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.95em; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); margin: 0.2rem 0; }
+  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 999px; font-size: 0.85em; font-weight: 600;
+           border: 1px solid currentColor; }
+  .merged { color: #8250df; }
+  @media (prefers-color-scheme: dark) { .merged { color: #ab7df8; } }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .explain { color: var(--muted); margin-top: -0.4rem; }
+  dt { font-weight: 600; margin-top: 0.7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9em; }
 </style>
 </head>
 <body>
 
 <header>
-<h1>Certify scripts with print-only commands, define-const, and exit</h1>
-<p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/93">levnach/z3#93</a> &middot;
-State: <span class="status">OPEN</span> &middot;
-Date: 2026-11-08T01:29:08Z &middot;
-Loop iteration 93
-</p>
-<p>This pull request is open and <strong>not merged</strong>. The change it proposes is commit
-<a href="https://github.com/levnach/z3/commit/d2e84e804e2b8d8d017e3ae09c05b14cc8c1514c"><code>d2e84e804</code></a>.
-It contains two commits. The first adds the feature. The second fixes a problem found in review.</p>
+  <h1>Certify scripts with print-only commands, define-const, and exit</h1>
+  <p class="meta"><a href="https://github.com/levnach/z3/pull/93">Pull request #93</a> in levnach/z3, targeting <code>master</code></p>
+  <p class="meta">State: <span class="badge merged">MERGED</span> on 2026-11-08T01:42:19Z ·
+    merge commit <a href="https://github.com/levnach/z3/commit/6c5a6721de5bbc3fcf5134a50cdfbbc31da3dfa6"><code>6c5a6721d</code></a> ·
+    loop iteration 93</p>
 </header>
 
-<h2 id="summary">In one paragraph</h2>
-<p>The exporter's <a href="#g-frontend">frontend</a> reads an SMT-LIB script and picks the
-<a href="#g-query">query</a> to certify. Before this PR, it refused the whole script if it contained a command
-that only prints, such as <code>simplify</code>, <code>apply</code>, or <code>get-value</code>.
-Now it drops those commands, because they never change the <a href="#g-assertion-stack">assertion stack</a>.
-It also reads <code>define-const</code> as a <a href="#g-definition">definition</a> and stops reading at
-<code>exit</code>, just as Z3 does. One safety rule stays: a dropped command must not hide a
-<a href="#g-named">named term</a>. With this change, four more Z3 regression files produce a
-<a href="#g-refutation">refutation</a> that Lean checks. The <a href="#g-certificate">certificate</a> and the
-Lean <a href="#g-theorem">theorem</a> are unchanged in kind. Only the set of accepted scripts grew.</p>
+<section>
+  <h2>In one paragraph</h2>
+  <p>The exporter's <a href="#g-frontend">frontend</a> used to reject a whole SMT-LIB <a href="#g-script">script</a>
+  if it contained a command that only prints something, such as <code>simplify</code>, <code>get-value</code>, or
+  <code>apply</code>. Now it drops those commands, reads <code>define-const</code> as a <a href="#g-definition">definition</a>,
+  and stops reading at <code>exit</code>, exactly as Z3's own parser does. None of these commands touch the
+  <a href="#g-assertion-stack">assertion stack</a>, so the <a href="#g-assertion">assertions</a> that the Lean
+  <a href="#g-theorem">theorem</a> talks about stay the same. One exception is kept out: a printing command that carries a
+  <a href="#g-named">:named label</a> is still rejected, because the label defines a name. With this change, four more
+  <a href="#g-regression">regression</a> files from z3test now get a Lean-checked <a href="#g-refutation">refutation</a>
+  through the <a href="#g-clause-log">clause log</a>.</p>
+</section>
 
-<h2 id="background">Background</h2>
-<p>A fresh scan of the 959 files in the z3test <code>regressions/smt2</code> folder classified every query.
-All 35 unsat queries inside the certified <a href="#g-fragment">fragments</a> already exported and verified in Lean.
-The remaining gap was the frontend. It rejected scripts over commands that touch no
-<a href="#g-assertion">assertion</a>, over text after <code>exit</code>, and over harmless
-<a href="#g-option">options</a> like <code>:trace</code>. This work serves the regression-methodology priority and
-Milestone 4 of the plan. That milestone asks for a frontend that preserves the exact
-<a href="#g-scope">scope</a> context and rejects unsupported configurations explicitly.</p>
+<section>
+  <h2>Background</h2>
+  <p>Before this PR, the pipeline could already certify every <a href="#g-unsat-query">unsat query</a> in z3test's
+  <code>regressions/smt2</code> folder that lies inside the certified <a href="#g-fragment">fragments</a>. A rescan found
+  35 such queries, and all 35 verified in Lean. The remaining gap was not in the proofs. It was in the frontend, which
+  refused scripts over harmless commands and <a href="#g-option">options</a> like <code>:trace</code>. This work serves
+  milestone 4 of the plan, a proof-required frontend that keeps the exact
+  <a href="#g-incremental">incremental</a> context and rejects only what it truly cannot handle. It also follows the plan's
+  regression methodology, which measures progress on real z3test inputs.</p>
+</section>
 
-<h2 id="changes">What changed</h2>
-<ul>
-<li>You can now certify a script that contains <code>get-value</code>, <code>eval</code>, <code>simplify</code>,
-<code>apply</code>, <code>display</code>, or <code>get-assertions</code>. The exporter drops them.</li>
-<li>You can now use <code>define-const</code>, which the frontend reads like a <code>define-fun</code> with no arguments.</li>
-<li>You can now end a script with <code>exit</code> and leave anything after it, even text that does not parse.</li>
-<li>You can now set the debug options <code>:trace</code> and <code>:trace_file_name</code>, and <code>:global-decls false</code>, which is Z3's default.</li>
-<li>You still get a clear rejection if a dropped command contains a <code>:named</code> label, because Z3 would register that name.</li>
-</ul>
-<p>All code changes are in the Python exporter. There are no C++ or Lean library changes.
-Think of the frontend as a clerk copying a recipe. Lines like "show me the bowl" can be skipped. A line that
-quietly names an ingredient cannot be skipped, because later steps may use that name.</p>
+<section>
+  <h2>What changed</h2>
+  <ul>
+    <li>You can now certify a script that uses <code>get-value</code>, <code>eval</code>, <code>simplify</code>,
+      <code>apply</code>, <code>display</code>, or <code>get-assertions</code>, because the frontend skips them.</li>
+    <li>You can now write <code>(define-const y Int (+ x 1))</code>, and the frontend treats it like the matching
+      <code>define-fun</code>.</li>
+    <li>You can now put anything after <code>(exit)</code>, even text that does not parse, because reading stops there.</li>
+    <li>You can now set the debug options <code>:trace</code> and <code>:trace_file_name</code>, and
+      <code>:global-decls false</code>, which is Z3's default.</li>
+    <li>You will still get a clear rejection if a skipped command contains a <code>:named</code> label, or if you set
+      <code>:global-decls true</code>.</li>
+  </ul>
+  <p>Think of a recipe that says "take a photo of the bowl" between two steps. Skip that line and the cake comes out the
+  same. A <code>:named</code> label is different. It writes a name on the bowl that later steps may use.
+  Only the Python exporter changed, with no C++ or Lean library changes.</p>
 
-<table>
-<thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
-<tbody>
-<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter frontend</td><td class="num">35</td><td class="num">8</td></tr>
-<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Frontend tests</td><td class="num">78</td><td class="num">6</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>New test inputs</td><td class="num">100</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>New Lean test</td><td class="num">16</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">9</td><td class="num">3</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note</td><td class="num">27</td><td class="num">0</td></tr>
-<tr><th>Total (6 files)</th><th></th><th class="num">265</th><th class="num">17</th></tr>
-</tbody>
-</table>
+  <table>
+    <thead><tr><th>File</th><th>What it is</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+    <tbody>
+      <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter frontend</td><td class="num">35</td><td class="num">8</td></tr>
+      <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Frontend unit tests</td><td class="num">78</td><td class="num">6</td></tr>
+      <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>Test inputs: four z3test copies and one synthetic script</td><td class="num">100</td><td class="num">0</td></tr>
+      <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>End-to-end Lean test</td><td class="num">16</td><td class="num">0</td></tr>
+      <tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">9</td><td class="num">3</td></tr>
+      <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td class="num">27</td><td class="num">0</td></tr>
+      <tr><th>Total (6 files)</th><th></th><th class="num">265</th><th class="num">17</th></tr>
+    </tbody>
+  </table>
+</section>
 
-<h2 id="example">Worked example</h2>
-<p>This input is the PR's test copy of z3test <code>abs.smt2</code>. It asks whether the absolute value of
-<code>a</code> can be negative. The <code>simplify</code> line only prints a result.</p>
-<h3>(a) The input</h3>
-<pre><code>; Copyright (c) 2015 Microsoft Corporation
-(declare-const a Int)
-(declare-const b Int)
-(simplify (abs a))
-(push)
-(assert (&lt; (abs a) 0))
-(check-sat)</code></pre>
+<section>
+  <h2>Worked example</h2>
+  <p>This input was built from the PR's synthetic <code>output_commands</code> test script. It uses a debug option, a
+  <code>define-const</code>, two printing commands, and broken text after <code>exit</code>.</p>
 
-<h3>(b) Before</h3>
-<p>The exporter from the base commit <code>a469a82e0</code> stopped with exit code 2:</p>
-<pre><code>proof_certificate.py: error: unsupported SMT-LIB command: simplify</code></pre>
-<p>The old reconstructor was not run, because there was no certificate to give it.</p>
+  <h3>(a) The input</h3>
+<pre><code>(set-option :trace true)
+(declare-const x Int)
+(define-const y Int (+ x 1))
+(simplify y)
+(assert (&lt; y x))
+(check-sat)
+(get-value (x y))
+(exit)
+(assert (= x y)) (unbalanced "string
+</code></pre>
+  <p class="explain">The only real assertion says x + 1 &lt; x, which no integer satisfies. Z3 itself prints
+  <code>(+ 1 x)</code> for the <code>simplify</code>, then <code>unsat</code>, then an error for
+  <code>get-value</code>, and it never reads past <code>exit</code>.</p>
 
-<h3>(c) After</h3>
-<p>The current exporter wrote a certificate in the <code>qf_lia</code> fragment. The reconstructor printed
-"Lean checked the refutation", and <code>scripts/check_lean.sh</code> reported "Lean checks passed".
-Excerpts of the generated file follow.</p>
+  <h3>(b) Before: the base commit's exporter</h3>
+<pre><code>proof_certificate.py: error: option :trace is not supported; only output, model, resource, and search options are ignored
+</code></pre>
+  <p class="explain">The old frontend stopped at the first line, before reaching the other constructs it also rejected.</p>
+
+  <h3>(c) After: the Lean file the reconstructor now writes</h3>
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
-noncomputable def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (@ite Int ((term_0 _atoms _vars) &gt;= ((0 : Int))) (Classical.propDecidable _) (term_0 _atoms _vars) (-(term_0 _atoms _vars)))
-def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((0 : Int))
-def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_1 _atoms _vars) &lt; (term_2 _atoms _vars))
-...</code></pre>
-<p class="caption">The variable <code>a</code> becomes <code>term_0</code>, and <code>abs a</code> becomes the
-<a href="#g-ite">if-then-else term</a> that SMT-LIB defines for it.</p>
-
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((1 : Int))
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) + (term_1 _atoms _vars))
+def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_2 _atoms _vars) &lt; (term_0 _atoms _vars))
+...
+</code></pre>
+  <p class="explain">The constant <code>y</code> appears as its body x + 1, so the definition was read correctly.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_3 _atoms _vars))
     : False :=
-  ...</code></pre>
-<p class="caption">The theorem has exactly one <a href="#g-hypothesis">hypothesis</a>, the one assertion
-<code>abs a &lt; 0</code>, and the dropped <code>simplify</code> leaves no trace in it.</p>
+...
+</code></pre>
+  <p class="explain">The theorem has exactly one hypothesis, x + 1 &lt; x. The assertion after <code>exit</code> is not part of it.</p>
+<pre><code>private theorem rewrite_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_8 _atoms _vars) := by
+  unfold formula_8 formula_4 formula_3 term_2 term_1 term_0
+  first | omega | grind (splits := 64)
+</code></pre>
+  <p class="explain">This <a href="#g-rewrite">rewrite</a> step says x + 1 &lt; x is equivalent to False, and Lean proves it
+  with the <code>omega</code> <a href="#g-tactic">tactic</a>.</p>
+  <p>The exporter chose the clause log and the <code>qf_lia</code> fragment. The reconstructor printed "Lean checked the
+  refutation", and <code>scripts/check_lean.sh</code> reported "Lean checks passed". <span class="ok">Lean accepted the file.</span></p>
+</section>
 
-<pre><code>private theorem def_axiom_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
-    [_df4 : Decidable (formula_4 _atoms _vars)]
-    : (formula_11 _atoms _vars) :=
-  @Decidable.byCases (formula_4 _atoms _vars) _ _df4 (fun _hc =&gt; (Or.inr (ite_eq_left _hc))) (fun _hnc =&gt; (Or.inl _hnc))
-...</code></pre>
-<p class="caption">This <a href="#g-lemma">lemma</a> proves a <a href="#g-clause">clause</a> about the ite: either
-<code>0 &le; a</code> is false, or the ite equals <code>a</code>.</p>
-<p>The Lean code itself is not new in kind. What is new is that this input reaches Lean at all.</p>
+<section>
+  <h2>How it was verified</h2>
+  <p>The loop merged this PR on its local gate, because it changes only Python examples and docs. All five gate steps passed.
+  These steps mirror the parts of the Ubuntu CI job that exercise this work. In the implementer's runs, about 640 tests
+  passed and every Lean-checked matrix benchmark verified. The implementer also showed that the new tests fail on the old exporter.</p>
+  <table>
+    <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+    <tbody>
+      <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">19 s</td></tr>
+      <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">718 s</td></tr>
+      <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">22 s</td></tr>
+      <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="ok">pass</td><td class="num">18 s</td></tr>
+      <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="ok">pass</td><td class="num">8 s</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>Implementer's runs (from the PR description)</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td><code>test_proof_certificate.py</code></td><td>116 tests, OK</td></tr>
+      <tr><td><code>test_proof_to_lean*.py</code></td><td>475 tests, OK, 6 skipped</td></tr>
+      <tr><td><code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+      <tr><td>z3test <code>scripts/proofs</code> tests</td><td>48 tests, OK</td></tr>
+      <tr><td>Boolean matrix, legacy proof object</td><td>6/6 lean-verified</td></tr>
+      <tr><td>QF_LRA matrix, clause log</td><td>8/8 lean-verified</td></tr>
+      <tr><td>New tests against the old exporter</td><td>1 failure and 12 errors, all 5 Lean subtests fail at the frontend</td></tr>
+      <tr><td>Previously in-fragment z3test unsat queries</td><td>35/35 verified in Lean</td></tr>
+    </tbody>
+  </table>
+  <p>The last two rows ran before the review fix and were not repeated. The fix only adds a rejection.</p>
+  <h3>GitHub CI</h3>
+  <p>No CI status files were recorded for this PR, so this report cannot say whether any GitHub check passed or failed.
+  GitHub CI still runs on <code>master</code> after the merge. There were no CI fix rounds.</p>
+  <table>
+    <thead><tr><th>Workflow job that runs the new tests</th><th>Step</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel</td><td class="warn">not recorded</td></tr>
+      <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean</td><td class="warn">not recorded</td></tr>
+    </tbody>
+  </table>
+  <p>Current check results are on the <a href="https://github.com/levnach/z3/pull/93/checks">PR's checks page</a>.</p>
+</section>
 
-<h2 id="verification">How it was verified</h2>
-<p>The implementer ran the full Python and Lean test suites on the final branch head. All passed.
-The four new regressions and a synthetic script that uses every new construct all verified in Lean.
-The new tests were also run against the old exporter, and they failed there, as they should.
-A sweep of the 35 earlier in-fragment queries all verified in Lean. That sweep was not repeated after the
-review fix, which only adds a rejection. No C++ changed, so there was no rebuild and no benchmark run.</p>
-<table>
-<thead><tr><th>Check (local)</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td><code>test_proof_certificate.py</code></td><td class="ok">116 tests, OK</td></tr>
-<tr><td><code>test_proof_to_lean*.py</code></td><td class="ok">475 tests, OK, 6 skipped, 719 s</td></tr>
-<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Build completed, Lean checks passed</td></tr>
-<tr><td>z3test <code>scripts/proofs</code> tests</td><td class="ok">48 tests, OK</td></tr>
-<tr><td>Proof matrix, legacy proof object, Boolean inputs</td><td class="ok">6/6 lean-verified</td></tr>
-<tr><td>Proof matrix, clause log, LRA inputs</td><td class="ok">8/8 lean-verified</td></tr>
-<tr><td>New tests against the old exporter</td><td class="ok">Fail as expected: 1 failure and 12 errors in the certificate tests, 5 of 5 Lean subtests stop at the frontend</td></tr>
-<tr><td>Earlier in-fragment z3test queries, before the review fix</td><td class="ok">35/35 verified</td></tr>
-</tbody>
-</table>
-<p>The loop's separate local gate had not recorded a result when this page was written. Its outcome is unknown here.</p>
-<p>No CI status was available to this report. The table lists the jobs that run the new tests, according to the PR.
-See the <a href="https://github.com/levnach/z3/pull/93/checks">PR checks page</a> for current results.
-There were no CI fix rounds recorded.</p>
-<table>
-<thead><tr><th>CI job</th><th>Step</th><th>What it runs</th><th>Status</th></tr></thead>
-<tbody>
-<tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel</td><td><code>test_proof_certificate.py</code>, <code>test_proof_to_lean.py</code></td><td class="warn">Unknown</td></tr>
-<tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean</td><td><code>test_proof_to_lean*.py</code>, including the new Lean test</td><td class="warn">Unknown</td></tr>
-</tbody>
-</table>
+<section>
+  <h2>Review</h2>
+  <h3><span class="bad">Major</span>: a dropped label could certify a satisfiable script</h3>
+  <p>The reviewer wrote a five-line script. It labels <code>x</code> as <code>p</code> inside a <code>simplify</code>,
+  then defines <code>p</code> as true and asserts <code>(not p)</code>. Z3 keeps the label and rejects the definition,
+  so it answers <a href="#g-sat">sat</a>. The exporter dropped the label and kept the definition. It then produced a
+  Lean-checked unsat theorem for that sat script. This mattered because a certificate must describe the input Z3
+  actually read. The fix rejects any skipped command that contains <code>:named</code>. Five such scripts are now
+  rejection tests, including both review examples.</p>
+  <h3><span class="warn">Nit</span>: a reference to a file outside the repository</h3>
+  <p>The plan note cited a loop scratch script that readers of the repository cannot see. The scan is now described in words.</p>
+  <h3>Suggestion: say what <code>t119</code> certifies</h3>
+  <p><code>t119.smt2</code> has no <code>check-sat</code>. The note now says the certified statement is that its final state is unsat.</p>
+</section>
 
-<h2 id="review">Review</h2>
-<p><strong>Major, fixed.</strong> The reviewer asked what happens to a <code>:named</code> label inside a dropped
-command. They wrote a five-line script. It labels <code>x</code> as <code>p</code> inside <code>simplify</code>,
-then defines <code>p</code> as true and asserts <code>not p</code>. Z3 keeps the label even though the command
-only prints. So Z3 rejects the later definition and answers sat. The exporter dropped the label and kept the
-definition. Lean then checked an "unsat" theorem for a script Z3 calls sat. That breaks the core promise that a
-certificate describes the real query. The fix rejects any dropped command that contains <code>:named</code>.
-The reviewer's script, a <code>get-value</code> variant, and three more are now rejected test cases.</p>
-<p><strong>Nit, fixed.</strong> The plan note cited a scratch file outside the repository. It now describes the scan in words.</p>
-<p><strong>Suggestion, done.</strong> <code>t119.smt2</code> has no <code>check-sat</code>. The note now says the
-certified statement is that its final state is unsat.</p>
+<section>
+  <h2>Risks and open questions</h2>
+  <ul>
+    <li>Skipping a command is <a href="#g-sound">sound</a> only if Z3 changes neither the assertions, the declarations,
+      nor the number of queries for it. The implementer checked this in Z3's source code for each skipped command.</li>
+    <li>GitHub CI results for this PR are unknown to this report.</li>
+    <li>Still rejected: <code>minimize</code>, <code>maximize</code>, <code>assert-soft</code>, and <code>:opt.*</code>
+      options, because they change what <code>check-sat</code> answers. Also still rejected: <code>get-consequences</code>,
+      <code>include</code>, <code>:error-behavior</code>, and <code>:global-decls true</code>.</li>
+  </ul>
+</section>
 
-<h2 id="risks">Risks and open questions</h2>
-<ul>
-<li>Dropping a command is <a href="#g-sound">sound</a> only if Z3 changes neither the assertions, the declarations,
-nor the query count for it. The author checked this in the Z3 sources for each dropped command.</li>
-<li>The <code>:named</code> check matches the keyword token. Strings and quoted symbols are separate tokens, so they cannot trigger or hide it.</li>
-<li>The CI result and the local gate result are not known to this report.</li>
-</ul>
+<section>
+  <h2>What comes next</h2>
+  <p>The unsat queries in z3test's <code>crash.smt2</code> need <code>lblpos</code> labels and the
+  <code>:nnf.sk-hack</code> option, a possible follow-up. The other files this change lets through are either sat or
+  leave the fragments, using quantifiers, nonlinear arithmetic, or strings. Those are separate theory extensions under milestone 4.</p>
+</section>
 
-<h2 id="next">What comes next</h2>
-<ul>
-<li>Still rejected: <code>minimize</code>, <code>maximize</code>, <code>assert-soft</code>, and <code>:opt.*</code> options, because they change what check-sat answers.</li>
-<li>Also still rejected: <code>get-consequences</code>, <code>include</code>, <code>:error-behavior</code>, and <code>:global-decls true</code>.</li>
-<li>The unsat queries in z3test <code>crash.smt2</code> need <code>lblpos</code> labels and the <code>:nnf.sk-hack</code> option. That is a possible follow-up.</li>
-</ul>
-
-<h2 id="glossary">Glossary</h2>
-<dl>
-<dt id="g-assertion">assertion</dt>
-<dd>A formula the script states as true, written <code>(assert ...)</code>.</dd>
-<dt id="g-assertion-stack">assertion stack</dt>
-<dd>The current list of declarations and assertions, organized in scopes that <code>push</code> and <code>pop</code> open and close.</dd>
-<dt id="g-certificate">certificate</dt>
-<dd>A file holding the evidence for an unsat answer, which a separate checker can verify.</dd>
-<dt id="g-clause">clause</dt>
-<dd>A disjunction of literals, such as <code>x &lt; 0 or y = 1</code>. It is true if at least one literal is true.</dd>
-<dt id="g-definition">definition</dt>
-<dd>A name bound to a fixed term, such as <code>(define-const y Int (+ x 1))</code>. Every use of <code>y</code> means <code>x + 1</code>.</dd>
-<dt id="g-fragment">fragment</dt>
-<dd>A restricted family of formulas, such as quantifier-free linear integer arithmetic (<code>qf_lia</code>).</dd>
-<dt id="g-frontend">frontend</dt>
-<dd>The part of a tool that reads the input text and turns it into an internal form.</dd>
-<dt id="g-hypothesis">hypothesis</dt>
-<dd>An assumption a theorem takes as given. Here each assertion becomes one hypothesis.</dd>
-<dt id="g-ite">if-then-else term</dt>
-<dd>A term <code>(ite c t e)</code> whose value is <code>t</code> when condition <code>c</code> holds and <code>e</code> otherwise. Example: <code>abs a</code> is <code>(ite (&gt;= a 0) a (- a))</code>.</dd>
-<dt id="g-lemma">lemma</dt>
-<dd>A small proved fact used as a step in a larger proof.</dd>
-<dt id="g-literal">literal</dt>
-<dd>An atomic formula or its negation, such as <code>p</code> or <code>not p</code>.</dd>
-<dt id="g-named">named term</dt>
-<dd>A term given a label with <code>(! t :named p)</code>. The label <code>p</code> then stands for <code>t</code>.</dd>
-<dt id="g-option">option</dt>
-<dd>A setting given with <code>set-option</code>, such as <code>:produce-models true</code>.</dd>
-<dt id="g-query">query</dt>
-<dd>One satisfiability question in a script, usually a <code>check-sat</code> over the assertions in force at that point.</dd>
-<dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of assertions leads to false, so they cannot all hold.</dd>
-<dt id="g-scope">scope</dt>
-<dd>A level of the assertion stack. <code>push</code> opens one and <code>pop</code> removes it with everything declared or asserted inside.</dd>
-<dt id="g-sound">sound</dt>
-<dd>A step is sound if it never turns a true claim into a false one. Here it means no satisfiable script gets an unsat certificate.</dd>
-<dt id="g-tactic">tactic</dt>
-<dd>A command that transforms goals. Z3's <code>apply</code> runs a tactic and prints the result. Lean tactics like <code>omega</code> build proofs.</dd>
-<dt id="g-theorem">theorem</dt>
-<dd>A statement with a proof that Lean has checked. Here it says the assertions imply <code>False</code>.</dd>
-</dl>
+<section>
+  <h2>Glossary</h2>
+  <dl>
+    <dt id="g-assertion">assertion</dt>
+    <dd>A formula the script states to be true, written <code>(assert ...)</code>.</dd>
+    <dt id="g-assertion-stack">assertion stack</dt>
+    <dd>The assertions and declarations currently in force, organized in levels that <code>push</code> opens and <code>pop</code> closes.</dd>
+    <dt id="g-clause-log">clause log</dt>
+    <dd>A record of every clause Z3's SAT-based core derives while solving, used as the raw material for the proof.</dd>
+    <dt id="g-definition">definition</dt>
+    <dd>A name bound to a fixed term, such as <code>(define-const y Int (+ x 1))</code>, so every use of <code>y</code> means <code>x + 1</code>.</dd>
+    <dt id="g-fragment">fragment</dt>
+    <dd>A restricted family of formulas the pipeline supports, such as <code>qf_lia</code>, quantifier-free linear integer arithmetic.</dd>
+    <dt id="g-frontend">frontend</dt>
+    <dd>The part of a tool that reads the input text and decides what it means before any reasoning starts.</dd>
+    <dt id="g-incremental">incremental script</dt>
+    <dd>A script that adds and removes assertions over time and asks several questions, using <code>push</code>, <code>pop</code>, and repeated <code>check-sat</code>.</dd>
+    <dt id="g-named">:named label</dt>
+    <dd>An SMT-LIB annotation, <code>(! term :named p)</code>, that gives a term the name <code>p</code> for later use.</dd>
+    <dt id="g-option">option</dt>
+    <dd>A setting changed with <code>set-option</code>, such as <code>:trace</code> or <code>:global-decls</code>.</dd>
+    <dt id="g-refutation">refutation</dt>
+    <dd>A proof that a set of assertions leads to False, so they cannot all hold.</dd>
+    <dt id="g-regression">regression test</dt>
+    <dd>A saved input that is run again after each change to catch things that used to work and broke.</dd>
+    <dt id="g-rewrite">rewrite</dt>
+    <dd>A proof step that replaces a formula by an equivalent, simpler one, such as x + 1 &lt; x by False.</dd>
+    <dt id="g-sat">sat</dt>
+    <dd>The answer when some assignment of values makes every assertion true.</dd>
+    <dt id="g-script">script</dt>
+    <dd>An SMT-LIB file: a sequence of commands such as <code>declare-const</code>, <code>assert</code>, and <code>check-sat</code>.</dd>
+    <dt id="g-sound">sound</dt>
+    <dd>Never certifying something false. A sound exporter never yields an unsat theorem for an input Z3 reads as sat.</dd>
+    <dt id="g-tactic">tactic</dt>
+    <dd>A command that builds part of a proof automatically. In Lean, <code>omega</code> proves facts of linear integer arithmetic. In Z3, <code>apply</code> runs a solver tactic.</dd>
+    <dt id="g-theorem">theorem</dt>
+    <dd>A statement together with a proof that Lean has checked.</dd>
+    <dt id="g-unsat-query">unsat query</dt>
+    <dd>One <code>check-sat</code> in a script, or its final state if it has none, whose assertions in scope cannot all be true.</dd>
+  </dl>
+</section>
 
 <footer>
-Generated by the Lean certificate improvement loop on 2026-11-07.
+  Generated by the Lean certificate improvement loop on 2026-11-07.
 </footer>
+
 </body>
 </html>
