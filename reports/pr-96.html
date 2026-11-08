@@ -6,138 +6,163 @@
 <title>PR #96: Backjump over unused splits in propositional Lean proofs</title>
 <style>
 :root {
-  color-scheme: light dark;
-  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  --note-bg: #f1f8ff;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922;
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --note-bg: #121d2f;
   }
 }
-body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-       max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-a { color: var(--accent); }
-h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
-h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; }
+html { background: var(--bg); color: var(--fg); }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+       max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+a { color: var(--link); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
 h3 { font-size: 1.05rem; margin-top: 1.4rem; }
 .meta { color: var(--muted); font-size: 0.95rem; }
-.state { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; border: 1px solid var(--ok);
-         color: var(--ok); font-weight: 600; font-size: 0.85rem; }
-code { background: var(--code-bg); padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.9em; }
+.meta dd { margin: 0 0 0.2rem 0; }
+.meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+.meta dl { margin: 0.6rem 0; }
+.badge { display: inline-block; padding: 0 0.5rem; border-radius: 1rem; font-size: 0.85rem; font-weight: 600;
+         border: 1px solid var(--ok); color: var(--ok); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+       background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
 pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
-      overflow-x: auto; font-size: 0.82rem; line-height: 1.45; }
-pre code { background: none; padding: 0; }
-table { border-collapse: collapse; margin: 0.8rem 0; font-size: 0.92rem; }
-th, td { border: 1px solid var(--border); padding: 0.3rem 0.6rem; text-align: left; vertical-align: top; }
+      overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+table { border-collapse: collapse; margin: 0.8rem 0; width: 100%; font-size: 0.92rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
 th { background: var(--code-bg); }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.pass { color: var(--ok); font-weight: 600; }
-.pending { color: var(--warn); font-weight: 600; }
-.explain { margin-top: -0.3rem; color: var(--muted); }
-dt { font-weight: 600; margin-top: 0.7rem; }
-dd { margin-left: 1.2rem; }
-footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.88rem; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.explain { margin-top: -0.4rem; color: var(--muted); }
+.note { background: var(--note-bg); border-left: 4px solid var(--link); padding: 0.5rem 0.8rem; border-radius: 4px; }
+dl.glossary dt { font-weight: 700; margin-top: 0.7rem; }
+dl.glossary dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
 
 <header>
 <h1>Backjump over unused splits in propositional Lean proofs</h1>
-<p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/96">levnach/z3#96</a> ·
-state <span class="state">OPEN</span> ·
-2026-11-08T06:15:41Z ·
-loop iteration 96
-</p>
-<p>This pull request is open and <strong>not merged</strong>. The change under review is commit
-<a href="https://github.com/levnach/z3/commit/95213a7f239f61858ab7154ae4247e6bc122a7ff"><code>95213a7</code></a>.
-It contains two commits on top of <code>master</code>.</p>
+<div class="meta">
+<dl>
+<dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/96">levnach/z3#96</a></dd>
+<dt>State</dt><dd><span class="badge">MERGED</span> into <code>master</code></dd>
+<dt>Merged</dt><dd>2026-11-08T06:28:58Z</dd>
+<dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/7115198260fe589ed63ff221dba86530774c7940"><code>7115198</code></a> (also the change commit)</dd>
+<dt>Loop iteration</dt><dd>96</dd>
+</dl>
+</div>
 </header>
 
-<h2>In one paragraph</h2>
-<p>
-The Lean reconstructor contains a small <a href="#g-propositional">propositional</a> prover.
-It proves the <a href="#g-cnf-lemma">cnf lemmas</a> in Z3's proofs by <a href="#g-propagation">propagation</a> and
-<a href="#g-case-split">case splits</a>.
-This PR makes that prover track which facts each finished branch really uses.
-When a branch never uses its own <a href="#g-hypothesis">hypothesis</a>, the split was not needed.
-The prover then drops the split and its other branches. This is called <a href="#g-backjumping">backjumping</a>.
-Every proof also keeps only the steps it uses.
-As a result, a real SMT-LIB <a href="#g-difference-logic">integer difference logic</a> circuit, <code>ckt_PROP1_tf_10</code>, now gets a Lean-checked
-<a href="#g-refutation">refutation</a>. Before, its widest lemma ran out of <a href="#g-heartbeat">heartbeats</a>.
-Three other benchmarks check several times faster.
-Only the text of the generated proof changes. Lean still checks every line, and the
-<a href="#g-trusted-base">trusted base</a> is unchanged.
-</p>
+<h2 id="summary">In one paragraph</h2>
+<p>This PR changes how the Lean reconstructor writes proofs about propositional
+<a href="#g-clause">clauses</a>. Its prover searches with
+<a href="#g-propagation">propagation</a> and <a href="#g-case-split">case splits</a>.
+Now it also tracks which steps each closed branch really uses. When a branch closes
+without its own <a href="#g-hypothesis">hypothesis</a>, the whole split is dropped.
+This is called <a href="#g-backjumping">backjumping</a>. Every proof also keeps only
+the steps it uses. As a result, the wide <a href="#g-cnf-lemma">cnf lemma</a> of the
+<a href="#g-difference-logic">difference logic</a> circuit <code>ckt_PROP1_tf_10</code>
+now gets a <a href="#g-structural-proof">structural proof</a>. Before, Lean ran out of
+<a href="#g-heartbeat">heartbeats</a> on the lemma's <a href="#g-fallback">fallback</a>
+<a href="#g-tactic">tactic</a>, so the whole <a href="#g-refutation">refutation</a> failed.
+Lean now accepts it. Other large inputs, such as BubbleSort, MinMax and parity, also check
+several times faster. Lean still checks every line, and the
+<a href="#g-trusted-base">trusted base</a> is unchanged.</p>
 
-<h2>Background</h2>
-<p>
-This iteration first measured 17 small QF_IDL files from the SMT-LIB sample in z3test. Six verified in Lean.
-Three of the failures were RTCL circuits built from <a href="#g-boolean">Boolean</a>
-<a href="#g-ite">if-then-else terms</a> over difference <a href="#g-atom">atoms</a>.
-In each, one cnf lemma ties a wide <a href="#g-clause">clause</a> to the single assertion.
-The prover split 31 atoms deep and used up its character budget.
-The <a href="#g-fallback">fallback proof</a> by <a href="#g-tactic">tactics</a> then timed out in Lean.
-The clause itself is <a href="#g-valid">propositionally valid</a>. The search was the problem.
-The work serves Milestone 3 of the plan, equality and linear arithmetic, on real benchmark inputs.
-It builds on the Boolean proof rules of Milestone 2.
-</p>
+<h2 id="background">Background</h2>
+<p>A first Lean measurement of small QF_IDL sample files found about a third of them
+verified. Three RTCL circuit inputs failed in the same way. Each has a single
+<a href="#g-assertion">assertion</a> built from long chains of
+<a href="#g-ite">if-then-else terms</a> over integer comparisons. Z3 derives a wide
+<a href="#g-clause">clause</a> from such a chain. A <a href="#g-cnf-lemma">cnf lemma</a>
+must then show that the clause follows from the assertion. The clause is
+<a href="#g-prop-valid">propositionally valid</a>, but the prover split
+<a href="#g-atom">atoms</a> 31 levels deep and gave up. This work serves milestone 3 of
+the plan, equality and linear arithmetic. It reuses the
+<a href="#g-boolean">Boolean</a> proof machinery from milestone 2.</p>
 
-<h2>What changed</h2>
+<h2 id="changes">What changed</h2>
 <ul>
-<li>A propositional proof can now skip a case split whose branch closes without the split's hypothesis, instead of exploring every branch.</li>
-<li>Every generated propositional proof now keeps only the <code>have</code> steps that a later line uses, so Lean reads far less text.</li>
-<li>The SMT-LIB circuit <code>ckt_PROP1_tf_10</code> is now a test input, and its wide cnf lemma must verify by its <a href="#g-structural-proof">structural proof</a> alone.</li>
-<li>A new unit test, which needs no Lean, shows the prover drops an irrelevant <a href="#g-disjunction">disjunction</a> and leaves no unused step.</li>
-<li>The plan document and the examples README describe the new behavior.</li>
+<li>The propositional prover now drops a case split when one branch closes without its hypothesis, so the proof skips the other branches.</li>
+<li>Every generated propositional proof now keeps only the <code>have</code> steps it actually uses, so Lean has far less to check.</li>
+<li>You can now certify the SMT-LIB circuit <code>ckt_PROP1_tf_10</code> in Lean, and it ships as a new test input.</li>
+<li>A new Lean test checks that circuit's lemma with its fallback removed, so only the new structural proof can pass it.</li>
+<li>A new unit test, which needs no Lean, shows backjumping on a tiny clause set and checks that every kept step is used.</li>
+<li>The plan document and the examples README now describe this behavior.</li>
 </ul>
-<p>An analogy for backjumping: you argue “either it rained or it did not.” If your argument for the “rained” case never mentions rain,
-the same argument works without the case split at all. An analogy for trimming: a recipe draft lists the whole pantry,
-but the final recipe keeps only what goes into the dish.</p>
+<p>An analogy: you reason "either the key is in the drawer, or it is not". In the first
+case your argument never mentions the drawer. Then the case analysis was pointless, and
+backjumping deletes it. Trimming is like deleting side calculations the final answer never
+used. Only the emitted proof text changes. No rule or axiom was added.</p>
 
 <table>
-<tr><th>File</th><th>Added</th><th>Removed</th><th>What it is</th></tr>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">57</td><td class="num">7</td><td>The prover change</td></tr>
-<tr><td><code>examples/python/data/QF_IDL_ckt_PROP1_tf_10.smt2</code></td><td class="num">42</td><td class="num">0</td><td>New test input, copied unchanged from SMT-LIB (CC BY 4.0)</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">39</td><td class="num">4</td><td>Circuit test, updated BubbleSort bounds</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">37</td><td class="num">0</td><td>Unit test without Lean</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">31</td><td class="num">0</td><td>Dated plan note</td></tr>
-<tr><td><code>examples/python/README</code></td><td class="num">5</td><td class="num">2</td><td>One sentence on cnf proofs</td></tr>
-<tr><th>Total, 6 files</th><th class="num">211</th><th class="num">13</th><th></th></tr>
+<thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">57</td><td class="num">7</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>Unit test</td><td class="num">37</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Lean integration tests</td><td class="num">39</td><td class="num">4</td></tr>
+<tr><td><code>examples/python/data/QF_IDL_ckt_PROP1_tf_10.smt2</code></td><td>New test input, from the SMT-LIB 2025 sample</td><td class="num">42</td><td class="num">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note</td><td class="num">31</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">5</td><td class="num">2</td></tr>
+<tr><th>Total, 6 files</th><th></th><th class="num">211</th><th class="num">13</th></tr>
+</tbody>
 </table>
 
-<h2>Worked example</h2>
-<p>No input of about ten lines shows this change. The PR's own test input is the circuit <code>ckt_PROP1_tf_10</code>.
-It has one assertion of about 25 KB, so it is shown trimmed. All output below comes from real runs of the old and new scripts on that file.</p>
+<h2 id="example">Worked example</h2>
+<p>The example is the PR's new test input. Its one assertion is a single line of about
+24,000 characters, so it is cut here. All output comes from fresh runs of the old and new
+scripts.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(set-logic QF_IDL)
 (declare-fun cvclZero () Int)
 (declare-fun next_bit_9 () Int)
 (declare-fun eoc_6 () Bool)
-...   ; 29 declarations in all: 8 Int, 21 Bool
-(assert (let ((?v_50 (ite confirm_9 false true)) (?v_55 (ite mpx_9 false true))
-  (?v_17 (ite rdy_9 false true)) (?v_3 (- S1_9 cvclZero))) (let ((?v_4 (= ?v_3 6))) ...
-(check-sat)
-(exit)</code></pre>
-<p class="explain">A ten-frame circuit of Boolean <code>ite</code> chains over integer differences, stated as one assertion.</p>
-
-<h3>(b) Before: the pre-PR pipeline</h3>
-<p>The old certificate export succeeded and gave the same certificate as the new code. The old reconstructor then wrote Lean, and Lean rejected it:</p>
-<pre><code>z3_proof_….lean:1907:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
 ...
-z3_proof_….lean:2585:8: error: (kernel) unknown constant '_private._stdin.0.Z3Proofs.NativeCertificate.p03a0…df0b.th_lemma_1705'
-Lean checking failed; no proof was published.</code></pre>
-<p class="explain">The wide lemma <code>th_lemma_1705</code> had no structural proof, its fallback ran out of heartbeats, and so no proof was published.</p>
+(declare-fun conta_tmp_9 () Int)
+(assert (let ((?v_50 (ite confirm_9 false true)) (?v_55 (ite mpx_9 false true)) ...
+(check-sat)</code></pre>
+<p class="explain">Eight Int constants, 21 Boolean constants, and one assertion made of nested <code>ite</code> terms over differences of integers.</p>
 
-<h3>(c) After: the Lean the reconstructor now generates</h3>
+<h3>(b) Before</h3>
+<p>The old certificate exporter succeeded. Its JSON was byte-for-byte identical to the new
+one. The old reconstructor wrote a Lean file, but Lean rejected it:</p>
+<pre><code>z3_proof_c95en0nd.lean:1907:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+z3_proof_c95en0nd.lean:2585:8: error: (kernel) unknown constant '_private._stdin.0.Z3Proofs.NativeCertificate.p03a06857...th_lemma_1705'
+Lean checking failed; no proof was published.</code></pre>
+<p class="explain">Lean timed out inside the wide cnf <a href="#g-lemma">lemma</a> <code>th_lemma_1705</code>, so the main theorem could not use it.</p>
+
+<h3>(c) After</h3>
+<p>The new scripts produced a Lean file that the Lean check accepted. It also passed when
+the lemma's fallback was deleted, so the structural proof does the work on its own.</p>
+<pre><code>def formula_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := _atoms 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+...
+def formula_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_3 _atoms _vars) &gt;= (term_5 _atoms _vars))
+def formula_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := False
+def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := True
+def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (And (formula_6 _atoms _vars) (formula_7 _atoms _vars)) (And (Not (formula_6 _atoms _vars)) (formula_8 _atoms _vars)))
+...</code></pre>
+<p class="explain">Each sub-term of the input becomes a definition, and an <code>ite</code> becomes "the condition and the then-part, or its negation and the else-part".</p>
+
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_1123 _atoms _vars))
     : False :=
-  ...</code></pre>
-<p class="explain">The main theorem: the one assertion, <code>_h0</code>, leads to False.</p>
+  refute_with_decidable (formula_1135 _atoms _vars) fun _df1135 =&gt;
+  ...
+  _step_2150</code></pre>
+<p class="explain">The theorem says that, for every value of the atoms and integers, the one assertion leads to False.</p>
 
 <pre><code>private theorem th_lemma_1705 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_1704 _atoms _vars) := by
@@ -147,142 +172,161 @@ Lean checking failed; no proof was published.</code></pre>
        refine Classical.byContradiction ?_
        refine (fun (_f48 : (Not (formula_1704 _atoms _vars))) =&gt; ?_)
        ...
-       have _f69 := (fun (_g : (Not (formula_1323 _atoms _vars))) =&gt; _f58 (And.intro _f57 ...))
        have _f70 : (formula_1323 _atoms _vars) := (Classical.byContradiction (fun _g =&gt; _f69 _g))
        have _f77 := (fun (_g : (Not (formula_1153 _atoms _vars))) =&gt; _f54 (And.intro _f53 (And.intro _f62 _g)))
-       ...</code></pre>
-<p class="explain">The wide cnf lemma first tries the structural proof. It assumes the clause is false and derives facts. The jump from <code>_f70</code> to <code>_f77</code> shows the change at work. The numbers in between appear nowhere in the file, because the proof did not need them.</p>
-
-<pre><code>               refine (Or.elim _f66 (fun _f2603 =&gt; ?_) (fun _f2654 =&gt; ?_))
-               · have _f2604 := _f2603.1
-                 ...
-                 exact (False.elim (_f2650 (And.intro _f2653 _f2631)))
-               · have _f2655 := _f2654.1
-                 ...
-                 exact (False.elim (_f2701 (And.intro _f2704 _f2682)))
-    ...
-    | (unfold formula_1704 formula_1703 ... formula_0
+       ...
+    | (unfold formula_1704 formula_1703 ...
        first | omega | grind (splits := 64))</code></pre>
-<p class="explain">One remaining case split. Both branches use their hypothesis, so it stays. The unfolded fallback is still written, but it is no longer needed.</p>
+<p class="explain">This is the wide cnf lemma: the gap from <code>_f70</code> to <code>_f77</code> marks steps the search wrote but the proof does not use, which are now removed, and the last alternative is the old fallback that timed out.</p>
 
-<p><strong>Lean result:</strong> <code>scripts/check_lean.sh</code> accepted the generated file (“Lean checks passed”).
-For this report the fallback of <code>th_lemma_1705</code> was also deleted and the file checked again. Lean accepted it, so the structural proof alone verifies the lemma.</p>
-
-<h2>How it was verified</h2>
-<p>In plain terms: every existing Lean reconstruction test still passes, the new tests fail on the old code, and four slow benchmarks now check much faster.
-The reviewer also fed 3,000 random prover inputs to the old and new code. Both succeeded on exactly the same inputs, and Lean accepted the changed proofs.
-There is no C++ change, so Z3 was not rebuilt.</p>
+<pre><code>               · have _f3571 : (formula_60 _atoms _vars) := (Iff.mpr _f13 _f3570)
+                 refine (Or.elim (Classical.em (formula_1147 _atoms _vars)) (fun _f3572 =&gt; ?_) (fun _f3910 =&gt; ?_))
+                 · have _f3573 : (formula_22 _atoms _vars) := (Iff.mpr _f4 _f3572)
+                   have _f3574 : (Not (Not (formula_22 _atoms _vars))) := (fun _g =&gt; _g _f3573)
+                   have _f3687 : (Not (And (Not (formula_22 _atoms _vars)) (formula_56 _atoms _vars))) := (mt (@And.left _ _) _f3574)
+                   ...</code></pre>
+<p class="explain">A case split that survived because both branches use their hypothesis, and the jump from <code>_f3574</code> to <code>_f3687</code> shows over a hundred unused steps dropped.</p>
 
 <table>
-<tr><th>Check (implementer, final branch head)</th><th>Result</th></tr>
-<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">480 tests OK, 6 skipped</td></tr>
-<tr><td>Certificate exporter tests</td><td class="pass">119 tests OK</td></tr>
-<tr><td><code>./scripts/check_lean.sh</code></td><td class="pass">passed</td></tr>
-<tr><td>z3test proof scripts</td><td class="pass">48 tests OK</td></tr>
-<tr><td>Slow BubbleSort test</td><td class="pass">OK, 15.9 s</td></tr>
-<tr><td>Proof matrix, Boolean regressions</td><td class="pass">6/6 lean-verified</td></tr>
-<tr><td>Proof matrix, LRA regressions</td><td class="pass">8/8 lean-verified</td></tr>
-<tr><td>Strengthened tf_10 test, fallback removed</td><td class="pass">OK, 3.8 s</td></tr>
-<tr><td>Negative check: last structural line deleted</td><td class="pass">Lean rejected, “unsolved goals”</td></tr>
+<thead><tr><th>Measure of the new lemma <code>th_lemma_1705</code></th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Kept <code>have</code> steps</td><td class="num">4,376</td></tr>
+<tr><td>Case splits kept</td><td class="num">34</td></tr>
+<tr><td>Of those, splits on an atom with <code>Classical.em</code></td><td class="num">11</td></tr>
+<tr><td>Lean check of the whole file</td><td class="ok">accepted</td></tr>
+<tr><td>Lean check with the fallback removed</td><td class="ok">accepted</td></tr>
+</tbody>
+</table>
+
+<h2 id="verification">How it was verified</h2>
+<p>Every step of the loop's local gate passed, and so did the full test suites. The
+reviewer fed 3,000 random inputs to the old and new prover. Both succeeded on exactly the
+same inputs, and Lean accepted every changed fuzz proof it was given. Large files now check
+several times faster.</p>
+
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">19 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">737 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">22 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">6 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">8 s</td></tr>
+</tbody>
 </table>
 
 <table>
-<tr><th>File</th><th>Lean before</th><th>Lean after</th></tr>
-<tr><td><code>ckt_PROP1_tf_10</code></td><td>failed on heartbeats</td><td>3 s, 1.0 GB</td></tr>
+<thead><tr><th>Suite, from the PR description</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">480 tests OK, 6 skipped</td></tr>
+<tr><td>Certificate tests, <code>test_proof_certificate.py</code></td><td class="ok">119 tests OK</td></tr>
+<tr><td>z3test proof scripts</td><td class="ok">48 tests OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">passed</td></tr>
+<tr><td>Slow BubbleSort test</td><td class="ok">OK, about 16 s</td></tr>
+<tr><td>Boolean and QF_LRA matrices</td><td class="ok">6/6 and 8/8 Lean-verified</td></tr>
+<tr><td>Reviewer fuzzing, 3,000 inputs</td><td class="ok">same successes old and new, 0 scope errors</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Input</th><th>Lean before</th><th>Lean after</th></tr></thead>
+<tbody>
+<tr><td><code>ckt_PROP1_tf_10</code></td><td class="bad">failed on heartbeats</td><td>3 s, 1.0 GB</td></tr>
 <tr><td>BubbleSort</td><td>23 s</td><td>9 s, 1.8 GB</td></tr>
 <tr><td>MinMax</td><td>40 s</td><td>12 s</td></tr>
 <tr><td>parity 24.100</td><td>80 s</td><td>9 s</td></tr>
+</tbody>
 </table>
 
-<p><strong>Local gate:</strong> the loop's local gate was still running when this page was written. Its result had not been recorded.</p>
-<p><strong>CI:</strong> no CI status was recorded in the inputs. The loop ran its local gate instead of waiting for GitHub CI, because the change touches only local-gate paths.
-There were no CI fix rounds. The PR names where the new tests run in CI. Their status is unknown here, so see the
-<a href="https://github.com/levnach/z3/pull/96/checks">PR checks page</a>.</p>
+<p>The PR touched only Python, tests and docs, so the loop merged it on its local gate.
+GitHub CI then runs on <code>master</code>. Its results were not recorded in this
+iteration's inputs, so they are unknown here. There were no CI fix rounds.</p>
 <table>
-<tr><th>Workflow</th><th>Job and step</th><th>What it runs</th><th>Status</th></tr>
-<tr><td><code>ci.yml</code></td><td>Python bindings (manylinux Centos AMD64) build, “Test Python wheel”</td><td>New unit test, no Lean</td><td class="pending">not recorded</td></tr>
-<tr><td><code>ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, “Check native proofs in Lean”</td><td>New tf_10 Lean test</td><td class="pending">not recorded</td></tr>
+<thead><tr><th>CI workflow and job</th><th>What covers this PR</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><a href="https://github.com/levnach/z3/actions/workflows/ci.yml">CI</a> / Ubuntu build - cmake - releaseClang</td><td>"Check native proofs in Lean" runs the new circuit test</td><td class="warn">not recorded</td></tr>
+<tr><td><a href="https://github.com/levnach/z3/actions/workflows/ci.yml">CI</a> / Python bindings (manylinux Centos AMD64) build</td><td>"Test Python wheel" runs the new unit test</td><td class="warn">not recorded</td></tr>
+</tbody>
 </table>
+<p>See the <a href="https://github.com/levnach/z3/commit/7115198260fe589ed63ff221dba86530774c7940">merge commit</a> for its live check results.</p>
 
-<h2>Review</h2>
-<p>The reviewer approved with no blocker, major, or minor findings. They read the whole diff and the code around it.
-They used <a href="#g-fuzzing">fuzzing</a> on the prover with 3,000 random inputs and ran a scope checker that found no name used outside its scope.</p>
-<p><strong>One nit, fixed.</strong> The reviewer noticed that the new circuit test only checked that a structural proof was written.
-It did not check that Lean accepted that proof rather than the fallback. A later bug could break the structural proof,
-and the test would only report a vague whole-file failure. The second commit fixes this. The test now deletes the fallback and checks the file in Lean.
-A one-off negative check showed the test fails when the structural proof is broken.</p>
-<p><strong>Three suggestions, left as follow-ups.</strong> Drop unused bridge steps in <code>_cnf_lemma</code>.
-Charge the budget for kept rather than generated characters. Assert that emitted lines are single lines.
-None affects soundness.</p>
+<h2 id="review">Review</h2>
+<p>The reviewer approved. There were no blocker, major or minor findings.</p>
+<p><strong>One nit, fixed.</strong> The reviewer noticed that the new circuit test only
+checked that a structural attempt existed. It did not check that Lean accepted that attempt
+rather than the fallback. So a future fallback that happened to succeed could hide a broken
+structural proof. The fix makes the test delete the fallback before running Lean. As a
+negative check, the last line of the structural proof was deleted, and Lean rejected the
+file with "unsolved goals". The test now catches exactly the failure it targets.</p>
+<p><strong>Three suggestions, left as follow-ups.</strong> Drop unused bridge steps in the
+cnf lemma too. Charge the search budget for kept text, not generated text. Assert that each
+emitted step is a single line. None of these affects soundness.</p>
 
-<h2>Risks and open questions</h2>
+<h2 id="risks">Risks and open questions</h2>
 <ul>
 <li>Every proof from the propositional prover now has different text. Tests that pin exact text still pass.</li>
-<li>The trimming relies on two text conventions: prover names look like <code>_f</code> plus digits, and steps are single unindented lines. A future change that breaks them would make Lean reject a proof. That is visible, but not unsound.</li>
-<li>The character budget still counts generated lines, not kept ones. This is conservative.</li>
-<li>CI and local gate results were unknown when this page was written.</li>
+<li>The trimming reads the proof text. It assumes the prover's step names look like <code>_f12</code> and that each step fits on one line. A future multi-line step would make Lean reject the proof. That is visible, never unsound.</li>
+<li>The search budget still counts generated text, not kept text. This is conservative.</li>
+<li>The larger circuits <code>tf_20</code> and <code>tf_30</code> still fall back and fail in Lean. Their search explodes even with 100 times the budget.</li>
+<li>Two other QF_IDL Lean failures, <code>DTP_k2_n35</code> and <code>plan-21</code>, were not investigated.</li>
+<li>GitHub CI results after the merge are not known to this report.</li>
 </ul>
 
-<h2>What comes next</h2>
-<ul>
-<li>The larger circuits <code>tf_20</code> and <code>tf_30</code> still fail. Their search explodes even with 100 times the budget. They likely need <a href="#g-clause-learning">clause learning</a> or guidance from a SAT solver's refutation.</li>
-<li>Two other QF_IDL failures are not yet investigated: <code>DTP_k2_n35</code> on kernel memory and <code>plan-21</code> on a <code>simp</code> step limit.</li>
-<li>The reviewer's three suggestions above.</li>
-</ul>
+<h2 id="next">What comes next</h2>
+<p>The search for the larger circuits likely needs <a href="#g-clause-learning">clause
+learning</a>, or guidance from a SAT solver's own refutation. Two candidates are named:
+probing for failed <a href="#g-literal">literals</a> before splitting, and replaying a Z3
+propositional proof of the clause. The review's three suggestions are also open.</p>
 
-<h2>Glossary</h2>
-<dl>
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+<dt id="g-assertion">assertion</dt>
+<dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
 <dt id="g-atom">atom</dt>
-<dd>A smallest true-or-false statement inside a formula, such as the Boolean variable <code>rdy_9</code> or the comparison <code>S1_9 - cvclZero = 6</code>.</dd>
+<dd>A smallest true-or-false piece of a formula, such as a Boolean constant <code>p</code> or a comparison <code>x - y &gt;= 3</code>.</dd>
 <dt id="g-backjumping">backjumping</dt>
-<dd>Leaving a case split early because a branch's proof did not need the split's hypothesis. The split and its other branches are dropped.</dd>
+<dd>Leaving a case split early when one branch's proof turns out not to need that branch's hypothesis. The proof then holds without the split.</dd>
 <dt id="g-boolean">Boolean</dt>
-<dd>The <a href="#g-sort">sort</a> with exactly two values, true and false. Written <code>Bool</code> in SMT-LIB.</dd>
+<dd>The sort with exactly two values, true and false. SMT-LIB writes it <code>Bool</code>.</dd>
 <dt id="g-case-split">case split</dt>
-<dd>Proving a goal separately in each case of a disjunction, for example once assuming <code>p</code> and once assuming <code>not p</code>. In Lean this shows up as <code>Or.elim</code> with one bullet per branch.</dd>
+<dd>Proving a goal by considering each possibility in turn, for example "p is true" and then "p is false".</dd>
 <dt id="g-clause">clause</dt>
-<dd>A disjunction of literals, such as <code>(or a (not b) c)</code>. It is true when at least one literal is true.</dd>
+<dd>A disjunction of literals, such as <code>p or not q or x &lt; 3</code>. It is true when at least one literal is true.</dd>
 <dt id="g-clause-learning">clause learning</dt>
-<dd>A SAT solver technique: after a conflict, record a new clause that explains it, so the same dead end is never searched again.</dd>
+<dd>A search technique that records why a branch failed as a new clause, so the search never repeats the same mistake.</dd>
 <dt id="g-cnf-lemma">cnf lemma</dt>
-<dd>A <a href="#g-theory-lemma">theory lemma</a> in Z3's proof stating that a clause follows from the conversion of a formula to conjunctive normal form, a conjunction of clauses.</dd>
-<dt id="g-disjunction">disjunction</dt>
-<dd>An “or” of formulas, such as <code>(or x y)</code>. It holds when at least one part holds.</dd>
-<dt id="g-fallback">fallback proof</dt>
-<dd>A second proof attempt used when the first fails. Here it unfolds every definition and calls the general tactics <code>omega</code> and <code>grind</code>.</dd>
-<dt id="g-fuzzing">fuzzing</dt>
-<dd>Testing a program on many randomly generated inputs to find cases that break it.</dd>
+<dd>A lemma linking a clause Z3 works with to the original assertion it came from. Here it is proved by propositional reasoning.</dd>
+<dt id="g-difference-logic">difference logic</dt>
+<dd>Integer or real constraints of the form <code>x - y &lt;= c</code>. The SMT-LIB logic QF_IDL is integer difference logic without quantifiers.</dd>
+<dt id="g-fallback">fallback</dt>
+<dd>A second proof attempt used when the first one fails. Here it unfolds every definition and calls an automatic tactic.</dd>
 <dt id="g-heartbeat">heartbeat</dt>
-<dd>Lean's unit of work for a proof step. A step that uses more than its heartbeat limit fails with a timeout.</dd>
+<dd>Lean's unit of work. When a proof step uses more heartbeats than allowed, Lean stops with a timeout error.</dd>
 <dt id="g-hypothesis">hypothesis</dt>
-<dd>A fact assumed inside a proof, such as the assumption of one branch of a case split.</dd>
+<dd>A fact assumed inside a proof, such as "p is true" in one branch of a case split.</dd>
 <dt id="g-ite">if-then-else term</dt>
-<dd>A term that picks one of two values based on a Boolean condition. Written <code>(ite c x y)</code> in SMT-LIB.</dd>
-<dt id="g-difference-logic">integer difference logic</dt>
-<dd>The SMT-LIB logic QF_IDL. Its atoms compare a difference of two integer variables with a constant, such as <code>x - y &lt;= 3</code>.</dd>
+<dd>A term that picks one of two values by a condition. SMT-LIB writes it <code>(ite c a b)</code>: <code>a</code> when <code>c</code> holds, else <code>b</code>.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A helper theorem proved once and then used by the main proof.</dd>
 <dt id="g-literal">literal</dt>
-<dd>An atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+<dd>An atom or the negation of an atom, such as <code>p</code> or <code>not p</code>.</dd>
 <dt id="g-propagation">propagation</dt>
-<dd>Deriving forced facts one at a time. If the clause <code>(or a b)</code> holds and <code>a</code> is false, then <code>b</code> must be true.</dd>
-<dt id="g-propositional">propositional</dt>
-<dd>Reasoning only with and, or, not, and implication over atoms, without looking inside the atoms.</dd>
-<dt id="g-valid">propositionally valid</dt>
-<dd>True for every true-or-false assignment to its atoms, without any theory reasoning.</dd>
+<dd>Deriving forced facts from known ones. For example, from <code>p or q</code> and <code>not p</code>, conclude <code>q</code>.</dd>
+<dt id="g-prop-valid">propositionally valid</dt>
+<dd>True for every true/false assignment to its atoms, using only the Boolean connectives and not what the atoms mean.</dd>
 <dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of assertions leads to False, so they cannot all hold together.</dd>
-<dt id="g-sort">sort</dt>
-<dd>The type of a value in SMT-LIB, such as <code>Int</code> or <code>Bool</code>.</dd>
+<dd>A proof that a set of formulas cannot all be true at once, ending in False.</dd>
 <dt id="g-structural-proof">structural proof</dt>
-<dd>A proof that follows the shape of the formula step by step, rather than handing the whole goal to a general tactic.</dd>
+<dd>A proof written out as explicit small steps, as opposed to a single call to an automatic tactic.</dd>
 <dt id="g-tactic">tactic</dt>
-<dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> for integer arithmetic.</dd>
-<dt id="g-theory-lemma">theory lemma</dt>
-<dd>A clause in Z3's proof justified by a theory, such as arithmetic, rather than by the Boolean steps of the search. Z3 also uses this rule kind for cnf lemmas.</dd>
+<dd>A Lean command that builds part of a proof automatically, such as <code>omega</code> for integer arithmetic or <code>grind</code>.</dd>
 <dt id="g-trusted-base">trusted base</dt>
-<dd>The parts that must be correct for a checked proof to be believed. Here, the Lean kernel and the translation of the input.</dd>
+<dd>The code and axioms that must be correct for a checked proof to be believed. Here it is Lean's kernel and standard axioms.</dd>
 </dl>
 
 <footer>
-Generated by the Lean certificate improvement loop on 2026-11-07.
+Generated by the Lean certificate improvement loop on 2026-11-07, for
+<a href="https://github.com/levnach/z3/pull/96">PR #96</a>, iteration 96.
 </footer>
 </body>
+</html>
