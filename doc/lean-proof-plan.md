@@ -1096,6 +1096,30 @@ too (kept verbatim as `CONFIGURED_INPUTS` in the test modules); `3282.smt2`
 stays rejected for `rewriter.flat`, `3626.smt2` for
 `combined_solver.ignore_solver1`, and `3732.smt2` for its second query.
 
+**Commands that only print, define-const, and exit (2026-11-07).** A rescan
+of the 959 `regressions/smt2` inputs (export classification of every query,
+`state/iter-093/scratch/scan_reasons.py`) found 35 unsat queries in the
+certified fragments, all of which export and verify in Lean, and frontend
+rejections for commands that do not touch the assertion stack: `simplify`
+(43 files), `apply` (25), `get-value` (16), `eval` (11), `display` (6),
+`get-assertions`, commands after `exit` (14), `define-const`, the debug
+option `:trace` (12), and `:global-decls false` (Z3's default). The
+exporter now drops the printing commands (`_OUTPUT_COMMANDS`; a `:named`
+label inside one leaves its later uses undeclared, so such an input is
+rejected by the parser), reads `define-const` as a definition, ends the
+script at `exit` without reading further (Z3's parser throws
+`stop_parser_exception` there, so text after it need not even parse),
+ignores `trace`/`trace_file_name`, and accepts `:global-decls` and
+`:global-declarations` with `false` only. Four more unsat queries verify
+through the clause log: `abs.smt2`, `t119.smt2` (no check-sat; the final
+state after two resets, with `apply` between assertions), `3570.smt2` (a
+unary `+` and a chained `<`), and `z3.29.smt2` query 1
+(`OUTPUT_COMMAND_INPUTS`). Still rejected: `minimize`, `maximize`,
+`assert-soft` and `:opt.*` options (they change what check-sat answers),
+`get-consequences` (a query of its own), `include`, `:error-behavior`, and
+`:global-decls true`; the other newly parsed files are satisfiable or
+leave the fragments (quantifiers, nonlinear arithmetic, strings).
+
 **Integer input through the legacy proof object (2026-10-16).** `--core
 legacy` rejected `qf_lia` and `qf_uflia` ("certified through the clause log
 only") because theory_lra's integer steps were not inventoried. A probe over
