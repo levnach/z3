@@ -1806,14 +1806,21 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         cnf = [node for node in _th_lemma_nodes(certificate) if graph.decl(node).parameters == ("cnf",)
                and len(graph.clause(graph.conclusion(node))) > 10]
         self.assertEqual(len(cnf), 1)
-        text = self.checked_text(source, certificate)
+        text = proof_to_lean.reconstruct(source, certificate)
         lemma = text.split("private theorem th_lemma_%d " % cnf[0], 1)[1].split("\n\n", 1)[0]
         head, _, attempts = lemma.partition("\n  first\n")
         self.assertNotIn("unfold", head)
-        structural, _ = attempts.split("\n    | (")
+        structural, fallback = attempts.split("\n    | (")
         self.assertIn("refine Classical.byContradiction ?_", structural)
         self.assertIn("Classical.em", structural)  # splits remain, the ones the proof uses
         self.assertLess(len(structural), proof_to_lean._STRUCTURAL_REWRITE_CHARS)
+        self.assertTrue(fallback.startswith("unfold formula_"), fallback[:80])
+        # Lean checks the file with the fallback removed, so the structural
+        # proof itself is what verifies the lemma.
+        alone = text.replace(lemma, head + "\n  first\n" + structural, 1)
+        self.assertNotEqual(alone, text)
+        _, report = lean_test_support.check(self, source, certificate, text=alone)
+        self.assertIn(_STANDARD_AXIOMS, report)
 
     def test_nested_conjunction_model_checking_input_exports_with_few_solver_checks(self):
         # SMT-LIB QF_IDL mathsat/fischer/FISCHER6-4-ninc: one assertion
