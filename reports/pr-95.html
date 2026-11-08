@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #95: Replay one-argument +, *, and distinct from the clause log</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --link: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --accent: #8250df;
+    --ok: #1a7f37; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --link: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --accent: #ab7df8;
+      --ok: #3fb950; --warn: #d29922;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem;
+  }
+  a { color: var(--link); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 8.5rem; }
+  .meta dd { margin: 0 0 0.2rem 8.5rem; }
+  .badge { display: inline-block; border: 1px solid var(--ok); color: var(--ok); border-radius: 1rem; padding: 0 0.6rem; font-size: 0.85rem; font-weight: 600; }
+  .note { border-left: 4px solid var(--warn); padding: 0.2rem 0.8rem; color: var(--muted); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.85rem; }
+  .explain { margin-top: -0.4rem; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  dl.glossary dt { font-weight: 700; margin-top: 0.7rem; color: var(--accent); }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Replay one-argument +, *, and distinct from the clause log</h1>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/95">levnach/z3 #95</a></dd>
+    <dt>State</dt><dd><span class="badge">OPEN</span> This PR is not merged.</dd>
+    <dt>Change commit</dt><dd><a href="https://github.com/levnach/z3/commit/c05cac8a17fce8b0c597da728e24562d12d5fc0e"><code>c05cac8a1</code></a></dd>
+    <dt>Date</dt><dd>2026-11-08T04:29:27Z</dd>
+    <dt>Loop iteration</dt><dd>95</dd>
+  </dl>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+The <a href="#g-clause-log">clause log</a> <a href="#g-replay">replay</a> now accepts
+<a href="#g-application">applications</a> of <code>+</code>, <code>*</code>, and
+<a href="#g-distinct"><code>distinct</code></a> to a single argument, such as <code>(+ x)</code>.
+Z3's parser keeps these <a href="#g-term">terms</a> exactly as written.
+When one <a href="#g-assertion">assertion</a> <a href="#g-fold">folds</a> to false, Z3 logs the later assertions unsimplified.
+The replay then met these one-argument terms and stopped with "unsupported operator".
+Now it rebuilds each term as the very same <a href="#g-hash-consing">hash-consed</a> term the parser made.
+So the logged <a href="#g-clause">clauses</a> still tie to the input's assertions.
+The <a href="#g-certificate">certificate</a> format and the Lean reconstruction did not change.
+A whole family of unsat inputs that used to be rejected now ends in a Lean
+<a href="#g-theorem">theorem</a> that Lean checks.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR, the replay built <code>+</code> and <code>*</code> only with two or more arguments.
+It built <code>distinct</code> the same way.
+Inputs in the <a href="#g-fragment">fragments</a> QF_LIA, QF_LRA, QF_LIRA, QF_UFLIA, and QF_UF,
+and inputs over <a href="#g-array">arrays</a>, failed when a one-argument form appeared after a folded assertion.
+A random QF_LIA generator with <a href="#g-boolean">Boolean</a> structure, using
+<a href="#g-ite"><code>ite</code></a> and similar connectives, hit the failure on 8 of 89 unsat seeds.
+The problem had been on the backlog since iteration 62.
+Iteration 93 could not reproduce it, because there the contradiction came after the one-argument terms.
+This PR serves Milestone 3, "Equality and linear arithmetic", which completes each fragment end to end.
+It also serves the plan's top priority, regression robustness.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>The clause-log replay now rebuilds <code>(+ t)</code>, <code>(* t)</code>, and <code>(distinct t)</code>, so these inputs export instead of failing.</li>
+  <li>A sum with no arguments, or a sum of a Boolean, is still rejected, so a malformed log is still caught.</li>
+  <li>Six new test inputs, one each for LIA, LRA, LIRA, UFLIA, arrays, and pure <a href="#g-uf">uninterpreted functions</a>, now go through export and through Lean.</li>
+  <li>A new test that needs only the Python bindings confirms that each rebuilt term equals the parser's own term.</li>
+  <li>The plan document has a dated note, and the README lists one-argument <code>+</code> and <code>*</code> in the qf_lra paragraph.</li>
+</ul>
+<p>
+An analogy helps with the key choice.
+A library matches a returned book by its exact catalog number, not by its title.
+Rewriting <code>(+ x)</code> as plain <code>x</code> would give a different catalog number, and the match would fail.
+So the replay rebuilds the exact term. The new table <code>_ONE_ARGUMENT_HEADS</code> does this.
+</p>
+<table>
+  <thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">21</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Export and replay tests</td><td class="num">100</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Lean test</td><td class="num">20</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note</td><td class="num">16</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">2</td><td class="num">1</td></tr>
+    <tr><th>Total, 5 files, 2 commits</th><th></th><th class="num">159</th><th class="num">1</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+This input is the <code>lia</code> case of the PR's new test inputs.
+All three outputs below come from real runs made for this report.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const x Int)
+(declare-const y Int)
+(declare-const c Bool)
+(assert (= c (not c)))
+(assert (&gt; (+ (* -2 x)) 2))
+(assert (&lt; (+ x y) (* (+ y))))
+</code></pre>
+<p class="explain">The first assertion can never hold, so it folds to false. The next two contain <code>(+ (* -2 x))</code>, <code>(+ y)</code>, and <code>(* (+ y))</code>.</p>
+
+<h3>(b) Before: the base commit's exporter</h3>
+<pre><code>proof_certificate.py: error: unsupported operator in the clause log: +
+</code></pre>
+<p class="explain">The old exporter exited with code 2, so the old Lean generator was never reached.</p>
+
+<h3>(c) After: the generated Lean file, trimmed</h3>
+<pre><code>def formula_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := _atoms 0
+def formula_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_0 _atoms _vars))
+def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Iff (formula_0 _atoms _vars) (formula_1 _atoms _vars))
+...
+</code></pre>
+<p class="explain">These declarations spell the first assertion, "<code>c</code> if and only if not <code>c</code>".</p>
+
+<pre><code>def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_3 _atoms _vars) * (term_4 _atoms _vars))
+def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (term_5 _atoms _vars)
+...
+def term_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (term_9 _atoms _vars)
+def term_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (term_11 _atoms _vars)
+...
+</code></pre>
+<p class="explain">These are the new feature at work: each one-argument <code>+</code> or <code>*</code> keeps its own node and is rendered as its argument.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_2 _atoms _vars))
+    (_h1 : (formula_8 _atoms _vars))
+    (_h2 : (formula_13 _atoms _vars))
+    : False :=
+...
+</code></pre>
+<p class="explain">The theorem has one <a href="#g-hypothesis">hypothesis</a> per input assertion and concludes <code>False</code>.</p>
+
+<pre><code>private theorem rewrite_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    [_d0 : Decidable (_atoms 0)]
+    : (formula_18 _atoms _vars) := by
+  refine Iff.intro (fun (_f1 : (formula_2 _atoms _vars)) =&gt; ?_) (fun (_f6 : False) =&gt; ?_)
+...
+</code></pre>
+<p class="explain">This <a href="#g-lemma">lemma</a> proves that the first assertion is equivalent to <code>False</code>, which is the whole <a href="#g-refutation">refutation</a>.</p>
+<p>
+Lean accepted the file.
+The generator reported "Lean checked the refutation", and <code>check_lean.sh</code> printed "Lean checks passed."
+</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+In plain terms, every listed test suite passed on the final branch head after the review fixes.
+The implementer also ran random and hand-made probe sets, and all those inputs verified in Lean.
+The reviewer ran the new replay test against the old module, and it failed as it should.
+No C++ changed, so no rebuild was needed.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="pass">119 tests, OK</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code></td><td class="pass">478 tests in 732.5 s, OK, 6 skipped</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>z3test proof scripts</td><td class="pass">48 tests, OK</td></tr>
+    <tr><td>Regression matrix, <code>legacy-proof-object</code> cell</td><td class="pass">6 of 6 verified in Lean</td></tr>
+    <tr><td>Regression matrix, <code>smt-clause-log-nopp</code> cell</td><td class="pass">8 of 8 verified in Lean</td></tr>
+    <tr><td>Generator seeds, small and large</td><td class="pass">89 and 80 verified in Lean</td></tr>
+    <tr><td>One-argument probes and multi-fragment inputs</td><td class="pass">17 and 14 verified in Lean</td></tr>
+    <tr><td>Reviewer edge-case probes</td><td class="pass">11 verified in Lean</td></tr>
+    <tr><td>New replay test against the pre-change module</td><td>Failed as expected, 7 errors</td></tr>
+  </tbody>
+</table>
+<p class="note">
+The loop's local gate result was not recorded when this report was written.
+No CI status was recorded either, so this report makes no claim about CI.
+There were no CI fix rounds.
+</p>
+<table>
+  <thead><tr><th>CI job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>manylinux-python-amd64</code></td><td>Test Python wheel</td><td class="unknown">Not recorded</td></tr>
+    <tr><td><code>manylinux-python-arm64</code></td><td>Test Python wheel</td><td class="unknown">Not recorded</td></tr>
+    <tr><td><code>ubuntu-cmake</code>, releaseClang</td><td>Check native proofs in Lean</td><td class="unknown">Not recorded</td></tr>
+  </tbody>
+</table>
+<p>Live results are on the <a href="https://github.com/levnach/z3/pull/95/checks">PR's checks page</a>.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved. There were no blockers, majors, or minors. Three nits were fixed, and one suggestion led to no change.</p>
+<ul>
+  <li><strong>Nit, fixed: a check hidden behind a skip.</strong>
+    The reviewer noticed that the builder-equals-parser check lived inside a test that skips when the z3 executable is missing.
+    That check needs only the Python bindings.
+    So on a machine with bindings but no executable, it would silently never run.
+    It is now its own test and runs wherever the bindings import.</li>
+  <li><strong>Nit, fixed: the Lean test skipped the usual checks.</strong>
+    The new Lean test called a lower-level helper directly.
+    That skipped the class's check of one hypothesis per assertion.
+    A future bug that dropped a hypothesis would then go unnoticed by this test.
+    The reviewer thought a refactor was needed.
+    The integrator found the class helper already returns the report, so the test now simply calls it.</li>
+  <li><strong>Nit, fixed: a test name split over two lines.</strong>
+    A comment broke a test name across lines, so searching for the full name failed.
+    It now sits on one line.</li>
+  <li><strong>Suggestion, no change: <code>distinct</code> of any sort.</strong>
+    The one-argument <code>distinct</code> is accepted for an argument of any <a href="#g-sort">sort</a>.
+    This matches the existing many-argument case.
+    The fragment check still decides what reaches Lean.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The replay ties logged clauses to assertions by exact term identity. A test asserts that the rebuilt term equals the parser's term.</li>
+  <li>The newly certified inputs are refuted by the folded assertion alone. They are trivially unsat, though they were rejected before.</li>
+  <li>The change adds no trust and removes no check. Lean still proves the theorem from the input's own assertions.</li>
+  <li>CI results for this PR are unknown in the inputs to this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Division or mod by a zero numeral in an otherwise trivially unsat input stays rejected. Lean's fixed <code>x/0 = 0</code> is not a sound stand-in for Z3's unspecified value.</li>
+  <li>A possible timeout hazard in the <code>omega</code> <a href="#g-tactic">tactic</a>, from iteration 94, was not reproduced. It needs a generator with wide Boolean theory lemmas.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-application">application</dt>
+  <dd>A function or operator applied to arguments. <code>(+ x y)</code> applies <code>+</code> to two arguments, and <code>(+ x)</code> applies it to one.</dd>
+  <dt id="g-array">array</dt>
+  <dd>A sort of maps from indices to values, read with <code>select</code> and updated with <code>store</code>.</dd>
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort with the two values true and false, written <code>Bool</code>.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The JSON file that records the input's terms and the proof steps, for an independent checker to verify.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>(or p (not q))</code>. It holds if at least one literal holds.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>The record of clauses and their justifications that Z3's SAT-based core writes while it solves.</dd>
+  <dt id="g-distinct">distinct</dt>
+  <dd>The SMT-LIB operator that states all its arguments differ. With one argument it is simply true.</dd>
+  <dt id="g-fold">fold</dt>
+  <dd>To simplify a term to a constant. <code>(= c (not c))</code> folds to <code>false</code>.</dd>
+  <dt id="g-fragment">fragment</dt>
+  <dd>A named subset of SMT-LIB, such as QF_LIA, quantifier-free linear integer arithmetic.</dd>
+  <dt id="g-hash-consing">hash-consing</dt>
+  <dd>Storing each distinct term once, so two equal terms are the same object and compare by identity.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>An assumption a theorem takes as input. Here each assertion becomes one hypothesis.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term that picks one of two values by a condition, written <code>(ite cond a b)</code>.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A small proven statement used as a step inside a larger proof.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that the assertions together imply false.</dd>
+  <dt id="g-replay">replay</dt>
+  <dd>Reading a log step by step and rebuilding each term and clause, to connect the log to the input.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>omega</code> decides linear integer facts.</dd>
+  <dt id="g-term">term</dt>
+  <dd>An expression that denotes a value, such as <code>(+ x 1)</code>.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that Lean has checked.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function declared only by its sorts, with no definition. The solver knows only that equal arguments give equal results.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-07.
+</footer>
+
+</body>
+</html>
