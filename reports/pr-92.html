@@ -8,23 +8,27 @@
   :root {
     --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
     --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --badge-bg: #8250df; --badge-fg: #ffffff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
       --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+      --badge-bg: #8957e5; --badge-fg: #ffffff;
     }
   }
   html { background: var(--bg); color: var(--fg); }
-  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
-         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
   a { color: var(--accent); }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
   h3 { font-size: 1.05rem; margin-top: 1.4rem; }
   .meta { color: var(--muted); font-size: 0.95rem; }
-  .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; font-size: 0.85rem;
-           font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+  .meta dd { margin: 0 0 0.2rem 9rem; }
+  .badge { display: inline-block; background: var(--badge-bg); color: var(--badge-fg);
+           border-radius: 1rem; padding: 0 0.6rem; font-size: 0.85rem; font-weight: 600; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
          background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
   pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
@@ -35,102 +39,79 @@
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .pass { color: var(--ok); font-weight: 600; }
-  .unknown { color: var(--warn); font-weight: 600; }
   .fail { color: var(--bad); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
   .explain { margin-top: -0.4rem; color: var(--muted); }
-  dl dt { font-weight: 600; margin-top: 0.7rem; }
-  dl dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; color: var(--muted); font-size: 0.88rem; border-top: 1px solid var(--border); padding-top: 0.8rem; }
+  dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
 
 <header>
 <h1>Certify distincts over the same terms in other orders in Lean</h1>
-<p class="meta">
-  Pull request <a href="https://github.com/levnach/z3/pull/92">levnach/z3 #92</a> ·
-  State: <span class="badge">OPEN</span> ·
-  Opened 2026-11-08T00:21:28Z ·
-  Loop iteration 92
-</p>
-<p class="meta">
-  This pull request is open and <strong>not merged</strong>.
-  The change under review is commit
-  <a href="https://github.com/levnach/z3/commit/b85f48a5dfe421d92ca8e516d051a66189e3e322"><code>b85f48a</code></a>.
-</p>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/92">levnach/z3 #92</a></dd>
+  <dt>State</dt><dd><span class="badge">MERGED</span></dd>
+  <dt>Merged</dt><dd>2026-11-08T00:34:27Z</dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/a469a82e0efba8aec2158edb5e777435a4667b65"><code>a469a82e0efba8aec2158edb5e777435a4667b65</code></a></dd>
+  <dt>Loop iteration</dt><dd>92</dd>
+</dl>
 </header>
 
-<section>
-<h2>In one paragraph</h2>
+<h2 id="summary">In one paragraph</h2>
 <p>
-Some inputs assert a <a href="#g-distinct">distinct</a> over a list of constants and then deny a
-second distinct over the same constants in another order. Z3 refutes this right away. Its
-<a href="#g-rewriter">rewriter</a> sorts the arguments, so both <a href="#g-assertion">assertions</a>
-become the same formula. The exporter ties the two distincts together with a single
-<a href="#g-cnf-lemma">cnf lemma</a>. Lean could not check that lemma once there were 12 or more
-<code>Int</code> constants. The Lean <a href="#g-tactic">tactics</a> ran out of
-<a href="#g-heartbeat">heartbeats</a>. This PR now splits both distincts into their pairs. It links each
-pair <code>a = b</code> to its reversed form <code>b = a</code> with the
-<a href="#g-symmetry">symmetry of equality</a>. Then fast Boolean <a href="#g-propagation">propagation</a>
-closes the lemma. The result is a full Lean-checked <a href="#g-refutation">refutation</a> for these
-inputs. It adds no new <a href="#g-axiom">axiom</a> and no <code>sorry</code>.
+Two <a href="#g-distinct">distinct</a> assertions over the same terms, written in different orders, can now be certified in Lean.
+The typical input asserts <code>(distinct c0 ... c11)</code> and the <a href="#g-negation">negation</a> of the same distinct with its arguments reversed.
+Z3's <a href="#g-rewriter">rewriter</a> sorts a distinct's arguments, so it sees the conflict at once.
+The exported <a href="#g-certificate">certificate</a> was another story: its Lean check ran out of <a href="#g-heartbeat">heartbeats</a> from 12 Int arguments.
+The fix reads each distinct as the <a href="#g-conjunction">conjunction</a> of its pairwise <a href="#g-disequality">disequalities</a>.
+It then links each pair <code>a = b</code> to its twin <code>b = a</code> by the <a href="#g-symmetry">symmetry of equality</a>.
+With those links, <a href="#g-propagation">propagation</a> alone closes the <a href="#g-cnf-lemma">CNF lemma</a> that ties the two distincts.
+Every new step is checked by Lean, and no new <a href="#g-axiom">axiom</a> is involved.
 </p>
-</section>
 
-<section>
-<h2>Background</h2>
+<h2 id="background">Background</h2>
 <p>
-Earlier iterations taught the reconstructor to read a distinct as a
-<a href="#g-conjunction">conjunction</a> of negated pair equalities. It only did so when the
-<a href="#g-clause-log">clause log</a> held at least one pair written in the same order as the distinct.
-A reversed distinct has no pair in its own order. So it stayed one opaque <a href="#g-atom">atom</a>.
-The lemma then fell back to slow arithmetic tactics over every unfolded pair.
-That fallback timed out at 12 <code>Int</code> constants, and also at 33. This work belongs to
-milestone 3, "Equality and linear arithmetic", of the project plan. It closes two backlog items, from
-iterations 53 and 90.
+Before this PR, the Lean reconstructor could split a distinct into its pairs only in one case.
+The <a href="#g-clause-log">clause log</a> had to hold an equality <code>(= a b)</code> in the distinct's own argument order.
+A pair logged with swapped sides did not count, and neither did a second distinct over the same terms.
+Such a distinct stayed one opaque <a href="#g-atom">atom</a> of the lemma.
+The lemma then fell back to the <a href="#g-omega">omega</a> and <a href="#g-grind">grind</a> <a href="#g-tactic">tactics</a> over every unfolded pair.
+That fallback timed out at 12 Int terms and again at 33.
+This PR serves Milestone 3 of the project plan, "Equality and linear arithmetic".
+It closes two backlog items, from iterations 53 and 90.
 </p>
-</section>
 
-<section>
-<h2>What changed</h2>
+<h2 id="changes">What changed</h2>
+<p>Think of two guest lists, one sorted A to Z and one sorted Z to A.
+Before, Lean compared them as two sealed envelopes. Now it opens both and pairs each name with its twin.</p>
 <ul>
-  <li>Two distincts over the same constants, in any order, now certify in Lean. This works over
-      Int, Real, and an <a href="#g-uninterpreted-sort">uninterpreted sort</a>.</li>
-  <li>A distinct whose pairs appear in the log only with swapped sides is now read pair by pair.
-      Before, it stayed one opaque atom.</li>
-  <li>Each reversed pair gets a one-line Lean bridge proved by core Lean's symmetry lemma
-      <code>eq_comm</code>.</li>
-  <li>If the new proof attempt fails, Lean still tries the old unfolded proof. A wrong proof can never be accepted.</li>
-  <li>The plan document records the measured cost for 60 constants and the known limits.</li>
+  <li><strong>Exporter:</strong> a distinct now splits into its pairs when a pair is logged with swapped sides, as <code>(= b a)</code>.</li>
+  <li><strong>Exporter:</strong> a distinct also splits into its pairs when another distinct ranges over the same terms, in any order.</li>
+  <li><strong>Exporter:</strong> each such pair is tied to its swapped twin by one <code>eq_comm</code> step, a fact from Lean's core library.</li>
+  <li><strong>Tests:</strong> reversed distincts of 5, 12, and 33 terms over Int, Real, and an <a href="#g-uninterpreted-sort">uninterpreted sort</a> are now checked, with the slow fallback removed.</li>
+  <li><strong>Docs:</strong> the project plan records the measured cost at 60 terms and the known limits of the change.</li>
 </ul>
-<p>
-Think of two guest lists of the same twelve people, one written forwards and one backwards.
-Before, the checker treated each list as a sealed envelope. It had to try every possible seating to
-prove they matched. Now it opens both lists and notes that "Ann is not Bob" is the same fact as
-"Bob is not Ann". After that, matching the lists is quick bookkeeping.
-</p>
 <table>
-  <thead><tr><th>File</th><th>What it is</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
   <tbody>
     <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">59</td><td class="num">23</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Integer tests</td><td class="num">75</td><td class="num">1</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Uninterpreted-sort tests</td><td class="num">39</td><td class="num">1</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Project plan</td><td class="num">26</td><td class="num">0</td></tr>
     <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Test input generator</td><td class="num">16</td><td class="num">0</td></tr>
-    <tr><th>Total (5 files, 2 commits)</th><th></th><th class="num">215</th><th class="num">25</th></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Project plan</td><td class="num">26</td><td class="num">0</td></tr>
+    <tr><th>Total</th><th>5 files</th><th class="num">215</th><th class="num">25</th></tr>
   </tbody>
 </table>
-</section>
 
-<section>
-<h2>Worked example</h2>
-<p>
-This input is built from the PR's new test generator for 12 <code>Int</code> constants.
-Only the declarations are packed four to a line. All outputs below come from real runs of the
-scripts before and after the PR.
-</p>
+<h2 id="example">Worked example</h2>
+<p>All three pieces below come from a real run on the merged code and on the PR's base commit.</p>
 
 <h3>(a) The input</h3>
+<p>This is the PR's test generator output for 12 Int constants, with the declarations packed four per line.</p>
 <pre><code>(set-logic QF_LIA)
 (declare-const c0 Int) (declare-const c1 Int) (declare-const c2 Int) (declare-const c3 Int)
 (declare-const c4 Int) (declare-const c5 Int) (declare-const c6 Int) (declare-const c7 Int)
@@ -138,47 +119,39 @@ scripts before and after the PR.
 (assert (distinct c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11))
 (assert (not (distinct c11 c10 c9 c8 c7 c6 c5 c4 c3 c2 c1 c0)))
 (check-sat)</code></pre>
-<p class="explain">The first line says all twelve constants differ. The second denies the same fact with the list reversed.</p>
+<p class="explain">The first assertion says all twelve values differ. The second says they do not all differ, in reverse order.</p>
 
 <h3>(b) Before</h3>
-<p>
-The old exporter produced a certificate without complaint. The old reconstructor then wrote a Lean file,
-but Lean rejected it after about 44 seconds. The temporary file name is shortened here.
-</p>
-<pre><code>&lt;temporary&gt;.lean:1098:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+<p>The old certificate export succeeded. The old reconstructor wrote a Lean file, and Lean rejected it after about 41 seconds.</p>
+<pre><code>z3_proof_dxwhxh1a.lean:1098:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
 ...
-&lt;temporary&gt;.lean:1103:8: error: (kernel) unknown constant '...th_lemma_350'
+z3_proof_dxwhxh1a.lean:1103:8: error: (kernel) unknown constant '_private._stdin.0.Z3Proofs.NativeCertificate.p57ce2a4a...th_lemma_350'
 Lean checking failed; no proof was published.</code></pre>
-<p class="explain">The lemma <code>th_lemma_350</code> ties the two distincts. Its proof ran out of time, so the final theorem could not use it.</p>
+<p class="explain">The lemma <code>th_lemma_350</code> ran out of heartbeats, so the whole proof failed.</p>
 
 <h3>(c) After</h3>
-<p>The current reconstructor produced a file of about 1,600 lines. Lean accepted it: <code>check_lean.sh</code> printed "Lean checks passed." in about one second.</p>
+<p>Lean accepted the new file. The reconstructor printed "Lean checked the refutation", and a separate run of <code>check_lean.sh</code> printed "Lean checks passed."</p>
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
 ...
-def term_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 11
-def formula_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (Not ((term_0 _atoms _vars) = (term_1 _atoms _vars))) (And (Not ((term_0 _atoms _vars) = (term_2 _atoms _vars))) ...
-def formula_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (Not ((term_11 _atoms _vars) = (term_10 _atoms _vars))) (And (Not ((term_11 _atoms _vars) = (term_9 _atoms _vars))) ...
+def formula_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (Not ((term_0 _atoms _vars) = (term_1 _atoms _vars))) (And ...
+def formula_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (Not ((term_11 _atoms _vars) = (term_10 _atoms _vars))) (And ...
 def formula_14 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_13 _atoms _vars))
 def formula_16 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_12 _atoms _vars))
 def formula_17 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars) = (term_1 _atoms _vars))
 ...
 def formula_348 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_14 _atoms _vars))
 def formula_349 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_16 _atoms _vars) (formula_348 _atoms _vars))</code></pre>
-<p class="explain">Each constant becomes a term. The two distincts become conjunctions of 66 negated equalities, and <code>formula_349</code> is the cnf lemma's clause "not the first distinct, or not the negated second one".</p>
+<p class="explain">Each distinct becomes a conjunction of pair disequalities, <code>formula_17</code> is the logged equality <code>c0 = c1</code>, and <code>formula_349</code> is the clause that ties the two distincts.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_12 _atoms _vars))
     (_h1 : (formula_14 _atoms _vars))
     : False :=
-  ...
-  let _step_350 : (formula_349 _atoms _vars) :=
-    (th_lemma_350 _atoms _vars)
-  let _step_352 : (formula_351 _atoms _vars) :=
-    (False.elim ((_step_350.resolve_left (fun _literal =&gt; _literal _step_15)) _step_347))
   ...</code></pre>
-<p class="explain">The theorem says the two assertions together imply <code>False</code>, and its last steps use the lemma that used to time out.</p>
+<p class="explain">The main theorem says the two assertions together imply False, for every choice of Int values.</p>
 
-<pre><code>private theorem th_lemma_350 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_350 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_349 _atoms _vars) := by
   first
     | (have _f1 : (Iff ((term_1 _atoms _vars) = (term_0 _atoms _vars)) (formula_17 _atoms _vars)) := eq_comm
@@ -186,161 +159,132 @@ def formula_349 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or 
        ...
        have _f66 : (Iff ((term_11 _atoms _vars) = (term_10 _atoms _vars)) (formula_342 _atoms _vars)) := eq_comm
        refine Classical.byContradiction ?_
-       ...
+       ...</code></pre>
+<p class="explain">This is the new feature: 66 bridges, one per pair, each saying <code>c1 = c0</code> holds exactly when the logged <code>c0 = c1</code> holds.</p>
+
+<pre><code>       ...
+       have _f206 : ((term_1 _atoms _vars) = (term_0 _atoms _vars)) := (Classical.byContradiction (fun _g =&gt; _f205 _g))
        have _f207 : (formula_17 _atoms _vars) := (Iff.mp _f1 _f206)
        exact (False.elim (_f74 _f207)))
     | (unfold formula_349 formula_348 formula_16 formula_14 formula_13 formula_12 term_11 ... term_0
        first | omega | grind (splits := 64))</code></pre>
-<p class="explain">The 66 new <code>eq_comm</code> lines say that each reversed pair, like <code>c1 = c0</code>, means the same as the logged pair <code>c0 = c1</code>. Propagation then finishes the proof, and the old <code>omega</code> path stays as a fallback.</p>
-</section>
+<p class="explain">The propagation proof crosses one bridge to reach a contradiction. The old omega fallback stays behind <code>first</code>, unchanged.</p>
 
-<section>
-<h2>How it was verified</h2>
+<h2 id="verification">How it was verified</h2>
 <p>
-In plain terms, every test suite the implementer ran on the final branch passed. A deliberately
-broken certificate was rejected by Lean. That shows the new bridges are really checked, not just
-trusted. The new Lean tests drop the fallback, so they prove the new path works on its own. No C++ code
-changed, so the native Z3 tests were not rerun.
+All Lean reconstruction tests passed on the final branch, as did the certificate exporter tests and two small benchmark matrices.
+The new tests delete the slow fallback, so Lean must accept the bridges themselves.
+A bridge edited to point at the wrong pair was rejected by Lean.
+There was no C++ change, so the native checker tests were not rerun.
 </p>
 <table>
-  <thead><tr><th>Local check (from the PR description)</th><th>Result</th></tr></thead>
+  <thead><tr><th>Local check</th><th>Result</th><th>Detail</th></tr></thead>
   <tbody>
-    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">474 tests OK, 6 skipped, 724.5 s</td></tr>
-    <tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">113 tests OK</td></tr>
-    <tr><td>Lean project build, <code>check_lean.sh</code></td><td class="pass">"Lean checks passed."</td></tr>
-    <tr><td>z3test proof tests</td><td class="pass">48 tests OK</td></tr>
-    <tr><td>Proof matrix, Boolean inputs, legacy proof object</td><td class="pass">6 of 6 Lean-verified</td></tr>
-    <tr><td>Proof matrix, <code>lra_*</code> inputs, clause log</td><td class="pass">8 of 8 Lean-verified</td></tr>
-    <tr><td>Probes: reversed and shuffled distincts, 6 to 60 terms, Int, Real, uninterpreted sort</td><td class="pass">All passed with the fallback dropped</td></tr>
-    <tr><td>Tampered certificate with one bridge aimed at the wrong pair</td><td class="pass">Rejected by Lean with a type mismatch</td></tr>
-    <tr><td>This report's own example run (section above)</td><td class="pass">Before: timeout. After: accepted.</td></tr>
+    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">pass</td><td>474 tests, 6 skipped, about 720 s</td></tr>
+    <tr><td>Certificate exporter tests</td><td class="pass">pass</td><td>113 tests</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td>48 tests</td></tr>
+    <tr><td><code>check_lean.sh</code></td><td class="pass">pass</td><td>"Lean checks passed."</td></tr>
+    <tr><td>Boolean matrix, legacy proof object</td><td class="pass">pass</td><td>6 of 6 Lean-verified</td></tr>
+    <tr><td>QF_LRA matrix, clause log</td><td class="pass">pass</td><td>8 of 8 Lean-verified</td></tr>
+    <tr><td>Reviewer probes, 6 to 60 terms</td><td class="pass">pass</td><td>60 Int terms: 1770 bridges, about 32 s</td></tr>
+    <tr><td>Tampered bridge</td><td class="pass">rejected, as intended</td><td>Lean "Type mismatch"</td></tr>
   </tbody>
 </table>
 <p>
-The loop's separate local gate has not been recorded yet. Its summary file was missing when this
-report was written, so its results are unknown here.
+The change touched only Python examples, tests, and docs. The loop therefore merged it on its local gate, which mirrors the relevant steps of the <code>releaseClang</code> CI job.
+No GitHub CI status for this PR was recorded. GitHub CI runs on <code>master</code> after the merge, and its result is unknown here. There were no CI fix rounds.
 </p>
 <table>
-  <thead><tr><th>CI workflow and check</th><th>What it covers</th><th>Status</th></tr></thead>
+  <thead><tr><th>Workflow / check</th><th>Result</th><th>Link</th></tr></thead>
   <tbody>
-    <tr><td><code>ci.yml</code>, job <code>releaseClang</code>, step "Check native proofs in Lean"</td><td>Runs the new Lean tests</td><td class="unknown">Not recorded in the inputs</td></tr>
-    <tr><td>manylinux wheel job</td><td>Runs <code>test_proof_certificate.py</code></td><td class="unknown">Not recorded in the inputs</td></tr>
+    <tr><td>Local gate (Darwin arm64, mirrors <code>CI / Ubuntu build - cmake - releaseClang</code>)</td><td class="pass">pass</td><td>not published</td></tr>
+    <tr><td>GitHub CI checks on the PR</td><td class="unknown">not recorded</td><td><a href="https://github.com/levnach/z3/pull/92/checks">PR checks</a></td></tr>
+    <tr><td>GitHub CI on <code>master</code> after merge</td><td class="unknown">unknown</td><td><a href="https://github.com/levnach/z3/commit/a469a82e0efba8aec2158edb5e777435a4667b65">merge commit</a></td></tr>
   </tbody>
 </table>
-<p>
-No CI status files were available, so pass or fail is unknown. The live results are on the
-<a href="https://github.com/levnach/z3/pull/92/checks">PR checks page</a>. There were no CI fix rounds.
-</p>
-</section>
 
-<section>
-<h2>Review</h2>
+<h2 id="review">Review</h2>
 <p>The reviewer approved the change. There were no blocker or major findings.</p>
-<h3>Minor: cost above 33 terms was untested</h3>
-<p>
-The reviewer tried a reversed distinct of 60 <code>Int</code> constants. Lean accepted it, but it took
-about 32 seconds. The bridges grew 3.4 times while the time grew about 11 times. A list of about 100
-constants could hit the heartbeat limit. This matters because a slow check looks like a failure to a user.
-The author recorded the measurement in the plan document and added no size cap. Such inputs already
-failed from 12 constants before, so nothing got worse.
-</p>
-<h3>Minor: the expansion rule looks at the whole certificate</h3>
-<p>
-A distinct now splits into pairs in every lemma once any other distinct over the same constants exists
-anywhere. The reviewer built "bystander" inputs to see whether this caused extra work in unrelated lemmas.
-The output was byte-identical to the old exporter, so no regression appeared. This was not fixed. It is
-recorded as a follow-up to make the rule local to each clause.
-</p>
-<h3>Nit: a fragile test assertion</h3>
-<p>
-One test counted which pair equalities Z3's trimmed log happened to keep. A harmless change in Z3's log
-trimming could break that test while the exporter stayed correct. The assertion was removed. The test
-still checks the total pair count and one bridge per pair.
-</p>
-</section>
-
-<section>
-<h2>Risks and open questions</h2>
 <ul>
-  <li>More lemmas now hand pairs to the propagation prover. The prover has a work bound, and a failed
-      attempt falls back to the unchanged proof.</li>
-  <li>A reordered distinct of about 100 constants may still exceed the heartbeat limit. No test covers that size.</li>
-  <li>CI results and the local gate result are unknown at the time of writing.</li>
+  <li><strong>Minor: cost above 33 terms was untested.</strong>
+  The reviewer built a reversed distinct of 60 Int terms. It passed, but took about 32 seconds.
+  Time grew much faster than the number of bridges, so about 100 terms might hit the heartbeat limit.
+  This is a speed issue, not a soundness issue. Such inputs already failed before the PR.
+  Resolution: the measurement is now recorded in the project plan. No size cap was added.</li>
+  <li><strong>Minor: the trigger is global, not per clause.</strong>
+  A distinct now splits into pairs in every lemma once a twin distinct exists anywhere in the certificate.
+  That can hand the prover many pairs with nothing to bridge to.
+  The reviewer tried two probes to provoke this. Both gave output identical to the old exporter.
+  Resolution: not fixed. It is documented and listed as a follow-up.</li>
+  <li><strong>Nit: a test assertion depended on log trimming.</strong>
+  One check counted how many pair equalities Z3's trimmed log happens to keep.
+  A harmless change to trimming could have broken it.
+  Resolution: the assertion was removed. The test still checks the total count and one bridge per pair.</li>
 </ul>
-</section>
 
-<section>
-<h2>What comes next</h2>
+<h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>Expand a distinct only when the other distinct appears in the same clause.</li>
-  <li>Bridge swapped pairs outside cnf lemmas too. Today only cnf lemmas get them.</li>
-  <li>Rescan the benchmarks that contain wide distincts. That task from iteration 90 is still open.</li>
+  <li>The prover now sees pairs in more lemmas. Its work is bounded, and a failed attempt falls back to the old proof.</li>
+  <li>Very wide reordered distincts, around 100 terms, may still time out.</li>
+  <li>Each bridge relies on Lean unfolding a definition during unification. If that failed, Lean would reject the attempt. It could not accept a wrong proof.</li>
+  <li>GitHub CI results for the merged commit are not known to this report.</li>
 </ul>
-</section>
 
-<section>
-<h2>Glossary</h2>
-<dl>
-  <dt id="g-assertion">assertion</dt>
-  <dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Split a distinct for a twin only when the twin appears in the same clause.</li>
+  <li>Bridge swapped pairs outside CNF lemmas too.</li>
+  <li>Rescan benchmarks with wide distincts, an open item from iteration 90.</li>
+</ul>
 
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
   <dt id="g-atom">atom</dt>
-  <dd>A formula with no Boolean connective inside it, treated as one unit. Example: <code>c0 = c1</code>.
-      An opaque atom is one whose inside the prover does not look at.</dd>
-
+  <dd>A formula with no Boolean connective inside, treated as one unit by propositional reasoning. Example: <code>c0 = c1</code>.</dd>
   <dt id="g-axiom">axiom</dt>
-  <dd>A statement Lean accepts without proof. Adding one would widen what must be trusted.</dd>
-
+  <dd>A statement Lean accepts without proof. A trustworthy certificate adds none.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The file Z3 exports that records the steps of its proof, for an outside checker to replay.</dd>
   <dt id="g-clause">clause</dt>
-  <dd>A disjunction ("or") of literals. Example: <code>(or (not p) q)</code>.</dd>
-
+  <dd>A disjunction of literals. Example: <code>(or (not p) q)</code>.</dd>
   <dt id="g-clause-log">clause log</dt>
-  <dd>The record of clauses Z3's solver learned or used, which the exporter turns into a certificate.</dd>
-
-  <dt id="g-cnf-lemma">cnf lemma</dt>
-  <dd>A clause that holds by pure Boolean structure, used to break a formula into clauses
-      (conjunctive normal form). Example: <code>(or (not (and p q)) p)</code>.</dd>
-
+  <dd>Z3's record of the clauses its SAT core learned or used, from which the certificate is built.</dd>
+  <dt id="g-cnf-lemma">CNF lemma</dt>
+  <dd>A clause that holds by Boolean structure alone, used to turn formulas into clause form. Here it says the two distincts cannot both hold as asserted.</dd>
   <dt id="g-conjunction">conjunction</dt>
   <dd>An "and" of several formulas. Each part is called a conjunct.</dd>
-
+  <dt id="g-disequality">disequality</dt>
+  <dd>A statement that two terms differ. Example: <code>(not (= a b))</code>.</dd>
   <dt id="g-distinct">distinct</dt>
-  <dd>The SMT-LIB operator saying all its arguments are pairwise different.
-      <code>(distinct a b c)</code> means <code>a ≠ b</code>, <code>a ≠ c</code>, and <code>b ≠ c</code>.</dd>
-
+  <dd>The SMT-LIB operator saying all its arguments differ. <code>(distinct a b c)</code> means a&ne;b, a&ne;c, and b&ne;c.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A general Lean tactic that combines case splits, congruence, and arithmetic.</dd>
   <dt id="g-heartbeat">heartbeat</dt>
-  <dd>Lean's unit of work for a proof step. When a step uses more than its limit, Lean stops with a timeout error.</dd>
-
+  <dd>Lean's unit of work. A proof step that uses more than the set limit is stopped with a timeout error.</dd>
   <dt id="g-literal">literal</dt>
-  <dd>An atom or its negation. Example: <code>c0 = c1</code> or <code>(not (= c0 c1))</code>.</dd>
-
+  <dd>An atom or its negation. Example: <code>p</code> or <code>(not p)</code>.</dd>
+  <dt id="g-negation">negation</dt>
+  <dd>The "not" of a formula. It is true exactly when the formula is false.</dd>
+  <dt id="g-omega">omega</dt>
+  <dd>A Lean tactic that decides linear arithmetic over Int and Nat.</dd>
   <dt id="g-propagation">propagation</dt>
-  <dd>Deriving new facts step by step from known ones by simple Boolean rules. Example: from "p or q" and "not p", conclude "q".</dd>
-
+  <dd>Deriving new facts from known ones step by step, such as "a and b holds, so a holds". The reconstructor uses it to prove CNF lemmas cheaply.</dd>
   <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of assertions leads to a contradiction, that is, to <code>False</code>.</dd>
-
+  <dd>A proof that a set of assertions leads to False.</dd>
   <dt id="g-rewriter">rewriter</dt>
-  <dd>The part of Z3 that simplifies formulas before solving, for example by sorting the arguments of a distinct.</dd>
-
+  <dd>The part of Z3 that simplifies terms before solving, for example by sorting arguments.</dd>
   <dt id="g-sort">sort</dt>
-  <dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
-
+  <dd>The type of a value in SMT-LIB, such as Int, Real, or Bool.</dd>
   <dt id="g-symmetry">symmetry of equality</dt>
-  <dd>The rule that <code>a = b</code> holds exactly when <code>b = a</code> holds. Core Lean calls it <code>eq_comm</code>.</dd>
-
+  <dd>The rule that <code>a = b</code> holds exactly when <code>b = a</code> holds. In Lean it is the lemma <code>eq_comm</code>.</dd>
   <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that searches for a proof automatically. The <code>omega</code> tactic decides integer arithmetic. The <code>grind</code> tactic is a broader general search.</dd>
-
+  <dd>A Lean command that builds part of a proof automatically.</dd>
   <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
-  <dd>A sort with no built-in meaning, declared by the input. Example: <code>(declare-sort U 0)</code>.
-      Only equality between its values is known.</dd>
+  <dd>A sort declared with no built-in meaning, only equality. Example: <code>(declare-sort U 0)</code>.</dd>
 </dl>
-</section>
 
 <footer>
 Generated by the Lean certificate improvement loop on 2026-11-07.
 </footer>
-
 </body>
 </html>
