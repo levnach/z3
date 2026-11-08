@@ -3,42 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>PR #94: Certify scripts with optimization commands; refute Boolean distincts</title>
 <style>
-:root {
-  color-scheme: light dark;
-  --bg: #ffffff; --fg: #1d1f23; --muted: #5a6270; --accent: #0b5cad;
-  --code-bg: #f3f4f6; --border: #d6d9de; --ok: #1a7f37; --warn: #9a6700; --badge: #fff4d6;
-}
-@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #15171b; --fg: #e4e6ea; --muted: #9aa3b2; --accent: #6cb0ff;
-    --code-bg: #1f2329; --border: #353a43; --ok: #4ac26b; --warn: #e3b341; --badge: #3a2f12;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700;
+    --badge-bg: #8250df; --badge-fg: #ffffff;
   }
-}
-body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-a { color: var(--accent); }
-h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
-h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; }
-h3 { font-size: 1.05rem; margin-top: 1.5rem; }
-.meta { color: var(--muted); font-size: 0.95rem; }
-.state { display: inline-block; background: var(--badge); color: var(--warn); font-weight: 600;
-  padding: 0.05rem 0.5rem; border-radius: 0.4rem; }
-code { background: var(--code-bg); padding: 0.05rem 0.25rem; border-radius: 0.25rem; font-size: 0.92em; }
-pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 0.4rem; padding: 0.8rem;
-  overflow-x: auto; font-size: 0.85rem; line-height: 1.45; }
-pre code { background: none; padding: 0; }
-table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
-th, td { border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
-th { background: var(--code-bg); }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.ok { color: var(--ok); font-weight: 600; }
-.warn { color: var(--warn); font-weight: 600; }
-.explain { margin-top: -0.3rem; color: var(--muted); }
-dt { font-weight: 600; margin-top: 0.6rem; }
-dd { margin-left: 1.2rem; }
-footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922;
+      --badge-bg: #8957e5; --badge-fg: #ffffff;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem;
+  }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta span { margin-right: 1rem; }
+  .badge {
+    display: inline-block; background: var(--badge-bg); color: var(--badge-fg);
+    border-radius: 1rem; padding: 0 0.6rem; font-size: 0.85rem; font-weight: 600;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); border-radius: 4px; padding: 0.05rem 0.25rem; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -0.4rem; color: var(--fg); }
+  dt { font-weight: 600; margin-top: 0.7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
@@ -46,82 +56,73 @@ footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8
 <header>
 <h1>Certify scripts with optimization commands; refute Boolean distincts</h1>
 <p class="meta">
-Pull request <a href="https://github.com/levnach/z3/pull/94">levnach/z3 #94</a> into <code>master</code>
-· State: <span class="state">OPEN</span>
-· Opened 2026-11-08T03:16:20Z
-· Loop iteration 94
+  <span><a href="https://github.com/levnach/z3/pull/94">Pull request #94</a></span>
+  <span>State: <span class="badge">MERGED</span></span>
+  <span>Merged: 2026-11-08T03:29:32Z</span>
+  <span>Loop iteration 94</span>
 </p>
-<p class="meta">This pull request is open and <strong>not merged</strong>.
-The change it proposes is commit
-<a href="https://github.com/levnach/z3/commit/4e67be7b7a548742e643b219fa3659584f185210"><code>4e67be7b7</code></a>.
-It contains three commits.</p>
+<p class="meta">
+  Merge commit:
+  <a href="https://github.com/levnach/z3/commit/a49658ac9cd4e47f7f748b3a4e49e2eaed12d8f2"><code>a49658ac9cd4</code></a>
+  on <code>master</code> of levnach/z3.
+</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
 <p>
-This PR does two things. First, the exporter now accepts scripts that use
-<a href="#g-optimization-command">optimization commands</a>, such as
-<a href="#g-soft-assertion">soft assertions</a> and
-<a href="#g-objective">objectives</a>. It drops them and certifies that the
-<a href="#g-hard-assertion">hard assertions</a> alone are contradictory.
-Second, it fixes a Lean failure on a <a href="#g-distinct">distinct</a> of three or more
-<a href="#g-boolean">Booleans</a>. Such a distinct is always false by the
-<a href="#g-pigeonhole">pigeonhole principle</a>. Before, the
-<a href="#g-tactic">tactic</a> <a href="#g-omega"><code>omega</code></a> ran out of
-<a href="#g-heartbeat">heartbeats</a> on it, and the
-<a href="#g-rewrite">rewrite step</a> could not be proved.
-Now a small proved <a href="#g-lemma">lemma</a> removes the distinct first.
-Together, these changes let two real z3test regressions get a
-<a href="#g-refutation">refutation</a> that Lean checks.
+This PR does two things. First, the exporter's <a href="#g-frontend">frontend</a> now accepts scripts
+that contain <a href="#g-soft-assertion">soft assertions</a> and <a href="#g-objective">objectives</a>.
+It drops those commands and certifies only that the <a href="#g-hard-assertion">hard assertions</a> are
+contradictory. Second, the Lean reconstructor now proves every <a href="#g-distinct">distinct</a> of three
+or more <a href="#g-boolean">Booleans</a> false with one small <a href="#g-lemma">lemma</a>.
+It removes them with a <a href="#g-rewrite">rewrite</a> before the arithmetic <a href="#g-tactic">tactics</a> run.
+Before, the <a href="#g-omega">omega</a> tactic used up its <a href="#g-heartbeat">heartbeats</a> on such
+terms and the whole proof failed. Together, the two changes let two z3test regressions in the
+<a href="#g-qf-lia">QF_LIA</a> <a href="#g-fragment">fragment</a> end in a <a href="#g-refutation">refutation</a>
+that Lean accepts.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-Before this PR, the exporter's frontend rejected every script containing
-<code>assert-soft</code>, <code>minimize</code>, or <code>maximize</code>.
-The previous PR, #93, had already taught it to drop print-only commands.
-Of the z3test regressions with optimization commands, Z3 answers unsat on four.
-Two of them, <code>3402.smt2</code> and <code>3524.smt2</code>, are
-<a href="#g-qf-lia">QF_LIA</a> and so lie inside the certified fragments.
-Once <code>3524</code> could be exported, it exposed the second problem with
-Boolean distincts. This work serves milestone 3, equality and linear arithmetic.
-It also moves toward milestone 4, a frontend that accepts real scripts and
-explicitly rejects what it cannot handle.
+Before this PR, the frontend stopped at the first <code>assert-soft</code>, <code>minimize</code>, or
+<code>maximize</code> command. It also refused every <code>opt.*</code> option. Z3 answers unsat on four of the
+90 z3test regressions with such commands, and two of them, <code>3402.smt2</code> and <code>3524.smt2</code>, lie
+inside the certified fragments. Once <code>3524</code> could be exported, a second gap appeared.
+Its proof contains a <a href="#g-rewrite">rewrite</a> that folds distincts of 8 and 13 Booleans to false.
+Lean timed out on that step, and the <a href="#g-kernel">kernel</a> then reported a missing constant.
+The PR serves Milestone 3 of the plan, equality and linear arithmetic.
+It also widens the frontend that Milestone 4 describes.
 </p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-<li>A script with <code>assert-soft</code>, <code>minimize</code>, <code>maximize</code>, or <code>get-objectives</code> can now be certified, and the certificate speaks only about the hard assertions.</li>
-<li>The <code>opt.*</code> options, which only tune how Z3 searches for an optimum, are now ignored instead of rejected.</li>
-<li>An unsat answer that only means "no more optimal solutions" gets no certificate, because the hard assertions are satisfiable.</li>
-<li>A distinct of three or more Booleans inside an integer rewrite step is now proved false in about a second instead of timing out.</li>
-<li>The same fix also works when the reconstructor first replaces <code>div</code>, <code>mod</code>, or <code>abs</code> terms with fresh names, called <a href="#g-generalize">generalizing</a> them.</li>
+  <li>You can now certify a script that uses <code>assert-soft</code>, <code>minimize</code>, <code>maximize</code>, or <code>get-objectives</code>, and the certificate speaks only about its hard assertions.</li>
+  <li>You can now leave <code>opt.*</code> options in a script, and the exporter ignores them like printing options.</li>
+  <li>A <code>:named</code> label inside one of these commands is still rejected with a clear message.</li>
+  <li>You can now check in Lean an integer problem whose proof relies on a distinct of three or more Booleans being false.</li>
+  <li>The Lean fix also works when the arithmetic contains <code>div</code>, <code>mod</code>, or <code>abs</code>.</li>
 </ul>
 <p>
-An analogy for the soundness argument: a soft assertion is a wish, and a hard assertion is a rule.
-If the rules alone already contradict each other, no wish can help, and that is all the certificate claims.
+An analogy for the Lean fix: three light switches cannot all be in different positions, because each switch has only two.
+That is the <a href="#g-pigeonhole">pigeonhole principle</a>. The new lemma <code>_bool_distinct3</code> states it once.
+Each long distinct then needs only three of its pairs to be refuted.
 </p>
-
 <table>
-<thead><tr><th>File</th><th>What it holds</th><th>Lines added</th><th>Lines removed</th></tr></thead>
-<tbody>
-<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter frontend: drops optimization commands</td><td class="num">20</td><td class="num">4</td></tr>
-<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor: Boolean distinct lemma and facts</td><td class="num">76</td><td class="num">4</td></tr>
-<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Frontend tests</td><td class="num">34</td><td class="num">5</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>Shared test inputs, including 3402 and 3524</td><td class="num">126</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Lean test for optimization inputs</td><td class="num">17</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Lean test for Boolean distincts</td><td class="num">37</td><td class="num">0</td></tr>
-<tr><td><code>examples/python/README</code></td><td>Frontend documentation</td><td class="num">18</td><td class="num">15</td></tr>
-<tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated design note</td><td class="num">27</td><td class="num">1</td></tr>
-<tr><th>Total (8 files)</th><th></th><th class="num">355</th><th class="num">29</th></tr>
-</tbody>
+  <tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr>
+  <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter frontend</td><td class="num">20</td><td class="num">4</td></tr>
+  <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">76</td><td class="num">4</td></tr>
+  <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Exporter tests</td><td class="num">34</td><td class="num">5</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>Shared test inputs</td><td class="num">126</td><td class="num">0</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Lean tests, clause log</td><td class="num">17</td><td class="num">0</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Lean tests, integers</td><td class="num">37</td><td class="num">0</td></tr>
+  <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">18</td><td class="num">15</td></tr>
+  <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan notes</td><td class="num">27</td><td class="num">1</td></tr>
+  <tr><th>Total, 8 files</th><th></th><th class="num">355</th><th class="num">29</th></tr>
 </table>
-<p class="meta">No C++ changed, so Z3 itself was not rebuilt.</p>
 
 <h2 id="example">Worked example</h2>
 <p>
-This input was written for this report from the PR's tests. It has a soft assertion, an objective,
-and a distinct of three Booleans. The hard assertions say <code>x &lt; 3</code>, and since the distinct is false, also <code>x &gt; 5</code>.
+This input combines the two new tests. It was run through the merged code and the PR's base scripts.
 </p>
 
 <h3>(a) The input</h3>
@@ -134,161 +135,159 @@ and a distinct of three Booleans. The hard assertions say <code>x &lt; 3</code>,
 (minimize x)
 (assert (&lt; x 3))
 (check-sat)</code></pre>
+<p class="explain">The two hard assertions clash: the distinct is false, so <code>x</code> must exceed 5 and stay below 3.</p>
 
-<h3>(b) Before: the base commit's exporter</h3>
+<h3>(b) Before</h3>
 <pre><code>proof_certificate.py: error: unsupported SMT-LIB command: assert-soft</code></pre>
-<p class="explain">The old frontend stopped at the first optimization command, so the old reconstructor was never reached.</p>
+<p class="explain">The old exporter stopped at the soft assertion, so no Lean file was produced at all.</p>
 <p>
-For the Boolean distinct part alone, the reviewer ran the old reconstructor on the PR's own test input.
-Lean reported a heartbeat timeout and then an error about a missing proof step, after 144 seconds:
+The old Lean step was never reached for this file. On a larger input of the same kind, the PR's test saw it time out after 80 seconds.
 </p>
-<pre><code>(deterministic) timeout at `whnf`, maximum number of heartbeats (1000000)
-unknown constant …rewrite_26</code></pre>
 
-<h3>(c) After: the generated Lean file, trimmed</h3>
-<pre><code>private theorem _bool_distinct3 {a b c : Prop} (_ab : Not (Iff a b)) (_ac : Not (Iff a c))
-    (_bc : Not (Iff b c)) : False := by
-  by_cases _a : a &lt;;&gt; by_cases _b : b &lt;;&gt; simp_all</code></pre>
-<p class="explain">The new lemma: three propositions cannot all differ from each other, so assuming they do gives <code>False</code>.</p>
-
-<pre><code>def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (Not (Iff (formula_0 _atoms _vars) (formula_1 _atoms _vars))) (And (Not (Iff (formula_0 _atoms _vars) (formula_2 _atoms _vars))) (Not (Iff (formula_1 _atoms _vars) (formula_2 _atoms _vars)))))
+<h3>(c) After</h3>
+<pre><code>-- Atom 0: "p"
+-- Atom 1: "q"
+-- Atom 2: "r"
+-- Variable 0: "x"
+...
+def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (Not (Iff (formula_0 _atoms _vars) (formula_1 _atoms _vars))) (And (Not (Iff (formula_0 _atoms _vars) (formula_2 _atoms _vars))) (Not (Iff (formula_1 _atoms _vars) (formula_2 _atoms _vars)))))
 ...
 def formula_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_3 _atoms _vars) (formula_6 _atoms _vars))
-...</code></pre>
-<p class="explain">The distinct <code>(distinct p q r)</code> becomes three pairs, "p differs from q", "p differs from r", and "q differs from r".</p>
-
-<pre><code>private theorem rewrite_14 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
-    : (formula_13 _atoms _vars) := by
-  unfold formula_13 formula_12 formula_11 formula_7 formula_6 term_5 term_4 formula_3 formula_2 formula_1 formula_0
-  have _bd3 : Not (And (Not (Iff (_atoms 0) (_atoms 1))) (And (Not (Iff (_atoms 0) (_atoms 2))) (Not (Iff (_atoms 1) (_atoms 2))))) := fun _h =&gt; _bool_distinct3 _h.1 _h.2.1 _h.2.2
-  (try (set_option linter.unusedSimpArgs false in simp only [↓ _bd3])) &lt;;&gt; (first | omega | grind (splits := 64))</code></pre>
-<p class="explain">This rewrite step justifies Z3's simplification of the first assertion to <code>x &gt; 5</code>. The fact <code>_bd3</code> states the distinct is false, <a href="#g-simp"><code>simp</code></a> removes it, and only then do <code>omega</code> or <code>grind</code> run.</p>
+...
+def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_4 _atoms _vars) &lt; (term_8 _atoms _vars))</code></pre>
+<p class="explain">The distinct of <code>p</code>, <code>q</code>, and <code>r</code> becomes a conjunction of three negated equivalences, one per pair.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_7 _atoms _vars))
     (_h1 : (formula_9 _atoms _vars))
     : False :=
   ...</code></pre>
-<p class="explain">The theorem has only two hypotheses, the two hard assertions. The soft assertion and the objective do not appear.</p>
-<p><span class="ok">Lean accepted the file.</span> The reconstructor reported "Lean checked the refutation", and <code>scripts/check_lean.sh</code> printed "Lean checks passed."</p>
+<p class="explain">The theorem has exactly two hypotheses, the hard assertions, and nothing from <code>assert-soft</code> or <code>minimize</code>.</p>
+
+<pre><code>private theorem _bool_distinct3 {a b c : Prop} (_ab : Not (Iff a b)) (_ac : Not (Iff a c))
+    (_bc : Not (Iff b c)) : False := by
+  by_cases _a : a &lt;;&gt; by_cases _b : b &lt;;&gt; simp_all</code></pre>
+<p class="explain">The new lemma says three propositions cannot be pairwise different, proved by trying each case.</p>
+
+<pre><code>private theorem rewrite_14 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_13 _atoms _vars) := by
+  unfold formula_13 formula_12 formula_11 formula_7 formula_6 term_5 term_4 formula_3 formula_2 formula_1 formula_0
+  have _bd3 : Not (And (Not (Iff (_atoms 0) (_atoms 1))) (And (Not (Iff (_atoms 0) (_atoms 2))) (Not (Iff (_atoms 1) (_atoms 2))))) := fun _h =&gt; _bool_distinct3 _h.1 _h.2.1 _h.2.2
+  (try (set_option linter.unusedSimpArgs false in simp only [↓ _bd3])) &lt;;&gt; (first | omega | grind (splits := 64))</code></pre>
+<p class="explain">The rewrite step first states the distinct false, then lets <code>simp</code> erase it, and only then runs <code>omega</code> or <code>grind</code>.</p>
+<p>
+<span class="pass">Lean accepted the file.</span> The check script printed "Lean checks passed."
+</p>
 
 <h2 id="verification">How it was verified</h2>
 <p>
-Locally, every test suite passed on the final commit, including the full set of Lean tests.
-Both new tests fail on the old code, so they really test the change.
-The two z3test regressions now verify in Lean in about a second each.
-The reviewer re-ran the suites independently and got the same results.
-The loop's separate local gate summary has not been recorded for this iteration.
+All existing and new tests passed, including about 480 Lean reconstruction tests.
+The two z3test regressions now check in Lean in about a second each.
+On the old code, the new tests failed as expected.
+The PR was merged on a local gate that repeats the relevant parts of the CI job.
+GitHub CI runs on <code>master</code> after the merge, and its results are unknown here.
 </p>
 <table>
-<thead><tr><th>Local check (from the PR description and review)</th><th>Result</th></tr></thead>
-<tbody>
-<tr><td>All <code>test_proof_to_lean*.py</code> suites (Lean)</td><td class="ok">477 tests, OK, 6 skipped</td></tr>
-<tr><td><code>test_proof_certificate</code></td><td class="ok">117 tests, OK</td></tr>
-<tr><td><code>./scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
-<tr><td>z3test proof scripts</td><td class="ok">48 tests, OK</td></tr>
-<tr><td>Regression matrix, Boolean inputs, legacy core</td><td class="ok">6 of 6 Lean-verified</td></tr>
-<tr><td>Regression matrix, <code>lra_*</code> inputs, clause log</td><td class="ok">8 of 8 Lean-verified</td></tr>
-<tr><td>End to end: z3test 3402, 3524, and three test inputs</td><td class="ok">5 of 5 Lean-checked, 0.9 to 1.4 s each</td></tr>
-<tr><td>Frontend scan of z3test files with optimization commands</td><td>82 of 91 accepted, 9 still rejected for other options</td></tr>
-<tr><td>New tests against the old code</td><td class="warn">Fail, as expected</td></tr>
-</tbody>
+  <tr><th>Local gate step</th><th>Result</th><th>Time</th></tr>
+  <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">19 s</td></tr>
+  <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">731 s</td></tr>
+  <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">22 s</td></tr>
+  <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="pass">pass</td><td class="num">8 s</td></tr>
 </table>
-
-<p>
-No CI status files were provided to this report, so the CI results are unknown here.
-Check the <a href="https://github.com/levnach/z3/pull/94/checks">PR's checks page</a> for the current state.
-No CI fix rounds are recorded. The PR names where the new tests run:
-</p>
 <table>
-<thead><tr><th>Workflow</th><th>Job and step</th><th>What it runs</th><th>Status</th></tr></thead>
-<tbody>
-<tr><td>CI</td><td>Python bindings (manylinux Centos AMD64) build, "Test Python wheel"</td><td><code>test_proof_certificate.py</code>, no Lean</td><td>Unknown, see <a href="https://github.com/levnach/z3/pull/94/checks">checks</a></td></tr>
-<tr><td>CI</td><td><code>ubuntu-cmake</code> (releaseClang), "Check native proofs in Lean"</td><td>The two new Lean tests</td><td>Unknown, see <a href="https://github.com/levnach/z3/pull/94/checks">checks</a></td></tr>
-</tbody>
+  <tr><th>Check reported in the PR</th><th>Result</th></tr>
+  <tr><td>Lean reconstruction tests</td><td class="pass">477 tests, OK, 6 skipped</td></tr>
+  <tr><td>Certificate exporter tests</td><td class="pass">117 tests, OK</td></tr>
+  <tr><td>z3test proof scripts</td><td class="pass">48 tests, OK</td></tr>
+  <tr><td>Lean project build and checks</td><td class="pass">passed</td></tr>
+  <tr><td>End to end on z3test 3402, 3524 and the three new inputs</td><td class="pass">5 of 5 Lean-checked, 0.9 to 1.4 s each</td></tr>
+  <tr><td>New Lean test on the old code</td><td>failed as expected, heartbeat timeout after 80 to 144 s</td></tr>
+  <tr><td>New exporter tests on the old code</td><td>failed as expected, <code>unsupported SMT-LIB command: assert-soft</code></td></tr>
+</table>
+<table>
+  <tr><th>GitHub CI</th><th>Result</th></tr>
+  <tr><td>Checks on the PR</td><td class="unknown">none recorded</td></tr>
+  <tr><td>CI fix rounds</td><td>none</td></tr>
 </table>
 
 <h2 id="review">Review</h2>
 <p>The reviewer approved the PR. There were no blocker, major, or minor findings, only three nits.</p>
 <ul>
-<li><strong>Nit, design note.</strong> The reviewer read the new pointer sentence in the plan document and could not parse it.
-It read "accepted since, see the next note". It now says "Since 2026-11-07 the optimization commands are accepted".</li>
-<li><strong>Nit, README.</strong> One edited line was 86 characters wide, while the rest of the paragraph wrapped near 79.
-This was cosmetic. The paragraph was rewrapped.</li>
-<li><strong>Nit, duplicated renderer.</strong> The reviewer noticed the new facts were printed by a private copy of the existing <code>_inline</code> function.
-If the two copies ever drifted apart, a fact would no longer match the goal word for word.
-Then <code>simp</code> would silently do nothing, and the old timeout would come back.
-This could not make Lean accept something false, but it could quietly undo the fix.
-The copy was removed, and <code>_inline</code> gained an optional argument instead. The full Lean suite was re-run.</li>
+  <li><strong>Nit, plan note.</strong> The reviewer read the new pointer sentence in the plan and could not parse it. It read "accepted since, see the next note". It now says "Since 2026-11-07 the optimization commands are accepted".</li>
+  <li><strong>Nit, README.</strong> One edited README line was 86 characters long while its neighbours wrapped near 79. The paragraph was rewrapped. This was purely cosmetic.</li>
+  <li><strong>Nit, duplicated printer.</strong> The new fact builder had its own copy of the formula printer <code>_inline</code>. If the copies drifted apart, the fact would stop matching the goal. The <code>simp</code> step would then silently do nothing, and the old timeout would return. That is not unsound, but it would quietly bring back failures. The fix gave <code>_inline</code> an optional argument and deleted the copy. The full Lean suite was run again.</li>
 </ul>
-<p>Three further suggestions were not adopted: clearing the facts after <code>simp</code>, a per-tactic heartbeat budget, and a command-line note for optimization sources.</p>
+<p>
+Three further suggestions were not adopted. No failing input supports them, or they were out of scope.
+</p>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-<li>A certificate for an optimization script says only that the hard assertions are contradictory. It says nothing about any optimum.</li>
-<li>When Z3 answers unsat because it ran out of <a href="#g-pareto">Pareto</a> or box solutions, the exporter answers sat and gives no certificate. A test pins this.</li>
-<li>All <code>opt.*</code> options are ignored as one family. The PR argues they only configure the optimization search, not how the input is read.</li>
-<li>Each new fact is a theorem the Lean <a href="#g-kernel">kernel</a> checks. A wrong fact makes Lean fail. It cannot make Lean accept a false statement.</li>
-<li>The general hazard remains. In <code>first | omega | grind</code>, an <code>omega</code> timeout escapes <code>first</code>, so <a href="#g-grind"><code>grind</code></a> never gets its turn. This PR fixes it only for Boolean distincts.</li>
+  <li>A certificate for an optimization script means "the hard assertions are contradictory". It says nothing about any optimum.</li>
+  <li>Z3 can also answer unsat when the hard assertions are satisfiable but a <a href="#g-pareto">Pareto front</a> or box search is exhausted. Such queries get no certificate, and a test pins this.</li>
+  <li>The <code>opt.*</code> options are ignored as a family. The PR argues they never change the parsed assertions.</li>
+  <li>The general hazard remains. In <code>first | omega | grind</code>, an <code>omega</code> timeout still escapes <code>first</code> for terms other than Boolean distincts.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
-<p>
-A backlog candidate tracks the general heartbeat hazard, for example a separate heartbeat budget for <code>omega</code>.
-Nine z3test files with optimization commands are still rejected, for options that change how input is read and similar reasons. None of them has an unsat answer.
-Two other unsat optimization regressions, 3342 and 3420, use bit-vectors and remain outside the certified fragments.
-</p>
+<ul>
+  <li>A per-alternative heartbeat budget would let <code>grind</code> run even when <code>omega</code> runs out. It is tracked as a backlog candidate.</li>
+  <li>Nine z3test optimization files are still rejected for input-reading or unknown options. None of them has an unsat answer, so none blocks a certificate today.</li>
+</ul>
 
 <h2 id="glossary">Glossary</h2>
 <dl>
-<dt id="g-atom">atom</dt>
-<dd>A smallest formula with no Boolean connectives inside, such as <code>p</code> or <code>x &gt; 5</code>.</dd>
-<dt id="g-boolean">Boolean</dt>
-<dd>A value that is either true or false. In SMT-LIB its sort is <code>Bool</code>.</dd>
-<dt id="g-distinct">distinct</dt>
-<dd>An SMT-LIB operator that says all its arguments differ pairwise. <code>(distinct a b c)</code> means a≠b, a≠c, and b≠c.</dd>
-<dt id="g-generalize">generalization</dt>
-<dd>Replacing a complicated term, such as <code>(mod x 7)</code>, with a fresh variable so a tactic can treat it as an unknown number.</dd>
-<dt id="g-grind">grind</dt>
-<dd>A Lean tactic that combines case splitting, equality reasoning, and arithmetic to close goals automatically.</dd>
-<dt id="g-hard-assertion">hard assertion</dt>
-<dd>An ordinary <code>assert</code>. Every solution must satisfy it. Also called a hard constraint.</dd>
-<dt id="g-heartbeat">heartbeat</dt>
-<dd>Lean's unit of work budget. When a proof uses more heartbeats than allowed, Lean stops it with a timeout.</dd>
-<dt id="g-kernel">kernel</dt>
-<dd>The small trusted core of Lean that re-checks every finished proof.</dd>
-<dt id="g-lemma">lemma</dt>
-<dd>A small proved statement used as a step inside a bigger proof.</dd>
-<dt id="g-objective">objective</dt>
-<dd>A term the solver should make as small (<code>minimize</code>) or as large (<code>maximize</code>) as possible.</dd>
-<dt id="g-omega">omega</dt>
-<dd>A Lean tactic that decides linear arithmetic over integers and natural numbers.</dd>
-<dt id="g-optimization-command">optimization command</dt>
-<dd>An SMT-LIB extension that asks for a best solution, not just any solution: <code>assert-soft</code>, <code>minimize</code>, <code>maximize</code>, and <code>get-objectives</code>.</dd>
-<dt id="g-pareto">Pareto front</dt>
-<dd>For several objectives, the set of solutions where no objective can improve without another getting worse. Z3 lists them one per <code>check-sat</code> and answers unsat when none remain. Box mode is a similar search that treats each objective on its own.</dd>
-<dt id="g-pigeonhole">pigeonhole principle</dt>
-<dd>If you put more items than boxes, two items share a box. Three Booleans have only two values, so two of them must be equal.</dd>
-<dt id="g-qf-lia">QF_LIA</dt>
-<dd>The SMT-LIB logic of quantifier-free linear integer arithmetic, for example <code>2x + y &lt; 7</code> over integers.</dd>
-<dt id="g-refutation">refutation</dt>
-<dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold together.</dd>
-<dt id="g-rewrite">rewrite step</dt>
-<dd>A proof step saying Z3's simplifier replaced a formula with an equivalent one, such as <code>(or (distinct p q r) (&gt; x 5))</code> with <code>x &gt; 5</code>.</dd>
-<dt id="g-simp">simp</dt>
-<dd>A Lean tactic that rewrites a goal using given equations or facts. <code>simp only</code> uses just the listed ones.</dd>
-<dt id="g-soft-assertion">soft assertion</dt>
-<dd>An <code>assert-soft</code>: a constraint the solver tries to satisfy but may break, optionally with a weight for how much it matters.</dd>
-<dt id="g-sort">sort</dt>
-<dd>The type of a value in SMT-LIB, such as <code>Int</code> or <code>Bool</code>.</dd>
-<dt id="g-tactic">tactic</dt>
-<dd>A command in a Lean proof that builds part of the proof automatically, such as <code>omega</code> or <code>simp</code>.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>A value that is either true or false. Its sort is written <code>Bool</code> in SMT-LIB and is a <code>Prop</code> in Lean.</dd>
+  <dt id="g-conjunction">conjunction</dt>
+  <dd>A formula joined by "and". It is true only when every part is true. Lean writes it <code>And</code>.</dd>
+  <dt id="g-distinct">distinct</dt>
+  <dd>An SMT-LIB term that says all its arguments differ pairwise. <code>(distinct p q r)</code> means p≠q, p≠r, and q≠r.</dd>
+  <dt id="g-equivalence">equivalence</dt>
+  <dd>Two Booleans have the same truth value. Lean writes it <code>Iff</code>, so "p and q differ" is <code>Not (Iff p q)</code>.</dd>
+  <dt id="g-fragment">fragment</dt>
+  <dd>A limited part of the input language that the pipeline supports, usually named by an SMT-LIB logic.</dd>
+  <dt id="g-frontend">frontend</dt>
+  <dd>The part of the exporter that reads the SMT-LIB script and decides which commands it can certify.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A general-purpose Lean tactic that tries case splits, equalities, and arithmetic together.</dd>
+  <dt id="g-hard-assertion">hard assertion</dt>
+  <dd>A formula added with <code>assert</code> that every solution must satisfy.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit for counting work. When a tactic uses more than the allowed number, Lean stops it with a timeout.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A fact a theorem assumes. Here the hypotheses are the script's hard assertions.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small core of Lean that finally checks every proof. Nothing is accepted unless the kernel agrees.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A small proved statement used as a step inside a larger proof.</dd>
+  <dt id="g-objective">objective</dt>
+  <dd>A term to make as small or as large as possible, given with <code>minimize</code> or <code>maximize</code>.</dd>
+  <dt id="g-omega">omega</dt>
+  <dd>A Lean tactic that decides linear arithmetic over integers and natural numbers.</dd>
+  <dt id="g-pareto">Pareto front</dt>
+  <dd>With several objectives, the set of solutions that cannot improve one objective without worsening another.</dd>
+  <dt id="g-pigeonhole">pigeonhole principle</dt>
+  <dd>If you put more items than boxes into boxes, two items share a box. Three Booleans have only two values, so two agree.</dd>
+  <dt id="g-qf-lia">QF_LIA</dt>
+  <dd>The SMT-LIB logic of quantifier-free linear integer arithmetic, such as <code>x + 2y &lt; 7</code> over Int.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to false, so they cannot all hold.</dd>
+  <dt id="g-rewrite">rewrite</dt>
+  <dd>A proof step that replaces a term by an equal or equivalent one, for example a distinct of Booleans by false.</dd>
+  <dt id="g-simp">simp</dt>
+  <dd>A Lean tactic that rewrites a goal with given facts. <code>simp only [↓ h]</code> uses just <code>h</code>, outermost terms first.</dd>
+  <dt id="g-soft-assertion">soft assertion</dt>
+  <dd>A formula added with <code>assert-soft</code> that the solver tries to satisfy but may violate at a cost given by its weight.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically, such as <code>omega</code>, <code>grind</code>, or <code>simp</code>.</dd>
 </dl>
 
 <footer>
 Generated by the Lean certificate improvement loop on 2026-11-07.
-Report for <a href="https://github.com/levnach/z3/pull/94">PR #94</a>, commit
-<a href="https://github.com/levnach/z3/commit/4e67be7b7a548742e643b219fa3659584f185210"><code>4e67be7b7</code></a>.
 </footer>
 
 </body>
