@@ -1695,7 +1695,12 @@ with two case splits and 18 KB of proof.
 plan-21 as a whole still fails: its 33 MB Lean file peaks at 8.6 GB and
 hits kernel memory errors in outlined proof steps. RTCL `tf_20`/`tf_30`
 are unchanged: their cores have about 3,000 gates, and the search over
-them still runs out of budget.
+them still runs out of budget. That retry is not free: on `tf_20` the core
+(3,123 of 12,943 gates, 0.6 s) and the second search raise reconstruction
+from 0.7 s to 5.4 s for identical output. The cores that help are smaller
+(plan-21 6%, the FISCHER6-4 lemmas under a 25,000-character budget 7%,
+against 24% for `tf_20`), but three inputs are too few to pick a core-size
+cutoff, so bounding the second search is left open.
 
 ### Propositional proofs keep the steps they use and drop unused splits (2026-11-07)
 
