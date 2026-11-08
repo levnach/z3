@@ -2823,27 +2823,16 @@ def _scaled_form(graph, terms, constant, scale, atom_indices, variable_indices, 
     return " + ".join(parts)
 
 
-def _ite_gate_helpers(graph, reachable, atom_indices, variable_indices):
-    """State the branch equalities of every reachable Real ite, denominator-free.
+def _ite_gate_branches(graph, reachable):
+    """Every reachable arithmetic ite branch with a linear form: (ite, side, branch, terms, constant, scale).
 
-    grind splits on an ite term by itself, but when the selected branch is a
-    fractional numeral or a term with fractional coefficients it does not
-    combine the resulting equality with its linear facts, just as with
-    fractional atoms. Each helper gives one branch equality under the condition
-    or its negation, scaled to integer coefficients, so grind can use it.
+    side 0 is the then branch, 1 the else branch; terms and constant are the
+    branch's linear form (_linear_term) and scale its common denominator.
     """
-    helpers = []
     for node in sorted(reachable):
         if not graph.is_arith(node) or graph.kind(node) != z3.Z3_OP_ITE:
             continue
-        condition, then_branch, else_branch = graph.arguments(node)
-
-        def inline(sub):
-            return "(%s)" % _inline(graph, sub, atom_indices, variable_indices)
-
-        for side, branch, hypothesis, lemma in (
-                (0, then_branch, inline(condition), "ite_eq_left"),
-                (1, else_branch, "(Not %s)" % inline(condition), "ite_eq_right")):
+        for side, branch in enumerate(graph.arguments(node)[1:]):
             terms = {}
             try:
                 constant = _linear_term(graph, branch, Fraction(1), terms)
@@ -2852,15 +2841,65 @@ def _ite_gate_helpers(graph, reachable, atom_indices, variable_indices):
                 # dividing by zero in the rewriter's factor cancellation
                 # (see _validate_graph): no helper, grind splits unaided.
                 continue
-            scale = _common_denominator(terms, constant)
-            if scale == 1:
+            yield node, side, branch, terms, constant, _common_denominator(terms, constant)
+
+
+def _folded_ite_gates(graph, reachable):
+    """State the integral branch equalities of the reachable ites over their definitions, folded.
+
+    Returns the have lines, their names, and the ites. _grind_lemma states
+    them before it unfolds the definitions and reverts them, so the one
+    unfold rewrites them into the very terms of the goal (as
+    _ite_gate_helpers states them inline, after the unfold). The inline statements repeat every nested ite
+    in full (QF_UFLIA hard16: 644 theory lemmas with 11 KB of gate text each,
+    7 MB together), and Lean keeps every elaborated command's info tree to
+    the end of the file, which then exceeded the 8 GB memory limit. Arrays
+    are left to the inline form: their terms stay folded (_definition_names).
+    """
+    if graph.arrays:
+        return [], [], set()
+    lines, names, ites = [], [], set()
+    for node, side, branch, _, _, scale in _ite_gate_branches(graph, reachable):
+        if scale != 1:
+            continue
+        condition = _formula(graph, graph.arguments(node)[0])
+        name = "_g%d_%d" % (node, side)
+        lines.append("have %s : %s -> %s = %s := fun _h => %s _h" % (
+            name, condition if side == 0 else "(Not %s)" % condition, _term(graph, node), _term(graph, branch),
+            ("ite_eq_left", "ite_eq_right")[side]))
+        names.append(name)
+        ites.add(node)
+    return lines, names, ites
+
+
+def _ite_gate_helpers(graph, reachable, atom_indices, variable_indices, folded=False):
+    """State the branch equalities of every reachable Real ite, denominator-free.
+
+    grind splits on an ite term by itself, but when the selected branch is a
+    fractional numeral or a term with fractional coefficients it does not
+    combine the resulting equality with its linear facts, just as with
+    fractional atoms. Each helper gives one branch equality under the condition
+    or its negation, scaled to integer coefficients, so grind can use it.
+    With folded, the integral ones are left out (_folded_ite_gates states
+    them).
+    """
+    helpers = []
+
+    def inline(sub):
+        return "(%s)" % _inline(graph, sub, atom_indices, variable_indices)
+
+    for node, side, branch, terms, constant, scale in _ite_gate_branches(graph, reachable):
+        condition = inline(graph.arguments(node)[0])
+        hypothesis, lemma = (condition, "ite_eq_left") if side == 0 else ("(Not %s)" % condition, "ite_eq_right")
+        if scale == 1:
+            if not folded:
                 helpers.append("  have _g%d_%d : %s -> %s = %s := fun _h => %s _h" % (
                     node, side, hypothesis, inline(node), inline(branch), lemma))
-            else:
-                helpers.append("  have _g%d_%d : %s -> ((%d : %s)) * %s = (%s) := fun _h => by rw [%s _h]; grind" % (
-                    node, side, hypothesis, scale, graph.number_type_of(node), inline(node),
-                    _scaled_form(graph, terms, constant, scale, atom_indices, variable_indices, graph.is_int(node)),
-                    lemma))
+        else:
+            helpers.append("  have _g%d_%d : %s -> ((%d : %s)) * %s = (%s) := fun _h => by rw [%s _h]; grind" % (
+                node, side, hypothesis, scale, graph.number_type_of(node), inline(node),
+                _scaled_form(graph, terms, constant, scale, atom_indices, variable_indices, graph.is_int(node)),
+                lemma))
     return helpers
 
 
@@ -2946,10 +2985,21 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
         remaining = inside
     else:
         remaining = reachable
-    fallback = ["unfold " + " ".join(_definition_names(graph, remaining, atoms))] if remaining else []
+    gates, gate_names, gate_ites = _folded_ite_gates(graph, reachable) if graph.arithmetic else ([], [], set())
+    if gates:
+        # Stated folded and reverted, so the unfold below rewrites them as it
+        # rewrites the goal; the definitions they mention outside the atoms
+        # were unfolded in the goal already and are unfolded again here.
+        gates.append("revert " + " ".join(gate_names))
+        for ite in gate_ites:
+            remaining = remaining | _reachable(graph, ite)[0]
+    fallback = gates + (["unfold " + " ".join(_definition_names(graph, remaining, atoms))] if remaining else [])
+    if gates:
+        fallback.append("intro " + " ".join(gate_names))
     distinct_facts, distinct_names = _boolean_distinct_facts(graph, reachable, atom_indices, variable_indices)
     fallback.extend(distinct_facts)
-    fallback.extend(helper.strip() for helper in _theory_helpers(graph, reachable, atom_indices, variable_indices))
+    fallback.extend(helper.strip() for helper in _theory_helpers(graph, reachable, atom_indices, variable_indices,
+                                                                  folded=bool(gates)))
     if (prefix == "rewrite" or graph.decl(node).parameters[:1] == ("cnf",)) and graph.arrays:
         fallback.extend(helper.strip() for helper in _constant_array_comparisons(
             graph, reachable, atom_indices, variable_indices))
@@ -3392,11 +3442,12 @@ def _definition_names(graph, nodes, roots=None):
             for formula in sorted(nodes, reverse=True)]
 
 
-def _theory_helpers(graph, reachable, atom_indices, variable_indices):
+def _theory_helpers(graph, reachable, atom_indices, variable_indices, folded=False):
+    """Facts _grind_lemma states after unfolding; folded: the integral ite gates are stated already."""
     helpers = []
     if graph.arithmetic:
         helpers.extend(_scaling_helpers(graph, reachable, atom_indices, variable_indices))
-        helpers.extend(_ite_gate_helpers(graph, reachable, atom_indices, variable_indices))
+        helpers.extend(_ite_gate_helpers(graph, reachable, atom_indices, variable_indices, folded))
     if graph.uninterpreted:
         helpers.extend(_boolean_argument_helpers(graph, reachable, atom_indices, variable_indices))
     if graph.arithmetic and graph.uninterpreted:
