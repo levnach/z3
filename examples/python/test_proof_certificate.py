@@ -380,11 +380,23 @@ class TestProofCertificate(unittest.TestCase):
         self.assertEqual(snapshot, "(declare-const x Int)\n(define-const y Int (+ x 1))\n(assert (< y x))")
         self.assert_well_formed(proof_certificate.export_certificate(
             "(declare-const p Bool)(define-const q Bool (not p))(assert p)(assert q)"))
-        # A :named label inside a dropped command names a term for later
-        # commands in Z3; its use is then undeclared in the snapshot.
-        with self.assertRaises(z3.Z3Exception):
-            proof_certificate.export_certificate(
-                "(declare-const p Bool)(simplify (! (not p) :named n))(assert p)(assert n)")
+        # A :named label inside a dropped command defines a name in Z3, even
+        # when the command fails (get-value before check-sat). A later
+        # definition of that name is then an error in Z3, which keeps the
+        # label: on the first script Z3 answers sat, while the snapshot without
+        # the label would read p as true and be unsat. Such commands are
+        # rejected.
+        named = [
+            "(declare-const x Bool)(simplify (! x :named p))(define-fun p () Bool true)(assert (not p))(check-sat)",
+            "(declare-const x Bool)(get-value ((! x :named p)))(define-const p Bool false)(assert p)(check-sat)",
+            "(declare-const p Bool)(simplify (! (not p) :named n))(assert p)(assert n)",
+            "(declare-const p Bool)(eval (! p :named n))(assert p)(assert (not p))",
+            "(declare-const p Bool)(display (! p :named n))(assert p)(assert (not p))",
+        ]
+        for source in named:
+            with self.subTest(source=source):
+                with self.assertRaisesRegex(proof_certificate.ProofExportError, ":named label inside"):
+                    proof_certificate.query_snapshot(source)
 
     def test_scripts_end_at_exit(self):
         # Z3's parser stops at exit, so nothing after it is read: neither

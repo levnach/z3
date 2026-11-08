@@ -56,9 +56,11 @@ _RESULT_QUERIES = {"get-proof", "get-model", "get-unsat-core", "get-assignment"}
 # from the assertions (apply), a term (display), or the assertions
 # (get-assertions). Z3 runs none of them on the assertion stack, so they are
 # accepted anywhere with any arguments and dropped; after unsat or before any
-# check-sat Z3 answers get-value and eval with an error and goes on. A
-# :named label inside one defines a name for later commands; dropping it
-# makes a later use of that name fail to parse, so the input is rejected.
+# check-sat Z3 answers get-value and eval with an error and goes on.
+# Dropping a command is sound only if it defines no names. The one way these
+# can is a :named label, which Z3 keeps even when the command itself fails;
+# a later definition of the same name is then an error in Z3 but would be the
+# definition in the snapshot, so a dropped command with :named is rejected.
 _OUTPUT_COMMANDS = {"get-value", "eval", "simplify", "apply", "display", "get-assertions"}
 # set-option commands accepted and ignored, by Z3's parameter name with "-"
 # and "_" identified. The certificate is a statement about the parsed
@@ -377,7 +379,8 @@ def query_snapshot(source, query=None):
             if len(tokens) != 4:
                 raise ProofExportError("%s takes one argument" % name)
         elif name in _OUTPUT_COMMANDS:
-            pass
+            if ":named" in tokens:
+                raise ProofExportError("a :named label inside %s defines a name and is not supported" % name)
         elif name == "push":
             scopes.extend([] for _ in range(_scope_count(tokens)))
         elif name == "pop":
