@@ -57,11 +57,10 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
 <h1>State Lean ite gates over folded definitions to fit the 8 GB cap</h1>
 <p class="meta">
 Pull request <a href="https://github.com/levnach/z3/pull/99">levnach/z3#99</a> ·
-<span class="badge">OPEN</span> · 2026-11-08T11:36:53Z · loop iteration 99
+<span class="badge">MERGED</span> · 2026-11-08T11:50:25Z · loop iteration 99
 </p>
 <p class="meta">
-This pull request is open and not merged.
-Its change commit is <a href="https://github.com/levnach/z3/commit/36fb9d419b79cab66d5b68d52ed4c9b3ecfa00d6"><code>36fb9d4</code></a>.
+Merged into <code>master</code> as commit <a href="https://github.com/levnach/z3/commit/9825d23668053fd028d4db954a16fed61cd5436b"><code>9825d23</code></a> on 2026-11-08T11:50:25Z.
 </p>
 </header>
 
@@ -125,7 +124,7 @@ Two ways of adding 10 modulo 17 are claimed to differ, and each step is an <code
 <h3>(b) Before</h3>
 <p>
 The pre-PR code accepted this tiny input, and Lean checked its output, so there is no rejection to show.
-The failure only appears on large inputs.
+The failure is a memory limit, so it only appears on large inputs, and no ten-line input triggers it.
 For <code>hard16</code>, <code>hard17</code> and <code>hard20</code> the PR records this Lean error under <code>--memory=8192</code>, which this report did not rerun.
 </p>
 <pre><code>(kernel) excessive memory consumption</code></pre>
@@ -143,7 +142,7 @@ private theorem th_lemma_81 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
 <p class="explain">This one line has 1115 characters. The new line for the same fact has 118.</p>
 
 <h3>(c) After</h3>
-<p>The current code produced this file, and <code>scripts/check_lean.sh</code> accepted it: "Lean checks passed."</p>
+<p>The merged code produced this file, and <code>scripts/check_lean.sh</code> accepted it: "Lean checks passed."</p>
 <pre><code>def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_1 _atoms _vars) + (term_6 _atoms _vars))
 def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_7 _atoms _vars) &lt; (term_3 _atoms _vars))
 def term_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_7 _atoms _vars) - (term_3 _atoms _vars))
@@ -222,8 +221,22 @@ The three hard files now pass Lean under the 8 GB cap, and a rescan found three 
 </tbody>
 </table>
 <p>
-The loop's own local gate was still running when this page was written, so its result is not recorded here.
-No GitHub CI results were recorded either, and there were no CI fix rounds.
+The change touches only Python, tests, and docs, so the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate repeats the relevant steps of the <code>releaseClang</code> CI job on the loop's own machine, and every step passed.
+</p>
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">20 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">751 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">22 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">6 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">8 s</td></tr>
+</tbody>
+</table>
+<p>
+GitHub CI runs on <code>master</code> after the merge.
+No GitHub CI results were recorded for this page, and there were no CI fix rounds.
 The table lists the CI steps that run the new tests, according to the PR.
 </p>
 <table>
