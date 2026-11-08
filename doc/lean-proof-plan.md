@@ -2884,6 +2884,14 @@ Tests in `test_proof_to_lean_lia.py`, on `modular_chains_instance(6)`
   gates.
 - `test_nested_ite_chains_verify_through_folded_gates`: the Lean check.
 
+- `test_folded_ite_gates_are_reverted_unfolded_and_introduced` in
+  `test_proof_to_lean.py`: on the depth-2 chains, without Lean, each lemma
+  reverts its gates, unfolds every definition they name, and introduces
+  them again. It also runs in the Python wheel job.
+
+`scripts/ci_lean_proofs.sh` runs all `test_proof_to_lean*.py` modules with
+Lean installed, so the Lean check above runs in CI.
+
 ### Farkas identities by linear normalization over balanced sums (2026-11-08)
 
 A rescan of z3test's `smtlib-sample` QF_LIA files of at most 160 KB found

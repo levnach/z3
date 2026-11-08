@@ -2699,14 +2699,15 @@ def _not_or_elim(graph, terms, node):
     raise ReconstructionError("not-or-elim conclusion does not complement a disjunct at node %d" % node)
 
 
-def _reachable(graph, conclusion):
+def _reachable(graph, conclusion, *more):
     """Return the formula and term nodes reachable from a conclusion, and whether any is a theory node.
 
     Theory nodes are Real and uninterpreted-sort terms and predicate
     applications (which may take Boolean arguments only); a conclusion without
-    them is purely propositional over the atoms.
+    them is purely propositional over the atoms. With more nodes, one walk
+    from all of them (their shared subterms visited once).
     """
-    reachable, pending, theory = set(), [conclusion], False
+    reachable, pending, theory = set(), [conclusion, *more], False
     while pending:
         formula = pending.pop()
         if formula in reachable:
@@ -2848,9 +2849,10 @@ def _folded_ite_gates(graph, reachable):
     """State the integral branch equalities of the reachable ites over their definitions, folded.
 
     Returns the have lines, their names, and the ites. _grind_lemma states
-    them before it unfolds the definitions and reverts them, so the one
-    unfold rewrites them into the very terms of the goal (as
-    _ite_gate_helpers states them inline, after the unfold). The inline statements repeat every nested ite
+    and reverts them before it unfolds the definitions, so the one unfold
+    rewrites them into the very terms of the goal. Written out instead
+    (_ite_gate_helpers' inline form, still used for scaled Real gates and
+    for certificates with arrays), the statements repeat every nested ite
     in full (QF_UFLIA hard16: 644 theory lemmas with 11 KB of gate text each,
     7 MB together), and Lean keeps every elaborated command's info tree to
     the end of the file, which then exceeded the 8 GB memory limit. Arrays
@@ -2991,8 +2993,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
         # rewrites the goal; the definitions they mention outside the atoms
         # were unfolded in the goal already and are unfolded again here.
         gates.append("revert " + " ".join(gate_names))
-        for ite in gate_ites:
-            remaining = remaining | _reachable(graph, ite)[0]
+        remaining = remaining | _reachable(graph, *sorted(gate_ites))[0]
     fallback = gates + (["unfold " + " ".join(_definition_names(graph, remaining, atoms))] if remaining else [])
     if gates:
         fallback.append("intro " + " ".join(gate_names))
