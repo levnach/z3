@@ -52,9 +52,9 @@
   <h1>Replay one-argument +, *, and distinct from the clause log</h1>
   <dl class="meta">
     <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/95">levnach/z3 #95</a></dd>
-    <dt>State</dt><dd><span class="badge">OPEN</span> This PR is not merged.</dd>
-    <dt>Change commit</dt><dd><a href="https://github.com/levnach/z3/commit/c05cac8a17fce8b0c597da728e24562d12d5fc0e"><code>c05cac8a1</code></a></dd>
-    <dt>Date</dt><dd>2026-11-08T04:29:27Z</dd>
+    <dt>State</dt><dd><span class="badge">MERGED</span> into <code>master</code></dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/26ce30a515f951cb91c0afaf499b1d4eed9afafd"><code>26ce30a51</code></a></dd>
+    <dt>Merged on</dt><dd>2026-11-08T04:42:46Z</dd>
     <dt>Loop iteration</dt><dd>95</dd>
   </dl>
 </header>
@@ -83,9 +83,7 @@ and inputs over <a href="#g-array">arrays</a>, failed when a one-argument form a
 A random QF_LIA generator with <a href="#g-boolean">Boolean</a> structure, using
 <a href="#g-ite"><code>ite</code></a> and similar connectives, hit the failure on 8 of 89 unsat seeds.
 The problem had been on the backlog since iteration 62.
-Iteration 93 could not reproduce it, because there the contradiction came after the one-argument terms.
 This PR serves Milestone 3, "Equality and linear arithmetic", which completes each fragment end to end.
-It also serves the plan's top priority, regression robustness.
 </p>
 
 <h2 id="changes">What changed</h2>
@@ -97,10 +95,9 @@ It also serves the plan's top priority, regression robustness.
   <li>The plan document has a dated note, and the README lists one-argument <code>+</code> and <code>*</code> in the qf_lra paragraph.</li>
 </ul>
 <p>
-An analogy helps with the key choice.
-A library matches a returned book by its exact catalog number, not by its title.
-Rewriting <code>(+ x)</code> as plain <code>x</code> would give a different catalog number, and the match would fail.
-So the replay rebuilds the exact term. The new table <code>_ONE_ARGUMENT_HEADS</code> does this.
+An analogy: a library matches a returned book by its exact catalog number, not its title.
+Reading <code>(+ x)</code> as plain <code>x</code> would change the number, and the match would fail.
+So the new table <code>_ONE_ARGUMENT_HEADS</code> rebuilds the exact term.
 </p>
 <table>
   <thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
@@ -110,14 +107,13 @@ So the replay rebuilds the exact term. The new table <code>_ONE_ARGUMENT_HEADS</
     <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Lean test</td><td class="num">20</td><td class="num">0</td></tr>
     <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan note</td><td class="num">16</td><td class="num">0</td></tr>
     <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">2</td><td class="num">1</td></tr>
-    <tr><th>Total, 5 files, 2 commits</th><th></th><th class="num">159</th><th class="num">1</th></tr>
+    <tr><th>Total, 5 files</th><th></th><th class="num">159</th><th class="num">1</th></tr>
   </tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
 <p>
-This input is the <code>lia</code> case of the PR's new test inputs.
-All three outputs below come from real runs made for this report.
+This is the <code>lia</code> case of the PR's new tests. All outputs come from real runs on the merged code and its base.
 </p>
 
 <h3>(a) The input</h3>
@@ -152,6 +148,14 @@ def term_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := (term_11 
 </code></pre>
 <p class="explain">These are the new feature at work: each one-argument <code>+</code> or <code>*</code> keeps its own node and is rendered as its argument.</p>
 
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_27 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_26 _atoms _vars) := by
+  unfold formula_26 formula_25 term_24 term_23 term_22 formula_8 term_7 term_6 term_5 term_4 term_3
+  first | omega | grind (splits := 64)
+</code></pre>
+<p class="explain">This lemma reaches through the one-argument <code>+</code>, which is <code>term_6</code>, and the <code>omega</code> <a href="#g-tactic">tactic</a> proves the rewritten form of the second assertion.</p>
+
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_2 _atoms _vars))
     (_h1 : (formula_8 _atoms _vars))
@@ -175,10 +179,9 @@ The generator reported "Lean checked the refutation", and <code>check_lean.sh</c
 
 <h2 id="verification">How it was verified</h2>
 <p>
-In plain terms, every listed test suite passed on the final branch head after the review fixes.
-The implementer also ran random and hand-made probe sets, and all those inputs verified in Lean.
-The reviewer ran the new replay test against the old module, and it failed as it should.
-No C++ changed, so no rebuild was needed.
+In plain terms, several hundred tests passed on the final branch head after the review fixes.
+About two hundred random and hand-made probes also verified in Lean.
+Against the old module, the new replay test failed as it should.
 </p>
 <table>
   <thead><tr><th>Check</th><th>Result</th></tr></thead>
@@ -195,9 +198,26 @@ No C++ changed, so no rebuild was needed.
     <tr><td>New replay test against the pre-change module</td><td>Failed as expected, 7 errors</td></tr>
   </tbody>
 </table>
+<h3>Local gate</h3>
+<p>
+The change touched only docs and Python examples, so the loop merged it on its local gate.
+The gate repeats the relevant steps of the <code>ubuntu-cmake</code> releaseClang job on macOS arm64. Every step passed.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">19 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">737 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">23 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object, 6 inputs</td><td class="pass">pass, 6 of 6 verified</td><td class="num">6 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log, 8 inputs</td><td class="pass">pass, 8 of 8 verified</td><td class="num">8 s</td></tr>
+  </tbody>
+</table>
+
+<h3>GitHub CI</h3>
 <p class="note">
-The loop's local gate result was not recorded when this report was written.
-No CI status was recorded either, so this report makes no claim about CI.
+No CI check results for this PR are recorded in the inputs to this report.
+GitHub CI runs on <code>master</code> after the merge, and its outcome is unknown here.
 There were no CI fix rounds.
 </p>
 <table>
@@ -208,25 +228,21 @@ There were no CI fix rounds.
     <tr><td><code>ubuntu-cmake</code>, releaseClang</td><td>Check native proofs in Lean</td><td class="unknown">Not recorded</td></tr>
   </tbody>
 </table>
-<p>Live results are on the <a href="https://github.com/levnach/z3/pull/95/checks">PR's checks page</a>.</p>
+<p>Live results are on the <a href="https://github.com/levnach/z3/commit/26ce30a515f951cb91c0afaf499b1d4eed9afafd">merge commit's page</a> and the <a href="https://github.com/levnach/z3/actions">repository's Actions page</a>.</p>
 
 <h2 id="review">Review</h2>
 <p>The reviewer approved. There were no blockers, majors, or minors. Three nits were fixed, and one suggestion led to no change.</p>
 <ul>
   <li><strong>Nit, fixed: a check hidden behind a skip.</strong>
-    The reviewer noticed that the builder-equals-parser check lived inside a test that skips when the z3 executable is missing.
-    That check needs only the Python bindings.
-    So on a machine with bindings but no executable, it would silently never run.
-    It is now its own test and runs wherever the bindings import.</li>
+    The check that rebuilt terms equal the parser's terms sat in a test that skips without the z3 executable.
+    It needs only the Python bindings, so it could silently never run.
+    It is now its own test.</li>
   <li><strong>Nit, fixed: the Lean test skipped the usual checks.</strong>
-    The new Lean test called a lower-level helper directly.
-    That skipped the class's check of one hypothesis per assertion.
-    A future bug that dropped a hypothesis would then go unnoticed by this test.
-    The reviewer thought a refactor was needed.
-    The integrator found the class helper already returns the report, so the test now simply calls it.</li>
+    The new Lean test called a lower-level helper and skipped the check of one hypothesis per assertion.
+    A future bug that dropped a hypothesis would then go unnoticed here.
+    The class helper already returns the report, so the test now calls it.</li>
   <li><strong>Nit, fixed: a test name split over two lines.</strong>
-    A comment broke a test name across lines, so searching for the full name failed.
-    It now sits on one line.</li>
+    A search for the name failed, so it now sits on one line.</li>
   <li><strong>Suggestion, no change: <code>distinct</code> of any sort.</strong>
     The one-argument <code>distinct</code> is accepted for an argument of any <a href="#g-sort">sort</a>.
     This matches the existing many-argument case.
@@ -237,8 +253,7 @@ There were no CI fix rounds.
 <ul>
   <li>The replay ties logged clauses to assertions by exact term identity. A test asserts that the rebuilt term equals the parser's term.</li>
   <li>The newly certified inputs are refuted by the folded assertion alone. They are trivially unsat, though they were rejected before.</li>
-  <li>The change adds no trust and removes no check. Lean still proves the theorem from the input's own assertions.</li>
-  <li>CI results for this PR are unknown in the inputs to this report.</li>
+  <li>The PR merged on the local gate, which ran on macOS. GitHub CI results on Linux are not yet known to this report.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
@@ -260,7 +275,7 @@ There were no CI fix rounds.
   <dt id="g-certificate">certificate</dt>
   <dd>The JSON file that records the input's terms and the proof steps, for an independent checker to verify.</dd>
   <dt id="g-clause">clause</dt>
-  <dd>A disjunction of literals, such as <code>(or p (not q))</code>. It holds if at least one literal holds.</dd>
+  <dd>A disjunction of <a href="#g-literal">literals</a>, such as <code>(or p (not q))</code>. It holds if at least one literal holds.</dd>
   <dt id="g-clause-log">clause log</dt>
   <dd>The record of clauses and their justifications that Z3's SAT-based core writes while it solves.</dd>
   <dt id="g-distinct">distinct</dt>
