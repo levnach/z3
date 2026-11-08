@@ -1621,6 +1621,13 @@ with the fallback dropped (`test_reordered_distincts_verify_by_propagation`
 in `test_proof_to_lean_lia.py`,
 `test_reordered_distincts_verify_by_propagation_alone` in
 `test_proof_to_lean_uf.py`).
+The cost grows faster than the bridges: 60 reversed Int terms (1770
+bridges) took about 32 s with or without the fallback, so a reordered
+distinct of about a hundred terms may reach the heartbeat limit; no size
+cap guards it. The criterion is global to the certificate (a distinct
+expands in every cnf lemma once another distinct over its terms exists
+anywhere), as the pair-node criterion is; a per-clause criterion would
+spare the prover the unbridged pairs.
 
 ### Negated distincts whose every pair is refuted (2026-11-07)
 
