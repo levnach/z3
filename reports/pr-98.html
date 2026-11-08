@@ -8,13 +8,13 @@
   :root {
     --bg: #ffffff; --fg: #1d2127; --muted: #5a6370; --accent: #0b5cad;
     --code-bg: #f3f5f8; --border: #d7dce2; --ok: #1a7f37; --bad: #c4291c; --warn: #9a6700;
-    --badge-bg: #fff4d6;
+    --badge-bg: #fff4d6; --merged: #6e40c9; --merged-bg: #f0e8ff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #14171b; --fg: #e3e7ec; --muted: #9aa4b0; --accent: #6cb0ff;
       --code-bg: #1e2329; --border: #343b44; --ok: #4ac26b; --bad: #ff7b72; --warn: #d4a72c;
-      --badge-bg: #3a2f10;
+      --badge-bg: #3a2f10; --merged: #c8a8ff; --merged-bg: #2d2140;
     }
   }
   html { background: var(--bg); color: var(--fg); }
@@ -29,6 +29,7 @@
   .meta dd { margin-left: 9.5rem; }
   .badge { display: inline-block; background: var(--badge-bg); color: var(--warn); font-weight: 600;
            padding: 0 .5rem; border-radius: .3rem; }
+  .badge.merged { background: var(--merged-bg); color: var(--merged); }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
          background: var(--code-bg); padding: .05rem .25rem; border-radius: .2rem; }
   pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: .4rem;
@@ -53,9 +54,9 @@
 <h1>Prove Int Farkas identities by simp +arith over balanced sums</h1>
 <dl class="meta">
   <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/98">levnach/z3 #98</a></dd>
-  <dt>State</dt><dd><span class="badge">OPEN</span> This pull request is not merged.</dd>
-  <dt>Change commit</dt><dd><a href="https://github.com/levnach/z3/commit/8050f733176b9c2f1ed45da3e5fd2deed4a685c2"><code>8050f73</code></a></dd>
-  <dt>Date</dt><dd>2026-11-08T09:29:06Z</dd>
+  <dt>State</dt><dd><span class="badge merged">MERGED</span> into <code>master</code></dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/85e1568e75ababad74bd33559ac2735685480037"><code>85e1568</code></a></dd>
+  <dt>Merge date</dt><dd>2026-11-08T09:42:30Z</dd>
   <dt>Loop iteration</dt><dd>98</dd>
 </dl>
 </header>
@@ -102,14 +103,14 @@ The cost was in the kernel checking the <a href="#g-reflective-proof">reflective
     <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Integer arithmetic tests</td><td class="num">86</td><td class="num">3</td></tr>
     <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan note</td><td class="num">42</td><td class="num">0</td></tr>
     <tr><td><code>examples/python/README</code></td><td>Combination paragraph</td><td class="num">4</td><td class="num">2</td></tr>
-    <tr><th colspan="2">Total, 4 files, 2 commits</th><th class="num">168</th><th class="num">18</th></tr>
+    <tr><th colspan="2">Total, 4 files, merged as one commit</th><th class="num">168</th><th class="num">18</th></tr>
   </tbody>
 </table>
 <p>There is no C++ change.</p>
 
 <h2 id="example">Worked example</h2>
 <p>
-All outputs below come from real runs for this report.
+All outputs below come from real runs of the merged code and of the code before the PR.
 The failure needs scale, so a tiny input shows the new Lean text, and the PR's 140-bound test instance shows the old failure.
 </p>
 
@@ -206,9 +207,25 @@ Both motivating files now verify, and a slow cut-heavy test got about twice as f
   </tbody>
 </table>
 <p>
-The loop's local gate had not recorded a result when this page was written.
-No CI status was recorded either, so both outcomes are unknown here.
-See the <a href="https://github.com/levnach/z3/pull/98/checks">PR's checks page</a> for live status.
+The change touched only Python, Lean output, and documentation.
+So the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate repeats the Lean-related steps of the releaseClang CI job on the loop's own machine.
+Every gate step passed.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span></td><td class="num">19 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span></td><td class="num">736 s</td></tr>
+    <tr><td>z3test proof script tests</td><td><span class="ok">pass</span></td><td class="num">29 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td><span class="ok">pass</span></td><td class="num">6 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td><span class="ok">pass</span></td><td class="num">8 s</td></tr>
+  </tbody>
+</table>
+<p>
+GitHub CI still runs on <code>master</code> after the merge.
+No CI results for this PR were recorded, so their outcome is unknown here.
+See the <a href="https://github.com/levnach/z3/commit/85e1568e75ababad74bd33559ac2735685480037">merge commit's checks</a> for live status.
 No CI fix rounds were recorded.
 </p>
 <table>
@@ -241,7 +258,7 @@ So simp carries most of the gain.
 <ul>
   <li>If simp ever exhausts the budget, that error would escape <code>first</code> just as omega's did. No such case was seen.</li>
   <li>Dense bounds stay costly. A synthetic 202-bound lemma with one 300-atom bound checks, but slowly.</li>
-  <li>CI and the local gate had no recorded results for this report.</li>
+  <li>The PR merged on the local gate. GitHub CI results on <code>master</code> were not recorded for this report.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
