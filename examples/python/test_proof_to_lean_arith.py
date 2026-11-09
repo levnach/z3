@@ -578,8 +578,10 @@ class TestArithmeticValidation(unittest.TestCase):
         scaled = r"(?:\(\(-?\d+ : Rat\)\) \* %s \+ )*\(\(-?\d+ : Rat\)\)" % term
         gates = re.findall(r"^ *have _g\d+_[01] : .* \* .*$", text, re.M)
         facts = re.findall(r"^ *have _s\d+ : .*$", text, re.M)
-        self.assertGreater(len(gates), 50)
-        self.assertGreater(len(facts), 50)
+        # How many there are depends on z3's theory lemmas; the size bound
+        # below is what folding buys.
+        self.assertTrue(gates)
+        self.assertTrue(facts)
         for gate in gates:
             self.assertRegex(gate.strip(), r"^have _g\d+_[01] : \(?(Not )?\(formula_\d+ _atoms _vars\)\)? -> "
                                            r"\(\(\d+ : Rat\)\) \* %s = \(%s\) := fun _h => by "
@@ -594,6 +596,21 @@ class TestArithmeticValidation(unittest.TestCase):
             self.assertIn("revert " + " ".join(names) + "\n", block)
             self.assertIn("intro " + " ".join(names) + "\n", block)
         self.assertLess(len(text), 1500000)
+
+    def test_folded_scaled_facts_cast_int_atoms_to_rat(self):
+        # In qf_lira a Real atom reaches Int terms through to_real; folded,
+        # the scaled form casts their definitions, ((term_N ... : Int) : Rat).
+        text = proof_to_lean.reconstruct(LIRA_SCALED_INPUT,
+                                         proof_certificate.export_clause_log_certificate(LIRA_SCALED_INPUT))
+        cast = r"\(\(\(term_\d+ _atoms _vars _ivars\) : Int\) : Rat\)"
+        gates = re.findall(r"^ *have _g\d+_[01] : .* \* .*$", text, re.M)
+        facts = re.findall(r"^ *have _s\d+ : .*$", text, re.M)
+        self.assertTrue(any(re.search(r"= \(.*%s.*\) := fun _h => by rw \[show " % cast, gate) for gate in gates))
+        self.assertTrue(any(re.search(r"^ *have _s\d+ : \(formula_\d+ _atoms _vars _ivars\) -> \(.*%s" % cast, fact)
+                            for fact in facts))
+        for line in gates + facts:
+            self.assertNotIn("@ite", line)
+            self.assertNotIn("_ivars 0", line)  # the Int variable stays inside term_N
 
     def test_unary_minus_negates_variable_coefficients(self):
         source = "(declare-const x Real)(assert (> (- x) (/ 1.0 2.0)))(assert (>= x 0.0))"
@@ -858,6 +875,8 @@ def real_modular_chains_instance(depth=6, function=False):
     (proof_to_lean._scaling_helpers, _ite_gate_helpers) over nested ites.
     Written out, depth 6 made 5.9 MB of Lean text and depth 8 44 MB. With
     function, the two results are compared through an uninterpreted f.
+    depth must be even: for odd depth the two chains end at different
+    values, and the instance is satisfiable.
     """
     lines = ["(set-logic %s)" % ("QF_UFLRA" if function else "QF_LRA"), "(declare-const x Real)"]
     if function:
@@ -871,6 +890,20 @@ def real_modular_chains_instance(depth=6, function=False):
     sides = ("(f a%d) (f b%d)" if function else "a%d b%d") % (depth, depth // 2)
     lines += ["(assert (and (<= 0.0 x) (< x (/ 17 2))))", "(assert (not (= %s)))" % sides, "(check-sat)"]
     return "\n".join(lines) + "\n"
+
+
+# Int atoms reached through to_real inside fractional Real atoms and ite
+# branches: the scaled gates and scaling facts cast an Int term to Rat.
+LIRA_SCALED_INPUT = """\
+(set-logic QF_LIRA)
+(declare-const i Int)
+(declare-const x Real)
+(define-fun t () Real (ite (< (+ (to_real i) (/ x 2)) (/ 1 3)) (+ (to_real i) (/ 1 2)) (- x (/ 1 3))))
+(assert (> i 2))
+(assert (> x 7.0))
+(assert (< (* 6.0 t) 2.0))
+(check-sat)
+"""
 
 
 class TestNormalizedRewriteLinks(unittest.TestCase):
@@ -954,6 +987,11 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         # past 12 GB and was killed after 240 s. Depth 6 took 69 s at 4 GB.
         certificate, report = self.check(real_modular_chains_instance(8))
         self.assertEqual(certificate["fragment"], "qf_lra")
+        self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_folded_scaled_facts_over_int_casts_verify(self):
+        certificate, report = self.check(LIRA_SCALED_INPUT)
+        self.assertEqual(certificate["fragment"], "qf_lira")
         self.assertIn(_STANDARD_AXIOMS, report)
 
     def test_the_real_division_axiom_verifies(self):
