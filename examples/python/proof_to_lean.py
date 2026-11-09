@@ -1124,6 +1124,9 @@ class _Graph:
     # from its condition and both branches), and the interned atom key of
     # each atom key structure, by ("structure", structure).
     real_keys: dict = field(default_factory=dict, compare=False, repr=False)
+    # The terms each formula floors (_floored_terms), by node (a cache: every
+    # lemma's _real_argument_pairs visits the reachable formulas again).
+    floored_terms: dict = field(default_factory=dict, compare=False, repr=False)
 
     def constructor_index(self, name, sort):
         """The index of a constructor in _m.ctors: the enumerations by sort name, each in declaration order."""
@@ -5002,8 +5005,17 @@ def _floored_terms(graph, formula):
     """The terms a formula floors: an is_int's argument, the arguments of the to_int atoms of a comparison's sides.
 
     Only terms with a linear form (_real_argument_key) are returned; the
-    others are left to the theory tactic as before.
+    others are left to the theory tactic as before. The result is cached
+    per node (graph.floored_terms).
     """
+    cached = graph.floored_terms.get(formula)
+    if cached is None:
+        cached = graph.floored_terms[formula] = tuple(_uncached_floored_terms(graph, formula))
+    return cached
+
+
+def _uncached_floored_terms(graph, formula):
+    """_floored_terms without the cache."""
     if graph.kind(formula) == z3.Z3_OP_IS_INT:
         terms = [graph.arguments(formula)[0]]
     elif (graph.kind(formula) not in _ARITH_PREDICATE_NAMES and graph.kind(formula) != z3.Z3_OP_EQ) \
