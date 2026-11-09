@@ -4885,12 +4885,16 @@ def _argument_equality_levels(graph, first, second):
     """The equalities proving first = second level by level, innermost first: (left, right, stops) triples.
 
     The atoms of one level are those of the linear forms of a term, or,
-    for an ite, of its condition's sides and its branches. Two terms with
-    one key (_real_argument_key) have, per atom key, the same coefficients,
-    and an atom keyed as an ite has one key with each ite of the other term
-    it stands for: those ites are related by equalities of their own,
-    proved the same way, before the level above, which then holds over its
-    atoms folded (stops: the atoms not unfolded). Every other atom has its
+    for an ite, of its condition's sides and its branches, for a to_int of
+    its argument. Two terms with one key (_real_argument_key) have, per
+    atom key, the same coefficients, and an atom keyed as an ite (a to_int)
+    has one key with each ite (to_int) of the other term it stands for:
+    those are related by equalities of their own, proved the same way,
+    before the level above, which then holds over its atoms folded (stops:
+    the atoms not unfolded). Two floors of one key are thus proved equal
+    with only themselves unfolded, by congruence from the equality of their
+    arguments (the rewriter's normal form of a to_int of a nested Real ite
+    chain floors another chain). Every other atom has its
     own node as key, the same node on both sides, and stays folded too. An
     abs keyed with an ite, or ites of one key but different sorts (an Int
     ite under to_real against a Real ite), are unfolded with the level, as
@@ -4916,7 +4920,7 @@ def _argument_equality_levels(graph, first, second):
             continue
         groups = {}
         for atom in sorted(level):
-            if graph.kind(atom) in (z3.Z3_OP_ITE, z3.Z3_OP_ABS):
+            if graph.kind(atom) in (z3.Z3_OP_ITE, z3.Z3_OP_ABS, z3.Z3_OP_TO_INT):
                 groups.setdefault(_real_atom_key(graph, atom), []).append(atom)
         # The two terms themselves are unfolded, even when one is an atom of
         # its own linear form (an application or a variable).
@@ -4924,8 +4928,9 @@ def _argument_equality_levels(graph, first, second):
         for members in groups.values():
             if len(members) < 2:
                 continue
-            if all(graph.kind(member) == z3.Z3_OP_ITE for member in members) \
-                    and len({graph.decl(member).range for member in members}) == 1:
+            kinds = {graph.kind(member) for member in members}
+            if kinds == {z3.Z3_OP_TO_INT} or (kinds == {z3.Z3_OP_ITE}
+                                              and len({graph.decl(member).range for member in members}) == 1):
                 pending.extend((one, other, False) for one, other in zip(members, members[1:]))
             else:
                 # An abs, or an Int ite under to_real keyed with a Real ite:
@@ -4936,9 +4941,9 @@ def _argument_equality_levels(graph, first, second):
 
 
 def _level_atoms(graph, node):
-    """The atoms of a term's linear form, for an abs of its argument's, for an ite of its condition and branches."""
+    """The atoms of a term's linear form, an abs's or to_int's argument's, an ite's condition and branches."""
     atoms = {}
-    if graph.kind(node) == z3.Z3_OP_ABS:
+    if graph.kind(node) in (z3.Z3_OP_ABS, z3.Z3_OP_TO_INT):
         _linear_term(graph, graph.arguments(node)[0], Fraction(1), atoms)
         return set(atoms)
     if graph.kind(node) != z3.Z3_OP_ITE:
@@ -4992,7 +4997,7 @@ def _real_atom_key(graph, atom):
 
     An ite is keyed by the canonical form of its condition (_condition_key)
     and the keys of its branches, swapped when the canonical condition is
-    the complement. An ite whose condition is no linear atom, or with a
+    the complement; a to_int by its argument's key. An ite whose condition is no linear atom, or with a
     branch outside the linear forms (the dead branch dividing by zero in
     the rewriter's factor cancellation, see _validate_graph), is opaque:
     its own key.
@@ -5016,6 +5021,12 @@ def _ite_atom_key(graph, atom):
             graph, "<=", {variable: -value for variable, value in terms.items()}, -constant)
         then_key = _real_argument_key(graph, argument)
         else_key = (tuple(sorted(((key, -value) for key, value in then_key[0]), key=repr)), -then_key[1])
+    elif graph.kind(atom) == z3.Z3_OP_TO_INT:
+        # The floor of a term is keyed by the term's key: the rewriter's
+        # normal form of (to_int t) floors t's normal form, which may be a
+        # different node (t over nested ites), and two arguments of one key
+        # have one floor.
+        return ("to_int", _real_argument_key(graph, graph.arguments(atom)[0]))
     else:
         if graph.kind(atom) != z3.Z3_OP_ITE:
             return ("atom", atom)
