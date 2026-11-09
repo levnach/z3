@@ -50,15 +50,16 @@ footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border
 <h1>Relate Lean is_int of nested Real chains to the rewriter's normal form</h1>
 <p class="meta">
 Pull request <a href="https://github.com/levnach/z3/pull/105">levnach/z3#105</a>
-· <span class="state">OPEN</span>
-· opened 2026-11-09T21:07:04Z
+· <span class="state">MERGED</span>
+· 2026-11-09T21:23:25Z
 · loop iteration 105
 </p>
 <p class="meta">
-This pull request is open and <strong>not merged</strong>.
-The change under review is commit
-<a href="https://github.com/levnach/z3/commit/c04cdfb16c5851ddfd91992610ef6508642ea013"><code>c04cdfb16</code></a>.
-It contains two commits on top of <code>39bdf1001</code>.
+Merged into <code>master</code> on 2026-11-09T21:23:25Z as commit
+<a href="https://github.com/levnach/z3/commit/0291a002908d971a769f9b17727aecd305ec1831"><code>0291a0029</code></a>,
+on top of <code>39bdf1001</code>.
+The PR had two commits, squashed into this one.
+Its tree is identical to the reviewed head <code>c04cdfb16</code>.
 </p>
 </header>
 
@@ -99,9 +100,9 @@ The work serves Milestone 3, "Equality and linear arithmetic".
 <li>Tests now cover <code>is_int</code> compared directly and under a <a href="#g-predicate">predicate</a> <code>p</code>, on both cores.</li>
 </ul>
 <p>
-An analogy: two recipes take different routes to the same cake.
+An analogy: two recipes reach the same cake by different routes.
 Before, Lean had to bake both to compare them.
-Now it gets a checked note per step saying both routes agree.
+Now it gets a checked note per step saying the routes agree.
 </p>
 <table>
 <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
@@ -120,7 +121,6 @@ Now it gets a checked note per step saying both routes agree.
 The input is the PR's <code>"is_int"</code> test case at depth 6.
 Chain <code>a6</code> adds 5/2 six times modulo 17/2, and <code>b3</code> adds 5 three times.
 They always have the same value, so their <code>is_int</code> cannot differ.
-The PR's failing probes all used depth 6, so the file has 13 lines.
 </p>
 
 <h3>(a) Input</h3>
@@ -144,14 +144,13 @@ The PR's failing probes all used depth 6, so the file has 13 lines.
 The pre-PR exporter gave the same clause-log certificate, byte for byte.
 The pre-PR reconstructor turned it into Lean, and Lean rejected it:
 </p>
-<pre><code>Checking .../z3_proof_upj1epjv.lean
-.../z3_proof_upj1epjv.lean:1315:18: error: `grind` failed
+<pre><code>Checking .../z3_proof_0zfbw5tw.lean
+.../z3_proof_0zfbw5tw.lean:1315:18: error: `grind` failed
 case grind.1.1.1.1.2.1.1.2.2.2.1.2.2.1.1.1
 ...</code></pre>
 <p>
 Line 1315 is the closing <code>grind</code> of the <a href="#g-theory-lemma">theory lemma</a> <code>th_lemma_366</code>.
-The printed goal is one of many cases, full of nested <code>if</code> expressions.
-The script exited with status 1 and published no proof.
+The script published no proof.
 <span class="note">A small driver pointed the extracted old script at the unchanged Lean checker.</span>
 </p>
 
@@ -193,19 +192,20 @@ private theorem th_lemma_366 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (
   first | omega | grind (splits := 64)</code></pre>
 <p>
 This is the lemma that failed before.
-Each new <code>have _r…</code> line proves one level of an input chain equal to the matching normal-form level.
+Each new <code>have _r…</code> line proves one chain level equal to its normal-form level.
 <code>_r33_111</code> says <code>a6</code> equals its normal form, and <code>_r46_147</code> does the same for <code>b3</code>.
 The final <code>grind</code> then needs only congruence instead of splitting both chains.
 </p>
 <p>
 <strong>Lean accepted the file.</strong>
-<code>scripts/check_lean.sh</code> printed <code>Lean checks passed.</code> in about 11 seconds of wall time.
+<code>scripts/check_lean.sh</code> printed <code>Lean checks passed.</code> in about 10 seconds of wall time.
+This was rerun on the merged commit for this report.
 </p>
 
 <h2 id="verification">How it was verified</h2>
 <p>
-In plain terms, about 500 reconstruction tests ran with no failures, and the benchmark matrices all verified.
-Two independent before/after comparisons found that outputs only gained new proved facts.
+In plain terms, about 500 reconstruction tests passed, and the benchmark matrices all verified.
+Two before/after comparisons found that outputs only gained new proved facts.
 </p>
 <table>
 <thead><tr><th>Check</th><th>Result</th></tr></thead>
@@ -236,18 +236,30 @@ Two independent before/after comparisons found that outputs only gained new prov
 </tbody>
 </table>
 <p>
-<strong>Local gate.</strong> No local gate result was recorded when this report was written.
-The gate was still running alongside the report.
+<strong>Local gate.</strong> The PR touches only docs and Python examples.
+So the loop merged it on a local gate instead of waiting for GitHub CI.
+It repeats the Lean-related steps of the <code>releaseClang</code> CI job, and every step passed.
 </p>
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">19 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">921 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">21 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">8 s</td></tr>
+</tbody>
+</table>
 <p>
-<strong>CI.</strong> No CI results were available for this report, so they are unknown here.
+<strong>CI.</strong> No CI status files were recorded for this PR, so CI results are unknown here.
+GitHub CI still runs on <code>master</code> after the merge.
 No CI fix rounds were recorded.
 </p>
 <table>
 <thead><tr><th>Workflow job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
 <tbody>
 <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean</td><td class="warn">not recorded, see <a href="https://github.com/levnach/z3/pull/105/checks">PR checks</a></td></tr>
-<tr><td>Other jobs</td><td>manylinux runs only <code>test_proof_to_lean.py</code></td><td class="warn">not recorded, see <a href="https://github.com/levnach/z3/pull/105/checks">PR checks</a></td></tr>
+<tr><td>manylinux</td><td>runs only <code>test_proof_to_lean.py</code>, so not the new tests</td><td class="warn">not recorded, see <a href="https://github.com/levnach/z3/pull/105/checks">PR checks</a></td></tr>
 </tbody>
 </table>
 
@@ -263,7 +275,7 @@ It finds formulas with regular expressions, so a printing change would break it.
 It was kept, because it would fail loudly rather than pass silently.</li>
 <li><strong>Suggestion: cache the floored terms.</strong>
 Without a cache, every lemma recomputed the linear forms of every reachable comparison.
-This was <strong>done</strong> in the second commit, and the output stayed byte-identical.</li>
+This was <strong>done</strong> in the PR's second commit, and the output stayed byte-identical.</li>
 <li><strong>Suggestion: triage two old failures.</strong>
 Random inputs <code>ite30</code> and <code>ite35</code> fail in Lean both before and after the PR.
 They are not a regression and were recorded as a follow-up.</li>
@@ -274,7 +286,7 @@ They are not a regression and were recorded as a follow-up.</li>
 <li>Certificates with a floor now always run the equality pass. Each fact cost 1–5 s on the tests, so a large benchmark with many pairs could run out of heartbeats.</li>
 <li>A wrong pairing cannot be accepted. It only yields an equality that Lean fails to prove.</li>
 <li>Depth 10 and above, and the legacy core at depth 8, were not checked.</li>
-<li>CI and local-gate results were not available for this report.</li>
+<li>The PR merged on the local gate. GitHub CI results on <code>master</code> were not available for this report.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
