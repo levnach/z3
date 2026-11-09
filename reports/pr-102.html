@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #102: Prove Lean argument equalities level by level over nested ites</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; border: 1px solid var(--ok);
+  color: var(--ok); font-weight: 600; font-size: 0.85rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+  background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.82rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pass { color: var(--ok); font-weight: 600; }
+.fail { color: var(--bad); font-weight: 600; }
+.unknown { color: var(--warn); font-weight: 600; }
+.explain { margin-top: -0.4rem; color: var(--muted); }
+dt { font-weight: 600; margin-top: 0.7rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove Lean argument equalities level by level over nested ites</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/102">Pull request #102</a> in levnach/z3 ·
+State: <span class="badge">OPEN</span> · Opened 2026-11-09T16:02:56Z · Loop iteration 102
+</p>
+<p>This pull request is open and <strong>not merged</strong>. The change it proposes ends at commit
+<a href="https://github.com/levnach/z3/commit/8b393938778978a6f10f7f44e5da00d2052da14c"><code>8b39393</code></a>.
+It has two commits on top of <code>master</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>When Z3's <a href="#g-rewriter">rewriter</a> changes the argument of an
+<a href="#g-uf">uninterpreted function</a>, the Lean proof must show that the original argument equals its
+<a href="#g-normal-form">normal form</a>. For arguments built from many nested
+<a href="#g-ite">if-then-else terms</a>, that one equality used to be proved in a single step, with every
+<a href="#g-definition">definition</a> unfolded. The <a href="#g-tactic">tactic</a> then had to consider every
+combination of branches at once, and Lean ran out of <a href="#g-heartbeat">heartbeats</a>. This pull request
+proves the equality level by level instead. Each matching pair of nested ites gets its own small
+<a href="#g-have">intermediate fact</a>, innermost first. Inputs with eight or ten nested steps under a function now
+get a full Lean-checked <a href="#g-refutation">refutation</a>, and smaller ones check several times faster.
+The <a href="#g-trust">trust boundary</a> does not move, because Lean proves every new fact.</p>
+
+<h2 id="background">Background</h2>
+<p>Before this pull request, the reconstructor already stated these argument equalities over folded
+<a href="#g-definition">definitions</a>, which kept the Lean text small. But it proved each one with both
+sides unfolded entirely. Two arguments with eight nested <a href="#g-ite">ites</a> each, inside
+<a href="#g-logic">QF_UFLRA</a>, failed on heartbeats. Depth ten failed too, for both
+<a href="#g-sort">sorts</a> Real and Int. The work serves Milestone 3 of the project plan, "Equality and linear
+arithmetic", which combines <a href="#g-congruence">congruence</a> with linear arithmetic.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>An equality between two nested-ite arguments is now split into one fact per level, each proved with only that level unfolded.</li>
+<li>Inner facts are proved first, so each outer level can treat the ites below it as already matched.</li>
+<li>A term that cannot be matched this way, such as an <code>abs</code> or a pair of ites of different sorts, is still unfolded with its level, as before.</li>
+<li>If an ite condition is not a comparison of <a href="#g-linear">linear forms</a>, that level falls back to the old "unfold everything" proof.</li>
+<li>Certificates that contain arrays are unchanged. They still state these equalities written out in full.</li>
+</ul>
+<p>An analogy: to check that two sets of nesting dolls match, compare the smallest pair first. Each larger
+pair then needs only its own shell compared. The old proof opened every doll at once, giving
+2<sup>16</sup> branch combinations for eight a side. One level now has at most four.</p>
+
+<table>
+<thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">103</td><td class="num">5</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>New tests</td><td class="num">87</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Updated test</td><td class="num">9</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td>Updated test</td><td class="num">6</td><td class="num">3</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated design note</td><td class="num">41</td><td class="num">3</td></tr>
+<tr><td><code>examples/python/README</code></td><td>One sentence</td><td class="num">3</td><td class="num">1</td></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This input was built for this report from the PR's new Lean test, which uses an eight-step Real chain inside
+<code>f</code>. A helper macro <code>m</code> keeps it short. All output below comes from real runs.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UFLRA)
+(declare-const x Real)
+(declare-fun f (Real) Real)
+(define-fun m ((s Real)) Real (ite (&lt; s 8.5) s (- s 8.5)))
+(assert (and (&lt;= 0.0 x) (&lt; x 8.5)))
+(assert (not (= (f (m (+ (m (+ (m (+ (m (+ (m (+ (m (+ (m (+ (m (+ x 2.5)) 2.5)) 2.5)) 2.5)) 2.5)) 2.5)) 2.5)) 2.5)))
+                (f (m (+ (m (+ (m (+ (m (+ x 5.0)) 5.0)) 5.0)) 5.0))))))
+(check-sat)</code></pre>
+<p class="explain">Adding 2.5 eight times wraps around 8.5 the same way as adding 5.0 four times, so the two
+applications of <code>f</code> are equal and the input is unsat.</p>
+
+<h3>(b) Before: the base commit's pipeline</h3>
+<p>The old exporter succeeded, but Lean rejected the old reconstructor's file. Paths are shortened.</p>
+<pre><code>&lt;tmp&gt;.lean:1644:714: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached
+&lt;tmp&gt;.lean:1576:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+&lt;tmp&gt;.lean:4345:16: error: (kernel) unknown constant '_private._stdin.0.Z3Proofs.NativeCertificate.p2f8ce41…rewrite_499'
+Lean checking failed; no proof was published.</code></pre>
+<p class="explain">The timeouts are inside the rewrite lemma <code>rewrite_499</code>. The third error follows from them,
+because that lemma was never added.</p>
+
+<h3>(c) After: the reconstructor at this PR</h3>
+<p><strong>Lean accepted the file.</strong> The reconstructor reported "Lean checked the refutation", and a separate
+run of <code>scripts/check_lean.sh</code> printed "Lean checks passed."</p>
+<pre><code>def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := _vars 0
+...
+def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := ((term_1 _atoms _vars _m) + (term_6 _atoms _vars _m))
+def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Prop := ((term_7 _atoms _vars _m) &lt; (term_3 _atoms _vars _m))
+def term_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := ((term_7 _atoms _vars _m) - (term_3 _atoms _vars _m))
+noncomputable def term_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := (@ite Rat (formula_8 _atoms _vars _m) (Classical.propDecidable _) (term_7 _atoms _vars _m) (term_9 _atoms _vars _m))
+...
+noncomputable def term_39 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := _m.rfuns 0 [(_m.real (term_38 _atoms _vars _m))]
+...
+noncomputable def term_67 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := (@ite Rat (formula_61 _atoms _vars _m) (Classical.propDecidable _) (term_63 _atoms _vars _m) (term_66 _atoms _vars _m))</code></pre>
+<p class="explain">Each subterm becomes one definition: <code>term_10</code> is the first step of the input chain,
+<code>term_39</code> applies <code>f</code> to the eighth step, and <code>term_67</code> is the rewriter's normal form of the first step.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation)
+    (_h0 : (formula_5 _atoms _vars _m))
+    (_h1 : (formula_59 _atoms _vars _m))
+    : False :=
+  proof_step_1291 _atoms _vars _m (And.intro _h0 _h1)</code></pre>
+<p class="explain">The final theorem says that the two assertions together imply False.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_499 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation)
+    : (formula_498 _atoms _vars _m) := by
+...
+       have _r10_67 : (term_10 _atoms _vars _m) = (term_67 _atoms _vars _m) := by unfold term_67 term_66 term_65 term_64 term_63 term_62 formula_61 term_60 term_40 term_10 term_9 formula_8 term_7 term_6 term_3; grind (splits := 64)
+       have _r14_71 : (term_14 _atoms _vars _m) = (term_71 _atoms _vars _m) := by unfold term_71 term_70 term_69 formula_68 term_65 term_64 term_62 term_60 term_40 term_14 term_13 formula_12 term_11 term_6 term_3; grind (splits := 64)
+...
+       have _r38_172 : (term_38 _atoms _vars _m) = (term_172 _atoms _vars _m) := by unfold term_172 term_171 term_170 formula_166 term_65 term_64 term_62 term_60 term_40 term_38 term_37 formula_36 term_35 term_6 term_3; grind (splits := 64)
+...
+       have _r56_204 : (term_56 _atoms _vars _m) = (term_204 _atoms _vars _m) := by unfold term_204 term_203 term_202 formula_200 term_145 term_142 term_141 term_64 term_56 term_55 formula_54 term_53 term_40 term_3; grind (splits := 64)
+...
+       clear _r10_67 _r14_71 _r18_75 _r22_79 _r26_83 _r30_87 _r34_92 _r44_148 _r48_181 _r52_186
+       grind (splits := 64))</code></pre>
+<p class="explain">This <a href="#g-lemma">lemma</a> links the input's assertion to the rewriter's version.
+Each <code>have _r…</code> proves one level, and its <code>unfold</code> list stops at the level below.
+For example, <code>_r14_71</code> keeps <code>term_10</code> folded, because <code>_r10_67</code> already covers it.
+The two outer facts are unfolded in place on cut lines, and the inner facts are cleared.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>In plain terms: about 500 reconstruction tests passed on the final commit, and all eight QF_LRA regression files
+verified in Lean. Inputs that ran out of heartbeats before now pass. An early test run caught an <code>abs</code>
+argument left folded. It was fixed before the PR opened, and a new test pins it.</p>
+
+<table>
+<thead><tr><th>Check (run by the loop on this machine)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">499 tests, OK (6 skipped), 676 s</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Build completed, Lean checks passed</td></tr>
+<tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">119 tests, OK</td></tr>
+<tr><td>z3test proof scripts</td><td class="pass">48 tests, OK</td></tr>
+<tr><td>Proof matrix, QF_LRA <code>lra_*.smt2</code>, clause-log cell</td><td class="pass">8/8 lean-verified</td></tr>
+<tr><td>Proof matrix, Boolean files, legacy-proof cell (first commit only)</td><td class="pass">6/6 lean-verified</td></tr>
+<tr><td>Recorded local gate</td><td class="unknown">Not recorded yet. It had started when this page was written.</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Input (Lean, 8 GB cap)</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>Real chain, depth 6, with <code>f</code></td><td>30 s, 2.73 GB</td><td>5 s, 0.85 GB</td></tr>
+<tr><td>Real chain, depth 8, with <code>f</code></td><td class="fail">fails (heartbeats)</td><td>11 s, 1.27 GB</td></tr>
+<tr><td>Real chain, depth 10, with <code>f</code></td><td class="fail">fails (heartbeats)</td><td>29 s, 1.98 GB</td></tr>
+<tr><td>Int chain, depth 8, with <code>f</code></td><td>19 s, 3.16 GB</td><td>4 s, 1.31 GB</td></tr>
+<tr><td>Int chain, depth 10, with <code>f</code></td><td class="fail">fails (heartbeats)</td><td>13 s, 4.13 GB</td></tr>
+</tbody>
+</table>
+<p>The depth-10 rows were measured before the review fix. That fix only affects inputs with <code>to_real</code>, which these lack.</p>
+
+<table>
+<thead><tr><th>CI workflow</th><th>Job / step</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><a href="https://github.com/levnach/z3/pull/102/checks">CI</a></td><td>Ubuntu build - cmake - releaseClang / Check native proofs in Lean</td><td class="unknown">Unknown: no CI results were recorded for this report</td></tr>
+</tbody>
+</table>
+<p>That CI step runs the reconstruction tests with Lean installed, including the new Lean test.
+There were no CI fix rounds. C++ tests were skipped, since no C++ code changed.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved. There were no blocker, major, or minor findings.</p>
+<ul>
+<li><strong>Nit: ites of different sorts.</strong> The reviewer wrote a QF_UFLIRA input where an Int ite under
+<code>to_real</code> faced a matching Real ite. The new code grouped ites by sort, so both stayed folded
+<a href="#g-atom">atoms</a>. The level then stated a fact that could never be proved. The fix unfolds a mixed-sort
+group, just like an <code>abs</code>, and a new test covers it. This was about consistency, not a regression. The
+input still fails in Lean, as before the PR, because <code>grind</code> does not move the
+<a href="#g-cast">cast</a> through the ite.</li>
+<li><strong>Suggestion: a faster lookup.</strong> The list of facts already stated was searched item by item. On
+certificates with many argument pairs, that grows quadratically. The fix keeps a set beside the ordered list.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Each level's proof sees fewer definitions than before. A level that needed a folded atom's definition
+would fail. The PR argues this cannot happen, and the full suite passes.</li>
+<li>The order of the helper lines changed. Two tests that index those lines were updated.</li>
+<li>Mixed-sort ites across <code>to_real</code> still fail in Lean. They need a cast bridge.</li>
+<li>CI results and the recorded local gate were not available when this page was written.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Certificates with arrays still prove these equalities written out, in one piece.</li>
+<li>Other inline helpers, such as the cast facts, remain on the backlog.</li>
+<li>Add a cast bridge for ites under <code>to_real</code>.</li>
+<li>Two QF_AX files fail on kernel memory in a side scan. They belong to the existing many-lemma memory item.</li>
+<li>Rescan the rest of QF_AUFLIA. Only its first seven files were checked.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-atom">atom</dt>
+<dd>A smallest piece that a formula treats as one unit, such as a variable, a function application, or a comparison like <code>x &lt; 6</code>.</dd>
+<dt id="g-cast">cast</dt>
+<dd>A conversion of a value from one sort to another. <code>to_real</code> casts an Int to a Real.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that equal arguments give equal results: if <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+<dt id="g-definition">definition (folded, unfolded)</dt>
+<dd>A named abbreviation for a term, like <code>term_10</code>. Folded, it stays a short name. Unfolded, the name is replaced by what it stands for.</dd>
+<dt id="g-heartbeat">heartbeat</dt>
+<dd>Lean's unit of work. A proof step that uses more than its limit of heartbeats stops with a timeout error.</dd>
+<dt id="g-ite">if-then-else term (ite)</dt>
+<dd>A term that picks one of two values by a condition. <code>(ite (&lt; s 8.5) s (- s 8.5))</code> is <code>s</code> when <code>s &lt; 8.5</code>, else <code>s - 8.5</code>.</dd>
+<dt id="g-have">intermediate fact (<code>have</code>)</dt>
+<dd>A statement proved inside a larger proof and then used as a known fact. Lean checks its proof like any other.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A small proved theorem that a larger proof uses as a step.</dd>
+<dt id="g-linear">linear form</dt>
+<dd>A sum of atoms times constant numbers plus a constant, such as <code>2*x + 5</code>.</dd>
+<dt id="g-logic">logic (SMT-LIB)</dt>
+<dd>A named fragment of the language. QF_UFLRA means no quantifiers, uninterpreted functions, and linear arithmetic over Reals. In QF_UFLIA the arithmetic is over Ints.</dd>
+<dt id="g-normal-form">normal form</dt>
+<dd>A standard way of writing a term, so that equal terms written differently end up looking the same.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to False, so they cannot all hold at once.</dd>
+<dt id="g-rewriter">rewriter</dt>
+<dd>The part of the solver that simplifies terms into a normal form before solving. Each rewrite must be justified in the proof.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that searches for a proof automatically. <code>grind</code> is the tactic used here for arithmetic and case splits.</dd>
+<dt id="g-trust">trust boundary</dt>
+<dd>The line between what is checked by Lean and what is simply believed. Moving nothing across it means no new unchecked assumptions.</dd>
+<dt id="g-uf">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning, like <code>f</code> here. The only thing known about it is congruence.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-09.
+</footer>
+
+</body>
+</html>
