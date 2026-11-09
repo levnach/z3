@@ -2858,6 +2858,19 @@ Tests: `test_floors_of_nested_real_chains_are_related_level_by_level`
 (without Lean) and the `floor` case of
 `test_nested_ite_chains_verify_through_folded_facts` (both cores, Lean).
 
+Keying a floor recurses into its argument, so keying a floor of a nested
+chain took about 3^depth calls (as keying an ite argument already did),
+and the keys themselves, nested tuples, grew as fast, with every
+comparison, hash, and `repr` order paying for it. `_real_argument_key` and
+`_real_atom_key` are now cached per graph, and the key of an ite, `abs`, or
+`to_int` is interned (`_InternedKey`, compared by identity, ordered by a
+short index), so keying is linear in the depth. `reconstruct` of
+`cast_chains_instance(16, "floor")` went from over 120 s to 0.3 s, and of
+`(= n (to_int a16))` against `(> n (+ (to_int a16) 1))` from over 300 s
+to under 0.1 s. Outputs are byte-identical on 282 test inputs with an
+ite, `abs`, or `to_int` (both cores). Test:
+`test_keys_of_nested_chains_are_linear_in_depth` (without Lean).
+
 ### Cast, integrality, and Boolean-argument facts stated over folded definitions (2026-11-09)
 
 The cast facts of a lemma reaching `to_real` or `to_int` (`_c`: an Int atom

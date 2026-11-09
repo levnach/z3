@@ -805,6 +805,22 @@ class TestCastValidation(unittest.TestCase):
                     related += 1
         self.assertGreater(related, 0)
 
+    def test_keys_of_nested_chains_are_linear_in_depth(self):
+        # Keying a floor keys its argument, and each level of a nested chain
+        # is reached from its condition and both branches: about 3^depth
+        # calls uncached, with keys nested as deep. Cached and interned
+        # (_InternedKey), each atom is keyed once and every key is short.
+        source = cast_chains_instance(16, "floor")
+        graph = proof_to_lean._validate_graph(source, _export(source, "clause-log"))
+        floors = [node for node in range(len(graph.nodes)) if graph.kind(node) == z3.Z3_OP_TO_INT]
+        with mock.patch.object(proof_to_lean, "_ite_atom_key", wraps=proof_to_lean._ite_atom_key) as keyed:
+            keys = [proof_to_lean._real_atom_key(graph, node) for node in floors]
+        self.assertGreater(keyed.call_count, 16)
+        self.assertLessEqual(keyed.call_count, len(graph.nodes))
+        self.assertLess(max(len(repr(key)) for key in keys), 20)
+        # The input's floors and the rewriter's still share keys.
+        self.assertLess(len(set(keys)), len(floors))
+
     def test_real_atoms_over_int_terms_are_tied_to_int_atoms(self):
         # 2n = 2m + 1 over the casts is an integer constraint: the cut gets
         # it as an Int atom, scaled to integer coefficients.

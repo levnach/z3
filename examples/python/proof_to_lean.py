@@ -1118,6 +1118,11 @@ class _Graph:
     # The value of each node evaluated by _numeral_expression_value, None if
     # it is not a numeral expression (a cache: the nodes form a shared DAG).
     numeral_values: dict = field(default_factory=dict, compare=False, repr=False)
+    # The keys of _real_argument_key and _real_atom_key, by ("argument" or
+    # "atom", node) (a cache: keying a nested ite chain revisits each level
+    # from its condition and both branches), and the interned atom key of
+    # each atom key structure, by ("structure", structure).
+    real_keys: dict = field(default_factory=dict, compare=False, repr=False)
 
     def constructor_index(self, name, sort):
         """The index of a constructor in _m.ctors: the enumerations by sort name, each in declaration order."""
@@ -4984,12 +4989,17 @@ def _real_argument_key(graph, node):
     (_condition_key: swapping the branches when the condition is the
     complement of the canonical atom) and by the keys of its branches. Two
     terms with one key denote the same value, which the theory tactic
-    proves and the helper states.
+    proves and the helper states. A to_int is keyed by its argument's key.
     """
+    cached = graph.real_keys.get(("argument", node))
+    if cached is not None:
+        return cached
     terms = {}
     constant = _linear_term(graph, node, Fraction(1), terms)
     atoms = [(_real_atom_key(graph, atom), value) for atom, value in terms.items() if value != 0]
-    return (tuple(sorted(atoms, key=repr)), constant)
+    key = (tuple(sorted(atoms, key=repr)), constant)
+    graph.real_keys[("argument", node)] = key
+    return key
 
 
 def _real_atom_key(graph, atom):
@@ -4997,15 +5007,51 @@ def _real_atom_key(graph, atom):
 
     An ite is keyed by the canonical form of its condition (_condition_key)
     and the keys of its branches, swapped when the canonical condition is
-    the complement; a to_int by its argument's key. An ite whose condition is no linear atom, or with a
-    branch outside the linear forms (the dead branch dividing by zero in
-    the rewriter's factor cancellation, see _validate_graph), is opaque:
-    its own key.
+    the complement; a to_int by its argument's key. An ite whose condition
+    is no linear atom, or with a branch outside the linear forms (the dead
+    branch dividing by zero in the rewriter's factor cancellation, see
+    _validate_graph), is opaque: its own key.
+
+    The key of an ite, an abs, or a to_int is interned (_InternedKey, one
+    per structure in a graph), so that the key of a nested chain does not
+    grow with its depth: comparing, hashing, and ordering (by repr) the
+    keys of the levels above stays cheap.
     """
+    cached = graph.real_keys.get(("atom", atom))
+    if cached is not None:
+        return cached
     try:
-        return _ite_atom_key(graph, atom)
+        key = _ite_atom_key(graph, atom)
     except ReconstructionError:
-        return ("atom", atom)
+        key = ("atom", atom)
+    if key[0] != "atom":
+        interned = graph.real_keys.get(("structure", key))
+        if interned is None:
+            interned = _InternedKey(key)
+            interned.index = len(graph.real_keys)
+            graph.real_keys[("structure", key)] = interned
+        key = interned
+    graph.real_keys[("atom", atom)] = key
+    return key
+
+
+class _InternedKey(tuple):
+    """An atom key structure, one object per structure in a graph (_real_atom_key).
+
+    Its children are interned too, so two keys denote one structure exactly
+    when they are one object: equality and hashing are by identity, and
+    repr is the short index the graph assigned it, deterministic since the
+    keys are computed in a deterministic order. It is still the structure's
+    tuple, to unpack and index.
+    """
+
+    index = 0
+    __eq__ = object.__eq__
+    __ne__ = object.__ne__
+    __hash__ = object.__hash__
+
+    def __repr__(self):
+        return "<key %d>" % self.index
 
 
 def _ite_atom_key(graph, atom):
