@@ -2873,7 +2873,9 @@ Tests in `test_proof_to_lean_arith.py`:
 `test_scaled_gates_and_scaling_facts_are_stated_over_folded_definitions`
 (the shapes, without Lean) and
 `test_real_modular_chains_verify_through_folded_scaled_facts` (the Lean
-check). Still open: at depth 8 with `function=True` the `_r` argument
+check); for QF_LIRA, where a folded Int atom is cast to Rat,
+`test_folded_scaled_facts_cast_int_atoms_to_rat` and
+`test_folded_scaled_facts_over_int_casts_verify`. Still open: at depth 8 with `function=True` the `_r` argument
 equality of the 2026-11-08 change below runs out of heartbeats in grind,
 which is given the nested ites unfolded.
 
