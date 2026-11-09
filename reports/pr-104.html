@@ -35,7 +35,7 @@
   .meta p { margin: 0.2rem 0; }
   .badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 999px; font-size: 0.85rem;
            font-weight: 600; border: 1px solid currentColor; }
-  .open { color: var(--warn); }
+  .merged { color: var(--ok); }
   .pass { color: var(--ok); font-weight: 600; }
   .fail { color: var(--bad); font-weight: 600; }
   .unknown { color: var(--muted); font-weight: 600; }
@@ -55,10 +55,11 @@
 <h1>Key Lean floor atoms by their argument's normal form</h1>
 <div class="meta">
   <p>Pull request: <a href="https://github.com/levnach/z3/pull/104">levnach/z3#104</a></p>
-  <p>State: <span class="badge open">OPEN</span> This pull request is not merged.
-     The change commit is
-     <a href="https://github.com/levnach/z3/commit/9e6242de650b85a15611a52e66fa9666130e0b37"><code>9e6242de6</code></a>.</p>
-  <p>Date: 2026-11-09T19:27:32Z</p>
+  <p>State: <span class="badge merged">MERGED</span> into <code>master</code></p>
+  <p>Merge commit:
+     <a href="https://github.com/levnach/z3/commit/377d6fdaf35bfb38c3d0b1db15870cf4aaece662"><code>377d6fdaf</code></a>,
+     merged 2026-11-09T19:41:40Z</p>
+  <p>Date: 2026-11-09T19:41:40Z</p>
   <p>Loop iteration: 104</p>
 </div>
 </header>
@@ -108,7 +109,7 @@ Interning is like a coat check: you carry a small ticket instead of the coat.
     <tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td>Tests</td><td class="num">65</td><td class="num">10</td></tr>
     <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan notes</td><td class="num">33</td><td class="num">0</td></tr>
     <tr><td><code>examples/python/README</code></td><td>User docs</td><td class="num">6</td><td class="num">2</td></tr>
-    <tr><th>Total (4 files, 2 commits)</th><td></td><td class="num">180</td><td class="num">31</td></tr>
+    <tr><th>Total (4 files, 2 commits squashed into one)</th><td></td><td class="num">180</td><td class="num">31</td></tr>
   </tbody>
 </table>
 
@@ -133,12 +134,12 @@ The last assertion claims the function differs on their floors, which is impossi
 (declare-fun f (Int) Int)
 (assert (not (= (f (to_int a8)) (f (to_int b4)))))
 (check-sat)</code></pre>
-<p class="explain">The cut lines define the middle links of both chains.</p>
+<p class="explain">The full file has 19 lines. The cut lines define the middle links <code>a3</code> to <code>a7</code> and <code>b2</code> to <code>b3</code>.</p>
 
 <h3>(b) Before</h3>
 <p>
 The base commit's exporter accepted the input.
-Its reconstructor wrote 7,669 lines of Lean, which Lean rejected after about 76 seconds.
+Its reconstructor wrote 7,668 lines of Lean, which Lean rejected after about 76 seconds.
 The failure is in the last <a href="#g-tactic">tactic</a> call of <code>rewrite_387</code>, the rewrite step shown below.
 </p>
 <pre><code>z3_proof_0ve7vjfo.lean:1482:23: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached
@@ -151,9 +152,10 @@ The extracted copy could not find <code>check_lean.sh</code>, so it was pointed 
 
 <h3>(c) After</h3>
 <p>
-The current reconstructor printed "Lean checked the refutation".
-A separate run of <code>check_lean.sh</code> also ended with "Lean checks passed." in about 14 seconds.
+The merged reconstructor, at commit <code>377d6fdaf</code>, printed "Lean checked the refutation".
+A separate run of <code>check_lean.sh</code> on the file also ended with "Lean checks passed."
 The file has 7,685 lines.
+The old output had none of the <code>_r</code> equality facts shown below.
 </p>
 
 <pre><code>noncomputable def term_41 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Rat := (@ite Rat (formula_39 _atoms _vars _ivars _m) (Classical.propDecidable _) (term_38 _atoms _vars _ivars _m) (term_40 _atoms _vars _ivars _m))
@@ -203,17 +205,33 @@ Its floor is <code>term_202</code>.
        first | omega | grind (splits := 64))</code></pre>
 <p class="explain">
 This rewrite step ran out of heartbeats before.
-The fact <code>_r41_194</code> equates the two chains.
+The fact <code>_r41_194</code> equates the two chains, built up level by level from <code>_r13_116</code>.
 The new fact <code>_r42_202</code> then equates their floors, unfolding only those two floors.
 </p>
 
 <h2 id="verification">How it was verified</h2>
 <p>
-In short, every suite the PR lists passed, including about 500 reconstruction tests.
+In short, every test suite passed, including about 500 reconstruction tests.
 The speed-up commit changed no output byte on 282 inputs.
-These results come from the PR description.
-The loop's local gate had not recorded a result when this report was written.
+The change touched only Python, tests, and documentation.
+So the loop merged it on its local gate, without waiting for GitHub CI.
 </p>
+<h3>Local gate</h3>
+<p>
+The gate repeats the Lean-related steps of the CI job "Ubuntu build - cmake - releaseClang" on the loop machine.
+Its result was <span class="pass">pass</span>.
+</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td><span class="pass">pass</span></td><td class="num">19 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td><span class="pass">pass</span></td><td class="num">790 s</td></tr>
+    <tr><td>z3test proof script tests</td><td><span class="pass">pass</span></td><td class="num">20 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td><span class="pass">pass</span></td><td class="num">6 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td><span class="pass">pass</span></td><td class="num">7 s</td></tr>
+  </tbody>
+</table>
+<h3>Implementer and reviewer runs</h3>
 <table>
   <thead><tr><th>Check (from the PR description, final tree)</th><th>Result</th></tr></thead>
   <tbody>
@@ -248,14 +266,16 @@ The loop's local gate had not recorded a result when this report was written.
 </table>
 <h3>CI</h3>
 <p>
-No CI status was recorded when this report was written, so the results are unknown here.
+No CI status files were recorded for this PR, so the CI results are unknown here.
+GitHub CI runs on <code>master</code> after the merge.
 The new tests run in the job "Ubuntu build - cmake - releaseClang", step "Check native proofs in Lean".
-There were no CI fix rounds.
+There were no CI fix rounds and no failures judged unrelated.
 </p>
 <table>
   <thead><tr><th>Workflow / check</th><th>Result</th><th>Link</th></tr></thead>
   <tbody>
-    <tr><td>All CI checks</td><td><span class="unknown">unknown (not recorded)</span></td><td><a href="https://github.com/levnach/z3/pull/104/checks">PR checks page</a></td></tr>
+    <tr><td>CI on the PR</td><td><span class="unknown">unknown (not recorded)</span></td><td><a href="https://github.com/levnach/z3/pull/104/checks">PR checks page</a></td></tr>
+    <tr><td>CI on the merge commit</td><td><span class="unknown">unknown (not recorded)</span></td><td><a href="https://github.com/levnach/z3/commit/377d6fdaf35bfb38c3d0b1db15870cf4aaece662">commit page</a></td></tr>
   </tbody>
 </table>
 
@@ -298,7 +318,7 @@ Two over-long lines were rewrapped, and a docstring now mentions floors.
   <li>Prove the bridge facts level by level, like the equalities.</li>
   <li>Key integer division, modulo, and integrality tests by their arguments too.</li>
   <li>Check the depth-12 floor chain in Lean.</li>
-  <li>Read the CI and local gate results on the PR page.</li>
+  <li>Confirm that GitHub CI passes on the merge commit.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
