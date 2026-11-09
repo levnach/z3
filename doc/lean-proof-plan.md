@@ -2853,9 +2853,12 @@ corresponding ites gets its own `have _rA_B : term_A = term_B`, proved
 with only its own level unfolded (its condition's sides and its branches
 down to their linear atoms). The ites below stay folded, related by the
 facts already proved. Every other atom of a level is the same node on both
-sides and stays folded too; an `abs` keyed with an ite is unfolded with
-it, as before. The outer facts are then unfolded in place as before, and
-the inner ones are cleared.
+sides and stays folded too; an `abs` keyed with an ite, and ites of one
+key but different sorts (an Int ite under `to_real` against a Real ite),
+are unfolded with the level, as before. The outer facts are then unfolded
+in place as before, and the inner ones are cleared. (The mixed-sort case
+still fails in Lean, before and after: grind does not push the cast
+through the ite.)
 
 | Input | Before | Now |
 | --- | --- | --- |
@@ -2867,7 +2870,9 @@ the inner ones are cleared.
 
 Tests: `test_argument_equalities_are_proved_level_by_level` (the shapes,
 without Lean) and `test_nested_ite_arguments_verify_level_by_level` (the
-Lean check) in `test_proof_to_lean_arith.py`. Certificates with arrays
+Lean check) in `test_proof_to_lean_arith.py`, with
+`test_argument_equalities_unfold_their_own_terms` and
+`test_argument_equalities_unfold_ites_of_mixed_sorts`. Certificates with arrays
 still state the equalities written out.
 
 ### Scaling facts and scaled gates stated over folded definitions (2026-11-09)

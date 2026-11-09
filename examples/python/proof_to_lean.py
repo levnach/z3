@@ -4787,11 +4787,12 @@ def _real_argument_helpers(graph, reachable, atom_indices, variable_indices):
                 first, second, _inline(graph, first, atom_indices, variable_indices),
                 _inline(graph, second, atom_indices, variable_indices), _theory_tactic(graph)))
         return helpers
-    stated = []
+    stated, seen = [], set()
     for first, second in pairs:
         for left, right, stops in _argument_equality_levels(graph, first, second):
-            if (left, right) in stated:
+            if (left, right) in seen:
                 continue
+            seen.add((left, right))
             stated.append((left, right))
             names = _definition_names(graph, _reachable_outside(graph, left, stops)
                                       | _reachable_outside(graph, right, stops))
@@ -4800,7 +4801,8 @@ def _real_argument_helpers(graph, reachable, atom_indices, variable_indices):
     for first, second in pairs:
         names = " ".join(_definition_names(graph, _reachable(graph, first, second)[0]))
         helpers.append("  unfold %s at _r%d_%d" % (names, first, second))
-    inner = ["_r%d_%d" % pair for pair in stated if pair not in pairs]
+    top = set(pairs)
+    inner = ["_r%d_%d" % pair for pair in stated if pair not in top]
     if inner:
         helpers.append("  clear %s" % " ".join(inner))
     return helpers
@@ -4817,7 +4819,9 @@ def _argument_equality_levels(graph, first, second):
     proved the same way, before the level above, which then holds over its
     atoms folded (stops: the atoms not unfolded). Every other atom has its
     own node as key, the same node on both sides, and stays folded too. An
-    abs keyed with an ite is unfolded with it, as the whole terms were.
+    abs keyed with an ite, or ites of one key but different sorts (an Int
+    ite under to_real against a Real ite), are unfolded with the level, as
+    the whole terms were.
     """
     order, done, stops = [], set(), {}
     pending = [(first, second, False)]
@@ -4840,16 +4844,19 @@ def _argument_equality_levels(graph, first, second):
         groups = {}
         for atom in sorted(level):
             if graph.kind(atom) in (z3.Z3_OP_ITE, z3.Z3_OP_ABS):
-                groups.setdefault((graph.decl(atom).range, _real_atom_key(graph, atom)), []).append(atom)
+                groups.setdefault(_real_atom_key(graph, atom), []).append(atom)
         # The two terms themselves are unfolded, even when one is an atom of
         # its own linear form (an application or a variable).
         stop = set(level) - {left, right}
         for members in groups.values():
             if len(members) < 2:
                 continue
-            if all(graph.kind(member) == z3.Z3_OP_ITE for member in members):
+            if all(graph.kind(member) == z3.Z3_OP_ITE for member in members) \
+                    and len({graph.decl(member).range for member in members}) == 1:
                 pending.extend((one, other, False) for one, other in zip(members, members[1:]))
             else:
+                # An abs, or an Int ite under to_real keyed with a Real ite:
+                # no equality of their own relates them, so they are unfolded.
                 stop -= set(members)
         stops[(left, right)] = stop
     return order

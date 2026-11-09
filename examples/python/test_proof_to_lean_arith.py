@@ -651,6 +651,31 @@ class TestArithmeticValidation(unittest.TestCase):
             unfolded = [int(name.split("_")[1]) for name in names.split()]
             self.assertFalse([node for node in unfolded if graph.kind(node) == z3.Z3_OP_UNINTERPRETED], names)
 
+    def test_argument_equalities_unfold_ites_of_mixed_sorts(self):
+        # An Int ite under to_real and a Real ite share a key, but no
+        # equality of their own relates them: the level unfolds both, as it
+        # does an abs, instead of stating a fact over the two folded.
+        source = """
+(set-logic QF_UFLIRA)
+(declare-fun f (Real) Real)
+(declare-fun n () Int)
+(declare-fun y () Real)
+(assert (not (= (f (+ y (to_real (ite (<= n 0) n 0)))) (f (+ y (ite (<= n 0) (to_real n) 0.0))))))
+(check-sat)
+"""
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        text = proof_to_lean.reconstruct(source, certificate)
+        facts = set(re.findall(r"^ *have _r(\d+)_(\d+) : .* := by unfold ([\w ]+); ", text, re.M))
+        mixed = 0
+        for first, second, names in facts:
+            unfolded = {int(name.split("_")[1]) for name in names.split() if name.startswith("term_")}
+            below = {atom for node in (first, second) for atom in proof_to_lean._level_atoms(graph, int(node))
+                     if graph.kind(atom) == z3.Z3_OP_ITE}
+            self.assertLessEqual(below, unfolded, (first, second, names))
+            mixed += len({graph.decl(node).range for node in below}) == 2
+        self.assertGreaterEqual(mixed, 1)
+
     def test_folded_scaled_facts_cast_int_atoms_to_rat(self):
         # In qf_lira a Real atom reaches Int terms through to_real; folded,
         # the scaled form casts their definitions, ((term_N ... : Int) : Rat).
