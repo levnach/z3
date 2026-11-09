@@ -742,26 +742,32 @@ class TestCastValidation(unittest.TestCase):
         # after it, like the ite gates. Written out, they made 15.6 MB
         # (real), 16.0 MB (function), and 8.2 MB (predicate) of Lean text;
         # Lean ran out of memory or heartbeats.
-        expected = {"real": "_c", "function": "_q", "predicate": "_b"}
-        for compare, prefix in expected.items():
-            for core in ("clause-log", "legacy"):
-                with self.subTest(compare=compare, core=core):
-                    source = cast_chains_instance(8, compare)
-                    text = proof_to_lean.reconstruct(source, _export(source, core))
-                    self.assertLess(len(text), 2000000)
-                    facts = re.findall(r"^ *(?:\| \()?have (_[bcuqr]\d+) (?::|:=) (.*)$", text, re.M)
-                    if core == "clause-log":
-                        self.assertIn(prefix, {name[:2] for name, _ in facts})
-                    for name, statement in facts:
-                        self.assertNotIn("@ite", statement, name)
-                        self.assertNotRegex(statement, r"_[iv]?vars \d", name)
-                    for block in [block for block in text.split("\n\n") if facts and "theorem" in block]:
-                        names = re.findall(r"have (_[bcuqr]\d+) (?::|:=)", block)
-                        if names:
-                            reverted = re.search(r"\n *revert ([\w ]+)\n *unfold [\w ]+\n *intro ([\w ]+)\n", block)
-                            self.assertIsNotNone(reverted, block[:300])
-                            self.assertEqual(reverted.group(1), reverted.group(2))
-                            self.assertLessEqual(set(names), set(reverted.group(1).split()))
+        # The fact prefixes each certificate must state. The legacy proofs of
+        # function and predicate reach none of these facts, so they are only
+        # held to the size bound and the shape of any fact they state. The
+        # floor bounds (_f, _u) are matched too; the structural _f names of
+        # uf certificates are stated with ":", the floor bounds with ":=".
+        expected = {("real", "clause-log"): {"_c"}, ("real", "legacy"): {"_c"},
+                    ("function", "clause-log"): {"_c", "_q", "_r"}, ("function", "legacy"): set(),
+                    ("predicate", "clause-log"): {"_b"}, ("predicate", "legacy"): set()}
+        fact = r"have (_[bcuqr]\d+|_f\d+(?= :=)) (?::|:=)"
+        for (compare, core), prefixes in expected.items():
+            with self.subTest(compare=compare, core=core):
+                source = cast_chains_instance(8, compare)
+                text = proof_to_lean.reconstruct(source, _export(source, core))
+                self.assertLess(len(text), 2000000)
+                facts = re.findall(r"^ *(?:\| \()?%s (.*)$" % fact, text, re.M)
+                self.assertLessEqual(prefixes, {name[:2] for name, _ in facts})
+                for name, statement in facts:
+                    self.assertNotIn("@ite", statement, name)
+                    self.assertNotRegex(statement, r"_[iv]?vars \d", name)
+                for block in [block for block in text.split("\n\n") if facts and "theorem" in block]:
+                    names = re.findall(fact, block)
+                    if names:
+                        reverted = re.search(r"\n *revert ([\w ]+)\n *unfold [\w ]+\n *intro ([\w ]+)\n", block)
+                        self.assertIsNotNone(reverted, block[:300])
+                        self.assertEqual(reverted.group(1), reverted.group(2))
+                        self.assertLessEqual(set(names), set(reverted.group(1).split()))
 
     def test_real_atoms_over_int_terms_are_tied_to_int_atoms(self):
         # 2n = 2m + 1 over the casts is an integer constraint: the cut gets
