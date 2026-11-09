@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #105: Relate Lean is_int of nested Real chains to the rewriter's normal form</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+html { background: var(--bg); color: var(--fg); }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+       max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em;
+       background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: .8rem; overflow-x: auto; font-size: .82rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.meta { color: var(--muted); font-size: .95rem; }
+.state { display: inline-block; font-weight: 600; border: 1px solid var(--ok); color: var(--ok);
+         border-radius: 999px; padding: 0 .6rem; font-size: .85rem; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.note { color: var(--muted); font-size: .92rem; }
+dl dt { font-weight: 600; margin-top: .7rem; }
+dl dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Relate Lean is_int of nested Real chains to the rewriter's normal form</h1>
+<p class="meta">
+Pull request <a href="https://github.com/levnach/z3/pull/105">levnach/z3#105</a>
+· <span class="state">OPEN</span>
+· opened 2026-11-09T21:07:04Z
+· loop iteration 105
+</p>
+<p class="meta">
+This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/c04cdfb16c5851ddfd91992610ef6508642ea013"><code>c04cdfb16</code></a>.
+It contains two commits on top of <code>39bdf1001</code>.
+</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+Some valid <a href="#g-certificate">certificates</a> from the
+<a href="#g-clause-log">clause log</a> could not be checked in Lean.
+They applied <a href="#g-is-int"><code>is_int</code></a> to a deep chain of nested
+<a href="#g-ite">if-then-else terms</a> of <a href="#g-sort">sort</a> Real.
+The <a href="#g-rewriter">rewriter</a> replaces <code>(is_int t)</code> by a
+<a href="#g-floor">floor</a> of <code>t'</code>, the <a href="#g-normal-form">normal form</a> of <code>t</code>.
+Nothing told Lean that <code>t</code> and <code>t'</code> are equal.
+So the <a href="#g-tactic">tactic</a> <code>grind</code> tried every
+<a href="#g-case-split">case split</a> of both chains and gave up.
+This PR makes the reconstructor state <code>t = t'</code> as a proved fact, one nesting level at a time.
+Lean can then link the two formulas by <a href="#g-congruence">congruence</a>.
+The same <a href="#g-refutation">refutations</a> now check in seconds,
+and the <a href="#g-trust-boundary">trust boundary</a> does not move.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR, the reconstructor related equal Real chains only as arguments of
+<a href="#g-uf">uninterpreted functions</a>, including floors under them (PR #104).
+It ignored the term inside an <code>is_int</code>.
+It also skipped this step in certificates without uninterpreted symbols.
+So <a href="#g-qf-lira">QF_LIRA</a> inputs with <code>is_int</code> over deep chains failed in Lean,
+although the <a href="#g-legacy-core">legacy core</a> passed on them.
+The work serves Milestone 3, "Equality and linear arithmetic".
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>Clause-log certificates where <code>is_int</code> wraps a deep Real if-then-else chain now check in Lean.</li>
+<li>Floored terms with one <a href="#g-linear-form">linear form</a> now get an equality that Lean proves level by level.</li>
+<li>This now works in certificates without uninterpreted symbols, whenever they contain <code>to_int</code> or <code>is_int</code>.</li>
+<li>Large certificates pay little extra, because each formula's floored terms are cached rather than recomputed per <a href="#g-lemma">lemma</a>.</li>
+<li>Tests now cover <code>is_int</code> compared directly and under a <a href="#g-predicate">predicate</a> <code>p</code>, on both cores.</li>
+</ul>
+<p>
+An analogy: two recipes take different routes to the same cake.
+Before, Lean had to bake both to compare them.
+Now it gets a checked note per step saying both routes agree.
+</p>
+<table>
+<thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">69</td><td class="num">11</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td>Tests</td><td class="num">49</td><td class="num">3</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, dated note</td><td class="num">21</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Docs, one paragraph</td><td class="num">6</td><td class="num">2</td></tr>
+<tr><th>Total (4 files)</th><th></th><th class="num">145</th><th class="num">16</th></tr>
+</tbody>
+</table>
+<p class="note">No C++ code and no Lean library file changed.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+The input is the PR's <code>"is_int"</code> test case at depth 6.
+Chain <code>a6</code> adds 5/2 six times modulo 17/2, and <code>b3</code> adds 5 three times.
+They always have the same value, so their <code>is_int</code> cannot differ.
+The PR's failing probes all used depth 6, so the file has 13 lines.
+</p>
+
+<h3>(a) Input</h3>
+<pre><code>(set-logic ALL)
+(declare-const x Real)
+(define-fun a1 () Real (let ((s (+ x (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun a2 () Real (let ((s (+ a1 (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun a3 () Real (let ((s (+ a2 (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun a4 () Real (let ((s (+ a3 (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun a5 () Real (let ((s (+ a4 (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun a6 () Real (let ((s (+ a5 (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun b1 () Real (let ((s (+ x 5.0))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun b2 () Real (let ((s (+ b1 5.0))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun b3 () Real (let ((s (+ b2 5.0))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(assert (and (&lt;= 0 x) (&lt; x (/ 17 2))))
+(assert (not (= (is_int a6) (is_int b3))))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>
+The pre-PR exporter gave the same clause-log certificate, byte for byte.
+The pre-PR reconstructor turned it into Lean, and Lean rejected it:
+</p>
+<pre><code>Checking .../z3_proof_upj1epjv.lean
+.../z3_proof_upj1epjv.lean:1315:18: error: `grind` failed
+case grind.1.1.1.1.2.1.1.2.2.2.1.2.2.1.1.1
+...</code></pre>
+<p>
+Line 1315 is the closing <code>grind</code> of the <a href="#g-theory-lemma">theory lemma</a> <code>th_lemma_366</code>.
+The printed goal is one of many cases, full of nested <code>if</code> expressions.
+The script exited with status 1 and published no proof.
+<span class="note">A small driver pointed the extracted old script at the unchanged Lean checker.</span>
+</p>
+
+<h3>(c) After</h3>
+<p>The current reconstructor generated 6,849 lines of Lean. These are the relevant pieces.</p>
+<pre><code>def formula_34 ... : Prop := (((Rat.floor (term_33 _atoms _vars _ivars) : Int) : Rat) = (term_33 _atoms _vars _ivars))
+...
+def formula_47 ... : Prop := (((Rat.floor (term_46 _atoms _vars _ivars) : Int) : Rat) = (term_46 _atoms _vars _ivars))
+def formula_48 ... : Prop := (Iff (formula_34 _atoms _vars _ivars) (formula_47 _atoms _vars _ivars))
+def formula_49 ... : Prop := (Not (formula_48 _atoms _vars _ivars))
+...
+noncomputable def term_155 ... : Int := (Rat.floor (term_111 _atoms _vars _ivars))
+noncomputable def term_156 ... : Rat := (((term_155 _atoms _vars _ivars) : Int) : Rat)
+def formula_157 ... : Prop := ((term_156 _atoms _vars _ivars) = (term_111 _atoms _vars _ivars))</code></pre>
+<p>
+<code>term_33</code> is chain <code>a6</code>, and <code>formula_49</code> is the input assertion.
+<code>term_111</code> is the rewriter's normal form of <code>a6</code>, and <code>formula_157</code> is its <code>is_int</code>.
+</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
+    (_h0 : (formula_7 _atoms _vars _ivars))
+    (_h1 : (formula_49 _atoms _vars _ivars))
+    : False :=
+  proof_step_1002 _atoms _vars _ivars (And.intro _h0 _h1)</code></pre>
+<p>The theorem says the two assertions together imply <code>False</code>.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_366 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int)
+    : (formula_365 _atoms _vars _ivars) := by
+  have _g13_0 : ...
+  ...
+  have _r13_55 : (term_13 _atoms _vars _ivars) = (term_55 _atoms _vars _ivars) := by unfold term_55 ... term_3; first | omega | grind (splits := 64)
+  ...
+  have _r33_111 : (term_33 _atoms _vars _ivars) = (term_111 _atoms _vars _ivars) := by unfold term_111 ... term_3; first | omega | grind (splits := 64)
+  ...
+  have _r46_147 : (term_46 _atoms _vars _ivars) = (term_147 _atoms _vars _ivars) := by unfold term_147 ... term_3; first | omega | grind (splits := 64)
+  unfold term_111 ... term_1 at _r33_111
+  unfold term_147 ... term_1 at _r46_147
+  clear _r13_55 _r17_59 _r21_63 _r25_67 _r29_72 _r38_124 _r42_129
+  push_cast at *
+  first | omega | grind (splits := 64)</code></pre>
+<p>
+This is the lemma that failed before.
+Each new <code>have _r…</code> line proves one level of an input chain equal to the matching normal-form level.
+<code>_r33_111</code> says <code>a6</code> equals its normal form, and <code>_r46_147</code> does the same for <code>b3</code>.
+The final <code>grind</code> then needs only congruence instead of splitting both chains.
+</p>
+<p>
+<strong>Lean accepted the file.</strong>
+<code>scripts/check_lean.sh</code> printed <code>Lean checks passed.</code> in about 11 seconds of wall time.
+</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+In plain terms, about 500 reconstruction tests ran with no failures, and the benchmark matrices all verified.
+Two independent before/after comparisons found that outputs only gained new proved facts.
+</p>
+<table>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">505 run, OK (6 skipped), 916.6 s</td></tr>
+<tr><td>Lean project build, <code>check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">119 run, OK</td></tr>
+<tr><td>z3test proof tests</td><td class="ok">48 run, OK</td></tr>
+<tr><td>Matrix, legacy core, Boolean inputs</td><td class="ok">6/6 Lean-verified</td></tr>
+<tr><td>Matrix, clause log, <code>lra_*</code> inputs</td><td class="ok">8/8 Lean-verified</td></tr>
+<tr><td>Cache commit, output before vs after</td><td class="ok">90 of 90 byte-identical</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Input, clause log</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td><code>is_int</code> compared, depth 6</td><td class="bad">fails, 47 s</td><td class="ok">10 s, 1.8 GB</td></tr>
+<tr><td><code>is_int</code> under <code>p</code>, depth 6</td><td class="bad">fails, 55 s</td><td class="ok">7 s</td></tr>
+<tr><td><code>is_int</code> under <code>g : Bool -&gt; Int</code>, depth 6</td><td class="bad">out of <a href="#g-heartbeat">heartbeats</a>, 62 s</td><td class="ok">6 s</td></tr>
+<tr><td>under <code>p</code> or <code>g</code>, depth 8</td><td>not checked</td><td class="ok">15–16 s</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Differential, old vs new</th><th>Inputs</th><th>Changed</th><th>Changed outputs checked in Lean</th></tr></thead>
+<tbody>
+<tr><td>Implementer</td><td class="num">74</td><td class="num">16</td><td>16 of 16 pass</td></tr>
+<tr><td>Reviewer</td><td class="num">136</td><td class="num">26</td><td>24 of 26 pass. The other 2 also fail before the PR.</td></tr>
+</tbody>
+</table>
+<p>
+<strong>Local gate.</strong> No local gate result was recorded when this report was written.
+The gate was still running alongside the report.
+</p>
+<p>
+<strong>CI.</strong> No CI results were available for this report, so they are unknown here.
+No CI fix rounds were recorded.
+</p>
+<table>
+<thead><tr><th>Workflow job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean</td><td class="warn">not recorded, see <a href="https://github.com/levnach/z3/pull/105/checks">PR checks</a></td></tr>
+<tr><td>Other jobs</td><td>manylinux runs only <code>test_proof_to_lean.py</code></td><td class="warn">not recorded, see <a href="https://github.com/levnach/z3/pull/105/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blocker, major, or minor findings. Two nits and two suggestions came up.</p>
+<ul>
+<li><strong>Nit: nested floors are missed.</strong>
+The reviewer found that a <code>to_int</code> inside an if-then-else term, <code>abs</code>, or <code>div</code> is not collected.
+Such inputs keep the old behaviour.
+It limits completeness, never soundness, so it became a follow-up.</li>
+<li><strong>Nit: the new test reads printed Lean text.</strong>
+It finds formulas with regular expressions, so a printing change would break it.
+It was kept, because it would fail loudly rather than pass silently.</li>
+<li><strong>Suggestion: cache the floored terms.</strong>
+Without a cache, every lemma recomputed the linear forms of every reachable comparison.
+This was <strong>done</strong> in the second commit, and the output stayed byte-identical.</li>
+<li><strong>Suggestion: triage two old failures.</strong>
+Random inputs <code>ite30</code> and <code>ite35</code> fail in Lean both before and after the PR.
+They are not a regression and were recorded as a follow-up.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Certificates with a floor now always run the equality pass. Each fact cost 1–5 s on the tests, so a large benchmark with many pairs could run out of heartbeats.</li>
+<li>A wrong pairing cannot be accepted. It only yields an equality that Lean fails to prove.</li>
+<li>Depth 10 and above, and the legacy core at depth 8, were not checked.</li>
+<li>CI and local-gate results were not available for this report.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Collect <code>to_int</code> nested under if-then-else terms, <code>abs</code>, or <code>div</code> inside comparisons.</li>
+<li>Speed up <code>(p (&lt;= (to_int a6) 3))</code> over Real chains, which verifies but takes 42 s and 3.25 GB.</li>
+<li>Triage the QF_LIRA <code>grind</code> failures <code>ite30</code> and <code>ite35</code>.</li>
+<li>Finish the level-by-level <code>_e</code> bridges left open from iteration 104.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-boolean">Boolean</dt>
+<dd>The sort with exactly two values, true and false. SMT-LIB calls it <code>Bool</code>.</dd>
+<dt id="g-case-split">case split</dt>
+<dd>Proving a goal by trying each possibility in turn, such as "the condition is true" and "the condition is false". Six nested conditions can give dozens of cases.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>A file Z3 emits that records the steps of its proof, so another tool can check them.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of <a href="#g-literal">literals</a>, read as "at least one of these holds". Example: <code>¬A ∨ B ∨ C</code>.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>One of Z3's two proof sources. It records each clause the solver learns or uses, in order.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that equal inputs give equal outputs. If <code>t = t'</code>, then <code>is_int t</code> equals <code>is_int t'</code>.</dd>
+<dt id="g-floor">floor</dt>
+<dd>The largest integer not above a number. SMT-LIB writes it <code>to_int</code>, and Lean writes <code>Rat.floor</code>. Example: the floor of 7/2 is 3.</dd>
+<dt id="g-heartbeat">heartbeat</dt>
+<dd>Lean's unit of work for a proof. Running out of heartbeats means the proof took too long.</dd>
+<dt id="g-ite">if-then-else term</dt>
+<dd>A term that picks one of two values by a condition, written <code>ite</code> in SMT-LIB. Example: <code>(ite (&lt; s 5) s (- s 5))</code>.</dd>
+<dt id="g-is-int">is_int</dt>
+<dd>The SMT-LIB test of whether a Real value is a whole number. It holds exactly when the floor of the value equals the value.</dd>
+<dt id="g-legacy-core">legacy core</dt>
+<dd>Z3's older proof source, a proof object built during solving. The other source is the clause log.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A small proved statement used as a step toward a larger proof.</dd>
+<dt id="g-linear-form">linear form</dt>
+<dd>A sum of numbers times atoms, plus a constant, such as <code>2·x + 5</code>. The reconstructor uses it as a key to spot equal terms.</dd>
+<dt id="g-literal">literal</dt>
+<dd>A formula that is an atom or the negation of an atom. Example: <code>(is_int a6)</code> or <code>(not (is_int a6))</code>.</dd>
+<dt id="g-normal-form">normal form</dt>
+<dd>The standard shape the rewriter gives a term. Two different-looking inputs can share one normal form.</dd>
+<dt id="g-predicate">predicate</dt>
+<dd>A function that returns a <a href="#g-boolean">Boolean</a>, such as <code>p : Bool -&gt; Bool</code>.</dd>
+<dt id="g-qf-lira">QF_LIRA</dt>
+<dd>The SMT-LIB logic of quantifier-free linear arithmetic over both Int and Real. QF_UFLIRA adds uninterpreted functions.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to a contradiction, that is, to <code>False</code>.</dd>
+<dt id="g-rewriter">rewriter</dt>
+<dd>The Z3 component that simplifies formulas into normal form before solving.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that searches for part of a proof automatically. <code>grind</code> and <code>omega</code> are tactics.</dd>
+<dt id="g-theory-lemma">theory lemma</dt>
+<dd>A <a href="#g-clause">clause</a> that holds because of arithmetic or another theory, not because of pure logic. Each needs its own Lean proof.</dd>
+<dt id="g-trust-boundary">trust boundary</dt>
+<dd>The set of things one must believe without proof. Here only Lean and its standard axioms are trusted. Every new fact is proved, so nothing is added.</dd>
+<dt id="g-uf">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. The only rule it obeys is congruence. Example: <code>(declare-fun f (Int) Int)</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-09.
+Report for <a href="https://github.com/levnach/z3/pull/105">levnach/z3#105</a>, iteration 105.
+</footer>
+
+</body>
+</html>
