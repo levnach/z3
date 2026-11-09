@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #103: State Lean cast and Boolean-argument facts over folded definitions</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
+  --code-bg: #f6f8fa; --link: #0969da; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
+  --callout: #ddf4ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d;
+    --code-bg: #161b22; --link: #4493f8; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+    --callout: #0c2d4a;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+       max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--link); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: .95rem; }
+.state { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; border: 1px solid var(--ok);
+         color: var(--ok); font-weight: 600; font-size: .85rem; }
+.callout { background: var(--callout); border-radius: 6px; padding: .6rem .9rem; }
+code { background: var(--code-bg); padding: .1rem .3rem; border-radius: 4px; font-size: .9em; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+      white-space: pre-wrap; overflow-wrap: anywhere; font-size: .82rem; line-height: 1.45; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.explain { color: var(--muted); margin-top: -.4rem; }
+dt { font-weight: 600; margin-top: .6rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>State Lean cast and Boolean-argument facts over folded definitions</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/103">Pull request #103</a> in levnach/z3 ·
+<span class="state">OPEN</span> · 2026-11-09T17:25:21Z · loop iteration 103
+</p>
+<p class="callout">This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/f18b84b81364b9e545ff5955890d38b6dc168dcf"><code>f18b84b81</code></a>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>Some <a href="#g-theory-lemma">theory lemmas</a> need small helper facts before a
+<a href="#g-tactic">tactic</a> can prove them. These are <a href="#g-cast">cast</a> facts,
+<a href="#g-floor">floor</a> bounds, <a href="#g-integrality">integrality</a> facts, and the
+<a href="#g-excluded-middle">excluded middle</a> of each <a href="#g-boolean">Boolean</a> argument of an
+<a href="#g-uninterpreted-function">uninterpreted function</a> or <a href="#g-predicate">predicate</a>.
+Until now the reconstructor wrote each such fact with every
+<a href="#g-ite">if-then-else term</a> spelled out in full.
+Over nested <code>ite</code> chains, one fact could exceed a megabyte of Lean text.
+This PR states those facts over <a href="#g-folded">folded definitions</a> instead, and
+<a href="#g-unfold">unfolds</a> them together with the goal.
+Lean text for the PR's test inputs shrinks from 8 to 16 MB to under 1 MB.
+Inputs that made Lean run out of <a href="#g-heartbeat">heartbeats</a> or
+<a href="#g-kernel">kernel</a> memory now check, so their
+<a href="#g-refutation">refutations</a> are certified.
+The <a href="#g-trust-boundary">trust boundary</a> is unchanged.</p>
+
+<h2 id="background">Background</h2>
+<p>Iterations 100 to 102 already moved the <code>ite</code> gates, scaling facts and argument equalities
+of theory lemmas to folded definitions. The facts listed above were the last large ones still written out.
+On two chains of eight nested Int <code>ite</code> terms, the <a href="#g-clause-log">clause log</a>
+certificates in the <a href="#g-fragment">fragments</a> QF_LIRA and QF_UFLIA failed in Lean.
+This work serves milestone 3 of the project plan, equality and linear arithmetic,
+which asks that each fragment work end to end.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>Lemmas that compare Int terms through <code>to_real</code> now check when those terms are deep <code>ite</code> chains.</li>
+<li>Lemmas whose <a href="#g-atom">atoms</a> apply <code>to_int</code> or <code>is_int</code> get their floor bounds in folded form too.</li>
+<li>A Real atom over Int terms is now tied to its Int twin by a short folded <a href="#g-integrality">integrality</a> fact.</li>
+<li>A predicate or function with a Boolean argument over deep <code>ite</code> chains no longer blows up the Lean file.</li>
+<li>Certificates with arrays behave exactly as before, so nothing that already worked there can break.</li>
+<li>Two new tests check the shape of the facts without Lean and run all three variants through Lean on both cores.</li>
+</ul>
+<p>An analogy: before, every helper fact carried a full photocopy of a long recipe.
+Now each fact points to the recipe by its page number, and Lean opens the book once.</p>
+<p>All behaviour changes are in <code>proof_to_lean.py</code>. The rest is tests and documentation.</p>
+<table>
+<thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">100</td><td class="num">27</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td>new generator and tests, updated pins</td><td class="num">108</td><td class="num">8</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>one test updated</td><td class="num">7</td><td class="num">1</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>dated note</td><td class="num">31</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>one sentence</td><td class="num">5</td><td class="num">0</td></tr>
+</tbody>
+</table>
+<p>The PR has two commits: <code>d2f075f01</code> makes the change, and <code>f18b84b81</code> tightens the shape test after review.</p>
+
+<h2 id="example">Worked example</h2>
+<p>This input is the PR's own test generator output, <code>cast_chains_instance(8, "predicate")</code>.
+The only edit is that two definitions share each line, to keep the file short.
+Chain <code>a</code> adds 5 modulo 17 eight times. Chain <code>b</code> adds 10 modulo 17 four times.
+Both land on the same value, so a predicate <code>p</code> cannot tell them apart.</p>
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UFLIA)
+(declare-const x Int)
+(define-fun a1 () Int (let ((s (+ x 5))) (ite (&lt; s 17) s (- s 17)))) (define-fun a2 () Int (let ((s (+ a1 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a3 () Int (let ((s (+ a2 5))) (ite (&lt; s 17) s (- s 17)))) (define-fun a4 () Int (let ((s (+ a3 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a5 () Int (let ((s (+ a4 5))) (ite (&lt; s 17) s (- s 17)))) (define-fun a6 () Int (let ((s (+ a5 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a7 () Int (let ((s (+ a6 5))) (ite (&lt; s 17) s (- s 17)))) (define-fun a8 () Int (let ((s (+ a7 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun b1 () Int (let ((s (+ x 10))) (ite (&lt; s 17) s (- s 17)))) (define-fun b2 () Int (let ((s (+ b1 10))) (ite (&lt; s 17) s (- s 17))))
+(define-fun b3 () Int (let ((s (+ b2 10))) (ite (&lt; s 17) s (- s 17)))) (define-fun b4 () Int (let ((s (+ b3 10))) (ite (&lt; s 17) s (- s 17))))
+(assert (and (&lt;= 0 x) (&lt; x 17)))
+(declare-fun p (Bool) Bool)
+(assert (not (= (p (&lt; a8 9)) (p (&lt; b4 9)))))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The base commit's exporter accepted the input. Its reconstructor produced 8,240,810 bytes of Lean, and Lean rejected it.
+The scripts ran unchanged, except that the checker path was pointed at the repository's <code>check_lean.sh</code>.
+The temporary file name is shortened below.</p>
+<pre><code>Build completed successfully (4 jobs).
+z3_proof_….lean:1730:39: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+z3_proof_….lean:1868:39: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+z3_proof_….lean:5024:5: error(lean.unknownIdentifier): Unknown identifier `th_lemma_583`
+z3_proof_….lean:5050:5: error(lean.unknownIdentifier): Unknown identifier `th_lemma_599`
+Lean checking failed; no proof was published.</code></pre>
+<p>The cause is visible in the old text. Its excluded-middle fact for the atom <code>a8 &lt; 9</code> is a single line of 1,069,380 characters:</p>
+<pre><code>  have _b40 : Or ((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int (((((_vars 0) + (((5 : Int))))) &lt; (((17 : Int))))) (Classical.propDecidable _) ...</code></pre>
+
+<h3>(c) After</h3>
+<p>The current reconstructor produced 936,742 bytes. Its own check reported
+“Lean checked the refutation”, and a separate run of <code>check_lean.sh</code> printed
+“Lean checks passed.” <strong>Lean accepted the file.</strong></p>
+<pre><code>def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := _vars 0
+...
+noncomputable def term_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (@ite Int (formula_8 _atoms _vars _m) (Classical.propDecidable _) (term_7 _atoms _vars _m) (term_9 _atoms _vars _m))
+...
+def formula_40 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_38 _atoms _vars _m) &lt; (term_39 _atoms _vars _m))
+def formula_41 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := _m.preds 0 [(_m.bool (formula_40 _atoms _vars _m))]</code></pre>
+<p class="explain">Each subterm gets its own small definition, so the first step of chain <code>a</code> is <code>term_10</code>, and <code>formula_41</code> is <code>p</code> applied to the Boolean <code>a8 &lt; 9</code>.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_5 _atoms _vars _m))
+    (_h1 : (formula_62 _atoms _vars _m))
+    : False :=
+  proof_step_1418 _atoms _vars _m (And.intro _h0 _h1)</code></pre>
+<p class="explain">The theorem says the two assertions, the bounds on <code>x</code> and the <code>p</code> disequality, together imply False.</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_583 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_582 _atoms _vars _m) := by
+  have _g10_0 : (formula_8 _atoms _vars _m) -&gt; (term_10 _atoms _vars _m) = (term_7 _atoms _vars _m) := fun _h =&gt; ite_eq_left _h
+  ...
+  have _b40 : Or (formula_40 _atoms _vars _m) (Not (formula_40 _atoms _vars _m)) := Classical.em _
+  have _b59 : Or (formula_59 _atoms _vars _m) (Not (formula_59 _atoms _vars _m)) := Classical.em _
+  have _b574 : Or (formula_574 _atoms _vars _m) (Not (formula_574 _atoms _vars _m)) := Classical.em _
+  have _b580 : Or (formula_580 _atoms _vars _m) (Not (formula_580 _atoms _vars _m)) := Classical.em _
+  revert _g10_0 _g10_1 ... _g578_0 _g578_1 _b40 _b59 _b574 _b580
+  unfold formula_582 formula_581 formula_580 ... term_3 term_1
+  intro _g10_0 _g10_1 ... _g578_0 _g578_1 _b40 _b59 _b574 _b580
+  first | omega | grind (splits := 64)</code></pre>
+<p class="explain">This is the lemma that timed out before. The <code>_b40</code> fact is now one short line over <code>formula_40</code>. It is set aside with <a href="#g-revert">revert</a>, unfolded together with the goal in one step, and brought back with intro before <a href="#g-grind">grind</a> runs.</p>
+
+<table>
+<thead><tr><th>This example</th><th>Lean text</th><th>Lean result</th></tr></thead>
+<tbody>
+<tr><td>Before (base <code>bc9b3db06</code>)</td><td class="num">8,240,810 bytes</td><td><span class="bad">rejected</span>, heartbeat timeouts, whole run about 3 min 20 s</td></tr>
+<tr><td>After (<code>f18b84b81</code>)</td><td class="num">936,742 bytes</td><td><span class="ok">accepted</span>, check about 12 s</td></tr>
+</tbody>
+</table>
+
+<h2 id="verified">How it was verified</h2>
+<p>In plain terms, every Lean reconstruction test passed, about 500 of them. The exporter tests, the external proof tests and two small benchmark matrices passed as well.
+The reviewer reran the full suite independently, and it passed there too.
+The implementer also measured the three test variants before and after the change.</p>
+<table>
+<thead><tr><th>Check (run on <code>f18b84b81</code>)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">501 tests, OK, 6 skipped, 778 s</td></tr>
+<tr><td>Same suite, reviewer's run</td><td class="ok">501 tests, OK, 6 skipped, 764 s</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">119 tests, OK</td></tr>
+<tr><td><code>check_lean.sh</code> project build</td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td class="ok">48 tests, OK</td></tr>
+<tr><td>Matrix, legacy core, Boolean and unit-resolution inputs</td><td class="ok">6 of 6 lean-verified</td></tr>
+<tr><td>Matrix, clause log, <code>lra_*</code> inputs</td><td class="ok">8 of 8 lean-verified</td></tr>
+<tr><td>Reviewer edge-case probes</td><td class="ok">10 of 10 verified</td></tr>
+<tr><td>Reviewer sabotage test: a folded fact's proof replaced by <code>sorry</code></td><td class="ok">Lean rejected the file, as it should</td></tr>
+<tr><td><code>test-z3</code>, <code>test_benchmarks.py</code>, <code>scripts/tests</code></td><td>not run, no C++ or <code>scripts/</code> change</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Variant, clause log, depth 8</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>casts against a Real <code>y</code>, QF_LIRA</td><td>15.6 MB, fails on kernel memory, 218 s</td><td>0.92 MB, passes, 20 s</td></tr>
+<tr><td>Real <code>f</code> of the casts, QF_UFLIRA</td><td>16.0 MB, not checked</td><td>0.89 MB, passes, 9 s</td></tr>
+<tr><td>Bool <code>p</code> of a bound, QF_UFLIA</td><td>8.2 MB, fails on heartbeats, 168 s</td><td>0.94 MB, passes, 10 s</td></tr>
+<tr><td>casts, QF_LIRA, legacy core</td><td>23.9 MB</td><td>1.59 MB, passes, 9 s</td></tr>
+</tbody>
+</table>
+<p><strong>Local gate.</strong> The loop decided this change touches only paths its local gate covers, so it started the local gate alongside this report.
+No result had been recorded when this page was written. Its outcome is unknown here.</p>
+<p><strong>CI.</strong> No CI check results had been recorded for this PR when the report was written. There were no CI fix rounds.
+The new tests run in one CI job:</p>
+<table>
+<thead><tr><th>Workflow</th><th>Job and step</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>.github/workflows/ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step “Check native proofs in Lean”</td><td class="warn">not recorded, see <a href="https://github.com/levnach/z3/pull/103/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blockers and no major findings.</p>
+<ul>
+<li><strong>Minor, fixed.</strong> The reviewer read the new shape test and asked what it would miss.
+It demanded the expected facts only on the clause-log core. On the legacy core it only checked file size.
+Its pattern also skipped the floor bound <code>_f</code>.
+So a regression that wrote facts out again, or dropped them, could slip through.
+Commit <code>f18b84b81</code> now lists the expected facts for every variant and core, and the pattern matches <code>_f</code>.
+This matters because the Lean test only runs where Lean is installed.</li>
+<li><strong>Nit, fixed.</strong> A README sentence said “in any fragment”. That suggested the Boolean facts are folded even with arrays, which they are not.
+It now says “in every fragment without arrays”.</li>
+<li><strong>Nit, accepted.</strong> The new Lean test adds about 70 seconds to the CI Lean gate.
+It was kept, since it is the only end-to-end check of the folded facts on both cores.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>The folded facts now come earlier in each lemma's <a href="#g-hypothesis">hypotheses</a>. All tests pass, but grind or omega might search differently on unseen inputs.</li>
+<li>The integrality proof now unfolds only as deep as it needs. If that is too shallow, Lean rejects the lemma. It cannot accept a wrong one.</li>
+<li>Still failing: <code>to_int</code> of nested Real chains under a function <code>f</code>, at depth 8, in QF_UFLIRA. Depth 6 passes.</li>
+<li>CI and local gate results are not known at the time of writing.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>The <code>to_int</code> depth-8 failure is in the backlog.</li>
+<li>Some facts are still written out in full: <code>_bd</code>, the <code>_e</code> bridges, the floor shifts, the projections, and every fact in certificates with arrays.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-atom">atom</dt><dd>A formula with no Boolean structure inside it, such as <code>a8 &lt; 9</code>.</dd>
+<dt id="g-boolean">Boolean</dt><dd>The sort with exactly two values, true and false. In SMT-LIB it is <code>Bool</code>.</dd>
+<dt id="g-cast">cast</dt><dd>A conversion between sorts. <code>to_real</code> turns an Int into a Real, and <code>to_int</code> rounds a Real down to an Int.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>x &lt; 3 or not p(x)</code>. A literal is an atom or its negation.</dd>
+<dt id="g-clause-log">clause log</dt><dd>One of two proof sources the exporter reads. It records the clauses the solver derived. The other source is the legacy proof object, called the legacy core.</dd>
+<dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal results: if <code>a = b</code> then <code>f(a) = f(b)</code>.</dd>
+<dt id="g-excluded-middle">excluded middle</dt><dd>The fact that every proposition is either true or false: <code>P or not P</code>. In Lean it is <code>Classical.em</code>.</dd>
+<dt id="g-floor">floor</dt><dd>The largest integer not above a number. The floor of 2.7 is 2. Its bounds are <code>floor(r) ≤ r</code> and <code>r &lt; floor(r) + 1</code>.</dd>
+<dt id="g-folded">folded definition</dt><dd>A named definition used by its name, such as <code>term_10</code>, instead of its full body.</dd>
+<dt id="g-fragment">fragment</dt><dd>A named subset of SMT-LIB, also called a logic. QF_UFLIA means quantifier-free, with uninterpreted functions and linear Int arithmetic.</dd>
+<dt id="g-grind">grind</dt><dd>A Lean tactic that combines case splits, congruence closure and arithmetic to close a goal.</dd>
+<dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit for counting work. A proof that uses more than the limit stops with a timeout error.</dd>
+<dt id="g-hypothesis">hypothesis</dt><dd>A fact available in a proof, introduced in Lean by <code>have</code> or as a theorem argument.</dd>
+<dt id="g-ite">if-then-else term</dt><dd>A term that picks one of two values based on a condition, written <code>(ite c a b)</code> in SMT-LIB.</dd>
+<dt id="g-integrality">integrality fact</dt><dd>A fact saying a Real atom built only from Int terms means the same as an Int atom, so integer reasoning applies to it.</dd>
+<dt id="g-kernel">kernel</dt><dd>The small core of Lean that finally checks every proof. It is the part that must be trusted.</dd>
+<dt id="g-predicate">predicate</dt><dd>An uninterpreted function whose result is Boolean, such as <code>p</code> in the example.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to False.</dd>
+<dt id="g-revert">revert and intro</dt><dd>Lean tactics. <code>revert</code> moves a hypothesis back into the goal, and <code>intro</code> takes it out again. Between them, a rewrite of the goal also rewrites that hypothesis.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A command that builds part of a Lean proof automatically, such as <code>omega</code> or <code>grind</code>.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that holds because of a theory such as arithmetic, not because of Boolean logic alone.</dd>
+<dt id="g-trust-boundary">trust boundary</dt><dd>The line between what must be trusted and what is checked. Here, every helper fact is still proved in Lean, so nothing new is trusted.</dd>
+<dt id="g-unfold">unfold</dt><dd>Replacing a definition's name by its body. A Lean tactic of the same name does this.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function with a name and a signature but no fixed meaning. The only rule it obeys is congruence: equal arguments give equal results.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-09.
+</footer>
+</body>
+</html>
