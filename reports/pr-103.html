@@ -51,11 +51,11 @@ footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8r
 <h1>State Lean cast and Boolean-argument facts over folded definitions</h1>
 <p class="meta">
 <a href="https://github.com/levnach/z3/pull/103">Pull request #103</a> in levnach/z3 ·
-<span class="state">OPEN</span> · 2026-11-09T17:25:21Z · loop iteration 103
+<span class="state">MERGED</span> · 2026-11-09T17:39:33Z · loop iteration 103
 </p>
-<p class="callout">This pull request is open and <strong>not merged</strong>.
-The change under review is commit
-<a href="https://github.com/levnach/z3/commit/f18b84b81364b9e545ff5955890d38b6dc168dcf"><code>f18b84b81</code></a>.</p>
+<p class="callout">This pull request is <strong>merged</strong> into <code>master</code>.
+Merge commit: <a href="https://github.com/levnach/z3/commit/effa99a99798012c57e54a1e971ed2ae6a0998ce"><code>effa99a99</code></a>.
+Merged on 2026-11-09T17:39:33Z.</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
@@ -105,7 +105,8 @@ Now each fact points to the recipe by its page number, and Lean opens the book o
 <tr><td><code>examples/python/README</code></td><td>one sentence</td><td class="num">5</td><td class="num">0</td></tr>
 </tbody>
 </table>
-<p>The PR has two commits: <code>d2f075f01</code> makes the change, and <code>f18b84b81</code> tightens the shape test after review.</p>
+<p>The PR had two commits. The first made the change, and <code>f18b84b81</code> tightened the shape test after review.
+They were squashed into the single merge commit <code>effa99a99</code>, whose tree is identical to <code>f18b84b81</code>.</p>
 
 <h2 id="example">Worked example</h2>
 <p>This input is the PR's own test generator output, <code>cast_chains_instance(8, "predicate")</code>.
@@ -127,20 +128,18 @@ Both land on the same value, so a predicate <code>p</code> cannot tell them apar
 (check-sat)</code></pre>
 
 <h3>(b) Before</h3>
-<p>The base commit's exporter accepted the input. Its reconstructor produced 8,240,810 bytes of Lean, and Lean rejected it.
-The scripts ran unchanged, except that the checker path was pointed at the repository's <code>check_lean.sh</code>.
-The temporary file name is shortened below.</p>
+<p>The base commit's exporter accepted the input. Its reconstructor produced 8,240,810 bytes of Lean.
+Checking that file with <code>check_lean.sh</code> failed. The directory part of the file name is cut below, and the "Note" and "Hint" lines are dropped.</p>
 <pre><code>Build completed successfully (4 jobs).
-z3_proof_….lean:1730:39: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
-z3_proof_….lean:1868:39: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
-z3_proof_….lean:5024:5: error(lean.unknownIdentifier): Unknown identifier `th_lemma_583`
-z3_proof_….lean:5050:5: error(lean.unknownIdentifier): Unknown identifier `th_lemma_599`
-Lean checking failed; no proof was published.</code></pre>
+old_text.lean:1730:39: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+old_text.lean:1868:39: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+old_text.lean:5024:5: error(lean.unknownIdentifier): Unknown identifier `th_lemma_583`
+old_text.lean:5050:5: error(lean.unknownIdentifier): Unknown identifier `th_lemma_599`</code></pre>
 <p>The cause is visible in the old text. Its excluded-middle fact for the atom <code>a8 &lt; 9</code> is a single line of 1,069,380 characters:</p>
 <pre><code>  have _b40 : Or ((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int ((((((@ite Int (((((_vars 0) + (((5 : Int))))) &lt; (((17 : Int))))) (Classical.propDecidable _) ...</code></pre>
 
 <h3>(c) After</h3>
-<p>The current reconstructor produced 936,742 bytes. Its own check reported
+<p>The merged reconstructor produced 936,742 bytes. Its own check reported
 “Lean checked the refutation”, and a separate run of <code>check_lean.sh</code> printed
 “Lean checks passed.” <strong>Lean accepted the file.</strong></p>
 <pre><code>def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := _vars 0
@@ -176,8 +175,8 @@ private theorem th_lemma_583 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (
 <table>
 <thead><tr><th>This example</th><th>Lean text</th><th>Lean result</th></tr></thead>
 <tbody>
-<tr><td>Before (base <code>bc9b3db06</code>)</td><td class="num">8,240,810 bytes</td><td><span class="bad">rejected</span>, heartbeat timeouts, whole run about 3 min 20 s</td></tr>
-<tr><td>After (<code>f18b84b81</code>)</td><td class="num">936,742 bytes</td><td><span class="ok">accepted</span>, check about 12 s</td></tr>
+<tr><td>Before (base <code>bc9b3db06</code>)</td><td class="num">8,240,810 bytes</td><td><span class="bad">rejected</span>, heartbeat timeouts</td></tr>
+<tr><td>After (merge <code>effa99a99</code>)</td><td class="num">936,742 bytes</td><td><span class="ok">accepted</span></td></tr>
 </tbody>
 </table>
 
@@ -209,14 +208,25 @@ The implementer also measured the three test variants before and after the chang
 <tr><td>casts, QF_LIRA, legacy core</td><td>23.9 MB</td><td>1.59 MB, passes, 9 s</td></tr>
 </tbody>
 </table>
-<p><strong>Local gate.</strong> The loop decided this change touches only paths its local gate covers, so it started the local gate alongside this report.
-No result had been recorded when this page was written. Its outcome is unknown here.</p>
-<p><strong>CI.</strong> No CI check results had been recorded for this PR when the report was written. There were no CI fix rounds.
-The new tests run in one CI job:</p>
+<p><strong>Local gate.</strong> The change touches only documentation and the Python examples.
+So the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate repeats the parts of the CI releaseClang job that exercise this work, on the loop's own machine. Every step passed.</p>
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">19 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">796 s</td></tr>
+<tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">19 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">7 s</td></tr>
+</tbody>
+</table>
+<p><strong>CI.</strong> No CI check results were recorded for this PR. GitHub CI runs on <code>master</code> after the merge, and its outcome is not known here.
+There were no CI fix rounds. The new tests run in one CI job:</p>
 <table>
 <thead><tr><th>Workflow</th><th>Job and step</th><th>Status</th></tr></thead>
 <tbody>
-<tr><td><code>.github/workflows/ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step “Check native proofs in Lean”</td><td class="warn">not recorded, see <a href="https://github.com/levnach/z3/pull/103/checks">PR checks</a></td></tr>
+<tr><td><code>.github/workflows/ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step “Check native proofs in Lean”</td><td class="warn">not recorded, see <a href="https://github.com/levnach/z3/commit/effa99a99798012c57e54a1e971ed2ae6a0998ce">merge commit checks</a></td></tr>
 </tbody>
 </table>
 
@@ -240,7 +250,7 @@ It was kept, since it is the only end-to-end check of the folded facts on both c
 <li>The folded facts now come earlier in each lemma's <a href="#g-hypothesis">hypotheses</a>. All tests pass, but grind or omega might search differently on unseen inputs.</li>
 <li>The integrality proof now unfolds only as deep as it needs. If that is too shallow, Lean rejects the lemma. It cannot accept a wrong one.</li>
 <li>Still failing: <code>to_int</code> of nested Real chains under a function <code>f</code>, at depth 8, in QF_UFLIRA. Depth 6 passes.</li>
-<li>CI and local gate results are not known at the time of writing.</li>
+<li>The PR was merged on the local gate. GitHub CI results on <code>master</code> are not known at the time of writing.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
