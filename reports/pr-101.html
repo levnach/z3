@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #101: State Lean scaling facts and scaled ite gates over folded definitions</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d1f23; --muted: #5a606b; --accent: #0b5cad;
+    --code-bg: #f3f4f6; --border: #d8dbe0; --ok: #1a7f37; --warn: #9a6700; --bad: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171b; --fg: #e4e6ea; --muted: #a0a6b0; --accent: #6cb6ff;
+      --code-bg: #22262c; --border: #3a3f47; --ok: #4ac26b; --warn: #d4a72c; --bad: #ff7b72;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.6;
+         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .state { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 0.8rem;
+           border: 1px solid var(--ok); color: var(--ok); font-weight: 600; font-size: 0.85rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+         background: var(--code-bg); padding: 0.05rem 0.25rem; border-radius: 0.2rem; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 0.4rem;
+        padding: 0.75rem; overflow-x: auto; font-size: 0.82rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .note { color: var(--muted); font-size: 0.92rem; }
+  dt { font-weight: 600; margin-top: 0.6rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+           color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>State Lean scaling facts and scaled ite gates over folded definitions</h1>
+<p class="meta">
+  Pull request <a href="https://github.com/levnach/z3/pull/101">levnach/z3#101</a> ·
+  state <span class="state">OPEN</span> · opened 2026-11-09T14:39:32Z · loop iteration 101
+</p>
+<p>This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/6b725f36d5c6f78699671560164d292e2abc7fa5"><code>6b725f36d</code></a>
+on top of base <code>56ceebdc8</code>. It contains three commits.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>This PR shortens two kinds of helper facts in the Lean proof of each
+<a href="#g-theory-lemma">theory lemma</a> in <a href="#g-linear-arithmetic">linear arithmetic</a>:
+<a href="#g-scaling-fact">scaling facts</a> about <a href="#g-atom">atoms</a> with fractions,
+and <a href="#g-scaled-gate">scaled gates</a> about <a href="#g-ite">if-then-else terms</a>.
+They used to write every nested <code>ite</code> out in full.
+Now they refer to short named <a href="#g-definition">definitions</a>,
+and each proof <a href="#g-unfold">unfolds</a> only what it needs.
+For a deeply nested input, the Lean file shrinks from 44 MB to under 1 MB.
+Lean could not check the old file, and it now accepts the <a href="#g-refutation">refutation</a>.
+Every helper is still proved by Lean, so nothing new is trusted.</p>
+
+<h2 id="background">Background</h2>
+<p>Earlier iterations 99 and 100 already folded the integral <a href="#g-scaled-gate">gates</a>
+and the <a href="#g-uninterpreted-function">uninterpreted function</a> argument equalities.
+Gates with fractions, and all scaling facts, stayed written out.
+So <a href="#g-logic">QF_LRA</a> inputs with deeply nested <a href="#g-ite">ite</a> terms and
+<a href="#g-rational">rational</a> constants gave huge Lean files, and the largest ran out of memory.
+This PR serves milestone 3 of the plan, "Equality and linear arithmetic",
+which asks for each fragment to be certified end to end.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>Reconstructor: deeply nested Real ite chains without arrays can now be certified, because their helpers name <code>term_N</code> definitions instead of repeating them.</li>
+  <li>Reconstructor: each helper's proof now hides the nested ites from the <a href="#g-grind">grind</a> tactic, so it no longer splits on them.</li>
+  <li>Reconstructor: in QF_LIRA, an Int term inside a Real fact now appears as a <a href="#g-cast">cast</a> of its short name.</li>
+  <li>Tests: anyone can now generate Real chains of any even depth and check the folded shape in QF_LRA and QF_LIRA.</li>
+  <li>Docs: the proof plan and README now describe the folded helpers.</li>
+</ul>
+<p>An analogy: the old helpers wrote a friend's full street address every time.
+The new ones use the friend's name and look up the address only when needed.
+Certificates with arrays keep the old form. There is no C++ change.</p>
+
+<table>
+  <thead><tr><th>File</th><th>Added</th><th>Removed</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">84</td><td class="num">43</td><td>Lean reconstructor</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">115</td><td class="num">5</td><td>Arithmetic tests</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">41</td><td class="num">0</td><td>Proof plan, dated note</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">4</td><td class="num">0</td><td>Usage notes</td></tr>
+    <tr><th>Total</th><th class="num">244</th><th class="num">48</th><th>4 files</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>The input comes from the PR's new generator, <code>real_modular_chains_instance(8)</code>.
+It has 17 lines because depth 8 is what the old pipeline could not handle.
+Chain <code>a</code> adds 5/2 eight times, chain <code>b</code> adds 5 four times, and each step wraps at 17/2.
+Both end at the same value, so asserting that they differ is unsatisfiable.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(declare-const x Real)
+(define-fun a1 () Real (let ((s (+ x (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun a2 () Real (let ((s (+ a1 (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+...
+(define-fun a8 () Real (let ((s (+ a7 (/ 5 2)))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(define-fun b1 () Real (let ((s (+ x 5.0))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+...
+(define-fun b4 () Real (let ((s (+ b3 5.0))) (ite (&lt; s (/ 17 2)) s (- s (/ 17 2)))))
+(assert (and (&lt;= 0.0 x) (&lt; x (/ 17 2))))
+(assert (not (= a8 b4)))
+(check-sat)</code></pre>
+<p class="note">Lines <code>a3</code> to <code>a7</code> and <code>b2</code>, <code>b3</code> follow the same pattern and are cut here.</p>
+
+<h3>(b) Before</h3>
+<p>The old exporter accepted the input. The old converter runs Lean before writing its file.
+That check needs more than 12 GB, so it was not repeated here.
+The old Lean text was generated without checking, and the PR's measurement is quoted.</p>
+<pre><code>old proof_to_lean.py output: 43,916,200 bytes of Lean text
+PR measurement (base 56ceebdc8): depth 8, QF_LRA:
+  43.9 MB, killed by the watchdog at &gt;12 GB after 240 s</code></pre>
+<p>One scaling fact from the old file shows the problem. Each atom is spelled out with its nested ites:</p>
+<pre><code>have _s67 : ((((((7 : Rat))) / (((2 : Rat))))) &lt;= ((@ite Rat (((((((7 : Rat))) / (((2 : Rat))))) &lt;= (_vars 0))) (Classical.propDecidable _) ((((-(((((7 : Rat))) / (((2 : Rat))))))) + (_vars 0))) (((((5 : Rat))) + (_vars 0)))))) -&gt; (((-2 : Rat)) * (@ite Rat ... + ((7 : Rat)) &lt;= ((0 : Rat))) := by grind</code></pre>
+
+<h3>(c) After</h3>
+<p>The current pipeline produced a 934,383-byte file. <span class="ok">Lean accepted it</span>:
+<code>check_lean.sh</code> printed "Lean checks passed."</p>
+<pre><code>def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+...
+def term_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((term_1 _atoms _vars) + (term_9 _atoms _vars))
+def formula_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_10 _atoms _vars) &lt; (term_5 _atoms _vars))
+...
+noncomputable def term_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_11 _atoms _vars) (Classical.propDecidable _) (term_10 _atoms _vars) (term_12 _atoms _vars))
+...</code></pre>
+<p>Every subterm gets one named definition, and <code>term_13</code> is the first step <code>a1</code>, an ite.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_7 _atoms _vars))
+    (_h1 : (formula_59 _atoms _vars))
+    : False :=
+  proof_step_1255 _atoms _vars (And.intro _h0 _h1)</code></pre>
+<p>The final theorem says the two assertions together imply <code>False</code>.</p>
+
+<pre><code>private theorem th_lemma_152 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_151 _atoms _vars) := by
+  ...
+  have _g70_0 : (formula_67 _atoms _vars) -&gt; ((2 : Rat)) * (term_70 _atoms _vars) = (((2 : Rat)) * (term_66 _atoms _vars) + ((-7 : Rat))) := fun _h =&gt; by rw [show (term_70 _atoms _vars) = (term_68 _atoms _vars) from ite_eq_left _h]; unfold term_68 term_63 term_61 term_60 term_4; grind
+  have _g70_1 : (Not (formula_67 _atoms _vars)) -&gt; (term_70 _atoms _vars) = (term_69 _atoms _vars) := fun _h =&gt; ite_eq_right _h
+  ...
+  have _s67 : (formula_67 _atoms _vars) -&gt; (((-2 : Rat)) * (term_66 _atoms _vars) + ((7 : Rat)) &lt;= ((0 : Rat))) := by unfold formula_67 term_61 term_60 term_4; grind
+  ...
+  revert _g66_0 _g66_1 _g70_0 _g70_1 ... _s148
+  unfold formula_151 formula_150 ... term_4 term_1
+  intro _g66_0 _g66_1 _g70_0 _g70_1 ... _s148
+  grind (splits := 64)</code></pre>
+<p><code>_g70_0</code> is a scaled gate: when the condition holds, twice the ite equals twice its branch.
+<code>_s67</code> is the old scaling fact above, now over short names.
+The facts are then reverted, unfolded with the goal, and introduced again.</p>
+
+<table>
+  <thead><tr><th>Measure (this example)</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>Whole Lean file, bytes</td><td class="num">43,916,200</td><td class="num">934,383</td></tr>
+    <tr><td>Lemma <code>th_lemma_152</code>, bytes</td><td class="num">33,679</td><td class="num">4,655</td></tr>
+    <tr><td>Line <code>_s67</code>, bytes</td><td class="num">465</td><td class="num">165</td></tr>
+    <tr><td>Line <code>_g70_0</code>, bytes</td><td class="num">1,179</td><td class="num">285</td></tr>
+    <tr><td><code>have _s</code> facts in file</td><td class="num">437</td><td class="num">437</td></tr>
+    <tr><td><code>have _g</code> gates in file</td><td class="num">1,173</td><td class="num">1,173</td></tr>
+    <tr><td>Lean check</td><td>not re-run, killed above 12 GB per PR</td><td class="ok">accepted</td></tr>
+  </tbody>
+</table>
+<p class="note">The fact and gate counts are equal. The PR states the same facts, only shorter.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>In plain terms: about 500 reconstruction tests passed, and the new tests fail on the old code, so they detect the change.
+The depth-8 chain now checks in Lean in about 17 seconds.
+Across 257 Real-arithmetic inputs, the reviewer found that only helper lines changed.</p>
+
+<table>
+  <thead><tr><th>Check (run by the integrator at the final commit)</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>All <code>test_proof_to_lean*.py</code> tests</td><td class="ok">495 tests OK, 6 skipped, 679 s</td></tr>
+    <tr><td>Arithmetic shape tests, current code</td><td class="ok">14 OK</td></tr>
+    <tr><td>Same shape tests against the old converter</td><td>3 failures, as intended: the 2 new tests and the updated one</td></tr>
+    <tr><td>The two new Lean tests alone</td><td class="ok">OK, 20.2 s</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="ok">119 tests OK</td></tr>
+    <tr><td><code>check_lean.sh</code> project build</td><td class="ok">passed</td></tr>
+    <tr><td>z3test proof scripts</td><td class="ok">48 tests OK</td></tr>
+    <tr><td><code>proof_matrix.py --lean</code> (implementer, earlier)</td><td class="ok">6/6 Boolean, 8/8 LRA lean-verified</td></tr>
+    <tr><td>Old/new differential, 257 inputs (reviewer)</td><td>5 differed, only helper lines; checked ones verify</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>Measured input (implementer)</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>depth 6, QF_LRA</td><td>5.87 MB, 69 s, 3.98 GB</td><td>0.44 MB, 8 s, 1.31 GB</td></tr>
+    <tr><td>depth 6, QF_UFLRA</td><td>4.58 MB, 43 s, 6.61 GB</td><td>0.48 MB, 31 s, 2.75 GB</td></tr>
+    <tr><td>depth 8, QF_LRA</td><td class="bad">43.9 MB, killed above 12 GB after 240 s</td><td class="ok">0.93 MB, 17 s, 2.64 GB</td></tr>
+    <tr><td>depth 8, QF_UFLRA</td><td>45.4 MB, not run</td><td class="bad">1.03 MB, fails: grind out of heartbeats in an older helper</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Local gate.</strong> The loop's local gate was still running when this page was written. Its result was not recorded yet, so this page makes no claim about it.</p>
+
+<p><strong>CI.</strong> No CI status had been recorded for this PR when the page was written.
+The table lists the check the PR relies on, without a result.</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Job and step</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><code>.github/workflows/ci.yml</code></td><td>"Ubuntu build - cmake - releaseClang", step "Check native proofs in Lean"</td><td class="warn">unknown at time of writing; see the <a href="https://github.com/levnach/z3/pull/101/checks">PR checks page</a></td></tr>
+  </tbody>
+</table>
+<p>There were no CI fix rounds.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved, with no blocker and no major issue.
+To test soundness, they strengthened one scaling fact and one gate, and Lean rejected both.</p>
+<table>
+  <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+  <tbody>
+    <tr><td>minor</td><td>No test covered the folded Int-to-Rat cast in QF_LIRA.</td><td class="ok">Fixed</td></tr>
+    <tr><td>nit</td><td>The chain generator is unsat only for even depth.</td><td class="ok">Fixed in docstring</td></tr>
+    <tr><td>nit</td><td>The shape test demanded more than 50 facts, a count that depends on Z3.</td><td class="ok">Fixed</td></tr>
+    <tr><td>nit</td><td>Small inputs grow slightly.</td><td>Accepted</td></tr>
+  </tbody>
+</table>
+<p><strong>The untested cast.</strong> In QF_LIRA, an Int term inside a Real fact must be cast to <code>Rat</code>.
+The reviewer saw that no test used this path, so a later edit could drop the cast unnoticed.
+Their hand-written probe verified, and the integrator turned it into a shape test and a Lean test.</p>
+<p><strong>The odd-depth trap.</strong> With an odd depth the two chains end at different values, so the input is satisfiable.
+The generator's docstring now says depth must be even.</p>
+<p><strong>The brittle count.</strong> The shape test demanded more than 50 facts, a number set by Z3, not by the converter.
+It now asks for at least one of each, and a 1.5 MB size bound checks what folding buys.</p>
+<p><strong>Small files grow.</strong> Each fact now carries its own unfold list, so tiny files grow by a few hundred bytes.
+Correctness is unaffected, so this was accepted.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>The trust boundary is unchanged. Each fact is the same proposition as before, and Lean checks its proof. There is no <a href="#g-sorry">sorry</a> and no new <a href="#g-axiom">axiom</a>.</li>
+  <li>Grind now sees atoms folded, so a fact that needed an atom's definition would fail. The authors argue this cannot happen, and the suite passes.</li>
+  <li>CI and local gate results were unknown when this page was written.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>The QF_UFLRA chain at depth 8 still fails. An older argument-equality helper unfolds both arguments fully, and grind runs out of <a href="#g-heartbeat">heartbeats</a>.</li>
+  <li>Other helpers still write terms out, including cast facts and every helper in certificates with arrays.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-atom">atom</dt>
+  <dd>A smallest true-or-false statement, such as <code>x &lt; 17/2</code>. It has no Boolean connectives inside.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement Lean accepts without proof. Adding one would widen what must be trusted.</dd>
+  <dt id="g-cast">cast</dt>
+  <dd>Converting a value from one sort to another, for example an Int 3 to the rational 3.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, read as "at least one of these holds", such as <code>(x &lt; 1) or (y = 2)</code>.</dd>
+  <dt id="g-definition">definition</dt>
+  <dd>A named abbreviation for a term or formula, such as <code>term_13</code>. It can be unfolded back to its body.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A Lean tactic that combines case splits, equality reasoning, and linear arithmetic to close a goal.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work. A tactic that uses more than its heartbeat budget fails.</dd>
+  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
+  <dd>A term that picks one of two values by a condition. <code>(ite (&lt; s 5) s 0)</code> is <code>s</code> when <code>s &lt; 5</code>, else 0.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Arithmetic with addition and multiplication by constants only, such as <code>2x + 3y ≤ 7</code>.</dd>
+  <dt id="g-logic">logic (QF_LRA, QF_LIRA, QF_UFLRA)</dt>
+  <dd>An SMT-LIB name for a class of problems. QF means quantifier-free. LRA is linear Real arithmetic. LIRA mixes Int and Real. UF adds uninterpreted functions.</dd>
+  <dt id="g-rational">rational number</dt>
+  <dd>A fraction of two integers, such as 17/2. Lean's <code>Rat</code> sort represents Real values in these certificates.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to a contradiction, that is, to <code>False</code>.</dd>
+  <dt id="g-scaled-gate">scaled gate</dt>
+  <dd>A project helper fact: under the condition of an ite, a multiple of the ite equals the same multiple of its branch, chosen so no fractions remain. A gate is integral when no scaling is needed.</dd>
+  <dt id="g-scaling-fact">scaling fact</dt>
+  <dd>A project helper fact: an atom with fractions, multiplied through so all coefficients are integers. <code>x ≥ 7/2</code> becomes <code>-2x + 7 ≤ 0</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-sorry">sorry</dt>
+  <dd>A Lean placeholder that skips a proof. A trusted certificate must contain none.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof, such as <code>unfold</code>, <code>rw</code>, or <code>grind</code>.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A <a href="#g-clause">clause</a> that holds by the rules of a theory, such as arithmetic, and that the solver adds during its search.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only rule is that equal arguments give equal results.</dd>
+  <dt id="g-unfold">unfold</dt>
+  <dd>Replacing a defined name by its body, like expanding <code>term_13</code> into its ite.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-09.
+</footer>
+</body>
+</html>
