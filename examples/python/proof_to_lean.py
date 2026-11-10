@@ -2984,7 +2984,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     # meet the goal. dlx-regfile's euf lemmas stated 8,139 _t facts (1.75 MB),
     # 1,122 now (0.72 MB); its theory lemmas without the cnf one took 27 s
     # and 2.2 GB of Lean, 19 s and 1.6 GB now.
-    congruence =prefix == "th_lemma" and graph.decl(node).parameters[:1] == ("euf",)
+    congruence = prefix == "th_lemma" and graph.decl(node).parameters[:1] == ("euf",)
     # An array lemma is one instance of an array axiom, built over the terms
     # of its literals (array::solver::assert_select_store_axiom reads the
     # store it is given, never an ite whose branch the egraph equated with
@@ -3107,7 +3107,13 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
         unfold = ["unfold " + " ".join(names)] if names else []
     # The store-identity alternative below keeps the full unfold: its simp
     # (_ARRAY_REWRITE_TACTIC, ite_self, _const_store_self) cannot rewrite
-    # inside a folded ite definition.
+    # inside a folded ite definition. Its facts are still those of the scope:
+    # in an euf or array lemma over ites, a store only an ite reaches gets no
+    # _t fact here either, though the full unfold exposes it. No such lemma
+    # takes this alternative in the test tables or generators (1,018 euf
+    # lemmas over ites, none with an alternative); should one need it, Lean
+    # rejects the step (completeness, not soundness), and the _t facts of
+    # this alternative should then be computed over reachable.
     store_body = gates + full_unfold + fallback
     fallback = gates + unfold + fallback
     alternatives.append(fallback)
