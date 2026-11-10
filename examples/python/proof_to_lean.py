@@ -2972,8 +2972,8 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     # term as a leaf without arguments (euf::solver::internalize; the ite's
     # gates are tseitin clauses of their own) and applies no array axiom (the
     # array solver's are array lemmas), so such a lemma gets no ite gates and
-    # no array axiom instances, and it is first tried with its ite terms
-    # folded. Over z3test's QF_AUFLIA dlx-regfile, 803 euf lemmas carried
+    # no array axiom instances, and it is proved with its ite terms folded,
+    # by grind alone. Over z3test's QF_AUFLIA dlx-regfile, 803 euf lemmas carried
     # about 130 folded gates each, 15 of the file's 44 MB, and their read
     # facts another 7 MB; unfolded, grind split their ites, and omega, tried
     # first over Int, exhausted the heartbeats on several of them (first does
@@ -3062,15 +3062,21 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
         fallback.append(_without_boolean_distincts(distinct_names, _CONGRUENCE_TACTIC))
         ites = {term for term in reachable if graph.is_term(term) and graph.kind(term) == z3.Z3_OP_ITE}
         if ites:
-            # The same facts and tactic with the ites left folded: only the
+            # The ites stay folded, as leaves of the congruence: only the
             # definitions outside them are unfolded, in the goal and in the
             # reverted facts (those that mention an ite keep it folded, as
-            # the goal does).
+            # the goal does). There is no unfolded fallback: with the
+            # unfolded proof as a fallback under first, the lemma's text
+            # doubled (register_file_instance(8): 0.71 MB of euf lemmas
+            # against 1.55 MB), the fallback was never taken in the test
+            # suite, and a folded attempt that spent the heartbeats before
+            # failing would have left the fallback none (maxHeartbeats is
+            # per declaration).
             outside, folded_roots = set(), sorted(gate_nodes - ites)
             for formula in conclusions + folded_roots:
                 outside |= _reachable_outside(graph, formula, ites)
             names = _definition_names(graph, outside, folded_roots)
-            alternatives.append(gates + (["unfold " + " ".join(names)] if names else []) + fallback)
+            unfold = ["unfold " + " ".join(names)] if names else []
     else:
         fallback.append(_without_boolean_distincts(distinct_names, _theory_tactic(graph)))
     fallback = gates + unfold + fallback
