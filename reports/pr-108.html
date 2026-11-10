@@ -7,12 +7,12 @@
 <style>
   :root {
     --bg: #ffffff; --fg: #1d2127; --muted: #5a6370; --accent: #0b5cad;
-    --code-bg: #f3f5f8; --border: #d5dae1; --ok: #1a7f37; --warn: #9a6700; --open: #1f6feb;
+    --code-bg: #f3f5f8; --border: #d5dae1; --ok: #1a7f37; --warn: #9a6700; --merged: #8250df;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0f1216; --fg: #e3e7ec; --muted: #9aa4b1; --accent: #6cb6ff;
-      --code-bg: #1a1f26; --border: #313843; --ok: #3fb950; --warn: #d29922; --open: #58a6ff;
+      --code-bg: #1a1f26; --border: #313843; --ok: #3fb950; --warn: #d29922; --merged: #a371f7;
     }
   }
   html { background: var(--bg); color: var(--fg); }
@@ -34,7 +34,7 @@
   .meta { color: var(--muted); font-size: .95rem; }
   .badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; font-size: .85rem;
            font-weight: 600; border: 1px solid currentColor; }
-  .open { color: var(--open); }
+  .merged { color: var(--merged); }
   .ok { color: var(--ok); font-weight: 600; }
   .warn { color: var(--warn); font-weight: 600; }
   .explain { margin-top: -.3rem; color: var(--muted); }
@@ -50,13 +50,11 @@
 <h1>Prove euf lemmas by grind over folded ites, without gates or axioms</h1>
 <p class="meta">
   Pull request <a href="https://github.com/levnach/z3/pull/108">levnach/z3 #108</a> ·
-  <span class="badge open">OPEN</span> · opened 2026-11-10T19:06:10Z · loop iteration 107
+  <span class="badge merged">MERGED</span> · 2026-11-10T19:21:22Z · loop iteration 107
 </p>
 <p class="meta">
-  This pull request is open and <strong>not merged</strong>.
-  The change under review is commit
-  <a href="https://github.com/levnach/z3/commit/03c7c1cd9c20a8af1490f4fdc401f393e4ef6359"><code>03c7c1cd9</code></a>,
-  which sits on top of one earlier commit in the same pull request.
+  Merged into <code>master</code> on 2026-11-10T19:21:22Z as commit
+  <a href="https://github.com/levnach/z3/commit/4dedeb2e24b5cfd303d9b5745ead3fde59aefc80"><code>4dedeb2e2</code></a>.
 </p>
 </header>
 
@@ -142,9 +140,11 @@ Both versions were run for real for this report.
 
 <h3>(b) Before</h3>
 <p>
-There was no rejection. The pre-change scripts produced the same certificate and a Lean file that Lean accepted.
-The old reconstructor printed <code>Lean checked the refutation</code>, so the <a href="#g-refutation">refutation</a> was already certified.
-Here is how it proved the first euf lemma:
+There was no rejection. The pre-change scripts, taken from the base commit, produced a certificate and a Lean file for this input.
+The old reconstructor could not run its own Lean check from the extracted copy, so the file was checked separately.
+The repository's Lean check script accepted it with <code>Lean checks passed.</code>
+So the <a href="#g-refutation">refutation</a> was already certified before this change.
+Here is how the old code proved the first euf lemma:
 </p>
 <pre><code>private theorem th_lemma_39 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     : (formula_38 _atoms _vars _m) := by
@@ -230,17 +230,31 @@ On larger inputs, Lean time and memory dropped clearly.
     <tr><td>QF_UFLIA <code>EufLaArithmetic/hard16</code></td><td>12 MB, 76 s, 4.5 GB</td><td>11.4 MB, 55 s, 3.86 GB</td></tr>
   </tbody>
 </table>
+<h3>Local gate</h3>
 <p>
-The local gate result is not recorded yet. It was started alongside this report, and no result file existed when the report was written.
+The change touches only documentation, the Python examples, and tests. So the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate repeats the steps of the releaseClang CI job that exercise this work, on the loop's own machine.
+Every step passed.
 </p>
+<table>
+  <thead><tr><th>Gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">20 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">855 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">19 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">7 s</td></tr>
+  </tbody>
+</table>
+<h3>GitHub CI</h3>
 <p>
-No CI status was available to this report, so CI results are unknown. The relevant CI job is listed below.
-There were no CI fix rounds.
+No CI status files were available to this report, so the CI results are unknown.
+GitHub CI still runs on <code>master</code> after the merge. There were no CI fix rounds.
 </p>
 <table>
   <thead><tr><th>Workflow / job</th><th>Step</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean, which runs both new tests</td><td class="warn">Unknown: see the <a href="https://github.com/levnach/z3/pull/108/checks">PR checks page</a></td></tr>
+    <tr><td>CI / Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean, which runs both new tests</td><td class="warn">Unknown: see the <a href="https://github.com/levnach/z3/pull/108/checks">PR checks page</a></td></tr>
   </tbody>
 </table>
 
