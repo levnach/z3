@@ -3045,7 +3045,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
         gates.append("revert " + " ".join(gate_names))
         remaining = remaining | _reachable(graph, *sorted(gate_nodes))[0]
     roots = list(atoms) + sorted(gate_nodes)
-    unfold = ["unfold " + " ".join(_definition_names(graph, remaining, roots))] if remaining else []
+    unfold = full_unfold = ["unfold " + " ".join(_definition_names(graph, remaining, roots))] if remaining else []
     fallback = []
     if gates:
         fallback.append("intro " + " ".join(gate_names))
@@ -3079,6 +3079,10 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
             unfold = ["unfold " + " ".join(names)] if names else []
     else:
         fallback.append(_without_boolean_distincts(distinct_names, _theory_tactic(graph)))
+    # The store-identity alternative below keeps the full unfold: its simp
+    # (_ARRAY_REWRITE_TACTIC, ite_self, _const_store_self) cannot rewrite
+    # inside a folded ite definition.
+    store_body = gates + full_unfold + fallback
     fallback = gates + unfold + fallback
     alternatives.append(fallback)
     if (any(graph.kind(term) == z3.Z3_OP_STORE for term in reachable) if prefix == "rewrite"
@@ -3091,7 +3095,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
         # alternative is tried only after the others fail; it repeats the
         # fallback's facts, so other steps get it only when one of their
         # stores is an instance of an identity.
-        names = [line.split()[1] for line in fallback if line.startswith("have _t")]
+        names = [line.split()[1] for line in store_body if line.startswith("have _t")]
         if any(decl.kind == z3.Z3_OP_CONST_ARRAY for decl in graph.declarations):
             # Reads of constant arrays evaluated, ites of a term with itself
             # dropped, stores of a constant array's own value into it
@@ -3101,9 +3105,9 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
         # Numeral expressions evaluated first, as the rewriter compares
         # indices and values by value ((/ 2 2) is 1.0).
         values, value_names = _numeral_facts(graph, reachable, atom_indices, variable_indices)
-        alternatives.append(fallback[:-1] + values
+        alternatives.append(store_body[:-1] + values
                             + [_ARRAY_REWRITE_TACTIC % "".join(name + ", " for name in value_names + names),
-                               "all_goals " + fallback[-1]])
+                               "all_goals " + store_body[-1]])
     if len(alternatives) == 1:
         lines.extend("  " + tactic for tactic in fallback)
     else:

@@ -3165,6 +3165,10 @@ class TestArrayValidation(unittest.TestCase):
                     else:
                         self.assertIn(chain[0], unfold.split())
                     self.assertEqual(lines[lines.index(revert) + 2].split()[1:], revert.split()[1:])
+                # Some euf lemmas state the store, and their facts are at the
+                # top of the proof: an unfolded fallback under first would
+                # put them in "| (" alternatives, unmatched here.
+                self.assertGreater(folded, 0)
                 self.assertGreater(stores, folded)
                 self.assertNotIn("sorry", text)
                 self.assertNotIn("axiom ", text)

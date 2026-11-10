@@ -1712,7 +1712,8 @@ facts) and `test_congruence_lemmas_over_ite_chains_verify`
 
 Update (2026-11-10, later): the unfolded fallback under `first` is dropped
 for `euf` lemmas, so the folded proof is their only one. (The attempt
-normalized by the rewriter's store identities stays as before; no `euf`
+normalized by the rewriter's store identities stays as before, over the
+full unfold, since its simp cannot rewrite inside a folded ite; no `euf`
 lemma of the documented inputs gets it.) With the
 fallback removed, the whole Lean test suite still passed, so no `euf`
 lemma in it needed the fallback. The fallback doubled the lemmas' text.
