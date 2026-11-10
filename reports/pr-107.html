@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #107: State Lean array facts and ite gates over folded definitions</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --badge: #ddf4ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --badge: #12263f;
+  }
+}
+html { background: var(--bg); color: var(--fg); }
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+       max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.badge { display: inline-block; background: var(--badge); border: 1px solid var(--border);
+         border-radius: 1rem; padding: 0 0.6rem; font-size: 0.85rem; font-weight: 600; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+       background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.8rem; overflow-x: auto; font-size: 0.8rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; margin: 0.8rem 0; width: 100%; font-size: 0.92rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.note { color: var(--muted); font-size: 0.92rem; }
+dt { font-weight: 600; margin-top: 0.7rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>State Lean array facts and ite gates over folded definitions</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/107">Pull request #107</a> in levnach/z3 ·
+state <span class="badge">OPEN</span> · opened 2026-11-10T17:16:17Z · loop iteration 106
+</p>
+<p class="meta">This pull request is <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/cd4cdbb3427a93bcc43b65e8b1fb5942b0ee2d8a"><code>cd4cdbb</code></a>.
+It has two commits on top of base <code>8927ff9</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>When a <a href="#g-certificate">certificate</a> uses the <a href="#g-array">array</a> theory,
+the Lean file now writes each array fact by naming shared <a href="#g-definition">definitions</a>
+instead of copying every <a href="#g-term">term</a> out in full.
+Before, the index and the value of every <a href="#g-store">store</a> were expanded down to the variables.
+Over a <a href="#g-dag">DAG</a> of nested <a href="#g-ite">if-then-else terms</a>, that text grew exponentially.
+A small 21-line input produced 57 MB of Lean, far too much to check.
+Now the same input gives 0.74 MB, and Lean accepts the <a href="#g-refutation">refutation</a>.
+The <a href="#g-ite-gate">ite gates</a> of each <a href="#g-theory-lemma">theory lemma</a> are folded the same way when arrays are present.
+The <a href="#g-trust-boundary">trust boundary</a> does not move.
+Every array fact is still proved inside the file.</p>
+
+<h2 id="background">Background</h2>
+<p>Iterations 99 to 105 already folded ite gates over definitions, but only for certificates without arrays.
+With arrays, the reconstructor still wrote out every <a href="#g-select">select</a> and store fact in full.
+A rescan of the QF_AUFLIA samples in z3test found the file <code>cvc/dlx-regfile</code>.
+Z3 proves it in 0.04 s, but reconstruction was still rendering facts after five minutes.
+The PR serves milestone 4 of the plan, "Broader theories and integration", which lists arrays as a separate extension.
+It also feeds the regression scans that the plan treats as the top priority.</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>Array facts in a <a href="#g-lemma">lemma</a> now name the <code>term_N</code> and <code>formula_N</code> definitions they mention, so their size no longer explodes with nesting depth.</li>
+<li>Facts that name a definition are set aside with <a href="#g-revert">revert</a>, then the definitions are <a href="#g-unfold">unfolded</a> once, then the facts come back with <code>intro</code>.</li>
+<li>The nodes the facts mention are added to that unfold list, because the unfold does not look inside array terms.</li>
+<li>Ite gates are now folded in certificates with arrays too, and the old written-out helpers were removed.</li>
+<li>New tests generate nested ite chains used through an array in six ways and check size limits and Lean acceptance.</li>
+<li>The README and the plan document describe the new layout and its measurements.</li>
+</ul>
+<p>Think of a spreadsheet. Each step of the chain uses the previous cell three times.
+Copying the formulas in full makes each step three times longer.
+Writing <code>=B7</code> instead keeps every cell short.
+The revert, unfold, intro sequence is like picking up your notes, rewriting the cell references in all of them at once, and putting them back.</p>
+
+<table>
+<thead><tr><th>File</th><th>Role</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">62</td><td class="num">63</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Array tests and generator</td><td class="num">161</td><td class="num">7</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Docstring only</td><td class="num">1</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/README</code></td><td>Documentation</td><td class="num">16</td><td class="num">5</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, new dated section</td><td class="num">52</td><td class="num">0</td></tr>
+</tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>This input comes from the PR's own generator, <code>array_chain_instance(8, "value")</code>.
+It is 21 lines, not ten, because each of the eight chain steps needs its own line.
+Each step adds 5 and wraps around at 17, written as an ite.
+The eighth step is stored into array <code>A</code>.
+A read of the result must differ from a second chain that reaches the same value.</p>
+<h3>Input</h3>
+<pre><code>(set-logic QF_ALIA)
+(declare-const x Int)
+(declare-const i Int)
+(declare-const A (Array Int Int))
+(declare-const M (Array Int Int))
+(define-fun a1 () Int (let ((s (+ x 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a2 () Int (let ((s (+ a1 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a3 () Int (let ((s (+ a2 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a4 () Int (let ((s (+ a3 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a5 () Int (let ((s (+ a4 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a6 () Int (let ((s (+ a5 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a7 () Int (let ((s (+ a6 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun a8 () Int (let ((s (+ a7 5))) (ite (&lt; s 17) s (- s 17))))
+(define-fun b1 () Int (let ((s (+ x 10))) (ite (&lt; s 17) s (- s 17))))
+(define-fun b2 () Int (let ((s (+ b1 10))) (ite (&lt; s 17) s (- s 17))))
+(define-fun b3 () Int (let ((s (+ b2 10))) (ite (&lt; s 17) s (- s 17))))
+(define-fun b4 () Int (let ((s (+ b3 10))) (ite (&lt; s 17) s (- s 17))))
+(assert (and (&lt;= 0 x) (&lt; x 17)))
+(assert (= M (store A i a8)))
+(assert (not (= (select M i) b4)))
+(check-sat)</code></pre>
+
+<h3>Before</h3>
+<p>The old reconstructor did not reject this input.
+It wrote a file so large that it could not be checked.
+The old command-line tool always runs Lean before writing, so I called its <code>reconstruct</code> function directly and measured the text.
+I did not run Lean on the 57 MB result.
+The PR reports that the smaller depth-6 version already needed 78 s and 3.9 GB.</p>
+<pre><code>bytes 57174104 lines 7395 seconds 4.6 longest_line 891130
+  have _t317 : (term_317 _atoms _vars _m) = (_store ((term_7 _atoms _vars _m)) (_vars 1) ((@ite Int (((((12 : Int))) &lt;= ((@ite Int (((((12 : Int))) &lt;= ...</code></pre>
+<p class="note">The first line is the measurement. The second is the start of one store fact, which runs on for 423,226 characters.</p>
+
+<h3>After</h3>
+<p>The current reconstructor wrote a 0.74 MB file.
+Its own built-in check printed "Lean checked the refutation", and a separate run of <code>scripts/check_lean.sh</code> printed "Lean checks passed."
+So Lean accepted the file.</p>
+<pre><code>...
+def formula_39 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_38 _atoms _vars _m) &lt; (term_3 _atoms _vars _m))
+noncomputable def term_40 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((term_38 _atoms _vars _m) - (term_3 _atoms _vars _m))
+noncomputable def term_41 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (@ite Int (formula_39 _atoms _vars _m) (Classical.propDecidable _) (term_38 _atoms _vars _m) (term_40 _atoms _vars _m))
+noncomputable def term_42 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_7 _atoms _vars _m) (term_8 _atoms _vars _m) (term_41 _atoms _vars _m))
+...
+noncomputable def term_317 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Int) := (_store (term_7 _atoms _vars _m) (term_8 _atoms _vars _m) (term_200 _atoms _vars _m))
+...</code></pre>
+<p class="note">Each chain step is its own definition. The input's store names its value <code>term_41</code>, and a store Z3 built while rewriting names <code>term_200</code>, instead of copying the chain.</p>
+<pre><code>...
+theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_5 _atoms _vars _m))
+    (_h1 : (formula_43 _atoms _vars _m))
+    (_h2 : (formula_63 _atoms _vars _m))
+    : False :=
+  proof_step_1129 _atoms _vars _m (And.intro (And.intro _h0 _h1) _h2)</code></pre>
+<p class="note">The final theorem says the three asserted formulas together imply <code>False</code>.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_327 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_326 _atoms _vars _m) := by
+  have _g70_0 : (formula_65 _atoms _vars _m) -&gt; (term_70 _atoms _vars _m) = (term_68 _atoms _vars _m) := fun _h =&gt; ite_eq_left _h
+  ...
+  have _g200_0 : (formula_196 _atoms _vars _m) -&gt; (term_200 _atoms _vars _m) = (term_198 _atoms _vars _m) := fun _h =&gt; ite_eq_left _h
+  have _g200_1 : (Not (formula_196 _atoms _vars _m)) -&gt; (term_200 _atoms _vars _m) = (term_199 _atoms _vars _m) := fun _h =&gt; ite_eq_right _h
+  ...
+  have _t317 : (term_317 _atoms _vars _m) = (_store ((term_7 _atoms _vars _m)) (_vars 1) (term_200 _atoms _vars _m)) := rfl
+  have _s318 := _store_apply ((term_7 _atoms _vars _m)) (_vars 1) (term_200 _atoms _vars _m) (_vars 1)
+  revert _g70_0 _g70_1 _g91_0 _g91_1 _g111_0 _g111_1 _g139_0 _g139_1 _g156_0 _g156_1 _g166_0 _g166_1 _g170_0 _g170_1 _g175_0 _g175_1 _g200_0 _g200_1 _g265_0 _g265_1 _g276_0 _g276_1 _g309_0 _g309_1 _t317 _s318
+  unfold formula_326 formula_325 formula_324 formula_323 formula_322 formula_321 formula_320 formula_319 term_318 formula_316 formula_310 ...
+  intro _g70_0 _g70_1 _g91_0 _g91_1 _g111_0 _g111_1 _g139_0 _g139_1 _g156_0 _g156_1 _g166_0 _g166_1 _g170_0 _g170_1 _g175_0 _g175_1 _g200_0 _g200_1 _g265_0 _g265_1 _g276_0 _g276_1 _g309_0 _g309_1 _t317 _s318
+  first | omega | grind (splits := 64)</code></pre>
+<p class="note">The store fact <code>_t317</code> is now 123 characters long. It is reverted with the gates, the unfold expands every named definition at once, and <code>grind</code> closes the lemma.</p>
+
+<table>
+<thead><tr><th>Measure</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>Lean file size, bytes</td><td class="num">57,174,104</td><td class="num">739,311</td></tr>
+<tr><td>Length of the <code>_t317</code> store fact, characters</td><td class="num">423,226</td><td class="num">123</td></tr>
+<tr><td>Lean check</td><td>not attempted</td><td class="ok">accepted</td></tr>
+</tbody>
+</table>
+
+<h2 id="verification">How it was verified</h2>
+<p>The full reconstruction test suite passed, including the new Lean checks of the deep chains.
+The certificate exporter tests, the Lean library check, and the z3test proof tests also passed.
+Both regression matrix cells that CI runs were fully Lean-verified.
+For array-free inputs the Lean output is byte for byte the same as before.</p>
+<table>
+<thead><tr><th>Check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">508 tests OK, 6 slow tests skipped, 846 s</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">119 tests OK</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td class="ok">48 tests OK</td></tr>
+<tr><td>Matrix cell legacy-proof-object, Boolean inputs</td><td class="ok">6 of 6 Lean-verified</td></tr>
+<tr><td>Matrix cell smt-clause-log-nopp, <code>lra_*.smt2</code></td><td class="ok">8 of 8 Lean-verified</td></tr>
+<tr><td>Byte identity, array-free test inputs</td><td>23 of 23 identical</td></tr>
+<tr><td>Byte identity, test inputs with arrays</td><td>234 of 359 identical, 2 not exportable as before</td></tr>
+<tr><td>Depth 8, Lean time and memory</td><td>value 17 s, 1.4 GB · index 6 s, 1.7 GB · Real 4 s, 0.9 GB</td></tr>
+<tr><td>Depth 6, size old to new</td><td>constant array 5.2 to 0.44 MB · Bool element 6.4 to 0.36 MB · ite over arrays 11.0 to 0.62 MB</td></tr>
+<tr><td>Reviewer's six extra array shapes at depth 4</td><td class="ok">all Lean-verified</td></tr>
+<tr><td>This report's worked example</td><td class="ok">Lean accepted</td></tr>
+</tbody>
+</table>
+<p>There is no C++ change, so the C++ unit tests and SMT2 regressions were not run.
+The loop's local gate has not been recorded yet. Its log had only just started when this page was written.</p>
+
+<h3>Continuous integration</h3>
+<p>No CI status was available when this report was generated, so the results below are unknown.
+Check the live status on the <a href="https://github.com/levnach/z3/pull/107/checks">PR checks page</a>.
+No CI fix rounds were recorded.</p>
+<table>
+<thead><tr><th>Workflow job</th><th>What it covers for this PR</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td>Runs the new tests, check "Lean reconstruction tests"</td><td class="warn">unknown</td></tr>
+<tr><td>manylinux wheel job</td><td>Runs only <code>test_proof_to_lean.py</code></td><td class="warn">unknown</td></tr>
+</tbody>
+</table>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change with no blockers and no major findings.
+They first confirmed the new size test fails on the old code, at 57 MB, and fails again if the extra unfold roots are removed.
+They also built six array shapes beyond the tests, and all passed Lean.</p>
+<ul>
+<li><strong>Minor, stale README.</strong> The README still said gates are folded only without arrays. A reader debugging an array lemma would have been confused by the new revert and unfold lines. The gate and array paragraphs were rewritten. <span class="ok">Fixed.</span></li>
+<li><strong>Nit, missing blank line.</strong> In the plan document, the tests paragraph ran into the "Still open" paragraph when rendered as Markdown. A blank line was added. <span class="ok">Fixed.</span></li>
+<li><strong>Nit, fact order.</strong> The facts that stay written out had moved after the enumeration facts. This changed no proofs, but it made the "byte-identical output" claim false for certificates with enumerations. The facts now return to their old position, and the identity counts were measured again. <span class="ok">Fixed.</span></li>
+<li><strong>Suggestion, more array shapes.</strong> Only stores and reads of stores were tested. The reviewer proposed a <a href="#g-constant-array">constant array</a>, a <a href="#g-boolean">Boolean</a> element, and an ite over arrays. All three became new generator cases, Lean-checked at depth 6. <span class="ok">Done.</span> The author also corrected one detail of the review about which kinds of read facts the ite case produces.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Revert, unfold, and intro add some <a href="#g-kernel">kernel</a> work per lemma. Facts over plain variables, constants, and numerals are not reverted, which limits the cost.</li>
+<li>With arrays, ite gates are now always folded, even where ites are small. The documented array inputs and generators all pass.</li>
+<li><code>dlx-regfile</code> still does not verify. It now reconstructs in 6.5 s, but its 44 MB file hit the 12 GB memory limit in Lean. Most of its text is ite gates in its 803 <a href="#g-euf">EUF</a> lemmas.</li>
+<li>Two other kinds of facts are still written out with arrays: Boolean argument facts and cast facts.</li>
+<li>The large QF_AUFLIA <code>swap</code> files, 66 to 250 MB, are unchanged by this PR.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Drop ite gates from EUF lemmas, or emit them only where a lemma's arithmetic needs them, to bring <code>dlx-regfile</code> within reach.</li>
+<li>Fold Boolean argument facts and cast facts with arrays too, which the new unfold roots should make safe.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-array">array</dt><dd>A sort whose values map indices to elements, written <code>(Array Int Int)</code> in SMT-LIB. In Lean it becomes a function.</dd>
+<dt id="g-boolean">Boolean</dt><dd>The sort with the two values true and false, written <code>Bool</code>.</dd>
+<dt id="g-certificate">certificate</dt><dd>The proof data Z3 exports for an unsat result, which the reconstructor turns into a Lean file.</dd>
+<dt id="g-constant-array">constant array</dt><dd>An array with the same element at every index, written <code>((as const (Array Int Int)) 0)</code>.</dd>
+<dt id="g-dag">DAG</dt><dd>Directed acyclic graph. Here, terms that share subterms, so one subterm may be used many times.</dd>
+<dt id="g-definition">definition</dt><dd>A name given to a term or formula, such as <code>define-fun</code> in SMT-LIB or <code>def term_41</code> in Lean.</dd>
+<dt id="g-euf">EUF</dt><dd>The theory of equality with uninterpreted functions. Its lemmas follow from congruence, the rule that equal arguments give equal results.</dd>
+<dt id="g-grind">grind</dt><dd>A Lean tactic that combines case splits, congruence, and arithmetic to close a goal automatically.</dd>
+<dt id="g-ite">if-then-else term (ite)</dt><dd>A term that picks one of two values by a Boolean condition, written <code>(ite c a b)</code>.</dd>
+<dt id="g-ite-gate">ite gate</dt><dd>In this project, a pair of facts about an ite: if the condition holds the ite equals its first branch, otherwise its second.</dd>
+<dt id="g-kernel">kernel</dt><dd>The small trusted core of Lean that rechecks every finished proof.</dd>
+<dt id="g-lemma">lemma</dt><dd>A small proved statement that a larger proof uses as a step.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of formulas cannot all be true, ending in <code>False</code>.</dd>
+<dt id="g-revert">revert and intro</dt><dd>Lean tactics. <code>revert</code> moves facts back into the goal, and <code>intro</code> takes them out again as named facts.</dd>
+<dt id="g-select">select</dt><dd>Reading an array at an index, written <code>(select A i)</code>.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as <code>Int</code>, <code>Real</code>, or <code>Bool</code>.</dd>
+<dt id="g-store">store</dt><dd>A new array equal to an old one except at one index, written <code>(store A i v)</code>.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof, such as <code>unfold</code> or <code>grind</code>.</dd>
+<dt id="g-term">term</dt><dd>An expression that denotes a value, such as <code>(+ x 5)</code>.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that holds because of a theory such as arithmetic or arrays, not because of propositional logic alone.</dd>
+<dt id="g-trust-boundary">trust boundary</dt><dd>The line between what Lean checks and what it must take on faith. Here, nothing new is taken on faith.</dd>
+<dt id="g-unfold">unfold</dt><dd>A Lean tactic that replaces a defined name by its body, such as <code>term_41</code> by its ite.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-10.
+</footer>
+</body>
+</html>
