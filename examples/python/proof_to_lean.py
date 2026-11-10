@@ -2979,7 +2979,12 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     # first over Int, exhausted the heartbeats on several of them (first does
     # not catch that). (_opaque_tactic gives an euf lemma no opaque-atom
     # attempt either: generalizing applications would hide the congruences.)
-    congruence = prefix == "th_lemma" and graph.decl(node).parameters[:1] == ("euf",)
+    # Its facts are those of the nodes outside the ites, as an array lemma's
+    # are (below): the _t body of a store only a folded ite reaches cannot
+    # meet the goal. dlx-regfile's euf lemmas stated 8,139 _t facts (1.75 MB),
+    # 1,122 now (0.72 MB); its theory lemmas without the cnf one took 27 s
+    # and 2.2 GB of Lean, 19 s and 1.6 GB now.
+    congruence =prefix == "th_lemma" and graph.decl(node).parameters[:1] == ("euf",)
     # An array lemma is one instance of an array axiom, built over the terms
     # of its literals (array::solver::assert_select_store_axiom reads the
     # store it is given, never an ite whose branch the egraph equated with
@@ -2990,7 +2995,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     # arrays (_array_helpers ite_leaves). Its tactic is unchanged. Over
     # z3test's dlx-regfile, 50 array lemmas carried about 128 gates and 37
     # read facts each and unfolded about 60 ites; the file's theory lemmas
-    # without its cnf lemma took 208 s and 4.9 GB of Lean, 25 s and 2.2 GB now.
+    # without its cnf lemma took 208 s and 4.9 GB of Lean, 25 s and 2.2 GB folded.
     # The one ite such a lemma looks into is its own: the select-map axiom
     # over a map of ite equates the read with the ite of the reads
     # (_map_read_values), which is unfolded to meet the map's Lean ite.
@@ -3000,7 +3005,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     if instance:
         ites -= _map_read_values(graph, conclusion)
     scope = reachable
-    if instance and ites:
+    if ites:
         scope = set()
         for formula in conclusions:
             scope |= _reachable_outside(graph, formula, ites)
@@ -3047,7 +3052,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     # that mention a definition the unfold rewrites are (_array_helpers).
     fold = not graph.arrays
     if fold and graph.uninterpreted:
-        lines_b, names_b, nodes_b = _folded_boolean_arguments(graph, reachable)
+        lines_b, names_b, nodes_b = _folded_boolean_arguments(graph, scope)
         gates, gate_names, gate_nodes = gates + lines_b, gate_names + names_b, gate_nodes | nodes_b
     lines_c, names_c, nodes_c, cast_facts = _cast_facts(graph, scope, atom_indices, variable_indices, node,
                                                         folded=fold)
