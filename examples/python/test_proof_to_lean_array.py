@@ -3232,8 +3232,8 @@ class TestArrayValidation(unittest.TestCase):
         gates and 40 read facts (23,551 characters), now 8 read facts (3,951).
         In z3test's QF_AUFLIA dlx-regfile, 50 array lemmas carried about 128
         gates and 37 read facts each and unfolded about 60 ites; the file's
-        theory lemmas but its cnf lemma took 208 s and 4.9 GB of Lean, 25 s
-        and 2.2 GB folded.
+        theory lemmas without its cnf lemma took 208 s and 4.9 GB of Lean,
+        25 s and 2.2 GB folded.
         """
         source = register_file_instance(8)
         certificate = _export(source)

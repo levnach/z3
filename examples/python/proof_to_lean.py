@@ -2990,7 +2990,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     # arrays (_array_helpers ite_leaves). Its tactic is unchanged. Over
     # z3test's dlx-regfile, 50 array lemmas carried about 128 gates and 37
     # read facts each and unfolded about 60 ites; the file's theory lemmas
-    # (but its cnf lemma) took 208 s and 4.9 GB of Lean, 25 s and 2.2 GB now.
+    # without its cnf lemma took 208 s and 4.9 GB of Lean, 25 s and 2.2 GB now.
     # The one ite such a lemma looks into is its own: the select-map axiom
     # over a map of ite equates the read with the ite of the reads
     # (_map_read_values), which is unfolded to meet the map's Lean ite.
