@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #110: Keep ites folded in array th-lemmas, without ite gates</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --open: #1a7f37;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --open: #3fb950;
+    }
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 50rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .badge { display: inline-block; padding: 0 .55rem; border-radius: 1rem; border: 1px solid var(--open);
+           color: var(--open); font-weight: 600; font-size: .85rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+         background: var(--code-bg); padding: .05rem .3rem; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: .8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: .8rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: .93rem; }
+  dt { font-weight: 600; margin-top: .6rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Keep ites folded in array th-lemmas, without ite gates</h1>
+<p class="meta">
+  Pull request <a href="https://github.com/levnach/z3/pull/110">levnach/z3 #110</a> ·
+  <span class="badge">OPEN</span> · 2026-11-10T22:24:40Z · loop iteration 109
+</p>
+<p class="meta">
+  This pull request is open and <strong>not merged</strong>.
+  The change under review is commit
+  <a href="https://github.com/levnach/z3/commit/15e54b4b2230882a19bba8d15bee05b7ba101dfd"><code>15e54b4b2</code></a>.
+</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+This PR makes the Lean proofs of <a href="#g-array">array</a> <a href="#g-theory-lemma">theory lemmas</a> much smaller and faster.
+Each array lemma is one <a href="#g-axiom-instance">axiom instance</a>, such as read-over-write.
+Before, the reconstructor gave every such lemma an <a href="#g-ite-gate">ite gate</a> for every <a href="#g-ite">if-then-else term</a> it touched.
+It also <a href="#g-unfold">unfolded</a> those terms, so Lean had to reason through every branch.
+Now the ites stay folded and the gates are gone, as they already were for <a href="#g-euf-lemma">euf lemmas</a>.
+On one hard benchmark, Lean's time on the theory lemmas dropped from 208 s to 25 s.
+The <a href="#g-theorem">theorem</a> statements are unchanged, so the change cannot make Lean accept a false <a href="#g-refutation">refutation</a>.
+At worst, a certificate fails to check, which is a <a href="#g-completeness">completeness</a> risk, not a <a href="#g-soundness">soundness</a> risk.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Since iteration 107, the reconstructor has known how to keep ites folded inside euf lemmas, which reason by <a href="#g-congruence">congruence</a>.
+Array lemmas still got full ite gates and unfolds.
+On the QF_AUFLIA benchmark <code>cvc/dlx-regfile</code>, its theory lemmas still needed 208 s and 4.9 GB of Lean.
+Lean's profiler put about 150 of those seconds in about 19 of the 50 array lemmas.
+That benchmark still fails on one <a href="#g-cnf-lemma">cnf lemma</a>, both before and after this PR.
+The work serves milestone 4, "Broader theories and integration," where arrays are one of the listed extensions.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>An array lemma now reaches Lean without ite gates, so Lean no longer case-splits on ites the lemma never needed.</li>
+  <li>An array lemma's ites now stay folded, and only the definitions outside them are unfolded, using the same code path as euf lemmas.</li>
+  <li>An array lemma now states its supporting facts only for terms outside its ites, so it carries far less text.</li>
+  <li>The one ite an array lemma must see inside, from a <a href="#g-map">map</a> of <code>ite</code> over arrays, is still unfolded by a new helper.</li>
+  <li>Two new tests check the smaller text and run Lean on a register-file input with eight array lemmas over ite chains.</li>
+</ul>
+<p>
+An analogy: an ite is a sealed envelope that holds one of two values.
+An array axiom like read-over-write only needs to know the envelope exists.
+Before, the pipeline opened every envelope and listed both possible contents for Lean.
+Now it leaves the envelopes sealed.
+</p>
+<table>
+  <thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">76</td><td class="num">33</td><td>The Lean reconstructor</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="num">85</td><td class="num">9</td><td>Array tests</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">26</td><td class="num">0</td><td>Plan update and measurements</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">6</td><td class="num">0</td><td>Documentation paragraph</td></tr>
+    <tr><th>Total (2 commits)</th><th class="num">193</th><th class="num">42</th><th></th></tr>
+  </tbody>
+</table>
+<p class="note">No C++ changed. The two commits are the main change and a wording fix from review.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+This PR is a speed and size change. It does not newly certify any input.
+So the example below shows an input that both versions certify, and how its Lean proof got smaller.
+Both outputs come from real runs of the base scripts and of the PR's scripts.
+</p>
+
+<h3>(a) The input</h3>
+<p>Built in the style of the reviewer's "read-over-write at an ite index" probe. The read index is an <code>ite</code>.</p>
+<pre><code>(set-logic QF_AUFLIA)
+(declare-const a (Array Int Int))
+(declare-const i Int)
+(declare-const j Int)
+(declare-const k Int)
+(declare-const v Int)
+(declare-const c Bool)
+(assert (&lt; i j))
+(assert (&lt; i k))
+(assert (not (= (select (store a i v) (ite c j k)) (select a (ite c j k)))))
+(check-sat)</code></pre>
+<p>Writing at <code>i</code> cannot change a read at <code>j</code> or <code>k</code>, since both are larger than <code>i</code>. So the assertions contradict each other.</p>
+
+<h3>(b) Before</h3>
+<p>
+The base code gave no rejection or error. It also produced a Lean file, and Lean accepted it.
+Here is its array lemma. The two <code>have _g9_*</code> lines are the ite gates, and the <code>unfold</code> line opens the ite <code>term_9</code>.
+</p>
+<pre><code>private theorem th_lemma_36 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_35 _atoms _vars _m) := by
+  have _g9_0 : (formula_8 _atoms _vars _m) -&gt; (term_9 _atoms _vars _m) = (term_1 _atoms _vars _m) := fun _h =&gt; ite_eq_left _h
+  have _g9_1 : (Not (formula_8 _atoms _vars _m)) -&gt; (term_9 _atoms _vars _m) = (term_3 _atoms _vars _m) := fun _h =&gt; ite_eq_right _h
+  have _s10 := _store_apply ((term_5 _atoms _vars _m)) (_vars 0) (_vars 3) (term_9 _atoms _vars _m)
+  revert _g9_0 _g9_1 _s10
+  unfold formula_35 formula_34 formula_12 term_11 term_10 term_9 formula_8 term_3 term_1 term_0
+  intro _g9_0 _g9_1 _s10
+  ...
+  first | omega | grind (splits := 64)</code></pre>
+
+<h3>(c) After</h3>
+<p>The declarations. <code>term_9</code> is the ite index, and <code>term_10</code> and <code>term_11</code> are the two reads.</p>
+<pre><code>noncomputable def term_7 ... : (Int -&gt; Int) := (_store (term_5 _atoms _vars _m) (term_0 _atoms _vars _m) (term_6 _atoms _vars _m))
+def formula_8 ... : Prop := _atoms 0
+noncomputable def term_9 ... : Int := (@ite Int (formula_8 _atoms _vars _m) (Classical.propDecidable _) (term_1 _atoms _vars _m) (term_3 _atoms _vars _m))
+noncomputable def term_10 ... : Int := (_select (term_7 _atoms _vars _m) (term_9 _atoms _vars _m))
+noncomputable def term_11 ... : Int := (_select (term_5 _atoms _vars _m) (term_9 _atoms _vars _m))
+...
+def formula_34 ... : Prop := ((term_0 _atoms _vars _m) = (term_9 _atoms _vars _m))
+def formula_35 ... : Prop := (Or (formula_34 _atoms _vars _m) (formula_12 _atoms _vars _m))</code></pre>
+<p class="note"><code>...</code> after a name replaces the repeated binders <code>(_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)</code>.</p>
+
+<p>The theorem statement: the three assertions together imply <code>False</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_2 _atoms _vars _m))
+    (_h1 : (formula_4 _atoms _vars _m))
+    (_h2 : (formula_13 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+
+<p>The array lemma, now without gates. It says "either <code>i</code> equals the ite index, or the two reads are equal."</p>
+<pre><code>private theorem th_lemma_36 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_35 _atoms _vars _m) := by
+  have _s10 := _store_apply ((term_5 _atoms _vars _m)) (_vars 0) (_vars 3) (term_9 _atoms _vars _m)
+  revert _s10
+  unfold formula_35 formula_34 formula_12 term_11 term_10 term_0
+  intro _s10
+  have _t7 : (term_7 _atoms _vars _m) = (_store ((term_5 _atoms _vars _m)) (_vars 0) (_vars 3)) := rfl
+  first | omega | grind (splits := 64)</code></pre>
+<p>The <code>unfold</code> line no longer names <code>term_9</code>, so the ite stays a sealed leaf. Only the read-over-write fact <code>_s10</code> remains.</p>
+<p><strong>Lean accepted both files.</strong> The repository's Lean check printed "Lean checks passed." for each. The gain here is small because the input is tiny. The large gains are in the measurements below.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+The full Lean reconstruction suite passed, with six tests skipped.
+The certificate exporter tests and the z3test proof tests also passed.
+The reviewer showed that the new and updated tests fail on the base code, so they really detect the change.
+The reviewer also wrote ten new array-over-ite inputs, and Lean accepted all ten.
+On the hard benchmark, Lean got about eight times faster and used less than half the memory.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th><th>Who ran it</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_proof_to_lean*.py</code></td><td class="pass">Ran 512 tests, OK (skipped=6)</td><td>Integrator, after the wording fix</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="pass">Ran 119 tests, OK</td><td>Integrator</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td class="pass">Lean checks passed</td><td>Integrator</td></tr>
+    <tr><td>z3test <code>test_proof*.py</code></td><td class="pass">Ran 48 tests, OK</td><td>Integrator</td></tr>
+    <tr><td>New and updated tests on base code</td><td class="pass">All 3 fail, as intended</td><td>Implementer and reviewer</td></tr>
+    <tr><td>Extra array-over-ite inputs</td><td class="pass">10 of 10 <code>LEAN-OK</code></td><td>Reviewer</td></tr>
+    <tr><td>Worked example above, base and PR</td><td class="pass">Both: Lean checks passed</td><td>This report</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Measurement</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>dlx-regfile theory lemmas, without the <code>cnf</code> one</td><td>208 s, 4.93 GB</td><td>25–26 s, 2.23 GB, 0 errors</td></tr>
+    <tr><td>dlx-regfile array lemma text</td><td>901,146 chars</td><td>28,550 chars</td></tr>
+    <tr><td>dlx-regfile euf lemma text</td><td>1,750,434 chars</td><td>1,750,434 chars (identical)</td></tr>
+    <tr><td>dlx-regfile whole file</td><td>18.59 MB</td><td>17.71 MB</td></tr>
+    <tr><td><code>register_file_instance(8)</code>, its 8 array lemmas</td><td>64 gates, 40 read facts, 23,551 chars</td><td>8 read facts, 3,951 chars</td></tr>
+  </tbody>
+</table>
+<p>
+<strong>Local gate:</strong> no local gate result has been recorded for this iteration yet.
+</p>
+<p>
+<strong>CI:</strong> no CI status was available when this report was written, so the results are unknown.
+There were no CI fix rounds. The new tests will run in the job below.
+</p>
+<table>
+  <thead><tr><th>Workflow / job</th><th>Check</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean, "Lean reconstruction tests"</td><td class="unknown">Unknown — see <a href="https://github.com/levnach/z3/pull/110/checks">PR checks</a></td></tr>
+    <tr><td>manylinux job</td><td>Runs only <code>test_proof_to_lean.py</code>, unaffected</td><td class="unknown">Unknown — see <a href="https://github.com/levnach/z3/pull/110/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+<p class="note">No C++ changed, so test-z3 and the SMT2 regressions were not run locally.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR. There were no blocker, major, or minor findings.</p>
+<p>
+<strong>Nit, fixed.</strong>
+The reviewer read the measurement comment "the file's theory lemmas (but its cnf lemma)."
+"But" was meant as "except," yet a reader could take it as "only the cnf lemma."
+That would misstate what the 208 s figure measured.
+Commit <code>15e54b4b2</code> changed the code comment and the test docstring to "without its cnf lemma."
+</p>
+<p>
+<strong>Suggestion, not changed.</strong>
+The reviewer noticed that the new helper keeps unfolded any value equated with a read of any map.
+It was meant only for the select-map axiom's own ite.
+Unfolding too much can only cost time. It cannot let Lean accept something false.
+It has not shown up in profiles, so narrowing it is left as a follow-up.
+</p>
+<p>
+<strong>Suggestion, out of scope.</strong>
+The reviewer suggested limiting euf lemmas' facts to terms outside their ites too.
+This is listed as the next step below.
+</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>An array lemma that truly needs to see inside an ite, other than the map case, now fails in Lean. There is no unfolded fallback. The whole suite and the reviewer's ten inputs pass, but unseen inputs might hit this.</li>
+  <li>Array lemmas over Real values no longer get the Real scaling facts. The existing Real array inputs still verify.</li>
+  <li>CI results are not yet known.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>dlx-regfile still fails on its cnf lemma <code>th_lemma_1612</code>. Measuring its proof steps is the next item.</li>
+  <li>Limit euf lemmas' facts to terms outside their ites, to shrink dlx-regfile's 1.75 MB of euf lemmas.</li>
+  <li>Try folded ites for datatype lemmas.</li>
+  <li>Narrow the map helper to values whose head matches the mapped function.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-array">array</dt>
+  <dd>A value that maps indices to elements, like a table. <code>(select a i)</code> reads index <code>i</code>, and <code>(store a i v)</code> is <code>a</code> with index <code>i</code> set to <code>v</code>.</dd>
+  <dt id="g-axiom-instance">axiom instance</dt>
+  <dd>A general rule filled in with specific terms. Example: read-over-write for <code>a</code>, <code>i</code>, <code>v</code> says reading <code>(store a i v)</code> at <code>i</code> gives <code>v</code>.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort with exactly two values, true and false. In SMT-LIB it is <code>Bool</code>.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals: it holds if at least one of them is true. Example: <code>i = t or a[i] = b[i]</code>.</dd>
+  <dt id="g-cnf-lemma">cnf lemma</dt>
+  <dd>A lemma that justifies how a formula was turned into clauses.</dd>
+  <dt id="g-completeness">completeness</dt>
+  <dd>The checker's ability to accept every correct proof. A completeness gap means some true results are rejected.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal inputs give equal outputs. If <code>x = y</code>, then <code>f(x) = f(y)</code>.</dd>
+  <dt id="g-euf-lemma">euf lemma</dt>
+  <dd>A theory lemma about equality and uninterpreted functions, proved by congruence.</dd>
+  <dt id="g-ite">if-then-else term (ite)</dt>
+  <dd>A term that picks one of two values based on a Boolean condition. <code>(ite c j k)</code> is <code>j</code> when <code>c</code> is true, else <code>k</code>.</dd>
+  <dt id="g-ite-gate">ite gate</dt>
+  <dd>A pair of facts telling Lean which branch an ite takes. Example: "if <code>c</code>, the ite equals <code>j</code>."</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation. Example: <code>i = j</code> or <code>not (i = j)</code>.</dd>
+  <dt id="g-map">map (array map)</dt>
+  <dd>An array built by applying a function at every index. <code>((_ map ite) p a b)</code> picks from <code>a</code> or <code>b</code> at each index.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to a contradiction.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as <code>Int</code>, <code>Bool</code>, or <code>(Array Int Int)</code>.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>The guarantee that the checker never accepts a false claim.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>grind</code> and <code>omega</code> are tactics.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that Lean checks.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that holds because of a theory, such as arrays or arithmetic. Z3 tags each one with a hint, such as <code>array</code> or <code>euf</code>.</dd>
+  <dt id="g-unfold">unfold</dt>
+  <dd>To replace a defined name with its definition, so Lean can see inside it.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only thing known about it is congruence.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-10.
+</footer>
+</body>
+</html>
