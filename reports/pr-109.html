@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #109: Prove euf lemmas over folded ites without the unfolded fallback</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
+    --code-bg: #f6f8fa; --link: #0969da; --accent: #8250df;
+    --open-bg: #dafbe1; --open-fg: #116329; --warn-bg: #fff8c5; --warn-fg: #7d4e00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d;
+      --code-bg: #161b22; --link: #4493f8; --accent: #ab7df8;
+      --open-bg: #12361f; --open-fg: #6fdd8b; --warn-bg: #3a2e05; --warn-fg: #e3b341;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+  a { color: var(--link); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+         background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: 0.8rem 1rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: 0.82rem; }
+  table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .badge { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-weight: 600;
+           font-size: 0.85rem; background: var(--open-bg); color: var(--open-fg); }
+  .note { background: var(--warn-bg); color: var(--warn-fg); border-radius: 6px; padding: 0.6rem 0.9rem; }
+  .caption { color: var(--muted); font-size: 0.93rem; margin-top: -0.4rem; }
+  dt { font-weight: 600; margin-top: 0.7rem; color: var(--accent); }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Prove euf lemmas over folded ites without the unfolded fallback</h1>
+  <p class="meta">
+    Pull request <a href="https://github.com/levnach/z3/pull/109">levnach/z3#109</a> into <code>master</code>
+    &middot; State: <span class="badge">OPEN</span>
+    &middot; Opened 2026-11-10T21:01:06Z
+    &middot; Loop iteration 108
+  </p>
+  <p class="meta">
+    This pull request is open and <strong>not merged</strong>.
+    The change it proposes ends at commit
+    <a href="https://github.com/levnach/z3/commit/eb0a5760ef8fd1e59a6a09c62430b5bfec5c0fe0"><code>eb0a576</code></a>.
+  </p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+  Some <a href="#g-theory-lemma">theory lemmas</a> come from Z3's <a href="#g-euf">EUF</a> solver.
+  When such a lemma mentions <a href="#g-ite">if-then-else terms</a>, the generated Lean proof used to try two
+  <a href="#g-tactic">tactic</a> scripts under <code>first</code>.
+  The first kept the <code>ite</code> terms <a href="#g-folded">folded</a>.
+  The second <a href="#g-unfold">unfolded</a> everything and served as a <a href="#g-fallback">fallback</a>.
+  This PR deletes the fallback and keeps only the folded proof.
+  The <a href="#g-congruence">congruence</a> reasoning in these lemmas never looks inside an <code>ite</code>, so the fallback was never needed in any test.
+  The Lean files get smaller and faster to check.
+  On the eight-stage register-file test, the check time drops from 20 to 7 seconds.
+  The theorem that the input is <a href="#g-refutation">refuted</a> stays exactly the same, so <a href="#g-soundness">soundness</a> is unchanged.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+  The previous PR, #108, taught the reconstructor to prove <a href="#g-euf">EUF</a> lemmas with
+  <a href="#g-ite">ite</a> terms <a href="#g-folded">folded</a>.
+  It kept the fully <a href="#g-unfold">unfolded</a> proof as a <a href="#g-fallback">fallback</a> just in case.
+  That fallback doubled the text of these lemmas.
+  It also could not help when the folded attempt ran out of <a href="#g-heartbeat">heartbeats</a>, because the budget is shared per declaration.
+  The large QF_AUFLIA benchmark dlx-regfile still did not verify before this PR, and it still does not.
+  The work serves milestone 4, "Broader theories and integration", which covers <a href="#g-array">arrays</a> together with
+  <a href="#g-uf">uninterpreted functions</a> and integer arithmetic.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>An EUF lemma that reaches <code>ite</code> terms now gets a single proof, with the ites kept folded and no <code>first</code>.</li>
+  <li>The proof files for array-heavy inputs shrink, and some of them check much faster in Lean.</li>
+  <li>A rarely used extra attempt that rewrites array stores still unfolds everything, as before, because it cannot see inside a folded <code>ite</code>.</li>
+  <li>The tests now fail if any EUF lemma gets a <code>first</code> or unfolds an <code>ite</code>, and a Lean test checks more than 50 such folded proofs directly.</li>
+  <li>The README and the project plan describe the new behavior and record the size and time measurements.</li>
+</ul>
+
+<table>
+  <thead><tr><th>File</th><th>What it is</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>The Lean reconstructor</td><td class="num">19</td><td class="num">9</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Array and EUF tests</td><td class="num">44</td><td class="num">52</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Project plan</td><td class="num">24</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">2</td><td class="num">2</td></tr>
+    <tr><th colspan="2">Total, 4 files, 2 commits</th><th class="num">89</th><th class="num">63</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p class="note">
+  This PR makes no new input certifiable, so there is no "rejected before" input.
+  The example shows one input checked by both versions, and how its proof changed.
+</p>
+
+<h3>(a) The input</h3>
+<p>
+  This is the smallest case of the PR's test generator, <code>register_file_instance(1)</code>.
+  Two equal inputs <code>u0</code> and <code>w0</code> pass through the same <code>ite</code> stage, yet the outputs are said to differ.
+</p>
+<pre><code>(set-logic QF_AUFLIA)
+(declare-fun f (Int Int) Int)
+(declare-fun p (Int) Bool)
+(declare-const A (Array Int Int))
+(declare-const u0 Int)
+(define-fun u1 () Int (ite (p u0) (f u0 (select A u0)) (select (store A u0 1) (f u0 1))))
+(declare-const w0 Int)
+(define-fun w1 () Int (ite (p w0) (f w0 (select A w0)) (select (store A w0 1) (f w0 1))))
+(assert (= u0 w0))
+(assert (not (= u1 w1)))
+(check-sat)</code></pre>
+
+<h3>(b) Before: the base reconstructor's output</h3>
+<p>
+  The base code accepted this input, and Lean checked its file.
+  But each EUF lemma that reaches the ites carried two copies of its proof.
+  Here is one of them, quoted from the real output.
+</p>
+<pre><code>private theorem th_lemma_39 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_38 _atoms _vars _m) := by
+  first
+    | (unfold formula_38 formula_37 formula_36 formula_35 formula_29 formula_22 formula_19 term_14 term_13 term_6 term_5 formula_2 term_1 term_0
+       have _t8 : (term_8 _atoms _vars _m) = (_store ((term_4 _atoms _vars _m)) (_vars 0) (((1 : Int)))) := rfl
+       have _t15 : (term_15 _atoms _vars _m) = (_store ((term_4 _atoms _vars _m)) (_vars 1) (((1 : Int)))) := rfl
+       grind (splits := 64))
+    | (unfold formula_38 ... term_18 term_17 term_16 term_14 term_13 formula_12 term_11 term_10 term_9 term_7 ... term_0
+       have _t8 ...
+       have _t15 ...
+       grind (splits := 64))</code></pre>
+<p class="caption">
+  The second alternative also unfolds <code>term_11</code> and <code>term_18</code>, the two ites, and repeats everything else.
+  Three lemmas in this file had this shape.
+</p>
+
+<h3>(c) After: the current reconstructor's output</h3>
+<p>The two <code>ite</code> terms are ordinary definitions:</p>
+<pre><code>noncomputable def term_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (@ite Int (formula_3 _atoms _vars _m) (Classical.propDecidable _) (term_6 _atoms _vars _m) (term_10 _atoms _vars _m))
+...
+noncomputable def term_18 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (@ite Int (formula_12 _atoms _vars _m) (Classical.propDecidable _) (term_14 _atoms _vars _m) (term_17 _atoms _vars _m))
+def formula_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_11 _atoms _vars _m) = (term_18 _atoms _vars _m))</code></pre>
+<p class="caption"><code>term_11</code> is <code>u1</code>, <code>term_18</code> is <code>w1</code>, and <code>formula_19</code> says they are equal.</p>
+
+<p>The theorem statement, unchanged by this PR:</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_2 _atoms _vars _m))
+    (_h1 : (formula_20 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p class="caption">From <code>u0 = w0</code> and <code>not (u1 = w1)</code>, every interpretation reaches <code>False</code>.</p>
+
+<p>The same EUF lemma, now with one proof:</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_39 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_38 _atoms _vars _m) := by
+  unfold formula_38 formula_37 formula_36 formula_35 formula_29 formula_22 formula_19 term_14 term_13 term_6 term_5 formula_2 term_1 term_0
+  have _t8 : (term_8 _atoms _vars _m) = (_store ((term_4 _atoms _vars _m)) (_vars 0) (((1 : Int)))) := rfl
+  have _t15 : (term_15 _atoms _vars _m) = (_store ((term_4 _atoms _vars _m)) (_vars 1) (((1 : Int)))) := rfl
+  grind (splits := 64)</code></pre>
+<p class="caption">
+  The <code>unfold</code> line leaves <code>term_11</code> and <code>term_18</code> folded, and <code>grind</code> treats them as opaque values in a congruence argument.
+</p>
+<p>
+  Lean accepted the new file.
+  The reconstructor reported "Lean checked the refutation", and the project's Lean check script printed "Lean checks passed."
+  The base file also passed that script.
+  The new file has no <code>first</code> at all.
+</p>
+<table>
+  <thead><tr><th>This example</th><th>Base</th><th>This PR</th></tr></thead>
+  <tbody>
+    <tr><td>Lemmas with <code>first</code></td><td class="num">3</td><td class="num">0</td></tr>
+    <tr><td>Lean file size, bytes</td><td class="num">19,546</td><td class="num">18,012</td></tr>
+    <tr><td>Lean check</td><td>passed</td><td>passed</td></tr>
+  </tbody>
+</table>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+  All Python and Lean test suites passed, and the reviewer re-ran them with the same result.
+  The new tests fail on the base code, so they really guard the change.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>test_proof_to_lean*.py</code>, including Lean-checking array tests</td><td>510 tests, OK, 6 skipped</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td>119 tests, OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+    <tr><td>z3test proof tests</td><td>48 tests, OK</td></tr>
+    <tr><td>Two regression-matrix cells with Lean</td><td>6/6 and 8/8 Lean-verified</td></tr>
+    <tr><td>New tests run against the base reconstructor</td><td>both changed tests fail, as intended</td></tr>
+    <tr><td>Output before and after the review fix</td><td>206 inputs, all byte-identical</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Input</th><th>With the fallback</th><th>This PR</th></tr></thead>
+  <tbody>
+    <tr><td><code>register_file_instance(8)</code>, whole file</td><td>5.12 MB, 20 s, 1.83 GB</td><td>4.28 MB, 7 s, 2.52 GB</td></tr>
+    <tr><td><code>register_file_instance(8)</code>, EUF lemmas</td><td>1.55 MB</td><td>0.71 MB</td></tr>
+    <tr><td>dlx-regfile, file / EUF lemmas</td><td>22.3 MB / 5.56 MB</td><td>18.6 MB / 1.80 MB</td></tr>
+    <tr><td>dlx-regfile theory lemmas</td><td>255 s, 5.2 GB, 1 error</td><td>246 s, 5.14 GB, the same 1 error</td></tr>
+  </tbody>
+</table>
+<p>
+  <strong>Local gate.</strong> The loop's local gate was still running when this page was written.
+  Its result is not recorded here.
+</p>
+<p>
+  <strong>CI.</strong> No CI status was available when this page was written.
+  See the <a href="https://github.com/levnach/z3/pull/109/checks">PR's checks page</a> for the current state.
+  There were no CI fix rounds.
+</p>
+<table>
+  <thead><tr><th>Workflow / check</th><th>Relevance</th><th>State</th></tr></thead>
+  <tbody>
+    <tr><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td>Runs <code>test_proof_certificate.py</code> and <code>test_proof_to_lean.py</code></td><td>unknown at time of writing</td></tr>
+    <tr><td>Other workflows</td><td>No C++ changed</td><td>unknown at time of writing</td></tr>
+  </tbody>
+</table>
+<p>
+  The changed tests live in <code>test_proof_to_lean_array.py</code>.
+  No CI job runs that file, before or after this PR, so they ran only locally.
+</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved. There were no blocker or major findings.</p>
+<ol>
+  <li>
+    <strong>Minor: a side path lost its full unfold.</strong>
+    The reviewer traced how the store-identity attempt is built.
+    It copied the folded unfold, but its rewriting tactic cannot work inside a folded <code>ite</code>.
+    So some lemma could fail where it used to succeed, and the plan's "stays as before" was wrong.
+    <em>Fix:</em> the path is now built from the full unfold again, and a code comment explains why.
+    No tested input reaches this path, and the output stayed byte-identical on 206 inputs.
+  </li>
+  <li>
+    <strong>Nit: a test check that could not fail.</strong>
+    The reviewer ran a new test branch against the base code, and it still passed.
+    On the base code, the lines it inspects sat inside <code>first</code> alternatives, which the test skips.
+    <em>Fix:</em> the test now also requires that the branch is reached, and it fails on the base code.
+    This matters because a test that cannot fail gives false confidence.
+  </li>
+  <li>
+    <strong>Suggestion: run the array tests in CI.</strong>
+    Not a defect.
+    It was left as a follow-up, because CI wiring is outside this change.
+  </li>
+</ol>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>This is a <a href="#g-completeness">completeness</a> risk, not a soundness risk. If the folded proof cannot prove some EUF lemma, Lean now rejects the certificate. No such lemma appeared in any tested input, including 803 EUF lemmas of dlx-regfile.</li>
+  <li>The store-identity path has no Lean test, since no documented input reaches it.</li>
+  <li>Peak memory on <code>register_file_instance(8)</code> rose. The cause was not investigated.</li>
+  <li>The array and EUF tests still run in no CI job.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>dlx-regfile still fails on one <a href="#g-cnf">cnf</a> lemma. Z3's preprocessing rewrote an <code>ite</code> chain, so the input and the rewritten form no longer match level by level. A proof that follows the rewrite steps is needed.</li>
+  <li>dlx-regfile's other theory lemmas still take about 206 s and 5 GB. The next step is to profile which lemmas dominate.</li>
+  <li>Wire the array tests that do not need Lean into CI.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-array">array</dt>
+  <dd>A theory of maps from indices to values. <code>select A i</code> reads position <code>i</code>, and <code>store A i v</code> is a copy of <code>A</code> with position <code>i</code> set to <code>v</code>.</dd>
+
+  <dt id="g-clause">clause</dt>
+  <dd>An OR of literals, such as <code>(not a) or b</code>. A theory lemma is a clause.</dd>
+
+  <dt id="g-cnf">cnf lemma</dt>
+  <dd>A proof step that turns a formula into clauses in conjunctive normal form, an AND of ORs of literals.</dd>
+
+  <dt id="g-completeness">completeness</dt>
+  <dd>The checker's ability to accept every correct proof. A completeness gap means a true result fails to verify, never that a false one passes.</dd>
+
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal arguments give equal results: if <code>a = b</code>, then <code>f a = f b</code>.</dd>
+
+  <dt id="g-euf">EUF</dt>
+  <dd>Equality with uninterpreted functions. Z3's EUF solver reasons only with equalities and congruence, and treats an <code>ite</code> term as a single opaque value.</dd>
+
+  <dt id="g-fallback">fallback</dt>
+  <dd>A second proof attempt, tried only if the first one fails. In Lean, <code>first | A | B</code> tries tactic <code>A</code>, then <code>B</code>.</dd>
+
+  <dt id="g-folded">folded definition</dt>
+  <dd>A defined name, such as <code>term_11</code>, left as a name instead of being replaced by its body. A prover then treats it as one opaque value.</dd>
+
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work. <code>maxHeartbeats</code> limits how much work one declaration may use, and running out is an error that <code>first</code> does not catch.</dd>
+
+  <dt id="g-ite">if-then-else term (ite)</dt>
+  <dd>A term <code>(ite c x y)</code> whose value is <code>x</code> when the Boolean <code>c</code> is true and <code>y</code> otherwise.</dd>
+
+  <dt id="g-literal">literal</dt>
+  <dd>A Boolean atom or its negation, such as <code>u0 = w0</code> or <code>not (u1 = w1)</code>.</dd>
+
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>, so no interpretation satisfies them all.</dd>
+
+  <dt id="g-soundness">soundness</dt>
+  <dd>The guarantee that the checker never accepts a false claim. This PR changes only tactic text, not what is proved, so soundness is unaffected.</dd>
+
+  <dt id="g-tactic">tactic</dt>
+  <dd>A command inside a Lean <code>by</code> block that builds part of a proof, such as <code>unfold</code> or <code>grind</code>.</dd>
+
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that a theory solver, such as EUF or arrays, claims is always true. The Lean file must prove each one.</dd>
+
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol, like <code>f</code> or <code>p</code> above, with no fixed meaning. The only thing known about it is congruence.</dd>
+
+  <dt id="g-unfold">unfold</dt>
+  <dd>The Lean tactic that replaces a defined name with its body, so a prover can see inside it.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-10.
+</footer>
+
+</main>
+</body>
+</html>
