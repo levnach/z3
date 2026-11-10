@@ -1717,6 +1717,7 @@ are `euf` lemmas, each reaching about 66 ites, and every reachable ite
 gets two gates. Gates alone are about 80% of a lemma's text, and the
 outlined proof steps add another 14 MB. The swap files of 66 to 250 MB
 belong to the many-lemma memory class.
+
 Tests: `test_array_facts_are_stated_over_folded_definitions` (fails before
 on size and without the unfold roots on the unfold line) and
 `test_nested_ite_chains_through_arrays_verify` (`test_proof_to_lean_array.py`).

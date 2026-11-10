@@ -3448,13 +3448,22 @@ def array_chain_instance(depth=6, use="value"):
     dlx-regfile (register reads through shared nested ites), whose array
     facts were written out until they were stated folded (see
     proof_to_lean._array_helpers).
+
+    The other uses reach the remaining kinds of array facts over a folded
+    node: "const", a constant array of a<depth> (_select_const, the folded
+    value); "bool", (< a<depth> 3) stored into an array of Bool (formula_N
+    arguments); "ite", an ite over two stores at a<depth> whose condition
+    is (< a<depth> 5), read at b<depth / 2> (the folded condition in the
+    ite's _t fact).
     """
     real = use == "real"
     sort, suffix = ("Real", ".0") if real else ("Int", "")
-    element = "Int" if use == "index" else sort
+    element = {"index": "Int", "ite": "Int", "bool": "Bool"}.get(use, sort)
     lines = ["(set-logic %s)" % ("QF_AUFLIRA" if real else "QF_ALIA"), "(declare-const x %s)" % sort,
              "(declare-const i Int)", "(declare-const A (Array Int %s))" % element,
              "(declare-const M (Array Int %s))" % element]
+    if use == "ite":
+        lines.append("(declare-const B (Array Int Int))")
     for name, step, count in (("a", 5, depth), ("b", 10, depth // 2)):
         previous = "x"
         for index in range(1, count + 1):
@@ -3462,10 +3471,19 @@ def array_chain_instance(depth=6, use="value"):
                 name, index, sort, previous, step, suffix, suffix, suffix))
             previous = "%s%d" % (name, index)
     lines.append("(assert (and (<= 0%s x) (< x 17%s)))" % (suffix, suffix))
+    half = depth // 2
     if use == "index":
-        lines += ["(assert (= M (store A a%d 1)))" % depth, "(assert (not (= (select M b%d) 1)))" % (depth // 2)]
+        lines += ["(assert (= M (store A a%d 1)))" % depth, "(assert (not (= (select M b%d) 1)))" % half]
+    elif use == "const":
+        lines += ["(assert (= M ((as const (Array Int Int)) a%d)))" % depth,
+                  "(assert (not (= (select M i) b%d)))" % half]
+    elif use == "bool":
+        lines += ["(assert (= M (store A i (< a%d 3))))" % depth, "(assert (not (= (select M i) (< b%d 3))))" % half]
+    elif use == "ite":
+        lines += ["(assert (= M (ite (< a%d 5) (store A a%d 1) (store B a%d 1))))" % (depth, depth, depth),
+                  "(assert (not (= (select M b%d) 1)))" % half]
     else:
-        lines += ["(assert (= M (store A i a%d)))" % depth, "(assert (not (= (select M i) b%d)))" % (depth // 2)]
+        lines += ["(assert (= M (store A i a%d)))" % depth, "(assert (not (= (select M i) b%d)))" % half]
     return "\n".join(lines + ["(check-sat)"]) + "\n"
 
 
@@ -3572,6 +3590,20 @@ class TestArrayLeanIntegration(unittest.TestCase):
         for use, source in sources:
             with self.subTest(use=use):
                 _check_in_lean(self, source, "qf_uflira" if use == "real" else "qf_uflia")
+
+    def test_folded_chains_in_other_array_facts_verify(self):
+        """Six-step chains as a constant array's value, a Bool element, and an ite's condition and index verify.
+
+        These reach the folded nodes of _select_const facts, formula_N
+        arguments of a store, and the condition of an ite over arrays
+        (array_chain_instance); written out they were 5 to 11 MB of Lean,
+        folded they are under 0.7 MB.
+        """
+        sources = [(use, array_chain_instance(6, use)) for use in ("const", "bool", "ite")]
+        lean_test_support.prefetch((source, _export(source)) for _, source in sources)
+        for use, source in sources:
+            with self.subTest(use=use):
+                _check_in_lean(self, source, "qf_uflia")
 
     def test_numeral_facts_are_needed(self):
         """Without the values of numeral expressions, or rewritten after their subterms, simp misses the identities."""

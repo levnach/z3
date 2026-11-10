@@ -3037,8 +3037,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     distinct_facts, distinct_names = _boolean_distinct_facts(graph, reachable, atom_indices, variable_indices)
     fallback.extend(distinct_facts)
     fallback.extend(helper.strip() for helper in _theory_helpers(graph, reachable, atom_indices, variable_indices,
-                                                                  folded_arguments=fold))
-    fallback.extend(array_facts)
+                                                                  folded_arguments=fold, array_facts=array_facts))
     if (prefix == "rewrite" or graph.decl(node).parameters[:1] == ("cnf",)) and graph.arrays:
         fallback.extend(helper.strip() for helper in _constant_array_comparisons(
             graph, reachable, atom_indices, variable_indices))
@@ -3515,18 +3514,20 @@ def _definition_names(graph, nodes, roots=None):
             for formula in sorted(nodes, reverse=True)]
 
 
-def _theory_helpers(graph, reachable, atom_indices, variable_indices, folded_arguments=False):
+def _theory_helpers(graph, reachable, atom_indices, variable_indices, folded_arguments=False, array_facts=()):
     """Facts _grind_lemma states after unfolding.
 
-    The ite gates, scaling facts, and array facts it states before
-    (_folded_ite_gates, _array_helpers); with folded_arguments, the
-    excluded-middle facts of Boolean arguments too.
+    The ite gates, scaling facts, and array facts that mention definitions
+    it states before (_folded_ite_gates, _array_helpers); with
+    folded_arguments, the excluded-middle facts of Boolean arguments too.
+    array_facts are the other array facts (_array_helpers), stated here.
     """
     helpers = []
     if graph.uninterpreted and not folded_arguments:
         helpers.extend(_boolean_argument_helpers(graph, reachable, atom_indices, variable_indices))
     if graph.arithmetic and (graph.uninterpreted or graph.floors):
         helpers.extend(_real_argument_helpers(graph, reachable, atom_indices, variable_indices))
+    helpers.extend(array_facts)
     if graph.enumerations:
         helpers.extend(_enumeration_helpers(graph, reachable, atom_indices, variable_indices))
     return helpers
