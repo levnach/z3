@@ -3552,6 +3552,32 @@ def register_file_instance(depth=8):
     return "\n".join(lines + ["(check-sat)"]) + "\n"
 
 
+def _folded_congruence_attempts(graph, text):
+    """The text with each euf lemma that reaches ites proved by its folded attempt alone, and their number.
+
+    The folded attempt is the alternative under first whose unfold (if any)
+    names no ite definition; the unfolded fallback names some.
+    """
+    ites = {"term_%d" % term for term in range(len(graph.nodes))
+            if graph.is_term(term) and graph.kind(term) == z3.Z3_OP_ITE}
+    blocks, reduced = text.split("\n\n"), 0
+    for index, block in enumerate(blocks):
+        match = re.search(r"private theorem th_lemma_(\d+) ", block)
+        if (not match or graph.decl(int(match.group(1))).parameters[:1] != ("euf",)
+                or "\n  first\n    | (" not in block):
+            continue
+        head, rest = block.split("\n  first\n", 1)
+        alternatives = [alternative[:-1].split("\n       ") for alternative in rest[len("    | ("):].split("\n    | (")]
+        folded = [lines for lines in alternatives
+                  if not any(ites.intersection(line.split()[1:]) for line in lines if line.startswith("unfold "))]
+        if len(folded) == len(alternatives):
+            continue  # No ite reached: no folded attempt.
+        assert len(folded) == 1 and folded[0] is not alternatives[-1], block[-500:]
+        blocks[index] = head + "\n" + "\n".join("  " + line for line in folded[0])
+        reduced += 1
+    return "\n\n".join(blocks), reduced
+
+
 def _without_facts(text, matches):
     """The text without the have lines whose tactic matches selects, nor their names in revert and intro lines.
 
@@ -3660,9 +3686,19 @@ class TestArrayLeanIntegration(unittest.TestCase):
         """The euf lemmas of register_file_instance verify without ite gates and array axiom instances.
 
         See test_congruence_lemmas_state_no_ite_gates_or_array_axioms: grind
-        proves each congruence over the unfolded ites without their gates.
+        proves each congruence with its ites folded. The generated file is
+        checked, and so is the file with each euf lemma cut down to its
+        folded attempt: under first, a broken folded attempt would otherwise
+        fall back to the unfolded proof unnoticed (the regime that exhausted
+        the heartbeats on z3test's dlx-regfile).
         """
-        _check_in_lean(self, register_file_instance(5), "qf_uflia")
+        source = register_file_instance(5)
+        certificate = _check_in_lean(self, source, "qf_uflia")
+        graph = proof_to_lean._validate_graph(source, certificate)
+        text, reduced = _folded_congruence_attempts(graph, proof_to_lean.reconstruct(source, certificate))
+        self.assertGreater(reduced, 50)
+        _, report = lean_test_support.check(self, source, text=text)
+        self.assertTrue(_STANDARD_AXIOMS in report or "does not depend on any axioms" in report, report)
 
     def test_folded_chains_in_other_array_facts_verify(self):
         """Six-step chains as a constant array's value, a Bool element, and an ite's condition and index verify.

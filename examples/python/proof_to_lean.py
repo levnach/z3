@@ -2977,10 +2977,10 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     # about 130 folded gates each, 15 of the file's 44 MB, and their read
     # facts another 7 MB; unfolded, grind split their ites, and omega, tried
     # first over Int, exhausted the heartbeats on several of them (first does
-    # not catch that). Generalizing the opaque Int atoms (applications among
-    # them) would hide the congruences, so that attempt is skipped too.
+    # not catch that). (_opaque_tactic gives an euf lemma no opaque-atom
+    # attempt either: generalizing applications would hide the congruences.)
     congruence = prefix == "th_lemma" and graph.decl(node).parameters[:1] == ("euf",)
-    atoms = _opaque_int_atoms(graph, conclusions) if opaque_tactic and not congruence else []
+    atoms = _opaque_int_atoms(graph, conclusions) if opaque_tactic else []
     budget = _LATTICE_LEMMA_HEARTBEATS if atoms and _lattice_step(graph, node) else 1000000
     lines = [
         "",

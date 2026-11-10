@@ -1683,8 +1683,9 @@ their own. The egraph applies no array axiom either: those are `array`
 lemmas, and a theory's equality enters an `euf` hint as a literal. The C++
 checker (`eq_theory_checker`) accepts an `euf` hint by union-find and
 congruence alone. So an `euf` lemma now states only the bodies of the
-folded array terms (`_t`) and the commutativity facts its `comm` claims
-may use (`_mc` of maps, `_xc` of extensionality witnesses). Its tactic is
+folded array terms (`_t`), the map identities (`_map_identities`, with
+`_mc` among them), and the commutativity of extensionality witnesses
+(`_xc`), which its `comm` claims may use. Its tactic is
 grind alone: omega, tried first over Int, ran out of heartbeats on several
 dlx-regfile `euf` lemmas, and `first` does not catch that. A lemma that
 reaches ites is first tried with them folded, unfolding only the
