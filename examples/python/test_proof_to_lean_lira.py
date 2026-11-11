@@ -783,6 +783,11 @@ class TestCastValidation(unittest.TestCase):
                     self.assertNotIn("@ite", statement, name)
                     self.assertNotRegex(statement, r"_[iv]?vars \d", name)
                 for block in [block for block in text.split("\n\n") if facts and "theorem" in block]:
+                    # A cnf lemma's structural attempt names its steps _f too
+                    # (theory clauses, propagations); the facts are the
+                    # fallback's.
+                    block = "\n    | (".join(attempt for attempt in block.split("\n    | (")
+                                             if "refine Classical.byContradiction ?_" not in attempt)
                     names = re.findall(fact, block)
                     if names:
                         reverted = re.search(r"\n *revert ([\w ]+)\n *unfold [\w ]+\n *intro ([\w ]+)\n", block)
