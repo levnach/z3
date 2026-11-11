@@ -6,115 +6,119 @@
 <title>PR #112: State enumeration cases of applications over folded definitions</title>
 <style>
   :root {
+    color-scheme: light dark;
     --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922;
     }
   }
-  html { background: var(--bg); color: var(--fg); }
-  body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
-  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .5rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
   h3 { font-size: 1.05rem; margin-top: 1.4rem; }
   a { color: var(--accent); }
-  code { font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: .05em .3em; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; overflow-x: auto; line-height: 1.4; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .meta span { display: inline-block; margin-right: 1.2rem; }
+  .badge { display: inline-block; padding: .05rem .55rem; border-radius: 1rem; font-size: .85rem;
+           font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+         background: var(--code-bg); padding: .1em .3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+        padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; }
   pre code { background: none; padding: 0; font-size: .82rem; }
-  table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .92rem; }
+  table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: .93rem; }
   th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .meta { color: var(--muted); margin: 0; }
-  .state { display: inline-block; font-weight: 600; padding: .05rem .5rem; border-radius: 1rem; border: 1px solid var(--ok); color: var(--ok); }
-  .ok { color: var(--ok); font-weight: 600; }
+  .pass { color: var(--ok); font-weight: 600; }
   .warn { color: var(--warn); font-weight: 600; }
-  .bad { color: var(--bad); font-weight: 600; }
-  .note { color: var(--muted); font-size: .95rem; }
-  dl dt { font-weight: 600; margin-top: .7rem; }
-  dl dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .8rem; color: var(--muted); font-size: .9rem; }
+  .explain { margin-top: -.4rem; color: var(--muted); }
+  dt { font-weight: 600; margin-top: .7rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
   <h1>State enumeration cases of applications over folded definitions</h1>
-  <p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/112">levnach/z3#112</a>
-    · State: <span class="state">OPEN</span> · Opened 2026-11-11T00:58:13Z · Loop iteration 111</p>
-  <p class="meta">This pull request is open and not merged.
-    Its change commit is <a href="https://github.com/levnach/z3/commit/2056d91542af0dca0fd6c37b2a8411ee8b5eab3c"><code>2056d91</code></a>.
-    It contains two commits on top of base <code>43a341e</code>.</p>
+  <p class="meta">
+    <span><a href="https://github.com/levnach/z3/pull/112">Pull request #112</a></span>
+    <span>State: <span class="badge">MERGED</span></span>
+    <span>Date: 2026-11-11T01:12:54Z</span>
+    <span>Loop iteration: 111</span>
+  </p>
+  <p class="meta">
+    <span>Merge commit: <a href="https://github.com/levnach/z3/commit/46bd831e444f642ecd6a93837c6f4a0980170ed5"><code>46bd831e4</code></a></span>
+    <span>Merged: 2026-11-11T01:12:54Z</span>
+  </p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
 <p>
-  Each <a href="#g-theory-lemma">theory lemma</a> over an <a href="#g-enumeration-sort">enumeration sort</a>
-  receives one fact per <a href="#g-application">application</a> of an
-  <a href="#g-uninterpreted-function">uninterpreted function</a> that returns that sort.
-  The fact says the value is one of the sort's <a href="#g-constructor">constructors</a>.
-  Before this PR, the fact spelled out the application's arguments in full.
-  When an argument was a deep chain of <a href="#g-ite">if-then-else terms</a>, the whole chain was copied every time.
-  Now the fact names the arguments by their Lean <a href="#g-definition">definitions</a>.
-  It is set aside with <a href="#g-revert">revert</a> and rewritten by the same <a href="#g-unfold">unfold</a> as the goal.
-  On the PR's eight-level test input, the Lean file shrank from 27.2 MB to 0.57 MB.
-  Lean ran out of resources on the old file but checks the new one in about a second.
-  So a <a href="#g-refutation">refutation</a> that used to be rejected now gets a checked <a href="#g-certificate">certificate</a>.
-  The <a href="#g-trust-boundary">trust boundary</a> does not move.
+This PR shrinks the Lean proofs of <a href="#g-theory-lemma">theory lemmas</a> over
+<a href="#g-enumeration-sort">enumeration sorts</a>.
+Such a lemma needs one fact per <a href="#g-application">application</a> of an
+<a href="#g-uninterpreted-function">uninterpreted function</a> that returns an enumeration value.
+The fact says the value is one of the <a href="#g-sort">sort</a>'s <a href="#g-constructor">constructors</a>.
+Before, the fact spelled out the application's arguments in full.
+Over a nested <a href="#g-ite">if-then-else term</a> chain, that copied the whole chain again and again.
+Now the fact names each argument by its <a href="#g-definition">definition</a>, and it is
+<a href="#g-unfold">unfolded</a> together with the <a href="#g-goal">goal</a>.
+On the PR's eight-level test input, the <a href="#g-certificate">certificate</a> went from too big to check
+to about one second of checking.
+The <a href="#g-trust-boundary">trust boundary</a> does not move. Lean still checks every fact.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-  Iterations 107 to 110 kept if-then-else terms folded inside <a href="#g-euf">euf</a> lemmas,
-  so that a chain appears once, by name.
-  The enumeration facts were left behind and still wrote every chain out.
-  On inputs with a few nested chains, those facts made up almost the whole certificate.
-  This work belongs to milestone 4 of the plan, broader theories, where enumeration
-  <a href="#g-datatype">datatypes</a> were added on 2026-11-06.
-  It builds on milestone 3's <a href="#g-congruence">congruence</a> reasoning.
+In iterations 107 to 110, <a href="#g-euf">EUF</a> lemmas learned to keep if-then-else terms
+<a href="#g-folded">folded</a> in the goal.
+The <a href="#g-grind">grind</a> <a href="#g-tactic">tactic</a> then proves them.
+But the enumeration facts that grind needs for its <a href="#g-case-split">case splits</a> were still written out in full.
+So these facts filled most of the file, and they did not even mention the goal's folded terms.
+An input with two eight-level chains of <code>Color</code> ites was therefore rejected for lack of memory and time.
+This work extends the plan's milestone 3, equality and uninterpreted functions, to enumeration datatypes.
+Those datatypes are one of the broader theories of milestone 4.
 </p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-  <li>Enumeration facts about function applications now refer to the arguments by name instead of copying them, when the input has no arrays.</li>
-  <li>Inputs with long if-then-else chains under uninterpreted functions now produce small Lean files that Lean can check.</li>
-  <li>A new test generator builds such chains at any depth, and two new tests check the folded form and run Lean on depth 8.</li>
-  <li>One more pinned random seed now guards a subtle Int case that the reviewer found untested.</li>
-  <li>The README and the plan describe the new behaviour.</li>
+  <li>A theory lemma can now state the cases of an enumeration-valued application by citing its arguments' definitions instead of copying them.</li>
+  <li>These facts are now <a href="#g-revert">reverted</a> before the lemma's unfold and reintroduced after it,
+      so the unfold rewrites them exactly as it rewrites the goal.</li>
+  <li>Inputs whose ite chains are eight or twelve levels deep now produce small certificates that Lean checks in seconds.</li>
+  <li>Developers can now generate ite-chain inputs of any depth with the new test generator
+      <code>enumeration_chain_instance</code>.</li>
+  <li>A pinned Int test seed now catches the mistake of naming the application itself in the unfold.</li>
 </ul>
 <p>
-  An analogy: the old facts were like a report that pastes a whole appendix into every footnote.
-  The new facts say "see appendix B" and let one shared step expand it.
-  In the code, the new function is <code>_folded_enumeration_cases</code> in the reconstructor.
-  Constants, array reads, and inputs with arrays still get the old written-out facts.
+Think of a paper that writes "by equation 5" instead of copying equation 5 into every later step.
+The new facts work the same way. Certificates that contain arrays still write the facts out in full.
 </p>
 <table>
-  <thead><tr><th>File</th><th>What it is</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <thead><tr><th>File</th><th>What it is</th><th>Added</th><th>Removed</th></tr></thead>
   <tbody>
     <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">47</td><td class="num">6</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_enum.py</code></td><td>Enumeration tests</td><td class="num">60</td><td class="num">3</td></tr>
     <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, new dated section</td><td class="num">19</td><td class="num">0</td></tr>
     <tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">3</td><td class="num">1</td></tr>
-    <tr><th>Total</th><td>4 files</td><td class="num">129</td><td class="num">10</td></tr>
+    <tr><th colspan="2">Total, 4 files</th><th class="num">129</th><th class="num">10</th></tr>
   </tbody>
 </table>
-<p class="note">No C++ code and no Lean rule file changed.</p>
 
 <h2 id="example">Worked example</h2>
-<p>
-  The input is the PR's own test generator at depth 8.
-  I ran the current scripts and the base commit's scripts on it.
-  Everything quoted below comes from those runs.
-</p>
-
 <h3>(a) The input</h3>
 <p>
-  Two copies of the same chain start from equal values, yet the input claims their ends differ.
-  The full file has 27 lines.
-  Stages 2 to 7 of each copy repeat stage 1's pattern and are cut here.
+This is the PR's own test input, written by <code>enumeration_chain_instance(8)</code>.
+The real file has 27 lines. Stages 3 to 7 of each chain are cut here.
 </p>
 <pre><code>(set-logic ALL)
 (declare-datatypes ((Color 0)) (((red) (green) (blue))))
@@ -123,207 +127,217 @@
 (declare-fun g (Color Color) Color)
 (declare-const u0 Color)
 (define-fun u1 () Color (ite (p u0) (f u0) (ite (= u0 green) blue (g u0 red))))
+(define-fun u2 () Color (ite (p u1) (f u1) (ite (= u1 green) blue (g u1 red))))
 ...
 (define-fun u8 () Color (ite (p u7) (f u7) (ite (= u7 green) blue (g u7 red))))
 (declare-const w0 Color)
-...                       ; w1 to w8: the same chain, starting from w0
+...  ; the same eight stages for w1 to w8
 (assert (= u0 w0))
 (assert (not (= u8 w8)))
 (check-sat)</code></pre>
+<p class="explain">Both chains start from equal inputs, so by <a href="#g-congruence">congruence</a> their outputs must be equal. The input says they differ.</p>
 
 <h3>(b) Before</h3>
 <p>
-  The base exporter wrote the certificate without error.
-  The base reconstructor always runs Lean, so I called its reconstruction step directly and stopped before Lean.
-  It produced this much Lean text:
+The old reconstructor did not reject this input. It wrote a Lean file too large to check.
+I ran the base commit's reconstruction on the same certificate, without its built-in Lean check.
+One lemma of its output, with long lines cut:
 </p>
-<pre><code>characters 27196949</code></pre>
-<p>
-  The smallest affected lemma shows the problem.
-  Its enumeration fact already copies the first stage of the chain.
-  Deeper lemmas copy all eight stages, and the longest single fact line was over one million characters.
-</p>
-<pre><code>private theorem th_lemma_216 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
-    : (formula_215 _atoms _m) := by
-  unfold formula_215 formula_214 formula_213 formula_188 formula_180 formula_68 term_13 term_5
+<pre><code>characters 27196949
+...
+private theorem th_lemma_673 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_672 _atoms _m) := by
+  unfold formula_672 formula_596 formula_595 ... term_8
   have _ed := _m.enum_distinct
-  have _ec13 := _m.enum_fcases_0 [((@ite _m.U (_m.preds 0 [(_m.elems 0)]) (Classical.propDecidable _) (_m.funs 0 [(_m.elems 0)]) ((@ite _m.U (((_m.elems 0) = (_m.ctors 1))) (Classical.propDecidable _) (_m.ctors 2) (_m.funs 1 [(_m.elems 0), (_m.ctors 0)])))))]
+  have _ec45 := _m.enum_fcases_1 [((@ite _m.U (_m.preds 0 [((@ite _m.U (_m.preds 0 [( ...[289441 chars]
+  have _ec51 := _m.enum_fcases_1 [((@ite _m.U (_m.preds 0 [((@ite _m.U (_m.preds 0 [( ...[1157793 chars]
+  have _ec93 := _m.enum_fcases_1 [((@ite _m.U (_m.preds 0 [((@ite _m.U (_m.preds 0 [( ...[289441 chars]
+  have _ec99 := _m.enum_fcases_1 [((@ite _m.U (_m.preds 0 [((@ite _m.U (_m.preds 0 [( ...[1157793 chars]
   grind (splits := 64)</code></pre>
-<p>
-  I did not run Lean on the 27.2 MB file myself.
-  It needs about 12 GB, and another Lean job was running at the same time.
-  The PR's change summary records the result of that check:
+<p class="explain">
+One fact line ran past a million characters, because it copied most of the chain.
+I did not rerun Lean on this 27.2 MB file.
+The PR records that its Lean check was killed by the memory watchdog, so the certificate was rejected.
 </p>
-<pre><code>The Lean check reached 12.6 GB and was killed after 288 s, so the certificate was rejected.</code></pre>
 
 <h3>(c) After</h3>
-<p>The current pipeline wrote a 573,613-character Lean file. Excerpts follow.</p>
+<p>With the merged code, the same certificate becomes a 0.57 MB Lean file. Excerpts:</p>
 <pre><code>structure Interpretation where
   U : Type
+  elems : Nat -&gt; U
+  funs : Nat -&gt; List U -&gt; U
+  preds : Nat -&gt; List U -&gt; Prop
   ...
   ctors : Nat -&gt; U
   enum_distinct : (And (Not (ctors 0 = ctors 1)) (And (Not (ctors 0 = ctors 2)) (Not (ctors 1 = ctors 2))))
   ...
-  enum_fcases_0 : forall _args : List U, (Or (funs 0 _args = ctors 0) (Or (funs 0 _args = ctors 1) (funs 0 _args = ctors 2)))
   enum_fcases_1 : forall _args : List U, (Or (funs 1 _args = ctors 0) (Or (funs 1 _args = ctors 1) (funs 1 _args = ctors 2)))</code></pre>
-<p>These fields say that <code>f</code> and <code>g</code> always return red, green, or blue, and the three colors differ.</p>
-<pre><code>noncomputable def term_11 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := (@ite _m.U (formula_3 _atoms _m) (Classical.propDecidable _) (term_4 _atoms _m) (term_10 _atoms _m))
+<p class="explain">The <a href="#g-interpretation">interpretation</a> includes a field saying that every value of <code>g</code> is <code>red</code>, <code>green</code>, or <code>blue</code>.</p>
+<pre><code>noncomputable def term_41 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := (@ite _m.U (formula_36 _atoms _m) (Classical.propDecidable _) (term_37 _atoms _m) (term_40 _atoms _m))
+noncomputable def term_45 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.funs 1 [(term_41 _atoms _m), (term_8 _atoms _m)]
 ...</code></pre>
-<p>Each subterm gets one definition, so stage <code>u1</code> is written once and later referred to by name.</p>
-<pre><code>private theorem th_lemma_216 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
-    : (formula_215 _atoms _m) := by
-  have _ec13 := _m.enum_fcases_0 [(term_11 _atoms _m)]
-  revert _ec13
-  unfold formula_215 formula_214 formula_213 formula_188 formula_180 formula_68 term_13 term_5
-  intro _ec13
+<p class="explain">Each subterm gets one short definition. Here <code>term_41</code> is stage <code>u6</code> and <code>term_45</code> is <code>(g u6 red)</code>.</p>
+<pre><code>private theorem th_lemma_673 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_672 _atoms _m) := by
+  have _ec45 := _m.enum_fcases_1 [(term_41 _atoms _m), (term_8 _atoms _m)]
+  have _ec51 := _m.enum_fcases_1 [(term_47 _atoms _m), (term_8 _atoms _m)]
+  have _ec93 := _m.enum_fcases_1 [(term_89 _atoms _m), (term_8 _atoms _m)]
+  have _ec99 := _m.enum_fcases_1 [(term_95 _atoms _m), (term_8 _atoms _m)]
+  revert _ec45 _ec51 _ec93 _ec99
+  unfold formula_672 formula_596 formula_595 ... term_99 term_93 term_51 term_45 term_8
+  intro _ec45 _ec51 _ec93 _ec99
   have _ed := _m.enum_distinct
   grind (splits := 64)</code></pre>
-<p>This is the new feature: the fact names its argument as <code>term_11</code>, is reverted, unfolded together with the goal, and introduced again.</p>
+<p class="explain">This is the new feature. The same four facts now cite argument definitions, are reverted around the unfold, and fit in 787 characters instead of about 2.9 million.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
     (_h0 : (formula_2 _atoms _m))
     (_h1 : (formula_103 _atoms _m))
     : False :=
   proof_step_1427 _atoms _m (And.intro _h0 _h1)</code></pre>
-<p>The final theorem says the two assertions together imply False.</p>
-<p>
-  <span class="ok">Lean accepted the file.</span>
-  The reconstructor printed "Lean checked the refutation", and <code>scripts/check_lean.sh</code> printed "Lean checks passed."
-</p>
-<table>
-  <thead><tr><th>Measure on this input</th><th>Before</th><th>After</th></tr></thead>
-  <tbody>
-    <tr><td>Lean file size (characters)</td><td class="num">27,196,949</td><td class="num">573,613</td></tr>
-    <tr><td>Theory lemmas</td><td class="num">112</td><td class="num">112</td></tr>
-    <tr><td>Total size of theory lemmas (characters)</td><td class="num">26,668,017</td><td class="num">44,709</td></tr>
-    <tr><td>Enumeration fact lines about applications</td><td class="num">160</td><td class="num">160</td></tr>
-    <tr><td>Total size of those lines (characters)</td><td class="num">26,636,151</td><td class="num">9,750</td></tr>
-    <tr><td>Longest such line (characters)</td><td class="num">1,157,793</td><td class="num">74</td></tr>
-    <tr><td>Lean check</td><td class="bad">killed, 12.6 GB, 288 s (PR record)</td><td class="ok">passed (my run)</td></tr>
-  </tbody>
-</table>
+<p class="explain">The final theorem says the two assertions together imply <code>False</code>. This is the <a href="#g-refutation">refutation</a>.</p>
+<p><strong>Lean accepted the file.</strong> <code>scripts/check_lean.sh</code> printed <code>Lean checks passed.</code></p>
 
 <h2 id="verification">How it was verified</h2>
 <p>
-  In plain terms, the full Python and Lean test suites passed on the final commit.
-  A scan of 780 inputs found 155 whose output changed.
-  All 155 still passed Lean, and none was newly rejected.
-  Most changed files grew a little, by up to 5%, because of the extra revert and intro lines.
-  The PR's measurements on larger chains are in the second table.
+Every local test suite passed, including the new Lean test on the eight-level chains.
+The PR changes only Python examples and documentation, so it merged on its local gate.
+That gate mirrors the Lean steps of the GitHub <code>releaseClang</code> job.
 </p>
 <table>
-  <thead><tr><th>Check (run by the implementer on the final commit)</th><th>Result</th></tr></thead>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
   <tbody>
-    <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="ok">514 tests, OK, 6 skipped</td></tr>
-    <tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td class="ok">119 tests, OK</td></tr>
-    <tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
-    <tr><td>z3test proof tests</td><td class="ok">48 tests, OK</td></tr>
-    <tr><td>Scan of 780 inputs, changed outputs checked in Lean</td><td class="ok">155 checked, 0 failed</td></tr>
-    <tr><td>Regression matrix, releaseClang cells (no enumerations)</td><td class="ok">6/6 and 8/8 lean-verified</td></tr>
-    <tr><td>Reviewer's mutant against the new pinned seed</td><td class="ok">mutant fails, real code passes</td></tr>
-    <tr><td>C++ unit tests and SMT2 regressions</td><td>not run, no C++ changed</td></tr>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">18 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">827 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">18 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="pass">pass</td><td class="num">7 s</td></tr>
+  </tbody>
+</table>
+<p>Further results, from the PR description and the reviewer:</p>
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">514 tests, OK, 6 skipped</td></tr>
+    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td class="pass">119 tests, OK</td></tr>
+    <tr><td>z3test proof scripts</td><td class="pass">48 tests, OK</td></tr>
+    <tr><td>Scan of 780 inputs, base versus new code</td><td>155 changed, none newly rejected</td></tr>
+    <tr><td>Lean check of the 155 changed inputs</td><td class="pass">155 checked, 0 failed</td></tr>
+    <tr><td>New text test against the base code</td><td class="pass">fails, as intended</td></tr>
+    <tr><td>Reviewer's seven hand-written probes</td><td class="pass">all OK</td></tr>
   </tbody>
 </table>
 <table>
-  <thead><tr><th>Input (from the PR)</th><th>Before</th><th>After</th></tr></thead>
+  <thead><tr><th>Input, from the PR's measurements</th><th>Before</th><th>After</th></tr></thead>
   <tbody>
     <tr><td>depth 8, variant a</td><td>3.07 MB, 8 s, 2.66 GB</td><td>0.55 MB, 1 s, 0.61 GB</td></tr>
-    <tr><td>depth 8, variant b (the example above)</td><td>27.2 MB, killed at 288 s and 12.6 GB</td><td>0.57 MB, 1 s, 0.59 GB</td></tr>
+    <tr><td>depth 8, variant b, the example above</td><td>27.2 MB, killed at 288 s and 12.6 GB</td><td>0.57 MB, 1 s, 0.59 GB</td></tr>
     <tr><td>depth 8, variant c</td><td>60.7 MB, not checked</td><td>1.05 MB, 2 s, 0.74 GB</td></tr>
     <tr><td>depth 12, variant b</td><td>not measured</td><td>4.37 MB, 5 s, 2.04 GB</td></tr>
   </tbody>
 </table>
 <p>
-  <strong>Local gate.</strong> The loop's local gate had not been recorded when this page was written.
-  Its log showed the exporter tests passing and the Lean reconstruction tests still running.
-</p>
-<p>
-  <strong>CI.</strong> No CI status had been recorded for this PR when the page was written, so results are unknown.
-  The new tests run in one job, according to the PR description.
-  There were no CI fix rounds.
+No GitHub CI results were recorded for this PR, so their status is unknown here.
+CI runs on <code>master</code> after the merge. There were no CI fix rounds.
 </p>
 <table>
-  <thead><tr><th>Workflow / job</th><th>Step</th><th>Status</th></tr></thead>
+  <thead><tr><th>CI workflow and check</th><th>Status</th><th>Link</th></tr></thead>
   <tbody>
-    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean</td><td class="warn">unknown, see <a href="https://github.com/levnach/z3/pull/112/checks">PR checks</a></td></tr>
+    <tr><td>CI / Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean", which runs the new tests</td>
+        <td class="warn">not recorded</td>
+        <td><a href="https://github.com/levnach/z3/pull/112/checks">PR checks</a></td></tr>
   </tbody>
 </table>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved the PR. There were no blockers and no major findings.</p>
+<p>The reviewer approved the PR with no blockers and no major findings.</p>
 <ul>
-  <li><strong>Minor: an untested design choice.</strong>
-    The new code hands the arguments, not the application itself, to the unfold step.
-    In some Int lemmas the application's definition is already unfolded, and unfold fails on a name that is gone.
-    The reviewer deliberately broke the code to name the application too.
-    All 31 enumeration tests still passed, yet 11 real inputs then failed in Lean.
-    So a future edit could have reintroduced the bug unnoticed.
-    The fix pinned Int seed 53 in the test seeds, and the broken copy now fails that test.</li>
-  <li><strong>Nit: a narrow pattern.</strong>
-    A test's regular expression matched only one-digit field numbers.
-    An input with ten or more enumeration functions would have failed spuriously.
-    The pattern now accepts any number of digits.</li>
-  <li><strong>Suggestion: a dense README sentence.</strong> It was rewritten as a plain separate sentence.</li>
+  <li><strong>Minor: a key design choice had no test.</strong>
+      The new code lists the arguments, not the application, as names to unfold.
+      In an Int lemma with <a href="#g-opaque-atom">opaque atoms</a>, the application's own definition is already unfolded earlier.
+      Naming it again makes <code>unfold</code> fail.
+      The reviewer planted exactly that mistake.
+      All 31 enumeration tests still passed, yet 11 real inputs failed in Lean.
+      So a future edit could break such certificates without any test noticing.
+      The fix pins Int seed 53 in <code>ENUM_SEEDS</code>, and the planted mistake now fails that test.</li>
+  <li><strong>Nit: a regular expression was too narrow.</strong>
+      It matched one-digit field numbers only.
+      With ten or more enumeration-valued functions, the test would fail for no reason.
+      It now accepts any number of digits.</li>
+  <li><strong>Suggestion:</strong> a dense README sentence was rewritten more simply.</li>
 </ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>The change affects only completeness. A fact Lean cannot check rejects the certificate. Nothing is skipped or trusted.</li>
-  <li>Of the 155 changed inputs, 146 grew by up to 5%. Lean time on them stayed the same within noise.</li>
-  <li>CI results and the local gate were not yet known when this page was written.</li>
+  <li>The change affects completeness only. A fact that Lean cannot check, or a failed unfold, rejects the certificate. Nothing is skipped or trusted.</li>
+  <li>Most of the 155 changed inputs grow slightly, by up to 5 percent, because of the extra revert and intro lines. Lean time on them stayed the same within noise.</li>
+  <li>With arrays, the enumeration facts are still written out in full and could still grow large.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-  <li>With arrays, enumeration facts are still written out in full.</li>
-  <li>A 16-level chain with three extra "not equal" assertions is 247 MB and runs out of kernel memory. That size comes from proof steps, which is a separate item.</li>
-  <li>The chain generator produces no datatype lemmas, so datatype lemmas with folded if-then-else terms still need their own generator.</li>
+  <li>A sixteen-level chain with extra <a href="#g-disequality">disequalities</a> is still 247 MB and runs out of memory. Most of that is proof steps, the next size item.</li>
+  <li>Datatype lemmas with folded ites, from iteration 110, need their own input generator to be tested.</li>
+  <li>Folding the enumeration facts in certificates that contain arrays is still open.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
 <dl>
   <dt id="g-application">application</dt>
-  <dd>A function applied to arguments, such as <code>(f u0)</code> or <code>(g u0 red)</code>.</dd>
+  <dd>A function applied to arguments, such as <code>(g u0 red)</code>.</dd>
+  <dt id="g-case-split">case split</dt>
+  <dd>Proving a goal by checking each possible case separately, for example "x is red, or green, or blue".</dd>
   <dt id="g-certificate">certificate</dt>
-  <dd>A file of evidence from the solver that an independent checker can verify step by step.</dd>
+  <dd>The proof that Z3 exports, which Lean then checks step by step.</dd>
   <dt id="g-clause">clause</dt>
-  <dd>A disjunction of literals, such as <code>(or (not (p u0)) (= u1 (f u0)))</code>.</dd>
+  <dd>A disjunction of <a href="#g-literal">literals</a>, that is, an "or" of them, such as <code>(or (not (= a b)) (= (f a) (f b)))</code>.</dd>
   <dt id="g-congruence">congruence</dt>
-  <dd>The rule that equal arguments give equal results. If <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+  <dd>The rule that equal arguments give equal results: if <code>a = b</code> then <code>f a = f b</code>.</dd>
   <dt id="g-constructor">constructor</dt>
-  <dd>One of the named values that build a datatype. Here <code>red</code>, <code>green</code>, and <code>blue</code> are the constructors of <code>Color</code>.</dd>
-  <dt id="g-datatype">datatype</dt>
-  <dd>A sort whose values are built from constructors, declared in SMT-LIB with <code>declare-datatypes</code>.</dd>
-  <dt id="g-definition">definition (Lean <code>def</code>)</dt>
-  <dd>A named Lean expression. Other code can use the short name instead of repeating the expression.</dd>
+  <dd>One of the named values of a datatype. <code>red</code>, <code>green</code>, and <code>blue</code> are the constructors of <code>Color</code>.</dd>
+  <dt id="g-definition">definition</dt>
+  <dd>A name given to a term, such as <code>term_45</code>, so later text can cite it instead of repeating it.</dd>
+  <dt id="g-disequality">disequality</dt>
+  <dd>A statement that two terms differ, such as <code>(not (= u8 w8))</code>.</dd>
   <dt id="g-enumeration-sort">enumeration sort</dt>
-  <dd>A datatype whose constructors take no arguments, so it has a fixed finite list of values, like <code>Color</code>.</dd>
-  <dt id="g-euf">euf</dt>
-  <dd>The theory of equality with uninterpreted functions. Its lemmas follow from congruence and from equality being reflexive, symmetric, and transitive.</dd>
-  <dt id="g-ite">if-then-else term (<code>ite</code>)</dt>
-  <dd>A term that picks one of two values by a Boolean condition. <code>(ite c x y)</code> is <code>x</code> when <code>c</code> is true and <code>y</code> otherwise.</dd>
+  <dd>A datatype whose values are a fixed list of constants, such as <code>Color</code> with three colors.</dd>
+  <dt id="g-euf">EUF</dt>
+  <dd>Equality with uninterpreted functions, the theory of reasoning with <code>=</code> and congruence alone.</dd>
+  <dt id="g-folded">folded</dt>
+  <dd>Kept as a short name instead of being replaced by its full definition. The opposite is unfolded.</dd>
+  <dt id="g-goal">goal</dt>
+  <dd>The statement that a Lean proof is currently trying to prove.</dd>
+  <dt id="g-grind">grind</dt>
+  <dd>A Lean tactic that proves goals automatically by combining facts, equalities, and case splits.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term whose value depends on a condition, written <code>(ite c a b)</code>: it is <code>a</code> if <code>c</code> holds, and <code>b</code> otherwise.</dd>
+  <dt id="g-interpretation">interpretation</dt>
+  <dd>An assignment of meaning to every symbol of the input. The Lean proof must work for every interpretation.</dd>
   <dt id="g-literal">literal</dt>
-  <dd>A Boolean atom or its negation, such as <code>(p u0)</code> or <code>(not (= u0 w0))</code>.</dd>
+  <dd>A Boolean atom or its negation, such as <code>(= a b)</code> or <code>(not (= a b))</code>.</dd>
+  <dt id="g-opaque-atom">opaque atom</dt>
+  <dd>A subterm that an arithmetic lemma treats as an unknown number, such as one built with <code>div</code> or <code>mod</code>.</dd>
   <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of assertions leads to a contradiction, that is, to False.</dd>
-  <dt id="g-revert">revert / intro</dt>
-  <dd>Lean tactics. <code>revert</code> moves a fact back into the goal as an assumption. <code>intro</code> takes it out again.</dd>
+  <dd>A proof that the assertions together lead to a contradiction, that is, imply <code>False</code>.</dd>
+  <dt id="g-revert">revert</dt>
+  <dd>A Lean tactic that moves a known fact back into the goal, so later rewriting steps change it too.</dd>
   <dt id="g-sort">sort</dt>
-  <dd>The type of a value in SMT-LIB, such as <code>Int</code>, <code>Bool</code>, or <code>Color</code>.</dd>
+  <dd>The type of a value, such as Int, Bool, or <code>Color</code>.</dd>
   <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that builds part of a proof. <code>unfold</code>, <code>revert</code>, and <code>grind</code> are tactics.</dd>
+  <dd>A command inside a Lean proof that performs one proof step, such as <code>unfold</code> or <code>grind</code>.</dd>
   <dt id="g-theory-lemma">theory lemma</dt>
-  <dd>A clause that holds because of a background theory such as equality or arithmetic, not just because of Boolean logic.</dd>
+  <dd>A <a href="#g-clause">clause</a> that is true by the rules of a theory, such as equality or arithmetic, and that the solver adds during its search.</dd>
   <dt id="g-trust-boundary">trust boundary</dt>
-  <dd>The line between what the checker verifies and what must simply be trusted. In this PR every new fact is still checked by Lean, so nothing new is trusted.</dd>
+  <dd>The line between what Lean checks and what must be taken on faith. This PR keeps everything on the checked side.</dd>
   <dt id="g-unfold">unfold</dt>
-  <dd>A Lean tactic that replaces a definition's name with its body, so other tactics can see inside it.</dd>
+  <dd>Replacing a defined name by its definition. In Lean it is also the name of the tactic that does this.</dd>
   <dt id="g-uninterpreted-function">uninterpreted function</dt>
-  <dd>A function symbol with no fixed meaning. The only thing known about it is congruence. Here <code>f</code>, <code>g</code>, and <code>p</code> are uninterpreted.</dd>
+  <dd>A function symbol with no fixed meaning, such as <code>f</code> or <code>g</code>. Only congruence is known about it.</dd>
 </dl>
 
 <footer>
   Generated by the Lean certificate improvement loop on 2026-11-10.
 </footer>
 
+</main>
 </body>
 </html>
