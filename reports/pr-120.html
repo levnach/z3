@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #120: Skip assumption-search conjuncts a model already refutes</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.badge { display: inline-block; padding: 0.05rem 0.5rem; border: 1px solid var(--warn); color: var(--warn);
+  border-radius: 1rem; font-size: 0.85rem; font-weight: 600; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+  background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
+  overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: 0.85rem; }
+table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.explain { color: var(--muted); margin-top: -0.4rem; }
+dt { font-weight: 600; margin-top: 0.6rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.6rem; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Skip assumption-search conjuncts a model already refutes</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/120">Pull request #120</a> on levnach/z3, targeting <code>master</code>
+· State: <span class="badge">OPEN</span>
+· Date: 2026-11-11T15:49:05Z
+· Loop iteration 119
+</p>
+<p>This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/610d490a600e5a7db7b52c191a6376cd4642c26d"><code>610d490a6</code></a>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+The <a href="#g-replay">replay</a> of the <a href="#g-clause-log">clause log</a> must tie every assumed
+<a href="#g-clause">clause</a> back to an <a href="#g-assertion">assertion</a>.
+It asks one bounded <a href="#g-implication">implication</a> question per <a href="#g-conjunct">conjunct</a>.
+This PR reuses the answers.
+When a check returns a <a href="#g-model">model</a> that makes a conjunct true and the clause false,
+that conjunct is <a href="#g-refutation">refuted</a>, and so is every conjunct nested inside it through
+<a href="#g-conjunction">conjunctions</a>.
+The search then skips all of them.
+Only checks that could never succeed are dropped, so the chosen source and the
+<a href="#g-certificate">certificate</a> stay byte-for-byte the same.
+Lean still proves every <a href="#g-cnf-lemma">cnf lemma</a> itself, so nothing new is trusted.
+The gain is speed: on one large <a href="#g-logic">QF_IDL</a> benchmark, export time dropped from 259 s to 141 s.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR, the search for an assumed clause's source checked every candidate conjunct that shares a symbol
+with the clause, one at a time.
+When no single conjunct implied the clause, it tried them all and only then fell back to an
+<a href="#g-unsat-core">unsat core</a>.
+On the QF_IDL benchmark <code>qlock-4-10-8</code>, with about a thousand nested conjunctions, one clause took up to 680 checks.
+The replay took 259 s, over the 120 s limit of the project's regression scan.
+The work serves Milestone 3, equality and linear arithmetic, and the regression matrix that the plan names as
+its top priority.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>The assumption search now remembers every conjunct a model has refuted and skips its implication check.</li>
+<li>A model from a failed equivalence check now counts as a refutation too, when it makes the clause false.</li>
+<li>An undecided result, <code>unknown</code>, refutes nothing, so a check that hits the resource limit cannot hide a good source.</li>
+<li>A new test builds a chain of 300 conjuncts and pins all five behaviours, including the two the reviewer asked for.</li>
+<li>The plan document and the examples README each describe the new skip in a short paragraph.</li>
+</ul>
+<p>
+An analogy helps here.
+A model is like a photo of a whole group of conditions holding while the clause fails.
+Every condition inside the group is in that photo, so none of them can force the clause.
+</p>
+
+<table>
+<thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay: the search itself</td><td class="num">46</td><td class="num">4</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td>New test, four tests retargeted</td><td class="num">90</td><td class="num">8</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>One solver-count test retargeted</td><td class="num">3</td><td class="num">3</td></tr>
+<tr><td><code>examples/python/README</code></td><td>One sentence added</td><td class="num">6</td><td class="num">4</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>New dated section</td><td class="num">25</td><td class="num">0</td></tr>
+<tr><th>Total, 5 files, 2 commits</th><th></th><th class="num">170</th><th class="num">19</th></tr>
+</tbody>
+</table>
+<p>No C++ code, no Lean file, and no CI script changed.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+This PR makes no new input certifiable. By design, it gives the same certificate with fewer solver checks.
+So this example, built from the shape of the PR's new test, shows equal output and different work.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LIA)
+(declare-const x Int)
+(declare-const y Int)
+(declare-const r Bool)
+(assert (and (&gt; y 2) (and (or (&gt; x 3) (&lt; y 1) r) (and (or (&lt; x 0) (&gt; y x)) (&lt; y 4)))))
+(assert (not r))
+(check-sat)</code></pre>
+<p class="explain">Z3 simplifies the middle clause under the unit <code>(not r)</code>, so the clause it logs is implied by no single conjunct.</p>
+
+<h3>(b) Before</h3>
+<pre><code>old proof_certificate.py: certificate written, no error
+old certificate vs new certificate: byte-identical (cmp reports no difference)
+assumption-search checks, old code:  16 equivalence + 16 implication = 32
+assumption-search checks, new code:  16 equivalence +  2 implication = 18</code></pre>
+<p class="explain">
+The old pipeline accepted this input, so there is no rejection to quote.
+A small script counted the replay's solver calls in each export.
+The rejection this PR addresses was the 259 s <code>qlock-4-10-8</code> replay, reported in the PR and not re-run here.
+</p>
+
+<h3>(c) After</h3>
+<pre><code>def formula_9  ... := (Or (formula_5 _atoms _vars) (Or (formula_7 _atoms _vars) (formula_8 _atoms _vars)))
+...
+def formula_18 ... := (And (formula_2 _atoms _vars) (formula_17 _atoms _vars))
+def formula_19 ... := (Not (formula_8 _atoms _vars))
+...
+def formula_34 ... := (Or (formula_28 _atoms _vars) (Or (formula_29 _atoms _vars) (Or (formula_31 _atoms _vars) (formula_33 _atoms _vars))))
+def formula_36 ... := (Or (formula_31 _atoms _vars) (formula_33 _atoms _vars))</code></pre>
+<p class="explain"><code>formula_18</code> is the first assertion, <code>formula_19</code> is <code>(not r)</code>, and <code>formula_36</code> is the logged clause, <code>x &gt; 3</code> or <code>y &lt; 1</code>.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_18 _atoms _vars))
+    (_h1 : (formula_19 _atoms _vars))
+    : False :=</code></pre>
+<p class="explain">The theorem states that the two assertions together imply False.</p>
+
+<pre><code>private theorem th_lemma_35 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_34 _atoms _vars) := by
+  first
+    | (have _f1 : (Iff (formula_5 _atoms _vars) (Not (formula_30 _atoms _vars))) := by ...
+       ...
+       exact (False.elim (_f15 (Classical.byContradiction (fun _g =&gt; _f4 _g)))))
+    | (unfold formula_34 ... ;
+       first | omega | grind (splits := 64))
+...
+  let _step_37 : (formula_36 _atoms _vars) :=
+    (Or.elim ((_step_35.neg_resolve_left _step_21).neg_resolve_left _step_20) ...)</code></pre>
+<p class="explain">
+This cnf lemma comes from the unsat-core fallback: it says "not the first assertion, or r, or the clause".
+<a href="#g-resolution">Resolving</a> it against both assertions yields the logged clause.
+Over the whole export, the new code made 2 implication checks where the old code made 16.
+</p>
+<p><span class="ok">Lean accepted the file.</span> <code>check_lean.sh</code> printed "Lean checks passed."</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+Every local test suite passed, and old and new certificates matched on every input compared.
+Two <a href="#g-mutation-test">mutation tests</a> showed the new cases catch the bugs the reviewer described.
+The local gate had not finished when this page was written, so its result is not recorded.
+</p>
+<table>
+<thead><tr><th>Check</th><th>Who ran it</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><code>test_proof_certificate.py</code></td><td>Integrator, final head</td><td class="ok">120 tests, OK</td></tr>
+<tr><td><code>test_proof_to_lean*.py</code></td><td>Integrator, final head</td><td class="ok">533 tests, OK, 9 skipped</td></tr>
+<tr><td><code>check_lean.sh</code></td><td>Integrator</td><td class="ok">Lean checks passed</td></tr>
+<tr><td>z3test proof tests</td><td>Integrator</td><td class="ok">48 tests, OK</td></tr>
+<tr><td>Mutation: drop the equivalence refutation</td><td>Integrator</td><td class="ok">Caught by new test</td></tr>
+<tr><td>Mutation: refute on any result except unsat</td><td>Integrator</td><td class="ok">Caught by new test</td></tr>
+<tr><td>Certificates, 10 data inputs and 9 z3test samples</td><td>Implementer and reviewer</td><td class="ok">All identical</td></tr>
+<tr><td><code>qlock-4-10-8</code> certificate and time</td><td>Implementer</td><td class="ok">Identical, 258.6 s to 140.7 s</td></tr>
+<tr><td>releaseClang matrix cells</td><td>Implementer</td><td class="ok">6/6 and 8/8 lean-verified</td></tr>
+<tr><td>Worked example above, Lean check</td><td>This report</td><td class="ok">Lean checks passed</td></tr>
+<tr><td>Local gate for iteration 119</td><td>Loop driver</td><td class="warn">Not recorded yet</td></tr>
+</tbody>
+</table>
+
+<h3>CI checks</h3>
+<table>
+<thead><tr><th>Workflow or check</th><th>State</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>All PR checks</td><td class="warn">Unknown: no CI results were recorded for this report</td>
+<td><a href="https://github.com/levnach/z3/pull/120/checks">PR checks page</a></td></tr>
+</tbody>
+</table>
+<p>
+The PR says CI runs the new test in the "Python bindings (manylinux Centos AMD64) build" job.
+Its result is not known here. There were no CI fix rounds.
+</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved. There were no blocker and no major findings.</p>
+<ol>
+<li><strong>Minor: the equivalence refutation was untested.</strong>
+The reviewer deleted the three lines that refute after a failed equivalence check, and all 120 tests still passed.
+This mattered because on <code>qlock</code> only that leaf's model can refute it.
+<em>Fixed:</em> a new case forces those checks to <code>unknown</code> and asserts the leaf is skipped.</li>
+<li><strong>Minor: <code>unknown</code> was untested.</strong>
+Refuting on any result except unsat kept every test green, yet could change the certificate.
+<em>Fixed:</em> a new case shows a leaf below undecided conjunctions is still checked and chosen.</li>
+<li><strong>Nit: dead code.</strong> The old <code>_valid</code> helper had no caller left.
+<em>Fixed:</em> it was removed.</li>
+<li><strong>Nit: ragged text.</strong> Two reflowed paragraphs had short lines.
+<em>Fixed:</em> both were reflowed.</li>
+</ol>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Soundness is unchanged. A conjunct is skipped only when a real model shows it cannot imply the clause.</li>
+<li>The speedup is modest, about 1.8 times. Most remaining checks hit the resource limit and return <code>unknown</code>.</li>
+<li>Checking equivalence candidates first took the export to 28 s, but it changed sources and broke a Lean proof. It was dropped.</li>
+<li><code>qlock-4-10-8</code> still fails in Lean. One <a href="#g-theory-lemma">theory lemma</a> times out in its <a href="#g-tactic">tactic</a>, and the 38 MB proof exceeds the 8 GB memory cap.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+<li>Stop <code>omega</code> heartbeat timeouts from escaping <code>first</code>. <code>qlock-4-10-8</code> is now a real reproducer.</li>
+<li>Reduce Lean memory: on one benchmark, definitions alone take about 2.1 GB.</li>
+<li>Revisit the faster search order once the prover no longer depends on which source is chosen.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-assertion">assertion</dt>
+<dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>The proof Z3 exports as JSON, which the reconstructor turns into a Lean file.</dd>
+<dt id="g-clause">clause</dt>
+<dd>An "or" of literals, such as <code>x &gt; 3 or y &lt; 1</code>.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>Z3's record of the clauses it assumed and derived while solving.</dd>
+<dt id="g-cnf-lemma">cnf lemma</dt>
+<dd>A proof step saying that some assertions imply a clause, which Lean proves by itself.</dd>
+<dt id="g-conjunct">conjunct</dt>
+<dd>One part of an "and". In <code>(and A B)</code>, both A and B are conjuncts.</dd>
+<dt id="g-conjunction">conjunction</dt>
+<dd>An "and" of formulas. Nested conjunctions are "and" inside "and".</dd>
+<dt id="g-equivalence">equivalence</dt>
+<dd>Two formulas that are true in exactly the same cases.</dd>
+<dt id="g-implication">implication</dt>
+<dd>A implies B when every case that makes A true also makes B true.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atom or its negation, such as <code>r</code> or <code>(not r)</code>.</dd>
+<dt id="g-logic">logic (SMT-LIB)</dt>
+<dd>A named input fragment. QF_IDL means integer difference logic without quantifiers. QF_LIA means linear integer arithmetic without quantifiers.</dd>
+<dt id="g-model">model</dt>
+<dd>A concrete assignment of values that makes a formula true, such as <code>x = 4, y = 0</code>.</dd>
+<dt id="g-mutation-test">mutation test</dt>
+<dd>Breaking the code on purpose to see whether some test fails. A test that still passes misses that bug.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>Evidence that a claim is false. Here, a model showing a conjunct cannot imply the clause.</dd>
+<dt id="g-replay">replay</dt>
+<dd>Rebuilding a proof step by step from the clause log, checking where each clause comes from.</dd>
+<dt id="g-resource-limit">resource limit</dt>
+<dd>A cap on the work a single solver check may do. When it is reached, the answer is <code>unknown</code>.</dd>
+<dt id="g-resolution">resolution</dt>
+<dd>Combining a clause with facts that rule out some of its literals, leaving the rest. From <code>A or B</code> and <code>not A</code> we get <code>B</code>.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that searches for a proof, such as <code>omega</code> for integer arithmetic or <code>grind</code>.</dd>
+<dt id="g-theory-lemma">theory lemma</dt>
+<dd>A clause that holds because of arithmetic or another theory, not just Boolean logic. For example, <code>x &lt; 1 or x &gt;= 1</code>.</dd>
+<dt id="g-unknown">unknown</dt>
+<dd>A solver answer meaning it gave up, often at the resource limit. It proves nothing either way.</dd>
+<dt id="g-unsat-core">unsat core</dt>
+<dd>A subset of the assertions that is already contradictory on its own.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-11.
+</footer>
+
+</body>
+</html>
