@@ -6663,9 +6663,10 @@ def _theory_expression(graph, node, context, atom_indices, memo):
     predicate apply f<declaration> (_theory_function); arrays, datatype
     constructors, and the other theories are not read. Nodes are
     converted bottom up on an explicit stack (deep chains), shared ones once
-    (memo).
+    (memo); an application's declaration is built once, when it is pushed
+    (functions).
     """
-    pending = [(node, False)]
+    pending, functions = [(node, False)], {}
     while pending:
         current, expanded = pending.pop()
         if current in memo:
@@ -6678,7 +6679,7 @@ def _theory_expression(graph, node, context, atom_indices, memo):
             elif decl.kind == z3.Z3_OP_XOR and len(children) != 2:
                 memo[current] = None
             elif decl.kind == z3.Z3_OP_UNINTERPRETED:
-                memo[current] = _theory_function(graph, current, context)(*children)
+                memo[current] = functions[current](*children)
             else:
                 memo[current] = _THEORY_EXPRESSIONS[decl.kind](children)
         elif decl.kind == z3.Z3_OP_ANUM and decl.range in ("Int", "Real"):
@@ -6699,6 +6700,7 @@ def _theory_expression(graph, node, context, atom_indices, memo):
             elif not arguments:
                 memo[current] = function()
             else:
+                functions[current] = function
                 pending.append((current, True))
                 pending.extend((argument, False) for argument in arguments)
         elif decl.kind in _THEORY_EXPRESSIONS and arguments:

@@ -379,6 +379,29 @@ class TestMixedValidation(unittest.TestCase):
         self.assertIsNone(proof_to_lean._theory_expression(graph, 6, context, {2: 0}, memo))
         self.assertIsNone(proof_to_lean._theory_expression(graph, 5, context, {2: 0}, memo))
 
+    def test_theory_expressions_leave_enumeration_constructors_free(self):
+        # A constant of an enumeration sort is declared as one of an
+        # uninterpreted sort, and so is an application over it; a constructor
+        # is not read, so the oracle cannot use that two constructors differ
+        # (it knows less about the sort than Lean does, never more).
+        declarations = (
+            proof_to_lean._Declaration(z3.Z3_OP_UNINTERPRETED, "k", (), "Color"),
+            proof_to_lean._Declaration(z3.Z3_OP_DT_CONSTRUCTOR, "red", (), "Color"),
+            proof_to_lean._Declaration(z3.Z3_OP_UNINTERPRETED, "g", ("Color",), "U"),
+            proof_to_lean._Declaration(z3.Z3_OP_EQ, "=", ("Color", "Color"), "Bool"),
+        )
+        nodes = tuple(proof_to_lean._Node(index, arguments) for index, arguments in
+                      enumerate([(), (), (0,), (0, 1)]))
+        graph = proof_to_lean._Graph(declarations, nodes, (), 0, sorts=("Color", "U"),
+                                     enumerations={"Color": ("red", "green")})
+        context, memo = z3.Context(), {}
+        expression = proof_to_lean._theory_expression(graph, 2, context, {}, memo)
+        self.assertEqual(str(expression), "f2(u0)")
+        self.assertEqual(memo[0].sort().name(), "Color")
+        self.assertFalse(z3.is_app_of(memo[0], z3.Z3_OP_DT_CONSTRUCTOR))
+        self.assertIsNone(proof_to_lean._theory_expression(graph, 1, context, {}, memo))
+        self.assertIsNone(proof_to_lean._theory_expression(graph, 3, context, {}, memo))
+
     def test_generated_lean_carries_the_valuation_and_the_interpretation(self):
         self.assertEqual(self.certificate["fragment"], "qf_uflra")
         text = proof_to_lean.reconstruct(self.source, self.certificate)

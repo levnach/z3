@@ -1751,9 +1751,9 @@ does: z3 (an untrusted oracle, as for `_relevant_structures`) takes a model
 of the abstraction, checks the leaves' and atoms' values in it against
 what the leaves denote (`_theory_expression`, arithmetic and Boolean nodes
 only; uninterpreted ones since the same day, see "Theory clauses over
-uninterpreted functions and sorts"), and a shrunk unsat core of those literals is a clause excluding the
-model, until the abstraction is unsatisfiable (at most 256 clauses). A
-clause over every leaf of the lemma would restate it as one theory fact,
+uninterpreted functions and sorts"), and a shrunk unsat core of those
+literals is a clause excluding the model, until the abstraction is
+unsatisfiable (at most 256 clauses). A clause over every leaf of the lemma would restate it as one theory fact,
 without the fallback's helpers (scaled ite gates), so then the search
 stops and the fallback stays alone, as before. Each
 clause is a `have` the theory tactic proves over the leaves' unfolded
