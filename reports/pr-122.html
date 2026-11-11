@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #122: Compare sets member by member in Lean rewrites and cnf lemmas</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --open: #1a7f37;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+    --soft: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --bad: #f85149; --open: #3fb950;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.55; max-width: 52rem; margin: 2rem auto; padding: 0 1rem;
+}
+h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: .4rem; }
+h2 { font-size: 1.2rem; margin-top: 2.2rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1rem; margin-top: 1.4rem; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+:not(pre) > code { background: var(--soft); padding: .1em .3em; border-radius: 4px; }
+pre {
+  background: var(--soft); border: 1px solid var(--line); border-radius: 6px;
+  padding: .8rem 1rem; overflow-x: auto; line-height: 1.4;
+}
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--soft); }
+td.num, th.num { text-align: right; white-space: nowrap; }
+.meta { color: var(--muted); font-size: .93rem; }
+.badge {
+  display: inline-block; padding: .05rem .55rem; border-radius: 999px;
+  border: 1px solid var(--open); color: var(--open); font-weight: 600; font-size: .85rem;
+}
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.note { color: var(--muted); font-size: .92rem; margin-top: -.3rem; }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin: .1rem 0 0 1.2rem; }
+footer { margin: 3rem 0 2rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Compare sets member by member in Lean rewrites and cnf lemmas</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/122">Pull request #122</a> in levnach/z3, targeting <code>master</code>
+&middot; <span class="badge">OPEN</span>
+&middot; 2026-11-11T22:22:09Z
+&middot; loop iteration 121
+</p>
+<p class="meta">This pull request is open. It is not merged. The change commit is
+<a href="https://github.com/levnach/z3/commit/91880cb643b541feb2b07312fe73a7d6512969a3"><code>91880cb64</code></a>.</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+Z3's <a href="#g-rewriter">rewriter</a> simplifies <a href="#g-set">sets</a> built with
+<a href="#g-set-operator">set operators</a> by looking at their <a href="#g-member">members</a>.
+The reconstructor now does the same.
+For each <a href="#g-rewrite-step">rewrite step</a> and <a href="#g-cnf-lemma">cnf lemma</a> over sets,
+it computes a <a href="#g-truth-table">truth table</a> for every set term.
+Two terms with the same table are stated equal, and Lean proves the
+<a href="#g-equality">equality</a> by <a href="#g-function-extensionality">function extensionality</a>.
+Two sides of an equality whose tables disagree in every row are stated different.
+On a sweep of random set inputs, 43 <a href="#g-certificate">certificates</a> failed in Lean before, and
+now all of them pass.
+Lean checks every new fact, so no <a href="#g-refutation">refutation</a> rests on the tables.
+</p>
+
+<h2>Background</h2>
+<p>
+Before this PR the pipeline certified many inputs over sets and other <a href="#g-array">arrays</a>.
+It had facts only about a single <a href="#g-map">map</a>.
+The rewriter goes further. It knows that a set minus itself is empty.
+The certificate records the set before and after, and no single-map fact links the two.
+Lean's <a href="#g-tactic">tactic</a> <code>grind</code> then failed in that step.
+A second failing shape was a cnf lemma that goes from an equality of sets to one
+<a href="#g-select">select</a>.
+The work serves milestone 4, "Broader theories and integration", which covers arrays.
+</p>
+
+<h2>What changed</h2>
+<ul>
+<li><strong>Reconstructor, equal sets.</strong> You can now certify a rewrite step that replaces a set term
+by a differently written term with the same members.</li>
+<li><strong>Reconstructor, different sets.</strong> You can now certify a step where an equality of sets is
+decided false because the two sides differ at every <a href="#g-index">index</a>.</li>
+<li><strong>Reconstructor, cnf lemmas.</strong> A cnf lemma that goes from an equality of sets to one member
+now verifies, by <a href="#g-congruence">congruence</a> at each index it reads.</li>
+<li><strong>Reconstructor, cost bounds, added after review.</strong> Deeply nested maps of
+<a href="#g-xor">xor</a> or of an <a href="#g-ite">if-then-else term</a> keep a small Lean file and still
+verify.</li>
+<li><strong>Tests.</strong> Twelve new documented inputs and four pinned random inputs are checked in Lean,
+and each new kind of fact is shown to be needed.</li>
+</ul>
+<p>
+An analogy. Two clubs write their membership rule in different words.
+The old reconstructor compared the wording.
+The new one picks an arbitrary person and asks whether both rules give the same answer.
+</p>
+<p class="note">The new code is the function <code>_pointwise_map_facts</code>.</p>
+
+<table>
+<thead><tr><th>File</th><th>Role</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">303</td><td class="num">8</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">289</td><td class="num">15</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">98</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">19</td><td class="num">1</td></tr>
+<tr><th>Total, two commits</th><th></th><th class="num">709</th><th class="num">25</th></tr>
+</tbody>
+</table>
+<p class="note">No C++ code changed. The <code>unsat</code> theorem and the interpretation structure are unchanged.</p>
+
+<h2>Worked example</h2>
+<p>
+The input is the PR's test <code>sets_equal_member_by_member</code>.
+It claims that two empty sets are different.
+All output below comes from real runs.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-fun a () (Array Int Bool))
+(declare-fun b () (Array Int Bool))
+(assert (not (= (setminus a a) (intersection b (complement b)))))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>
+The base exporter produced the same certificate as today.
+Lean rejected the base reconstructor's file in the rewrite step.
+</p>
+<pre><code>z3_proof_ef6pig3r.lean:123:18: error: `grind` failed
+case grind.1
+...
+h : ¬term_1 _atoms _vars _m = term_4 _atoms _vars _m
+...
+⊢ False
+...
+Lean checking failed; no proof was published.</code></pre>
+<p class="note">The file path is shortened. The base reconstructor was pointed at the repository's Lean
+check script and was otherwise unchanged.</p>
+
+<h3>(c) After</h3>
+<p>Lean accepted the generated file: <code>Lean checks passed.</code></p>
+
+<pre><code>structure Interpretation where
+  ...
+  arrs_ib : Nat -&gt; Int -&gt; Prop
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := _m.arrs_ib 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := (_map2 (fun _p _q : Prop =&gt; And _p (Not _q)) (term_0 _atoms _vars _m) (term_0 _atoms _vars _m))
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := _m.arrs_ib 1
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := (_map1 Not (term_2 _atoms _vars _m))
+def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := (_map2 And (term_2 _atoms _vars _m) (term_3 _atoms _vars _m))
+def formula_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_1 _atoms _vars _m) = (term_4 _atoms _vars _m))
+def formula_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := (Not (formula_5 _atoms _vars _m))
+...</code></pre>
+<p>
+The declarations: each set is a function from integers to <a href="#g-proposition">propositions</a>, and
+the two set terms are maps of "and" and "not".
+</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_6 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p>The theorem statement: under any <a href="#g-interpretation">interpretation</a>, the
+<a href="#g-assertion">assertion</a> leads to a contradiction.</p>
+
+<pre><code>private theorem rewrite_12_pw0 (_p0 _p1 : Prop) :
+    (Iff (And _p1 (Not _p1)) (And _p0 (Not _p0))) := by grind</code></pre>
+<p>
+The new <a href="#g-auxiliary-theorem">auxiliary theorem</a>: "p1 and not p1" is equivalent to
+"p0 and not p0", since both are false.
+</p>
+
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_11 _atoms _vars _m) := by
+  first
+    | (unfold formula_11 formula_7 formula_6 formula_5
+       ...
+       first | omega | grind (splits := 64))
+    | (unfold formula_11 formula_7 formula_6 formula_5
+       ...
+       have _pw4 : ((term_4 _atoms _vars _m)) = ((term_1 _atoms _vars _m)) := funext (fun _i =&gt; propext (rewrite_12_pw0 (_select ((term_0 _atoms _vars _m)) _i) (_select ((term_2 _atoms _vars _m)) _i)))
+       first | omega | grind (splits := 64))</code></pre>
+<p>
+The rewrite step: the second attempt adds the new fact <code>_pw4</code>, which makes the two sets equal
+because their members agree at every index.
+</p>
+
+<h2>How it was verified</h2>
+<p>
+The full reconstruction test suite passed locally on macOS, on the committed code.
+Every random set input that reaches the reconstructor now verifies in Lean.
+Tests of Z3 itself were not run, because no C++ changed.
+</p>
+
+<table>
+<thead><tr><th>Local check, as reported in the PR</th><th>Result</th><th>Detail</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests</td><td><span class="ok">pass</span></td><td>537 tests, 9 skipped, 852 s</td></tr>
+<tr><td>Certificate exporter tests</td><td><span class="ok">pass</span></td><td>120 tests</td></tr>
+<tr><td>Lean project check, <code>check_lean.sh</code></td><td><span class="ok">pass</span></td><td>"Lean checks passed."</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span></td><td>48 tests</td></tr>
+<tr><td>Lean-certified <a href="#g-boolean">Boolean</a> matrix</td><td><span class="ok">pass</span></td><td>6 of 6 Lean-verified</td></tr>
+<tr><td>Lean-certified linear real arithmetic matrix</td><td><span class="ok">pass</span></td><td>8 of 8 Lean-verified</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Sweep of random set inputs, seeds 1 to 1000</th><th class="num">Base</th><th class="num">Reviewed commit</th><th class="num">This branch</th></tr></thead>
+<tbody>
+<tr><td>Exported and reconstructed</td><td class="num">304</td><td class="num">304</td><td class="num">304</td></tr>
+<tr><td>Accepted by Lean</td><td class="num">261</td><td class="num">304</td><td class="num">304</td></tr>
+<tr><td>Rejected at export, <a href="#g-default-map-axiom">default-map axiom</a></td><td class="num">64</td><td class="num">64</td><td class="num">64</td></tr>
+<tr><td>Auxiliary theorems written</td><td class="num">none</td><td class="num">477</td><td class="num">221</td></tr>
+<tr><td>Lean text</td><td class="num">not reported</td><td class="num">6.80 MB</td><td class="num">7.19 MB</td></tr>
+<tr><td>Lean time</td><td class="num">not reported</td><td class="num">131.7 s</td><td class="num">131.2 s</td></tr>
+</tbody>
+</table>
+
+<p>
+The reviewer's 27 edge-case inputs were rerun on this branch.
+All but one verify, and that one fails at the base too.
+</p>
+<p>
+The loop's local gate had not been recorded when this report was written.
+No CI status was recorded either, so the result of every CI check is unknown.
+There were no CI fix rounds.
+</p>
+
+<table>
+<thead><tr><th>CI workflow and check</th><th>Status</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>Main CI workflow, job <code>ubuntu-cmake</code>, matrix entry releaseClang, step "Check native proofs in Lean". The PR names this step for the new tests.</td>
+<td><span class="warn">not recorded</span></td>
+<td><a href="https://github.com/levnach/z3/pull/122/checks">PR checks page</a></td></tr>
+<tr><td>All other workflows</td><td><span class="warn">not recorded</span></td>
+<td><a href="https://github.com/levnach/z3/pull/122/checks">PR checks page</a></td></tr>
+</tbody>
+</table>
+
+<h2>Review</h2>
+<p>
+The reviewer asked for changes. There was no blocker.
+All five findings were fixed in the second commit, <code>91880cb64</code>.
+</p>
+
+<h3>Major: nested xor maps made the Lean file explode</h3>
+<p>
+The reviewer nested sixteen maps of xor.
+A map of xor writes each argument twice, so the formula doubles at every level.
+The size limit counted maps, not written text.
+Lean ran out of <a href="#g-heartbeat">heartbeats</a> on an input that passed at the base.
+Now the limit counts what is written.
+Each step is also tried without the new facts first, and only then with them.
+</p>
+
+<table>
+<thead><tr><th>Sixteen nested xor maps</th><th class="num">Lean text</th><th>Lean result</th></tr></thead>
+<tbody>
+<tr><td>Base</td><td class="num">81 KB</td><td><span class="ok">accepted</span>, 0.6 s</td></tr>
+<tr><td>Reviewed commit</td><td class="num">10.8 MB</td><td><span class="bad">fails</span> after 97 s, heartbeat timeout</td></tr>
+<tr><td>Written-size limit alone</td><td class="num">91 KB</td><td><span class="bad">fails</span> after 16 s, <code>grind</code> out of heartbeats</td></tr>
+<tr><td>This branch</td><td class="num">114 KB</td><td><span class="ok">accepted</span>, 0.6 s</td></tr>
+</tbody>
+</table>
+
+<h3>Minor: a test had become weaker</h3>
+<p>
+One test removes a fact and expects Lean to fail, which shows the fact is needed.
+The first commit removed the new facts together with each older fact.
+So the test no longer showed that an older fact was needed by itself.
+Now each kind of fact is removed alone.
+</p>
+
+<h3>Minor: no test nested xor or if-then-else maps deeply</h3>
+<p>
+The tests missed exactly the major finding.
+Two sixteen-level inputs are now checked in Lean. Both fail with the reviewed commit.
+</p>
+
+<h3>Nits</h3>
+<p>
+Some auxiliary theorems had the same formula on both sides, and some were repeated per step.
+The first kind is now proved by <code>rfl</code>, and repeats are stated once.
+One overlong README line was rewrapped.
+</p>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li><strong>Soundness.</strong> The truth tables only choose which facts to state. A wrong table gives a
+fact Lean cannot prove, and Lean rejects the file.</li>
+<li><strong>All or nothing.</strong> A step that needs some new facts but cannot afford all would fail.
+None is known.</li>
+<li><strong>Timeouts.</strong> If the first attempt times out instead of failing, the second is never tried.
+None was seen.</li>
+<li><strong>Larger files.</strong> The Lean text grew by 5.7% over the sweep.</li>
+<li><strong>Still failing.</strong> An equality of sets decided false over an
+<a href="#g-uninterpreted-sort">uninterpreted sort</a> of indices, when the interpretation does not
+state that the <a href="#g-sort">sort</a> is nonempty.</li>
+<li><strong>Still rejected.</strong> Inputs whose refutation needs the default-map axiom.</li>
+<li><strong>Not covered.</strong> Maps over elements that are not Boolean. Wider random generators were not
+swept.</li>
+<li><strong>CI.</strong> No CI result is known yet.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+<li>State that an uninterpreted index sort is nonempty. This changes the theorem's hypotheses, so the PR
+leaves it for a separate change.</li>
+<li>Handle refutations that need the default-map axiom.</li>
+<li>Sweep wider inputs: real and uninterpreted indices, deeper terms, and sets of sets.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-array">array</dt>
+<dd>A value that maps each index to an element. <code>(Array Int Bool)</code> maps integers to Booleans.</dd>
+<dt id="g-assertion">assertion</dt>
+<dd>A formula the input states as true, written <code>(assert ...)</code>.</dd>
+<dt id="g-auxiliary-theorem">auxiliary theorem</dt>
+<dd>A small helper theorem, proved first and then used inside a larger proof. Also called a lemma.</dd>
+<dt id="g-boolean">Boolean</dt>
+<dd>The sort with the two values true and false.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>A file that records the solver's proof, so that another program can check it.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of literals, such as "p or not q".</dd>
+<dt id="g-cnf-lemma">cnf lemma</dt>
+<dd>A clause the solver adds when it turns a formula into clauses. It ties the formula to its parts.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>Equal inputs give equal outputs. If two sets are equal, their members at one index agree.</dd>
+<dt id="g-connective">connective</dt>
+<dd>A Boolean operator that builds a formula from others: and, or, not, implies, xor.</dd>
+<dt id="g-default-map-axiom">default-map axiom</dt>
+<dd>A fact Z3 states about the default value of a map. Lean cannot prove it, so the pipeline rejects proofs that need it.</dd>
+<dt id="g-equality">equality</dt>
+<dd>The statement that two terms have the same value, written <code>(= s t)</code>.</dd>
+<dt id="g-function-extensionality">function extensionality</dt>
+<dd>Two functions are equal if they give the same result on every input. For sets: same members, same set.</dd>
+<dt id="g-heartbeat">heartbeat</dt>
+<dd>Lean's unit for counting the work of a proof step. A step over its budget is stopped with a timeout.</dd>
+<dt id="g-ite">if-then-else term</dt>
+<dd>A term that picks one of two values by a condition, written <code>ite</code> in SMT-LIB.</dd>
+<dt id="g-index">index</dt>
+<dd>The position at which an array is read or written. For a set, the candidate member.</dd>
+<dt id="g-interpretation">interpretation</dt>
+<dd>A choice of meaning for every declared symbol. A refutation must hold under all of them.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atomic formula or its negation, such as <code>(select a i)</code> or its negation.</dd>
+<dt id="g-map">map</dt>
+<dd>An array built by applying a function at every index. <code>((_ map and) s t)</code> is the intersection of two sets.</dd>
+<dt id="g-member">member</dt>
+<dd>An index at which a set holds true.</dd>
+<dt id="g-proposition">proposition</dt>
+<dd>A statement that is true or false. Lean's type for it is <code>Prop</code>.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that the assertions lead to a contradiction.</dd>
+<dt id="g-rewrite-step">rewrite step</dt>
+<dd>A proof step that says a term equals its simplified form.</dd>
+<dt id="g-rewriter">rewriter</dt>
+<dd>The part of a solver that simplifies terms, for example <code>(setminus s s)</code> to the empty set.</dd>
+<dt id="g-select">select</dt>
+<dd>Reading an array at an index, written <code>(select a i)</code>. On a set it asks whether <code>i</code> is a member.</dd>
+<dt id="g-set">set</dt>
+<dd>An array with Boolean elements. An index is in the set when the array holds true there.</dd>
+<dt id="g-set-operator">set operator</dt>
+<dd>Union, intersection, difference (<code>setminus</code>), or complement. Z3 turns each into a map of a Boolean connective.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that searches for a proof. <code>grind</code> is one.</dd>
+<dt id="g-truth-table">truth table</dt>
+<dd>A list of a Boolean formula's value for every combination of its inputs. Two formulas with the same table are equivalent.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+<dd>A sort the input declares without saying what its values are, as in <code>(declare-sort Index 0)</code>.</dd>
+<dt id="g-xor">xor</dt>
+<dd>Exclusive or. It is true when exactly one of its two arguments is true.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-11.
+</footer>
+
+</body>
+</html>
