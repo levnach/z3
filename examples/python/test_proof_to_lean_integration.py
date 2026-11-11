@@ -614,11 +614,11 @@ class TestProofToLeanIntegration(unittest.TestCase):
             ("unit-resolution", [9, 1], "false"),
         ])
         text = self.check(source, certificate)
-        # Each step is bound once: the hypothesis q inside the first unit
-        # resolution, its one user; the hypothesis p, used twice, at the
-        # top level, re-applied by each user.
+        # Each step is bound once, except the hypotheses: their users name
+        # them by their binders (the hypothesis p is used twice).
         self.assertEqual(len(re.findall(r"^ +let _step_\d+ (?!:=)", text, re.MULTILINE)),
-                         sum(certificate["rule_counts"].values()))
+                         sum(certificate["rule_counts"].values()) - certificate["rule_counts"]["hypothesis"])
+        self.assertNotRegex(text, r"let _step_\d+ := _step_\d+ _hyp\d+\n")
         self.assertNotIn("cases _d", text)
 
     def test_scoped_structural_proofs_and_double_negation(self):
@@ -1072,6 +1072,35 @@ class TestProofToLeanIntegration(unittest.TestCase):
             ("unit-resolution", [0, 1], "(or r q)"),
             ("unit-resolution", [4, 2, 3], "false"),
         ]))
+
+    def test_last_kept_literal_is_resolved_on_the_right(self):
+        # When every literal after the last kept one is eliminated, the
+        # resolution is Or.resolve_right on that tail instead of an Or.elim
+        # case split: one refutation of a last literal, or a fun refuting
+        # a longer tail, false literals included.
+        source = "".join("(declare-const %s Bool)" % atom for atom in "pqrs")
+        for assertions, units, conclusion, splits in [
+            (["(or p q)", "(not q)"], [1], "p", 0),
+            (["(or p (not q))", "q"], [1], "p", 0),
+            (["(or q p r)", "(not q)", "(not r)"], [1, 2], "p", 0),
+            (["(or p q r s)", "(not q)", "(not r)", "(not s)"], [1, 2, 3], "p", 0),
+            (["(or p q false)", "(not q)"], [1], "p", 0),
+            (["(or p false)"], [], "p", 0),
+            (["(or p q r)", "(not r)"], [1], "(or p q)", 1),
+            (["(or p q r)", "(not r)"], [1], "(or q p)", 1),
+            (["(or p q r s)", "(not q)", "(not s)"], [1, 2], "(or r p)", 1),
+        ]:
+            with self.subTest(clause=assertions[0], conclusion=conclusion):
+                # The kept literals are refuted by assertions after the others.
+                refuted = ["(not %s)" % atom for atom in "pqrs" if re.search(r"\b%s\b" % atom, conclusion)]
+                full = source + "".join("(assert %s)" % assertion for assertion in assertions + refuted)
+                resolvent = len(assertions) + len(refuted)
+                text = self.check(full, make_certificate(full, [
+                    ("unit-resolution", [0] + units, conclusion),
+                    ("unit-resolution", [resolvent] + list(range(len(assertions), resolvent)), "false"),
+                ]))
+                self.assertIn(".resolve_right ", text)
+                self.assertEqual(text.count("Or.elim"), splits)
 
     def test_empty_singleton_and_false_containing_clauses(self):
         for clause in ["false", "(or p)", "(or false p)", "(or p false)"]:
