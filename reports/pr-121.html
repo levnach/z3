@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
-  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --merged: #8250df;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
-    --soft: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --soft: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --bad: #f85149; --merged: #ab7df8;
   }
 }
 * { box-sizing: border-box; }
@@ -35,11 +35,11 @@ pre {
 table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
 th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
 th { background: var(--soft); }
-td.num { text-align: right; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
 .meta { color: var(--muted); font-size: .93rem; }
 .badge {
   display: inline-block; padding: .05rem .55rem; border-radius: 999px;
-  border: 1px solid var(--ok); color: var(--ok); font-weight: 600; font-size: .85rem;
+  border: 1px solid var(--merged); color: var(--merged); font-weight: 600; font-size: .85rem;
 }
 .ok { color: var(--ok); font-weight: 600; }
 .warn { color: var(--warn); font-weight: 600; }
@@ -56,77 +56,75 @@ footer { margin: 3rem 0 2rem; padding-top: .8rem; border-top: 1px solid var(--li
 <h1>Replay set operators as logged; reject default-map axiom only if used</h1>
 <p class="meta">
 <a href="https://github.com/levnach/z3/pull/121">Pull request #121</a> in levnach/z3, targeting <code>master</code>
-&middot; <span class="badge">OPEN</span>
-&middot; 2026-11-11T20:02:08Z
+&middot; <span class="badge">MERGED</span>
+&middot; 2026-11-11T20:17:23Z
 &middot; loop iteration 120
 </p>
-<p class="meta">This pull request is open. It is <strong>not merged</strong>. The change commit is
-<a href="https://github.com/levnach/z3/commit/bcf078679e2f50716bab8d57e19257efc12145c6"><code>bcf078679</code></a>.</p>
+<p class="meta">Merged on 2026-11-11T20:17:23Z as commit
+<a href="https://github.com/levnach/z3/commit/d6b160aeda80c6e9469382399f85660f04825298"><code>d6b160aed</code></a>.</p>
 </header>
 
 <h2>In one paragraph</h2>
 <p>
 The <a href="#g-replay">replay</a> of Z3's <a href="#g-clause-log">clause log</a> now reads the four
 <a href="#g-set-operator">set operators</a> when the log prints them by name.
-It also stops rejecting an input just because the log mentions the
-<a href="#g-default-map-axiom">default-map axiom</a>.
-That <a href="#g-axiom">axiom</a> cannot be proved in Lean, so a <a href="#g-refutation">refutation</a> that
-uses it is still rejected.
-A refutation that never uses it now gets a <a href="#g-certificate">certificate</a> with the axiom left out.
-On a sweep of random set inputs, more pass the Lean check and none is lost.
-Only Python code changed. No Lean theorem, axiom, or trust option changed.
+It also rejects the <a href="#g-default-map-axiom">default-map axiom</a> only when the
+<a href="#g-refutation">refutation</a> uses it, because Lean cannot prove that <a href="#g-axiom">axiom</a>.
+An unused one is left out of the <a href="#g-certificate">certificate</a>.
+On a sweep of random set inputs, 30 more pass the Lean check and none is lost.
+Only Python code changed.
 </p>
 
 <h2>Background</h2>
 <p>
-Before this PR the pipeline already certified many inputs over <a href="#g-set">sets</a>, which are
-<a href="#g-array">arrays</a> into the <a href="#g-boolean">Boolean</a> <a href="#g-sort">sort</a>.
-It expected the log to show each set operator as a <a href="#g-map">map</a>, the form Z3's
+Before this PR the pipeline already certified many inputs over <a href="#g-set">sets</a> and other
+<a href="#g-array">arrays</a>.
+It expected the log to show every set operator as a <a href="#g-map">map</a>, the form Z3's
 <a href="#g-rewriter">rewriter</a> produces.
 When one <a href="#g-assertion">assertion</a> simplifies to false, Z3 logs the others as written,
 and the replay rejected those names.
 It also rejected any log that stated the default-map axiom, even when the refutation was two
-<a href="#g-select">reads</a> that never touched it.
-The work serves milestone 4 of the plan, "Broader theories and integration", which includes arrays.
+<a href="#g-select">selects</a> that never touched it.
+The work serves milestone 4, "Broader theories and integration", which covers arrays.
 </p>
 
 <h2>What changed</h2>
 <ul>
-<li><strong>Replay, set operators.</strong> You can now certify inputs whose log prints <code>union</code>,
-<code>intersection</code>, <code>setminus</code>, or <code>complement</code> by name instead of as a map.</li>
+<li><strong>Replay, set operators.</strong> You can now certify inputs whose log prints union,
+intersection, difference, or complement by name instead of as a map.</li>
 <li><strong>Replay, default-map axiom.</strong> An input is now rejected for this axiom only when the
-refutation actually reaches it, and an unused one is dropped from the certificate.</li>
-<li><strong>Replay, a narrower shape test.</strong> The <a href="#g-default-value">default value</a> of a
-<a href="#g-store">store</a> over a map is no longer mistaken for the axiom, because that fact holds for every array.</li>
+refutation reaches it, and an unused one is dropped from the certificate.</li>
+<li><strong>Replay, shape test.</strong> The <a href="#g-default-value">default value</a> of a
+<a href="#g-store">store</a> over a map is no longer mistaken for the axiom.</li>
 <li><strong>Reconstructor.</strong> A certificate that states the default-map axiom as a
-<a href="#g-theory-lemma">theory lemma</a> is now refused with a clear message, where before only Lean would fail.</li>
+<a href="#g-theory-lemma">theory lemma</a> is now refused with a clear message.</li>
 <li><strong>After review.</strong> An input may declare its own
-<a href="#g-uninterpreted-function">uninterpreted function</a> named <code>union</code> next to the set
+<a href="#g-uninterpreted-function">uninterpreted function</a> named <code>union</code> beside the set
 operator, and it still certifies.</li>
 </ul>
 <p>
-An analogy for the second bullet. The solver keeps a notebook and writes one standard remark for every map it meets.
+An analogy for the second bullet. The solver writes one standard remark in its notebook for every map.
 The old replay threw the notebook away on seeing a remark it could not check.
 The new replay first asks whether the final argument cites it.
 </p>
 
 <table>
-<thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<thead><tr><th>File</th><th>Role</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
 <tbody>
 <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Replay of the clause log</td><td class="num">98</td><td class="num">12</td></tr>
 <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">20</td><td class="num">3</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests</td><td class="num">306</td><td class="num">6</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">58</td><td class="num">1</td></tr>
 <tr><td><code>examples/python/README</code></td><td>Documentation</td><td class="num">8</td><td class="num">1</td></tr>
-<tr><th colspan="2">Total, two commits</th><th class="num">490</th><th class="num">23</th></tr>
+<tr><th colspan="2">Total</th><th class="num">490</th><th class="num">23</th></tr>
 </tbody>
 </table>
 
 <h2>Worked example</h2>
 <p>
 The input is the PR's test <code>setminus_empty_with_member</code>.
-It says the set difference of <code>a</code> and <code>b</code> is empty, yet 1 is in <code>a</code> and not in <code>b</code>.
-All three parts below come from a real run on this iteration's build.
+It says <code>a</code> minus <code>b</code> is empty, yet 1 is in <code>a</code> and not in <code>b</code>.
+All three parts come from a real run on the merged commit.
 </p>
 
 <h3>(a) The input</h3>
@@ -140,11 +138,10 @@ All three parts below come from a real run on this iteration's build.
 <h3>(b) Before</h3>
 <p>The exporter from the base commit <code>c2340d79b</code> stopped with exit code 2 and this message:</p>
 <pre><code>proof_certificate.py: error: the default value of a map is not certified</code></pre>
-<p class="note">The log stated the default-map axiom for the difference, and the old replay rejected it on sight.</p>
+<p class="note">The log stated the default-map axiom, and the old replay rejected it on sight.</p>
 
 <h3>(c) After</h3>
-<p>The export and the reconstruction both succeed. <strong>Lean accepted the file</strong>
-(<code>check_lean.sh</code> printed "Lean checks passed.").</p>
+<p>Export and reconstruction succeed, and <strong>Lean accepted the file</strong>. The check printed "Lean checks passed."</p>
 
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := _m.arrs_ib 0
 def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := _m.arrs_ib 1
@@ -157,8 +154,7 @@ def formula_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpreta
 def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := (_select (term_1 _atoms _vars _m) (term_6 _atoms _vars _m))
 def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := (Not (formula_8 _atoms _vars _m))
 ...</code></pre>
-<p class="note">The declarations: <code>a</code> and <code>b</code> are functions from Int to Prop, and the set
-difference is the pointwise "in <code>a</code> and not in <code>b</code>".</p>
+<p class="note">The declarations: the set difference is the pointwise "in <code>a</code> and not in <code>b</code>".</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     (_h0 : (formula_5 _atoms _vars _m))
@@ -178,66 +174,68 @@ private theorem th_lemma_35 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_
   have _m32 : _select ((term_12 _atoms _vars _m)) (((1 : Int))) = (And (_select ((term_0 _atoms _vars _m)) (((1 : Int)))) (_select ((term_11 _atoms _vars _m)) (((1 : Int))))) := rfl
   have _m32_1 : _select ((term_11 _atoms _vars _m)) (((1 : Int))) = (Not (_select ((term_1 _atoms _vars _m)) (((1 : Int))))) := rfl
   first | omega | grind (splits := 64)</code></pre>
-<p class="note">A theory lemma the refutation does use: reading the difference at index 1 gives "1 is in
-<code>a</code> and 1 is not in <code>b</code>".</p>
+<p class="note">A theory lemma the refutation does use: a select of the difference at index 1.</p>
 
-<pre><code>  let _step_31 : (formula_29 _atoms _vars _m) :=
+<pre><code>  ...
+  let _step_31 : (formula_29 _atoms _vars _m) :=
     (th_lemma_31 _atoms _vars _m)
   let _step_35 : (formula_33 _atoms _vars _m) :=
     (th_lemma_35 _atoms _vars _m)
   let _step_37 : (formula_36 _atoms _vars _m) :=
     (th_lemma_37 _atoms _vars _m)
   let _step_38 : (formula_3 _atoms _vars _m) :=
-    (False.elim ((((_step_37.neg_resolve_left _step_31).neg_resolve_left _step_35).neg_resolve_left _step_27) _step_16))</code></pre>
-<p class="note">The end of the proof: it cites three theory lemmas about reads, and none of them is the
-default-map axiom, which was logged but left out.</p>
+    (False.elim ((((_step_37.neg_resolve_left _step_31).neg_resolve_left _step_35).neg_resolve_left _step_27) _step_16))
+  ...</code></pre>
+<p class="note">The end of the proof: it cites three theory lemmas, and none is the default-map axiom.</p>
 
 <h2>How it was verified</h2>
 <p>
-The random set puzzles that Z3 refutes were run before and after the change.
-Thirty more of them now pass the Lean check, and no input that exported before is lost.
-The full reconstruction test suite passed on the final commit, on macOS.
+All five steps of the loop's local gate passed on macOS.
+The gate mirrors the Linux CI steps that exercise this work.
+The PR touches only Python examples and documentation, so the loop merged it on that gate.
+</p>
+
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Detail</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td>Certificate exporter tests</td><td><span class="ok">pass</span></td><td>120 tests</td><td class="num">20s</td></tr>
+<tr><td>Lean reconstruction tests</td><td><span class="ok">pass</span></td><td>536 tests, 9 skipped</td><td class="num">861s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span></td><td>48 tests</td><td class="num">18s</td></tr>
+<tr><td>Lean-certified <a href="#g-boolean">Boolean</a> matrix</td><td><span class="ok">pass</span></td><td>6 of 6 Lean-verified</td><td class="num">5s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix</td><td><span class="ok">pass</span></td><td>8 of 8 Lean-verified</td><td class="num">6s</td></tr>
+</tbody>
+</table>
+
+<p>
+A sweep of random set inputs was run before and after the change, and no input is lost.
+The reviewer repeated it on fresh seeds and found no crash.
 With both new Python checks switched off, Lean itself failed on the axiom.
 </p>
 
 <table>
-<thead><tr><th>Local check, final commit</th><th>Result</th></tr></thead>
+<thead><tr><th>Sweep of random set inputs, seeds 1 to 400</th><th class="num">Before</th><th class="num">After</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td><span class="ok">pass</span>: 536 tests, 9 skipped</td></tr>
-<tr><td>Array validation tests alone</td><td><span class="ok">pass</span>: 45 tests</td></tr>
-<tr><td>Pinned random seeds and documented inputs, checked in Lean</td><td><span class="ok">pass</span>: 2 tests</td></tr>
-<tr><td>Certificate exporter tests</td><td><span class="ok">pass</span>: 120 tests</td></tr>
-<tr><td><code>check_lean.sh</code></td><td><span class="ok">pass</span>: "Lean checks passed."</td></tr>
-<tr><td>z3test proof script tests</td><td><span class="ok">pass</span>: 48 tests</td></tr>
-<tr><td>Matrix cell on the Boolean inputs</td><td><span class="ok">pass</span>: 6 of 6 Lean-verified</td></tr>
-<tr><td>Matrix cell on the <code>lra_*</code> inputs</td><td><span class="ok">pass</span>: 8 of 8 Lean-verified</td></tr>
-</tbody>
-</table>
-
-<table>
-<thead><tr><th>Sweep of random set inputs, seeds 1 to 400</th><th>Before</th><th>After</th></tr></thead>
-<tbody>
-<tr><td>Unsatisfiable inputs</td><td class="num">142</td><td class="num">142</td></tr>
+<tr><td>Inputs Z3 refutes</td><td class="num">142</td><td class="num">142</td></tr>
 <tr><td>Exported and reconstructed</td><td class="num">81</td><td class="num">114</td></tr>
 <tr><td>Rejected at export</td><td class="num">61</td><td class="num">28</td></tr>
 <tr><td>Accepted by Lean</td><td class="num">67</td><td class="num">97</td></tr>
 <tr><td>Failed in Lean, in a rewrite step</td><td class="num">14</td><td class="num">17</td></tr>
 </tbody>
 </table>
-<p class="note">The Lean run over all 114 certificates was done on the first commit and not repeated after
-the review fixes.</p>
+<p class="note">The Lean run over all 114 certificates was not repeated after the review fixes.</p>
 
 <p>
-The loop's local gate result had not been recorded when this report was written.
-No CI status was recorded either, so nothing was checked on Linux. There were no CI fix rounds.
+No CI status was recorded, so nothing was checked on Linux before the merge.
+GitHub CI runs on <code>master</code> after the merge. Its results were unknown when this report was written.
+There were no CI fix rounds.
 </p>
 
 <table>
 <thead><tr><th>CI workflow and check</th><th>Status</th><th>Link</th></tr></thead>
 <tbody>
-<tr><td>"Ubuntu build - cmake - releaseClang", step "Check native proofs in Lean", the job the PR body names for the new tests</td>
+<tr><td>"Ubuntu build - cmake - releaseClang", step "Check native proofs in Lean". The PR names this job for the new tests.</td>
 <td><span class="warn">not recorded</span></td>
-<td><a href="https://github.com/levnach/z3/pull/121/checks">PR checks page</a></td></tr>
+<td><a href="https://github.com/levnach/z3/commit/d6b160aeda80c6e9469382399f85660f04825298/checks">checks of the merge commit</a></td></tr>
 <tr><td>All other workflows</td><td><span class="warn">not recorded</span></td>
 <td><a href="https://github.com/levnach/z3/pull/121/checks">PR checks page</a></td></tr>
 </tbody>
@@ -247,14 +245,14 @@ No CI status was recorded either, so nothing was checked on Linux. There were no
 <p>Verdict: <strong>APPROVE</strong>. No blocker and no major finding.</p>
 <ul>
 <li><strong>Minor, recorded and not changed.</strong> The reviewer ran the sweep and saw three inputs change
-how they fail. Before, they were refused at export with a named reason. Now Lean fails later in a rewrite
-step, which is slower and less clear. The integrator checked one, seed 345, and found its old refusal was for
-the wrong reason. The real gap is rewrite steps with no Lean theorem yet. Nothing unsound happens, because
-Lean rejects.</li>
+how they fail. Before, export refused them with a named reason. Now Lean fails later in a rewrite
+step, which is slower and less clear. A check of one, seed 345, found the old refusal was
+for the wrong reason. The real gap is rewrite steps with no Lean theorem yet. Nothing unsound happens,
+because Lean rejects.</li>
 <li><strong>Nit, fixed.</strong> The reviewer wrote an input that declares its own function named
 <code>union</code> beside the set union. It was refused with a misleading message. Z3 prints its own union
-with a sort annotation, so the replay now tells the two apart, and the input passes Lean. Testing this exposed
-a raw Python error for a function named <code>intersection</code>, now a proper export rejection.</li>
+with its <a href="#g-sort">sort</a>, so the replay now tells the two apart, and the input passes Lean.
+A raw Python error for a function named <code>intersection</code> also became a proper rejection.</li>
 <li><strong>Nit, fixed.</strong> No test covered the new rejection on a <a href="#g-trimming">trimmed</a> log,
 so a bug there could go unseen. The test now covers both kinds of log.</li>
 <li><strong>Nit, fixed.</strong> One ambiguous README sentence was reworded.</li>
@@ -262,23 +260,21 @@ so a bug there could go unseen. The test now covers both kinds of log.</li>
 
 <h2>Risks and open questions</h2>
 <ul>
-<li><strong>Later failures.</strong> Three sweep inputs now fail in Lean instead of at export, so tools
-that count Lean failures report them differently.</li>
-<li><strong>Platform.</strong> The pinned seeds and the trimmed-log test were chosen on a macOS build. A
-different log on Linux would first show as a failure of those tests.</li>
+<li><strong>Later failures.</strong> Three sweep inputs now fail in Lean instead of at export.</li>
+<li><strong>Platform.</strong> The pinned seeds were chosen on a macOS build. A different log on Linux
+would first show as a failure of those tests in CI.</li>
 <li><strong>Soundness.</strong> The PR argues nothing unchecked is admitted. The axiom is either unused and
 absent, or used and rejected.</li>
-<li><strong>Unknown.</strong> The local gate and CI results.</li>
+<li><strong>Unknown.</strong> The GitHub CI results for the merge commit.</li>
 </ul>
 
 <h2>What comes next</h2>
 <ul>
-<li>Certify the default-map axiom when the refutation needs it, which the 28 rejected sweep inputs do.</li>
-<li>Add Lean theorems for the rewriter's map identities, such as "a set minus itself is empty". These cause
-the 17 Lean failures.</li>
-<li>Accept <code>subset</code> as an operator. Today only its rewritten form certifies.</li>
-<li>Smaller items: a declared function named like one of the other three operators, and an earlier rejection
-of a <a href="#g-constant-array">constant array</a> the reconstructor refuses today.</li>
+<li>Certify the default-map axiom when the refutation needs it, as the 28 rejected sweep inputs do.</li>
+<li>Add Lean theorems for the rewriter's map identities, such as "a set minus itself is empty". Their
+absence causes the 17 Lean failures.</li>
+<li>Accept <code>subset</code> as an operator, and reject earlier a
+<a href="#g-constant-array">constant array</a> the reconstructor refuses today.</li>
 </ul>
 
 <h2>Glossary</h2>
@@ -294,8 +290,9 @@ of a <a href="#g-constant-array">constant array</a> the reconstructor refuses to
 <dt id="g-certificate">certificate</dt>
 <dd>A file that records the steps of a refutation so that another program can check them.</dd>
 <dt id="g-clause">clause</dt>
-<dd>A disjunction of atomic formulas and their negations, such as "p or not q".</dd><dt id="g-clause-log">clause log</dt>
-<dd>The list of clauses the solver writes while it works: assumed, derived, or stated by a theory.</dd>
+<dd>A disjunction of atomic formulas and their negations, such as "p or not q".</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>The list of <a href="#g-clause">clauses</a> the solver writes while it works: assumed, derived, or stated by a theory.</dd>
 <dt id="g-constant-array">constant array</dt>
 <dd>An array with the same element at every index. The empty set is the constant array of false.</dd>
 <dt id="g-default-value">default value</dt>
@@ -310,7 +307,7 @@ of a <a href="#g-constant-array">constant array</a> the reconstructor refuses to
 <dd>Re-deriving each logged clause step by step to build a proof that can be exported.</dd>
 <dt id="g-rewriter">rewriter</dt>
 <dd>The part of a solver that simplifies terms before solving, for example turning <code>(setminus a b)</code> into a map.</dd>
-<dt id="g-select">select (read)</dt>
+<dt id="g-select">select</dt>
 <dd>Reading an array at an index, written <code>(select a i)</code>. For a set it asks whether <code>i</code> is a member.</dd>
 <dt id="g-set">set</dt>
 <dd>In Z3, an array with Boolean elements. An index is a member when its element is true.</dd>
