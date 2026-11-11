@@ -207,7 +207,11 @@ _STRUCTURAL_REWRITE_CHARS = 1000000
 # budget grows with the structures it relates. Linking the 481 regrouped
 # gates of a QF_LRA time-triggered startup rewrite (tta_startup
 # simple_startup_15nodes) took 22,000 steps and 960,000 characters, 46 and
-# 2,000 per link, and left nothing for the search over the two sides.
+# 2,000 per link, and left nothing for the search over the two sides. The
+# allowance is at most the limits themselves, so a rewrite's proof stays
+# within twice them: uncapped, 1,641 links of a 40-node rewrite of the same
+# shape rendered over 3 MB, which ran Lean out of memory where grind alone
+# verifies.
 _LINK_STEPS = 100
 _LINK_CHARS = 5000
 # Resource limit of z3's unsat core over a cnf lemma's propositional
@@ -5933,13 +5937,14 @@ class _PropositionalProver:
         its steps and characters given back.
 
         The links have an allowance of _LINK_STEPS and _LINK_CHARS each on
-        top of the budget, and the allowance they leave is not carried over
+        top of the budget, in total at most the budget's own steps and
+        characters, and the allowance they leave is not carried over
         to the search over the sides: it starts where it would have without
         it, or after the steps and characters the links took beyond it.
         """
         start = self.steps, self.chars
-        self.steps -= len(self.links) * _LINK_STEPS
-        self.chars -= len(self.links) * _LINK_CHARS
+        self.steps -= min(len(self.links) * _LINK_STEPS, _STRUCTURAL_REWRITE_STEPS * self.budget)
+        self.chars -= min(len(self.links) * _LINK_CHARS, _STRUCTURAL_REWRITE_CHARS * self.budget)
         lines, facts, proofs = [], [], {}
 
         def equivalent(structure, other):

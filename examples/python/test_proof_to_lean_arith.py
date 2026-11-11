@@ -1451,21 +1451,42 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         # The 481 links of the tta_startup 15-node rewrite took 22,000 steps,
         # more than the whole budget, so the search over the sides never ran
         # and the lemma was grind's, which failed (see
-        # startup_shaped_rewrite_instance). Here 6 nodes give 43 links, and
-        # the step limit is scaled down to match: the links' own allowance
-        # (_LINK_STEPS each) leaves the search its budget, and without it
-        # the lemma falls back to grind alone.
+        # startup_shaped_rewrite_instance). Here 6 nodes give 43 links, which
+        # take about 1,300 steps, and the step limit is scaled down to 1,000
+        # to match: the links' own allowance (_LINK_STEPS each, at most the
+        # limit) leaves the search most of its budget, and without it the
+        # lemma falls back to grind alone. Lean checks the lemma with the
+        # grind fallback removed, so the links and the search are what verify.
         source = startup_shaped_rewrite_instance()
-        with patch.object(proof_to_lean, "_STRUCTURAL_REWRITE_STEPS", 300):
-            lemma = self._normalized_lemma(source)
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        with patch.object(proof_to_lean, "_STRUCTURAL_REWRITE_STEPS", 1000):
+            text = proof_to_lean.reconstruct(source, certificate)
+            self.assertEqual(text.count("private theorem normalized_rewrite_"), 1)
+            lemma = text.split("private theorem normalized_rewrite_", 1)[1].split("\n\n", 1)[0]
             self.assertIn("  by first\n    | (let _s0 : Prop := ", lemma)
             self.assertGreaterEqual(len(re.findall(r"\n       have _f\d+ : _s\d+ := by\n", lemma)), 30)
-            certificate, report = self.check(source)
+            self.assertEqual(lemma.count("\n    | grind (splits := 64)"), 1)
+            alone = text.replace(lemma, lemma.replace("\n    | grind (splits := 64)", '\n    | fail "no fallback"'), 1)
+            self.assertNotEqual(alone, text)
+            _, report = lean_test_support.check(self, source, certificate, text=alone)
             self.assertIn(_STANDARD_AXIOMS, report)
             with patch.object(proof_to_lean, "_LINK_STEPS", 0), patch.object(proof_to_lean, "_LINK_CHARS", 0):
                 lemma = self._normalized_lemma(source)
                 self.assertIn("  by grind (splits := 64)", lemma)
                 self.assertNotIn("Iff.intro", lemma)
+
+    def test_link_allowance_is_capped_at_the_budget(self):
+        # The allowance is at most the budget itself, so a rewrite's proof
+        # stays within twice the limits that keep it inside Lean's. 30 nodes
+        # give 931 links, whose proofs exceed that: the lemma is grind alone,
+        # as before the allowance (grind checks the file in 25 s at 3.9 GB).
+        # Uncapped, the links took 93,100 steps of allowance and the lemma
+        # became a 1.8 MB structural proof Lean checked in 116 s at 4.7 GB;
+        # at 40 nodes Lean ran out of memory on it. Python only.
+        lemma = self._normalized_lemma(startup_shaped_rewrite_instance(30))
+        self.assertIn("  by grind (splits := 64)", lemma)
+        self.assertNotIn("Iff.intro", lemma)
+        self.assertLess(len(lemma), proof_to_lean._STRUCTURAL_REWRITE_CHARS)
 
     def test_rewrite_reshaping_ite_terms_verifies(self):
         # Z3's rewriter reshapes the ite terms of an assertion (see
