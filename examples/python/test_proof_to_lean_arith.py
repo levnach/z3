@@ -874,6 +874,44 @@ def clock_shaped_rewrite_instance(clocks=3):
     return "\n".join(lines) + "\n"
 
 
+def startup_shaped_rewrite_instance(nodes=6):
+    """A disjunction with the Boolean skeleton of a tta_startup rewrite over fresh bounds.
+
+    z3test's smtlib-sample QF_LRA tta_startup/simple_startup_15nodes.
+    synchro.base.smt2 asserts, per node, that it is active and not waiting
+    and that some other node is too with one of two flags of the pair off,
+    as left-nested binary conjunctions and disjunctions; Z3's rewriter
+    flattens every one of them, so linking the two sides' structures takes
+    one link per pair of nodes. Every node is inactive by a unit bound, so
+    the input is unsat.
+    """
+    counter = [0]
+
+    def atom():
+        counter[0] += 1
+        return "(<= x%d 5)" % counter[0]
+
+    def left_nested(kind, operands):
+        nested = operands[0]
+        for operand in operands[1:]:
+            nested = "(%s %s %s)" % (kind, nested, operand)
+        return nested
+
+    active, waiting = [atom() for _ in range(nodes)], [atom() for _ in range(nodes)]
+
+    def ready(node, condition):
+        return "(and (and %s (not %s)) %s)" % (active[node], waiting[node], condition)
+
+    groups = [ready(node, left_nested("or", [ready(other, "(or (not %s) (not %s))" % (atom(), atom()))
+                                             for other in range(nodes) if other != node]))
+              for node in range(nodes)]
+    lines = ["(set-logic QF_LRA)"] + ["(declare-const x%d Real)" % i for i in range(1, counter[0] + 1)]
+    lines.append("(assert %s)" % left_nested("or", groups))
+    lines += ["(assert (> x%d 5))" % i for i in range(1, nodes + 1)]
+    lines.append("(check-sat)")
+    return "\n".join(lines) + "\n"
+
+
 def ite_reshaping_instance(groups=5, condition="and"):
     """A disjunction of conjunctions over Real ite terms that Z3's rewriter reshapes, refuted by unit bounds.
 
@@ -1408,6 +1446,26 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         self.assertLess(len(lemma), proof_to_lean._STRUCTURAL_REWRITE_CHARS)
         certificate, report = self.check(source)
         self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_links_do_not_use_up_the_search_budget(self):
+        # The 481 links of the tta_startup 15-node rewrite took 22,000 steps,
+        # more than the whole budget, so the search over the sides never ran
+        # and the lemma was grind's, which failed (see
+        # startup_shaped_rewrite_instance). Here 6 nodes give 43 links, and
+        # the step limit is scaled down to match: the links' own allowance
+        # (_LINK_STEPS each) leaves the search its budget, and without it
+        # the lemma falls back to grind alone.
+        source = startup_shaped_rewrite_instance()
+        with patch.object(proof_to_lean, "_STRUCTURAL_REWRITE_STEPS", 300):
+            lemma = self._normalized_lemma(source)
+            self.assertIn("  by first\n    | (let _s0 : Prop := ", lemma)
+            self.assertGreaterEqual(len(re.findall(r"\n       have _f\d+ : _s\d+ := by\n", lemma)), 30)
+            certificate, report = self.check(source)
+            self.assertIn(_STANDARD_AXIOMS, report)
+            with patch.object(proof_to_lean, "_LINK_STEPS", 0), patch.object(proof_to_lean, "_LINK_CHARS", 0):
+                lemma = self._normalized_lemma(source)
+                self.assertIn("  by grind (splits := 64)", lemma)
+                self.assertNotIn("Iff.intro", lemma)
 
     def test_rewrite_reshaping_ite_terms_verifies(self):
         # Z3's rewriter reshapes the ite terms of an assertion (see
