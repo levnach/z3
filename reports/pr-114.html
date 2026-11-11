@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #114: Name hypotheses by binders and close resolutions with resolve_right</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+         max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+  a { color: var(--accent); }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  .meta { color: var(--muted); font-size: .95rem; }
+  .badge { display: inline-block; padding: 0 .5rem; border-radius: 1rem; border: 1px solid var(--border); font-size: .85rem; }
+  .open { color: var(--ok); border-color: var(--ok); }
+  code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem; overflow-x: auto; font-size: .82rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; margin: .8rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .3rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .fail { color: var(--bad); font-weight: 600; }
+  .unknown { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -.3rem; color: var(--muted); }
+  dt { font-weight: 600; margin-top: .6rem; }
+  dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .6rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Name hypotheses by binders and close resolutions with resolve_right</h1>
+  <p class="meta">
+    Pull request <a href="https://github.com/levnach/z3/pull/114">levnach/z3#114</a>
+    &middot; <span class="badge open">OPEN</span>
+    &middot; 2026-11-11T04:32:50Z
+    &middot; loop iteration 113
+  </p>
+  <p class="meta">
+    This PR is open and <strong>not merged</strong>.
+    The change it proposes is commit
+    <a href="https://github.com/levnach/z3/commit/eaf5bf8d968988b89d3a2e67865a7a428984792f"><code>eaf5bf8</code></a>.
+  </p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+This PR makes the Lean text that the reconstructor writes for a
+<a href="#g-proof-certificate">proof certificate</a> smaller, without changing what it proves.
+Two kinds of redundant text go away.
+First, a <a href="#g-hypothesis">hypothesis</a> is no longer bound as its own
+<a href="#g-proof-step">proof step</a>.
+The steps that use it now name its <a href="#g-binder">binder</a> directly.
+Second, a <a href="#g-unit-resolution">unit resolution</a> that keeps one
+<a href="#g-literal">literal</a> and eliminates every literal after it now
+uses <code>Or.resolve_right</code> instead of a <a href="#g-case-split">case split</a>.
+The theorem and <a href="#g-lemma">lemma</a> statements stay the same, and Lean still checks every term.
+This matters because Lean's memory during <a href="#g-elaboration">elaboration</a> grows with the text.
+Large <a href="#g-refutation">refutations</a> are close to, or over, the 8 GB cap of the checker.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR, the pipeline already verified the QF_IDL <a href="#g-logic">logic</a>
+benchmark plan-21 under the 8 GB cap, with little room to spare.
+Larger refutations, such as the QF_IDL benchmark <code>DTP_k2_n35_c245_s9</code>, still ran out of memory.
+The previous iteration had moved each proof step under hypotheses into the one step that uses it.
+Its notes said that what remained in DTP was mostly shared steps and <code>Or.elim</code> resolution terms.
+This PR removes part of that text.
+It serves milestone 3 of the plan, equality and linear arithmetic, by keeping large arithmetic refutations checkable.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li><strong>Reconstructor.</strong> A proof step that uses a hypothesis now refers to the hypothesis's binder, so no extra <a href="#g-let-binding">let binding</a> and no one-line lemma <code>fun _hypN =&gt; _hypN</code> is written for it.</li>
+  <li><strong>Reconstructor.</strong> When every literal after the last kept one in a <a href="#g-clause">clause</a> is eliminated or <code>false</code>, the resolution now concludes that literal in one step, with no case split.</li>
+  <li><strong>Reconstructor.</strong> The one exception is the premise of a <code>lemma</code> step, which keeps its own step because the lemma <a href="#g-discharge">discharges</a> the hypothesis there.</li>
+  <li><strong>Tests.</strong> New Lean-checked tests now pin nine clause shapes for the new resolution form and the lemma-premise exception, and the size limits on a DTP-style test are tighter.</li>
+  <li><strong>Docs.</strong> The plan document and the examples README now describe both changes and the new file sizes.</li>
+</ul>
+<p>
+An analogy for the second change: once every suspect but one is ruled out, you name that suspect directly instead of reopening each case.
+</p>
+
+<h3>Generated Lean size and memory (from the PR's measurements)</h3>
+<table>
+  <tr><th>Input</th><th>Lean text before</th><th>Lean text after</th><th>Lean under the 8 GB cap after</th></tr>
+  <tr><td>QF_IDL plan-21</td><td class="num">25.5 MB</td><td class="num">23.4 MB</td><td><span class="pass">passes</span>, 87 s, 7.01 GB peak (was 92 s, 7.52 GB)</td></tr>
+  <tr><td>QF_IDL <code>DTP_k2_n35_c245_s9</code></td><td class="num">36.9 MB</td><td class="num">32.2 MB</td><td><span class="fail">still over the cap</span>, after 13,579 of 16,557 lemmas (was 11,991 of 17,084)</td></tr>
+  <tr><td><code>swap_t2_np_sf_ai_00009_002</code></td><td class="num">22.7 MB</td><td class="num">20.6 MB</td><td><span class="fail">still over the cap</span></td></tr>
+  <tr><td><code>NEQ004_size4</code></td><td class="num">16.5 MB</td><td class="num">13.9 MB</td><td>not reported</td></tr>
+  <tr><td>DTP test instance, seed 2</td><td class="num">1,432,168 bytes</td><td class="num">1,286,576 bytes</td><td>checked by the test suite</td></tr>
+</table>
+
+<h3>Touched files</h3>
+<table>
+  <tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr>
+  <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">71</td><td class="num">20</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td class="num">47</td><td class="num">4</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">21</td><td class="num">6</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">13</td><td class="num">3</td></tr>
+  <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">8</td><td class="num">2</td></tr>
+  <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">20</td><td class="num">0</td></tr>
+  <tr><td><code>examples/python/README</code></td><td class="num">5</td><td class="num">3</td></tr>
+  <tr><th>Total, 2 commits</th><th class="num">185</th><th class="num">38</th></tr>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+This PR shrinks the text for inputs that already worked, so no input was rejected before and accepted now.
+The example is a small input that the old and new code both certify, from real runs of both versions.
+The certificate was identical, and only the Lean text changed.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(declare-const p Bool) (declare-const q Bool)
+(declare-const x Real) (declare-const y Real) (declare-const z Real)
+(assert (or p q))
+(assert (not q))
+(assert (or (not p) (&lt; x y) (&lt; y z)))
+(assert (or (&gt;= x y) (&lt; z x)))
+(assert (or (&gt;= y z) (&lt; z x)))
+(assert (&lt;= x z))
+(check-sat)</code></pre>
+<p class="explain">From <code>p ∨ q</code> and <code>¬q</code> we get <code>p</code>, so <code>x &lt; y</code> or <code>y &lt; z</code>. Either way <code>z &lt; x</code> follows, which contradicts <code>x ≤ z</code>.</p>
+
+<h3>(b) Before: what the base code generated</h3>
+<p>The old reconstructor did not reject this input. It wrote a longer file that Lean accepted. These are its lines for the two steps shown below:</p>
+<pre><code>  let _step_41 : (formula_11 _atoms _vars) :=
+    (Or.elim _step_33 (fun _literal =&gt; _literal) (fun _tail =&gt; (False.elim (_tail _step_39))))
+...
+  let _step_44 (_hyp4 : (formula_4 _atoms _vars)) : (formula_43 _atoms _vars) :=
+    let _step_40 : (formula_4 _atoms _vars) :=
+    _hyp4
+    (False.elim (_step_18 (_step_17.resolve_left _step_40)))</code></pre>
+<p class="explain">The first step opens a case split with two branches. The second step copies the hypothesis <code>_hyp4</code> into a new name, <code>_step_40</code>, only to use it once.</p>
+
+<table>
+  <tr><th>Generated file</th><th>Lines</th><th>Bytes</th><th><code>Or.elim</code> splits</th><th>Hypothesis copies</th><th>Lean check</th></tr>
+  <tr><td>Before the PR</td><td class="num">162</td><td class="num">9,206</td><td class="num">1</td><td class="num">5</td><td class="pass">accepted</td></tr>
+  <tr><td>After the PR</td><td class="num">152</td><td class="num">8,872</td><td class="num">0</td><td class="num">0</td><td class="pass">accepted</td></tr>
+</table>
+
+<h3>(c) After: what the reconstructor generates now</h3>
+<pre><code>def formula_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := _atoms 0
+...
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (formula_0 _atoms _vars))
+...
+def formula_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_5 _atoms _vars) &gt;= (term_6 _atoms _vars))
+...
+def formula_16 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_5 _atoms _vars) &lt;= (term_8 _atoms _vars))
+...
+def formula_29 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (formula_16 _atoms _vars))
+def formula_30 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Or (formula_11 _atoms _vars) (formula_29 _atoms _vars))
+...
+def formula_43 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := False</code></pre>
+<p class="explain">Each formula becomes a Lean definition: <code>formula_0</code> is <code>p</code>, <code>formula_11</code> is <code>x ≥ y</code>, and <code>formula_30</code> is the clause <code>x ≥ y ∨ ¬(x ≤ z)</code>.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_2 _atoms _vars))
+    (_h1 : (formula_3 _atoms _vars))
+    ...
+    (_h5 : (formula_16 _atoms _vars))
+    : False :=</code></pre>
+<p class="explain">The theorem says that for every value of the <a href="#g-boolean">Boolean</a> <a href="#g-atom">atoms</a> and the variables, the six assertions together imply <code>False</code>.</p>
+
+<pre><code>  let _step_41 : (formula_11 _atoms _vars) :=
+    (_step_33.resolve_right (fun _literal =&gt; _literal _step_39))</code></pre>
+<p class="explain">The clause <code>x ≥ y ∨ ¬(x ≤ z)</code> and the assertion <code>x ≤ z</code> now give <code>x ≥ y</code> in one step, with no case split.</p>
+
+<pre><code>  let _step_44 (_hyp4 : (formula_4 _atoms _vars)) : (formula_43 _atoms _vars) :=
+    (False.elim (_step_18 (_step_17.resolve_left _hyp4)))
+...</code></pre>
+<p class="explain">Under the hypothesis <code>¬p</code>, the clause <code>p ∨ q</code> gives <code>q</code>, which contradicts <code>¬q</code>, and the step now names the hypothesis by its binder <code>_hyp4</code>.</p>
+<p>Running <code>./scripts/check_lean.sh</code> on the new file printed <code>Lean checks passed.</code></p>
+
+<h2 id="verified">How it was verified</h2>
+<p>
+In plain terms: about 500 reconstruction tests passed, including the new Lean-checked ones.
+The slow plan-21 test, which the implementer could not run, passed for the reviewer and the integrator.
+</p>
+<table>
+  <tr><th>Local check</th><th>Who ran it</th><th>Result</th></tr>
+  <tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>integrator, after the review fixes</td><td class="pass">519 tests, OK, 7 skipped</td></tr>
+  <tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td>implementer and integrator</td><td class="pass">119 tests, OK</td></tr>
+  <tr><td>z3test proof tests</td><td>implementer, reviewer, integrator</td><td class="pass">48 tests, OK</td></tr>
+  <tr><td><code>./scripts/check_lean.sh</code></td><td>implementer and integrator</td><td class="pass">passed</td></tr>
+  <tr><td>Slow plan-21 memory-cap test</td><td>reviewer and integrator</td><td class="pass">1 test, OK, about 101 s</td></tr>
+  <tr><td>Regression matrix, <code>legacy-proof-object</code> cells</td><td>implementer</td><td class="pass">6 of 6 verified in Lean</td></tr>
+  <tr><td>Regression matrix, <code>smt-clause-log-nopp</code> cells on <code>lra_*.smt2</code></td><td>implementer</td><td class="pass">8 of 8 verified in Lean</td></tr>
+  <tr><td>Local gate (<code>LOCAL_GATE.md</code>)</td><td>loop driver</td><td class="unknown">not recorded yet</td></tr>
+</table>
+<p>
+The loop driver started its local gate alongside this report, and its results were not recorded when this page was written.
+The C++ tests were not run, because the PR changes no C++ code.
+</p>
+<table>
+  <tr><th>CI workflow and job</th><th>What it runs for this PR</th><th>Status</th></tr>
+  <tr><td>Ubuntu build, cmake, releaseClang: "Check native proofs in Lean"</td><td>all <code>test_proof_to_lean*.py</code> tests and the z3test proof tests</td><td class="unknown">unknown, no CI status was recorded</td></tr>
+  <tr><td>manylinux: "Test Python wheel"</td><td><code>test_proof_to_lean.py</code></td><td class="unknown">unknown, no CI status was recorded</td></tr>
+</table>
+<p>See the <a href="https://github.com/levnach/z3/pull/114/checks">PR's checks page</a> for the current CI state. No CI fix rounds were recorded.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the PR. There were no blockers, no major findings, and no minor findings.</p>
+<ul>
+  <li><strong>Nit: stale figures.</strong> The slow plan-21 test's comments still said 25 MB and 7.5 GB. Someone tuning the memory cap could trust these old numbers. They now say 23.4 MB and 7.0 GB.</li>
+  <li><strong>Nit: awkward wording.</strong> The README and two docstrings said a hypothesis "is no step". It now says "not bound as a step".</li>
+  <li><strong>Suggestion: pin the exception.</strong> The reviewer tried a hypothesis that is a lemma's premise and is also used by another step. It passed, but no committed test covered this path. The integrator added a Lean-checked test for it.</li>
+  <li><strong>Suggestion: avoid the text rewrite.</strong> The new code finds hypothesis references with a regular expression over generated text. The reviewer suggested resolving them while building each term. This is a follow-up. It is safe today because every name there is generated, and a wrong reference fails the Lean check.</li>
+</ul>
+<p>The reviewer also checked four edge cases in Lean, including a <a href="#g-conjunction">conjunction</a> used as a hypothesis. All passed.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>Soundness should be unchanged. The statements are the same, and an out-of-scope binder is a Lean error.</li>
+  <li>The text rewrite depends on how generated steps are named. A naming change could break it, though Lean would catch the error.</li>
+  <li>DTP and the swap benchmark still exceed the 8 GB cap, and plan-21 passes close to it.</li>
+  <li>The local gate and CI results were unknown when this page was written.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Merge each import of a shared step under hypotheses with its one re-application. The PR estimates about 1 MB of DTP.</li>
+  <li>Shrink the chains of hypotheses in the lemma statements, which the PR measures at 4.66 MB of DTP.</li>
+  <li>Resolve hypothesis references while building terms, instead of rewriting the text afterwards.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+  <dt id="g-atom">atom</dt>
+  <dd>A formula with no Boolean connective inside it, such as <code>p</code> or <code>x &lt; y</code>.</dd>
+  <dt id="g-binder">binder</dt>
+  <dd>A name introduced for a value inside a term, such as <code>h</code> in <code>fun h =&gt; ...</code>. It can only be used inside that term, which is its scope.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The <a href="#g-sort">sort</a> with two values, true and false. In the example, <code>p</code> and <code>q</code> are Boolean atoms.</dd>
+  <dt id="g-case-split">case split</dt>
+  <dd>Proving a goal from <code>A ∨ B</code> by proving it once assuming <code>A</code> and once assuming <code>B</code>. In Lean this is <code>Or.elim</code>.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A <a href="#g-disjunction">disjunction</a> of literals, such as <code>p ∨ ¬q ∨ r</code>. It is true when at least one literal is true.</dd>
+  <dt id="g-conjunction">conjunction</dt>
+  <dd>An "and" of formulas, such as <code>A ∧ B</code>.</dd>
+  <dt id="g-discharge">discharge</dt>
+  <dd>To remove a hypothesis from a proof by turning it into the premise of a statement. From a proof of <code>False</code> under <code>A</code>, the <code>lemma</code> rule concludes <code>¬A</code> with no hypothesis left.</dd>
+  <dt id="g-disjunction">disjunction</dt>
+  <dd>An "or" of formulas, such as <code>A ∨ B</code>.</dd>
+  <dt id="g-elaboration">elaboration</dt>
+  <dd>The phase in which Lean turns the source text of a proof into fully typed terms before checking them.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A formula assumed temporarily inside a proof, so that a later step can show it leads to a contradiction.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A proven statement used as a building block. In Z3's proofs, the <code>lemma</code> rule also discharges hypotheses. The reconstructor checks large shared steps as separate Lean lemmas.</dd>
+  <dt id="g-let-binding">let binding</dt>
+  <dd>A Lean line <code>let name : type := value</code> that gives a proved fact a name so later steps can use it.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation, such as <code>p</code> or <code>¬(x ≤ z)</code>.</dd>
+  <dt id="g-logic">logic (SMT-LIB)</dt>
+  <dd>A named fragment of formulas a benchmark uses. QF_LRA is quantifier-free linear real arithmetic. QF_IDL is quantifier-free integer difference logic, with constraints like <code>x - y ≤ 3</code>.</dd>
+  <dt id="g-proof-certificate">proof certificate</dt>
+  <dd>A file of proof steps that Z3 exports for an unsat result, so another tool can check them.</dd>
+  <dt id="g-proof-step">proof step</dt>
+  <dd>One inference in a proof, with its premises and its conclusion.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-unit-resolution">unit resolution</dt>
+  <dd>An inference that removes literals from a clause using facts that refute them. From <code>p ∨ q</code> and <code>¬q</code> it concludes <code>p</code>.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-10.
+</footer>
+
+</body>
+</html>
