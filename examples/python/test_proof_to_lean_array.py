@@ -1300,6 +1300,19 @@ SET_COMBINATOR_INPUTS = {
 (assert (select (setminus (union a b) (intersection a (complement b))) i))
 (check-sat)
 """,
+    # The input may declare a function named like a set operator (over other
+    # sorts): the log names the function (union x x) and Z3's own union with
+    # its sort, ((as union (Array Int Bool)) a b).
+    "set_union_beside_a_function_named_union": """(declare-fun a () (Array Int Bool))
+(declare-fun b () (Array Int Bool))
+(declare-fun c () (Array Int Bool))
+(declare-fun x () Int)
+(declare-fun union (Int Int) Int)
+(assert (select ((as const (Array Int Bool)) false) 0))
+(assert (= (union x x) 0))
+(assert (= c (union a b)))
+(check-sat)
+""",
 }
 # Maps of other functions ((_ map f) a ...): uninterpreted functions and
 # predicates of up to three arguments, the Boolean connective xor, = and
@@ -2833,14 +2846,32 @@ class TestArrayValidation(unittest.TestCase):
 (assert (= b ((as const (Array Int Bool)) false)))
 (check-sat)
 """
-        with self.assertRaisesRegex(proof_certificate.ProofExportError, "the default value of a map is not certified"):
-            _export(source)
-        # The reconstructor rejects the axiom on its own: Lean has no theorem for it.
-        with mock.patch.object(proof_clause_log._Replay, "_require_certified", lambda self: None):
-            certificate = _export(source)
-        with self.assertRaisesRegex(proof_to_lean.ReconstructionError,
-                                    "the default value of a map is not certified at node"):
-            proof_to_lean.reconstruct(source, certificate)
+        # The same behind four clauses that take no part: a log of 4 KB or
+        # more is trimmed, and the trimmer's core lists the axiom.
+        padded = ("".join("(declare-fun y%d () Int)\n" % k for k in range(4))
+                  + "(declare-fun c () (Array Int Bool))\n" + source.replace("(check-sat)\n", "")
+                  + "".join("(assert (or (select c y%d) (> y%d %d) (select a y%d)))\n" % (k, k, k, k)
+                            for k in range(4)) + "(check-sat)\n")
+        check = proof_clause_log._Replay._require_certified
+        for name, text, trimmed in (("untrimmed", source, False), ("trimmed", padded, True)):
+            with self.subTest(name=name):
+                seen = []
+
+                def recorded(replay):
+                    seen.append(replay.trimmed)
+                    check(replay)
+
+                with mock.patch.object(proof_clause_log._Replay, "_require_certified", recorded):
+                    with self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                                "^the default value of a map is not certified$"):
+                        _export(text)
+                self.assertEqual(seen, [trimmed])
+                # The reconstructor rejects the axiom on its own: Lean has no theorem for it.
+                with mock.patch.object(proof_clause_log._Replay, "_require_certified", lambda self: None):
+                    certificate = _export(text)
+                with self.assertRaisesRegex(proof_to_lean.ReconstructionError,
+                                            "the default value of a map is not certified at node"):
+                    proof_to_lean.reconstruct(text, certificate)
 
     def test_unused_default_values_of_maps_are_left_out(self):
         """The array solver states the default-map axiom for every map; only a refutation using it is rejected."""
@@ -2935,6 +2966,33 @@ class TestArrayValidation(unittest.TestCase):
             with self.subTest(sexpr=sexpr):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
                     terms.build(sexpr)
+        # A function of the input named like a set operator takes the bare
+        # name, as for every head; (as union SORT) is Z3's own union (it
+        # qualifies no function of the input), so the two are told apart.
+        name = "set_union_beside_a_function_named_union"
+        log = proof_clause_log.run_clause_log(executable, ARRAY_INPUTS[name].replace("(check-sat)", ""), 60)
+        self.assertIn("(union x x)", log)
+        self.assertIn("((as union (Array Int Bool)) a b)", log)
+        self.assertEqual(len(_declarations(self.certificates[name], z3.Z3_OP_SET_UNION)), 1)
+        self.assertEqual([(d["name"], d["domain"]) for d in _declarations(self.certificates[name],
+                                                                          z3.Z3_OP_UNINTERPRETED)
+                          if d["domain"]], [("union", ["Int", "Int"])])
+        assertions, _ = proof_certificate.parse_assertions(ARRAY_INPUTS[name], context, integer=True)
+        terms = proof_clause_log._Terms(context, assertions)
+        self.assertEqual(terms.build([["as", "union", sets], "a", "b"]).decl().kind(), z3.Z3_OP_SET_UNION)
+        self.assertEqual(terms.build(["union", "x", "x"]).decl().kind(), z3.Z3_OP_UNINTERPRETED)
+        for sexpr, message in ((["union", "a", "b"], "ill-sorted application of union"),
+                               ([["as", "union", sets], "x", "x"], "unsupported operator in the clause log: union"),
+                               ([["as", "union", sets], "a"], "unsupported operator in the clause log: union")):
+            with self.subTest(sexpr=sexpr):
+                with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
+                    terms.build(sexpr)
+        # Z3 prints the other three operators bare, so beside a function of
+        # that name the log is ambiguous and the input is rejected (z3py
+        # raises AttributeError for the function applied to sets).
+        with self.assertRaisesRegex(proof_certificate.ProofExportError,
+                                    "^ill-sorted application of intersection in the clause log$"):
+            _export(ARRAY_INPUTS[name].replace("union", "intersection"))
 
     def test_tampered_set_combinators_are_rejected(self):
         def parameter(value):

@@ -483,10 +483,17 @@ class _Terms:
             except z3.Z3Exception:
                 raise ProofExportError("ill-sorted recognizer application in the clause log") from None
         if (isinstance(head, list) and len(head) == 3 and head[0] == "as" and isinstance(head[1], str)
-                and head[1] in _SET_HEADS and _symbol(head[1]) not in self.functions):
+                and head[1] in _SET_HEADS):
             # A set operator printed with its sort, ((as union (Array I Bool))
             # a b), as Z3 prints union: the application below, of that sort.
-            result = self.build([head[1]] + sexpr[1:])
+            # Z3 qualifies only its own functions, so the head names the
+            # operator even when the input declares a function of that name
+            # (over other sorts; Z3 rejects one with the operator's own).
+            arguments = [self.build(argument) for argument in sexpr[1:]]
+            try:
+                result = self._apply(head[1], len(arguments), arguments)
+            except z3.Z3Exception:
+                raise ProofExportError("ill-sorted application of %s in the clause log" % head[1]) from None
             sort = self.array_sorts.get(_sort_text(head[2]))
             if sort is None or not sort.eq(result.sort()):
                 raise ProofExportError("set operator of another sort in the clause log: %s" % head[1])
@@ -509,7 +516,11 @@ class _Terms:
             raise ProofExportError("wrong number of arguments for %s in the clause log" % head)
         try:
             return function(*arguments) if function is not None else self._apply(head, count, arguments)
-        except z3.Z3Exception:
+        except (z3.Z3Exception, AttributeError):
+            # z3py raises AttributeError when it casts an array to an
+            # arithmetic sort: a function of the input named like a set
+            # operator, (declare-fun intersection (Int Int) Int), takes the
+            # bare name, so Z3's (intersection a b) of two sets is not built.
             raise ProofExportError("ill-sorted application of %s in the clause log" % head) from None
 
     def _apply(self, head, count, arguments):

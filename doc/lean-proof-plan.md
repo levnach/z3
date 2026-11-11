@@ -2490,7 +2490,13 @@ two reasons that are not about the refutation:
   ("unsupported operator in the clause log: complement", "unsupported
   application head"; 28 seeds). `_Terms.build` now builds the four operators
   (`_SET_HEADS`), under `map_parameters` like the input's own, and checks the
-  sort an `as` head names.
+  sort an `as` head names. Z3 qualifies only its own functions, so
+  `(as union S)` is the operator even when the input declares a function
+  named `union` (over other sorts; Z3 rejects one with the operator's own),
+  which takes the bare name as for every head. The other three operators
+  are printed bare, so beside a function of their name the log is ambiguous
+  and the input is rejected ("ill-sorted application of intersection in the
+  clause log", an `AttributeError` of z3py before).
 - The array solver states the default-map axiom, `(= (default (map f a b))
   (f (default a) (default b)))`, for every map it meets, whether or not a
   conflict comes to rest on it, and the replay rejected it on sight. A log
@@ -2514,12 +2520,13 @@ rewrite where Z3's rewriter decides an equality of sets by map identities
 (`(setminus s1 s1)` is empty, `(not (not s))` is `s`, flattened and sorted
 `and`s), which have no theorem yet (14 of them exported before as well).
 `subset` itself is still rejected as an operator. Tests
-(`test_proof_to_lean_array.py`): five documented inputs in
+(`test_proof_to_lean_array.py`): six documented inputs in
 `SET_COMBINATOR_INPUTS` and the pinned seeds `SET_SEEDS` (Lean),
 `test_the_replay_reads_set_operators`,
 `test_unused_default_values_of_maps_are_left_out`, and
 `test_default_values_of_maps_are_rejected` (now an input whose refutation
-needs the axiom, and the reconstructor's own rejection).
+needs the axiom, short and behind enough clauses for the log to be trimmed,
+and the reconstructor's own rejection of both).
 
 ### Replay keys of maps and constant arrays (2026-11-06)
 

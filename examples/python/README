@@ -1304,7 +1304,7 @@ signature. Maps of commutative functions (xor, =, distinct, +) commute, by
 _map2_comm with the pointwise swap proved by grind. The array solver's other map axiom, (default (map f a b)) = (f
 (default a) (default b)), holds only for arrays constant at all but finitely
 many indices, which _default cannot assume of a map's arguments; the replay
-rejects a refutation that uses it explicitly, and leaves the axiom out when
+explicitly rejects a refutation that uses it, and leaves the axiom out when
 it is only logged (the solver states it for every map; a log under 4 KB is
 not trimmed), as for an empty set difference refuted by a member. The
 default value of a store over a map is the map's, like any array's, and is
