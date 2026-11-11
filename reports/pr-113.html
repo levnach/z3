@@ -49,72 +49,67 @@
 <h1>Bind proof steps under hypotheses inside their one consumer in Lean</h1>
 <p class="meta">
   Pull request <a href="https://github.com/levnach/z3/pull/113">levnach/z3#113</a>
-  &middot; <span class="state">OPEN</span>
-  &middot; opened 2026-11-11T02:54:15Z &middot; loop iteration 112
+  &middot; <span class="state">MERGED</span>
+  &middot; 2026-11-11T03:09:01Z &middot; loop iteration 112
 </p>
-<p>This pull request is open and <strong>not merged</strong>.
-The change under review is commit
-<a href="https://github.com/levnach/z3/commit/2761034450d947004a07246e4966a756077eb404"><code>2761034</code></a>.
-It contains two commits on top of the base <code>46bd831</code>.</p>
+<p>Merged into <code>master</code> on 2026-11-11T03:09:01Z as commit
+<a href="https://github.com/levnach/z3/commit/cd47fe51c298c76da409af0aec757efeb2af3b33"><code>cd47fe5</code></a>,
+on top of base <code>46bd831</code>.</p>
 </header>
 
 <section>
 <h2>In one paragraph</h2>
-<p>Z3 turns a long <a href="#g-refutation">refutation</a> into many small
-<a href="#g-lemma">lemmas</a>, and the reconstructor writes each one as a Lean
-<a href="#g-theorem">theorem</a>. A <a href="#g-proof-step">proof step</a> that
-depends on a <a href="#g-hypothesis">hypothesis</a> used to be written as a
-function of that hypothesis. Every step that used it had to repeat the hypothesis
-and re-apply the function. This PR places such a step inside the one step that uses
-it, as a <a href="#g-let">let binding</a> with no extra
-<a href="#g-binder">binders</a>. Lemmas also receive the
+<p>This PR changes only the layout of the Lean text that the reconstructor writes
+for a <a href="#g-refutation">refutation</a>. A <a href="#g-proof-step">proof step</a>
+under a <a href="#g-hypothesis">hypothesis</a> is now written inside the one step
+that uses it, as a <a href="#g-let">let binding</a> without extra
+<a href="#g-binder">binders</a>. Each <a href="#g-outlining">outlined</a>
+<a href="#g-lemma">lemma</a> now states its own step directly. Lemmas also take the
 <a href="#g-interpretation">interpretation</a> as an
-<a href="#g-implicit">implicit argument</a>. The proof itself is unchanged.
-Only the layout of the Lean text changes, and the text gets much smaller.
-That matters because Lean's memory during <a href="#g-elaboration">elaboration</a>
-grows with the text. The SMT-LIB <a href="#g-idl">difference logic</a> benchmark
-<code>plan-21</code> used to exhaust the 8 GB limit. It now passes the Lean
-<a href="#g-kernel">kernel</a> check.</p>
+<a href="#g-implicit">implicit argument</a>. The proof terms and the main
+<a href="#g-theorem">theorem</a> are unchanged, so the
+<a href="#g-trust-boundary">trust boundary</a> is untouched. The text gets much
+smaller, and Lean's memory during <a href="#g-elaboration">elaboration</a> grows
+with the text. As a result, the <a href="#g-idl">difference logic</a> benchmark
+<code>plan-21</code> now passes the Lean <a href="#g-kernel">kernel</a> check
+under the 8 GB memory cap.</p>
 </section>
 
 <section>
 <h2>Background</h2>
 <p>Before this PR, the pipeline already produced correct
-<a href="#g-certificate">certificates</a> for this fragment. Small inputs passed.
-But large search-style refutations, made of many
-<a href="#g-unit-resolution">unit resolutions</a> under hypotheses, produced huge
-Lean files. QF_IDL <code>plan-21</code> had failed with a kernel memory error since
-iteration 096. The QF_IDL <code>DTP_k2_n35</code> benchmark failed the same way.
-This work serves milestone 3, equality and linear arithmetic, at the size of real
-SMT-LIB benchmarks.</p>
+<a href="#g-certificate">certificates</a> for difference logic. But search-style
+refutations, with many <a href="#g-unit-resolution">unit resolutions</a> under
+hypotheses, produced huge Lean files. <code>plan-21</code> had failed with a kernel memory error since
+iteration 096. <code>DTP_k2_n35</code> failed the same way. This work serves
+milestone 3, equality and linear arithmetic, at the size of real SMT-LIB benchmarks.</p>
 </section>
 
 <section>
 <h2>What changed</h2>
 <ul>
-  <li>A proof step under hypotheses that exactly one other step uses is now written inside that step, so the hypotheses are not restated and nothing is re-applied.</li>
-  <li>Each outlined lemma now states its own step directly, as a <code>fun</code> over its hypotheses, instead of copying its statement into a second binding.</li>
-  <li>Lemmas take the interpretation implicitly, so importing a lemma is now just <code>proof_step_N _inputs</code>.</li>
+  <li>A step under hypotheses that exactly one other step uses is now written inside that step, so its hypotheses are not restated and it is not re-applied.</li>
+  <li>An outlined lemma's statement is now its own step, written as a <code>fun</code> over its hypotheses, instead of a copy bound a second time.</li>
+  <li>Importing a lemma is now just <code>proof_step_N _inputs</code>, because Lean infers the interpretation by itself.</li>
   <li>The reconstructor now stops with a clear error if an interpretation binder cannot be made implicit, instead of writing a file Lean would reject.</li>
-  <li>New tests cover the nested layout, the depth limit of 32 nested steps, and the full <code>plan-21</code> benchmark in the slow test tier.</li>
+  <li>New tests cover the nested layout, the depth limit of 32 nested steps, and the full <code>plan-21</code> benchmark in the slow tier.</li>
 </ul>
-<p>Think of a recipe card that says "see step 4" for a sub-recipe used only once.
-Printing the sub-recipe right inside the step saves the cross-reference and the
-repeated list of ingredients.</p>
+<p>An analogy: printing a sub-recipe used once right inside its step saves a
+"see step 4" and a repeated ingredient list.</p>
 <table>
-  <thead><tr><th>File</th><th>Added</th><th>Removed</th><th>What it is</th></tr></thead>
+  <thead><tr><th>File</th><th>Added</th><th>Removed</th><th>Role</th></tr></thead>
   <tbody>
     <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">83</td><td class="num">28</td><td>Lean reconstructor</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">89</td><td class="num">0</td><td>new generator and three new tests</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">7</td><td class="num">3</td><td>step counts include nested steps</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td class="num">6</td><td class="num">2</td><td>step counts and a regex</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">3</td><td class="num">1</td><td>a regex expects <code>@proof_step_</code></td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">3</td><td class="num">1</td><td>regex expects <code>@proof_step_</code></td></tr>
     <tr><td><code>examples/python/data/QF_IDL_plan-21.cvc.smt2</code></td><td class="num">613</td><td class="num">0</td><td>benchmark copy, identical to the z3test file</td></tr>
     <tr><td><code>examples/python/README</code></td><td class="num">7</td><td class="num">2</td><td>outlining paragraph</td></tr>
     <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">31</td><td class="num">1</td><td>dated section and plan-21 note</td></tr>
   </tbody>
 </table>
-<p>Lean text size, measured by the implementer and reviewer:</p>
+<p>Measured by the implementer and the reviewer, not re-measured for this report:</p>
 <table>
   <thead><tr><th>Input</th><th>Before</th><th>After</th></tr></thead>
   <tbody>
@@ -124,23 +119,19 @@ repeated list of ingredients.</p>
     <tr><td>QF_AX swap_t2_np_sf_ai_00009_002, text</td><td class="num">27.1 MB</td><td class="num">22.7 MB, still fails</td></tr>
     <tr><td>NEQ004_size4, text</td><td class="num">21.6 MB</td><td class="num">16.5 MB</td></tr>
     <tr><td>hard16 (QF_UFLIA), text</td><td class="num">11.2 MB</td><td class="num">9.4 MB</td></tr>
-    <tr><td>Test generator, seed 2, text</td><td class="num">1.97 MB</td><td class="num">1.43 MB</td></tr>
   </tbody>
 </table>
 </section>
 
 <section>
 <h2>Worked example</h2>
-<p>This PR does not add support for any new kind of formula. The only input it
-newly certifies is <code>plan-21</code>, which is 613 lines long. No tiny input
-exists that the old code rejected. So the example below is a small input that both
-versions accept. It shows the new layout side by side with the old one. All
-outputs come from real runs of the base and the new scripts.</p>
+<p>The only input this PR newly certifies is the 613-line <code>plan-21</code>.
+So the example is a small input both versions accept, in the old and new layout.
+All outputs come from real runs of the base and merged scripts.</p>
 
 <h3>(a) The input</h3>
 <p>Five <a href="#g-clause">clauses</a> of two difference bounds each, in the style
-of the PR's new <code>disjunctive_temporal_instance</code> test generator. It was
-found by a random search over that style.</p>
+of the PR's new <code>disjunctive_temporal_instance</code> test generator.</p>
 <pre><code>(set-logic QF_IDL)
 (declare-const a Int)
 (declare-const b Int)
@@ -153,8 +144,7 @@ found by a random search over that style.</p>
 (check-sat)</code></pre>
 
 <h3>(b) Before</h3>
-<p>The base code accepted this small input, so there is no error to show. Here is
-its layout of the same steps:</p>
+<p>The base code accepted this input, so there is no error. Its old layout:</p>
 <pre><code>  let _step_79 (_hyp41 : (formula_41 _atoms _vars)) : (formula_41 _atoms _vars) :=
     _hyp41
   let _step_80 (_hyp41 : (formula_41 _atoms _vars)) : (formula_45 _atoms _vars) :=
@@ -165,23 +155,17 @@ its layout of the same steps:</p>
     let _step_79 := _step_79 _hyp41
     (False.elim ((_step_78.resolve_left (fun _literal =&gt; _literal _step_80)) _step_79))</code></pre>
 <p>Step 80 restates hypothesis <code>_hyp41</code> as a binder, and step 82 must re-apply it.</p>
-<p>On <code>plan-21</code>, the input this PR newly certifies, the base code wrote
-33.2 MB of Lean. The PR reports that Lean stopped after 95 s at 8.07 GB with this
-error. It was not re-run for this report:</p>
+<p>On <code>plan-21</code>, the PR reports this error from the base code. The 8 GB
+run was not repeated for this report.</p>
 <pre><code>(kernel) excessive memory consumption</code></pre>
 
 <h3>(c) After</h3>
-<p>The new reconstructor writes 12,882 characters for this input, against 13,024
-before. Lean checked the file with <code>scripts/check_lean.sh</code> and printed
-<span class="ok">Lean checks passed.</span></p>
 <pre><code>def formula_41 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_7 _atoms _vars) &lt;= (term_31 _atoms _vars))
 def formula_42 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_41 _atoms _vars))
 ...
 def formula_45 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_7 _atoms _vars) &lt;= (term_44 _atoms _vars))
-...
-def formula_81 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := False</code></pre>
-<p>These declarations name the atoms <code>2 &lt;= b - a</code>, its negation,
-<code>2 &lt;= a - b</code>, and <code>False</code>.</p>
+...</code></pre>
+<p>These name the <a href="#g-atom">atoms</a> <code>2 &lt;= b - a</code>, its negation, and <code>2 &lt;= a - b</code>.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_9 _atoms _vars))
     (_h1 : (formula_14 _atoms _vars))
@@ -190,7 +174,7 @@ def formula_81 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := False
     (_h4 : (formula_26 _atoms _vars))
     : False :=
 ...</code></pre>
-<p>The theorem says the five assertions together imply <code>False</code>. It is the same as before the PR.</p>
+<p>The theorem says the five assertions together imply <code>False</code>, exactly as before.</p>
 <pre><code>  let _step_79 (_hyp41 : (formula_41 _atoms _vars)) : (formula_41 _atoms _vars) :=
     _hyp41
   let _step_82 (_hyp41 : (formula_41 _atoms _vars)) : (formula_81 _atoms _vars) :=
@@ -199,19 +183,61 @@ def formula_81 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := False
     (_step_49.resolve_left (fun _literal =&gt; _literal _step_79))
     let _step_79 := _step_79 _hyp41
     (False.elim ((_step_78.resolve_left (fun _literal =&gt; _literal _step_80)) _step_79))
-  let _step_83 : (formula_42 _atoms _vars) :=
-    _step_82
 ...</code></pre>
-<p>Step 80 now lives inside step 82, its only user, so it needs no binder and no
-re-application. Step 83 is the lemma that discharges the hypothesis.</p>
+<p>Step 80 now lives inside step 82, its only user. Step 79 has two users, so it stays outside.</p>
+<p>Lean accepted the new file: <code>scripts/check_lean.sh</code> printed
+<span class="ok">Lean checks passed.</span></p>
+
+<h3>The lemma layout on a larger run</h3>
+<p>The tiny input is too short to be outlined. So the PR's generator with seed 1
+was also run. Lean accepted the new file. One lemma before:</p>
+<pre><code>private theorem proof_step_904 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_inputs : Inputs _atoms _vars)
+    : (formula_881 _atoms _vars) :=
+  let _df881 : Decidable (formula_881 _atoms _vars) := Classical.propDecidable (formula_881 _atoms _vars)
+  let _step_899 := proof_step_899 _atoms _vars _inputs
+  let _step_900 := proof_step_900 _atoms _vars _inputs
+...
+  let _step_901 (_hyp882 : (formula_882 _atoms _vars)) : (formula_892 _atoms _vars) :=
+    let _step_900 := _step_900 _hyp882
+    (_step_894.resolve_left _step_900)
+  let _step_903 (_hyp882 : (formula_882 _atoms _vars)) : (formula_902 _atoms _vars) :=
+    let _step_900 := _step_900 _hyp882
+    let _step_901 := _step_901 _hyp882
+    (False.elim (_step_901 (_step_899.resolve_left _step_900)))
+  let _step_904 : (formula_881 _atoms _vars) :=
+    (@Decidable.byContradiction (formula_881 _atoms _vars) _df881 _step_903)
+  _step_904</code></pre>
+<p>And the same lemma after:</p>
+<pre><code>private theorem proof_step_904 {_atoms : Nat -&gt; Prop} {_vars : Nat -&gt; Int}
+    (_inputs : Inputs _atoms _vars)
+    : (formula_881 _atoms _vars) :=
+  let _df881 := Classical.propDecidable (formula_881 _atoms _vars)
+  let _step_899 := proof_step_899 _inputs
+  let _step_900 := proof_step_900 _inputs
+...
+  let _step_903 (_hyp882 : (formula_882 _atoms _vars)) : (formula_902 _atoms _vars) :=
+    let _step_901 : (formula_892 _atoms _vars) :=
+    let _step_900 := _step_900 _hyp882
+    (_step_894.resolve_left _step_900)
+    let _step_900 := _step_900 _hyp882
+    (False.elim (_step_901 (_step_899.resolve_left _step_900)))
+  (@Decidable.byContradiction (formula_881 _atoms _vars) _df881 _step_903)</code></pre>
+<p>Braces make the interpretation implicit. Step 901 moved inside step 903. The last line is the lemma's own step.</p>
+<table>
+  <thead><tr><th>Run</th><th>Base text</th><th>New text</th><th>Lean on new file</th></tr></thead>
+  <tbody>
+    <tr><td>Five-clause example</td><td class="num">13,024 chars</td><td class="num">12,882 chars</td><td class="ok">passed</td></tr>
+    <tr><td>Generator, seed 1</td><td class="num">713,109 chars</td><td class="num">604,486 chars</td><td class="ok">passed</td></tr>
+  </tbody>
+</table>
 </section>
 
 <section>
 <h2>How it was verified</h2>
-<p>Every Python and Lean test suite passed on the final branch head. The slow
-<code>plan-21</code> test also passed in under two minutes. The reviewer
-reproduced the key results independently. A tampered nested step was rejected
-by Lean, so Lean still checks the nested bindings.</p>
+<p>All Python and Lean test suites passed, including the slow <code>plan-21</code>
+test. A deliberately broken nested step was rejected by Lean, so Lean still checks
+nested steps.</p>
 <table>
   <thead><tr><th>Check</th><th>Result</th></tr></thead>
   <tbody>
@@ -220,63 +246,66 @@ by Lean, so Lean still checks the nested bindings.</p>
     <tr><td><code>scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td></tr>
     <tr><td>z3test proof tests</td><td class="ok">48 tests, OK</td></tr>
     <tr><td>Slow test on <code>plan-21</code></td><td class="ok">OK, 107 s</td></tr>
-    <tr><td>The two new nesting tests</td><td class="ok">2 tests, OK</td></tr>
     <tr><td>New nesting test on the base code</td><td class="ok">fails as expected: 1965311 not less than 1600000</td></tr>
-    <tr><td>Proof matrix cells, Boolean and LRA</td><td class="ok">6/6 and 8/8 Lean-verified</td></tr>
+    <tr><td><code>theorem unsat</code>, base vs new, 5 inputs</td><td class="ok">byte-identical</td></tr>
     <tr><td>Tampered nested step</td><td class="ok">rejected with a type mismatch</td></tr>
-    <tr><td>Local gate</td><td class="warn">not recorded when this report was written</td></tr>
   </tbody>
 </table>
-<p>The driver logged that the change touches only local-gate paths. It runs the
-local gate alongside this report instead of waiting for GitHub CI. No CI status
-files existed when the report was written, so CI results are unknown here. There
-were no CI fix rounds. The PR body says where the tests run in CI:</p>
+<p>The change touches no C++, so the loop merged it on its local gate, which mirrors
+the relevant steps of the <code>releaseClang</code> CI job.</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">19 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">833 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">18 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="ok">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+<p>No CI status was recorded for this PR, so GitHub CI results are unknown here.
+There were no CI fix rounds.</p>
 <table>
   <thead><tr><th>CI job</th><th>Step</th><th>What it runs</th><th>Status</th></tr></thead>
   <tbody>
     <tr><td><code>manylinux-python-amd64</code></td><td>Test Python wheel</td><td><code>test_proof_to_lean.py</code></td><td class="warn">unknown</td></tr>
-    <tr><td><code>ubuntu-cmake</code>, <code>releaseClang</code></td><td>Check native proofs in Lean</td><td>the new and changed LIA, UF and integration tests</td><td class="warn">unknown</td></tr>
+    <tr><td><code>ubuntu-cmake</code>, <code>releaseClang</code></td><td>Check native proofs in Lean</td><td>new and changed LIA, UF and integration tests</td><td class="warn">unknown</td></tr>
   </tbody>
 </table>
-<p>The <code>plan-21</code> test is in the slow tier and does not run in CI.
-Check the <a href="https://github.com/levnach/z3/pull/113/checks">PR checks page</a>
-for the current status.</p>
+<p>The <code>plan-21</code> test is slow-tier only. Current status:
+<a href="https://github.com/levnach/z3/pull/113/checks">PR checks</a>.</p>
 </section>
 
 <section>
 <h2>Review</h2>
-<p>The reviewer approved with no blocker, major or minor findings. There were three nits, and all were fixed.</p>
+<p>The reviewer approved, with no blocker, major or minor findings. All three nits were fixed.</p>
 <table>
   <thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
   <tbody>
-    <tr><td>nit</td><td>Binders with parenthesised types stay explicit silently</td><td class="ok">fixed: generation now fails</td></tr>
+    <tr><td>nit</td><td>Binders with parenthesised types silently stay explicit</td><td class="ok">fixed: generation now fails</td></tr>
     <tr><td>nit</td><td>No test reaches the nesting depth limit</td><td class="ok">fixed: new test</td></tr>
     <tr><td>nit</td><td>Generator docstring quoted the wrong seed</td><td class="ok">fixed</td></tr>
   </tbody>
 </table>
-<p><strong>The silent binder.</strong> The reviewer read the pattern that turns
-interpretation binders into implicit ones. It only matches types without
-parentheses. A future binder such as <code>(_f : (Nat -&gt; Int) -&gt; Int)</code>
-would stay explicit. Every lemma import would then have a wrong argument, and Lean
-would reject the certificate. Nothing current is affected. The fix makes the
-reconstructor stop with a clear error, so a future problem shows up at once.</p>
-<p><strong>The untested limit.</strong> The reviewer tried depth limits of 1, 4, 32
-and a million. On the test inputs, 32 never made a difference. So the fallback path
-was never exercised in Lean. A new test sets the limit to 1 and checks that Lean
-still accepts the file.</p>
-<p><strong>The docstring.</strong> The generator's comment gave figures for seed 1,
-but the test uses seed 2. It now gives both.</p>
-<p>The reviewer also suggested recording <code>plan-21</code>'s peak memory whenever
-the slow tier runs. That was left as a follow-up.</p>
+<p><strong>The silent binder.</strong> The reviewer noticed that the pattern making
+binders implicit skips types with parentheses. Such a future binder would stay
+explicit, every lemma import would be ill-typed, and Lean would reject the
+certificate. Nothing current is affected. Now the reconstructor stops with a clear
+error instead.</p>
+<p><strong>The untested limit.</strong> The reviewer tried depth limits from 1 to a
+million. The limit of 32 never mattered on the tests, so Lean never checked the
+fallback. A new test sets the limit to 1, and Lean accepts the result.</p>
+<p><strong>The docstring.</strong> It quoted seed 1 while the test uses seed 2. It
+now gives both. A suggestion to record <code>plan-21</code>'s peak memory was left
+as a follow-up.</p>
 </section>
 
 <section>
 <h2>Risks and open questions</h2>
 <ul>
-  <li>The trust boundary is unchanged. The theorem statement is byte-identical between base and new output on every compared input.</li>
   <li><code>plan-21</code> peaks at about 7.5 GB against an 8 GB cap. A Lean upgrade or a change in Z3's proof could push it over again.</li>
-  <li>Lemmas rely on Lean inferring the implicit interpretation from the type of <code>_inputs</code>. The main theorem passes it explicitly.</li>
-  <li>The local gate and CI results are not known at the time of writing.</li>
+  <li>Lemmas rely on Lean inferring the implicit interpretation from the type of <code>_inputs</code>. The main theorem passes it explicitly with <code>@</code>.</li>
+  <li>GitHub CI results for this change are not recorded here.</li>
 </ul>
 </section>
 
@@ -284,7 +313,7 @@ the slow tier runs. That was left as a follow-up.</p>
 <h2>What comes next</h2>
 <ul>
   <li><code>DTP_k2_n35</code> still fails. It now gets through 11,991 of 17,084 lemmas, up from 7,921.</li>
-  <li>The remaining bulk is lemma imports, <code>Or.elim</code> resolution terms, and re-applied shared steps.</li>
+  <li>Most of what remains there is lemma imports, <code>Or.elim</code> resolution terms, and re-applied shared steps.</li>
   <li>The QF_AX file <code>swap_t2_np_sf_ai_00009_002</code> still fails.</li>
   <li>Recording <code>plan-21</code>'s peak memory would catch a regression early.</li>
 </ul>
@@ -293,6 +322,8 @@ the slow tier runs. That was left as a follow-up.</p>
 <section>
 <h2>Glossary</h2>
 <dl>
+  <dt id="g-atom">atom</dt>
+  <dd>A formula with no Boolean connectives inside, such as <code>b - a &gt;= 2</code>.</dd>
   <dt id="g-binder">binder</dt>
   <dd>A named parameter with a type, such as <code>(_hyp41 : formula_41)</code>, introduced by a function or theorem.</dd>
   <dt id="g-certificate">certificate</dt>
@@ -308,21 +339,23 @@ the slow tier runs. That was left as a follow-up.</p>
   <dt id="g-implicit">implicit argument</dt>
   <dd>An argument written in braces, such as <code>{_atoms}</code>, that Lean fills in itself from the types of the other arguments.</dd>
   <dt id="g-interpretation">interpretation</dt>
-  <dd>An assignment of meanings to the symbols of a formula. Here it is the functions <code>_atoms</code> and <code>_vars</code> that give each Boolean atom and integer variable a value.</dd>
+  <dd>An assignment of values to the symbols of a formula. Here it is <code>_atoms</code> and <code>_vars</code>, which give each Boolean atom and integer variable a value.</dd>
   <dt id="g-kernel">kernel</dt>
   <dd>The small trusted core of Lean that does the final type check of every proof.</dd>
   <dt id="g-lemma">lemma</dt>
   <dd>A proved statement used inside a larger proof. In Z3's proofs, the lemma rule also turns a derivation of False from a hypothesis into the hypothesis's negation.</dd>
   <dt id="g-let">let binding</dt>
-  <dd>A local name for a value, written <code>let x := v</code>. It can be used in the lines that follow.</dd>
-  <dt id="g-literal">literal</dt>
-  <dd>An atom or its negation, such as <code>p</code> or <code>(not p)</code>.</dd>
+  <dd>A local name for a value, written <code>let x := v</code>, usable in the lines that follow.</dd>
+  <dt id="g-outlining">outlining</dt>
+  <dd>Splitting one long proof into many separate Lean theorems, here named <code>proof_step_N</code>, so each one stays small.</dd>
   <dt id="g-proof-step">proof step</dt>
   <dd>One inference in a proof, deriving a conclusion from earlier steps by one rule.</dd>
   <dt id="g-refutation">refutation</dt>
   <dd>A proof that a set of formulas leads to False, so they cannot all be true together.</dd>
   <dt id="g-theorem">theorem</dt>
   <dd>A named statement in Lean together with its proof. Lean checks the proof when the file is compiled.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The parts a reader must trust to believe a result. Here it is the Lean kernel and the statement of the main theorem.</dd>
   <dt id="g-unit-resolution">unit resolution</dt>
   <dd>The rule that removes false literals from a clause. From <code>(or p q)</code> and <code>(not p)</code> it derives <code>q</code>.</dd>
 </dl>
