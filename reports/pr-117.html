@@ -3,69 +3,77 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
 <title>PR #117: Refute cnf lemmas over rewritten ites with z3-found theory clauses</title>
 <style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
+  --code-bg: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  --accent-bg: #ddf4ff;
+}
+@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --card: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d;
+    --code-bg: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --accent-bg: #0c2d4a;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --card: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
-    }
-  }
-  html { background: var(--bg); color: var(--fg); }
-  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
-         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-  a { color: var(--accent); }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
-  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
-  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-  .meta { color: var(--muted); font-size: .95rem; }
-  .badge { display: inline-block; padding: .05rem .55rem; border-radius: 1rem; font-size: .85rem;
-           font-weight: 600; border: 1px solid var(--ok); color: var(--ok); }
-  .note { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--warn);
-          padding: .6rem .9rem; border-radius: 6px; }
-  pre { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
-        overflow-x: auto; font-size: .82rem; line-height: 1.45; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
-  pre code { font-size: 1em; }
-  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .92rem; }
-  th, td { border: 1px solid var(--border); padding: .35rem .6rem; text-align: left; vertical-align: top; }
-  th { background: var(--card); }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .ok { color: var(--ok); font-weight: 600; }
-  .warn { color: var(--warn); font-weight: 600; }
-  .bad { color: var(--bad); font-weight: 600; }
-  .explain { margin-top: -.3rem; color: var(--muted); }
-  dt { font-weight: 600; margin-top: .7rem; }
-  dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: .8rem; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.6; font-size: 16px; }
+main { max-width: 860px; margin: 0 auto; padding: 1.5rem 1.2rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+h2 { font-size: 1.3rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; margin-top: 2.2rem; }
+h3 { font-size: 1.08rem; margin-top: 1.5rem; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+  background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.8rem; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.meta { color: var(--muted); font-size: 0.95rem; }
+.meta dt { font-weight: 600; float: left; clear: left; width: 9.5rem; }
+.meta dd { margin: 0 0 0.2rem 9.5rem; }
+.badge { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 999px; font-size: 0.85rem;
+  font-weight: 600; color: #fff; background: #8250df; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.note { background: var(--accent-bg); border-radius: 6px; padding: 0.6rem 0.9rem; }
+.explain { margin-top: -0.4rem; color: var(--muted); }
+dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+dl.glossary dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 0.8rem;
+  color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
+<main>
 
 <header>
 <h1>Refute cnf lemmas over rewritten ites with z3-found theory clauses</h1>
-<p class="meta">
-  Pull request <a href="https://github.com/levnach/z3/pull/117">levnach/z3#117</a> ·
-  state <span class="badge">OPEN</span> · opened 2026-11-11T10:07:11Z · loop iteration 116
-</p>
-<p class="note">This pull request is open and <strong>not merged</strong>.
-  The change is commit <a href="https://github.com/levnach/z3/commit/91af1c3102b9f37fb179c323510fd60149e2394b"><code>91af1c3</code></a>,
-  on top of base <code>8e3f758</code>. The PR has two commits: the feature and the review fixes.</p>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/117">levnach/z3#117</a></dd>
+  <dt>State</dt><dd><span class="badge">MERGED</span></dd>
+  <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/ac7f8bcd3c7f1a56ba234865be6d5e6df5988c84"><code>ac7f8bcd3</code></a></dd>
+  <dt>Merged on</dt><dd>2026-11-11T10:22:08Z</dd>
+  <dt>Loop iteration</dt><dd>116</dd>
+</dl>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
-<p>This PR lets the Lean reconstruction prove a <a href="#g-cnf-lemma">cnf lemma</a> whose <a href="#g-clause">clause</a>
-mentions <a href="#g-ite">if-then-else terms</a> in the <a href="#g-rewriter">rewriter</a>'s simplified form.
-Until now, such a lemma was refuted only from its <a href="#g-boolean">Boolean</a> structure.
-Every theory <a href="#g-atom">atom</a> was an opaque <a href="#g-leaf">leaf</a>.
-When that <a href="#g-abstraction">propositional abstraction</a> is <a href="#g-satisfiable">satisfiable</a>, the search fails.
-Now Z3 acts as an untrusted <a href="#g-oracle">oracle</a> in a <a href="#g-lazy-smt">lazy SMT</a> loop.
-It supplies the missing <a href="#g-theory-clause">theory clauses</a>, one <a href="#g-unsat-core">unsat core</a> at a time.
+<p>Some <a href="#g-cnf-lemma">cnf lemmas</a> could not be proved in Lean before this PR.
+Z3 states their <a href="#g-clause">clause</a> over the <a href="#g-rewriter">rewriter</a>'s form of an
+<a href="#g-ite">if-then-else term</a>, while the assertion keeps the original form.
+So the lemma does not follow from the <a href="#g-propositional-abstraction">propositional abstraction</a> alone.
+Now the reconstructor runs a small <a href="#g-lazy-smt">lazy SMT</a> loop.
+Z3 acts as an untrusted <a href="#g-oracle">oracle</a> and proposes <a href="#g-theory-clause">theory clauses</a>
+over the lemma's <a href="#g-leaf">leaves</a>.
 Lean proves each clause with a <a href="#g-tactic">tactic</a> before the <a href="#g-refutation">refutation</a> search uses it.
 As a result, the QF_LRA benchmark <code>tta_startup</code> with 11 nodes now checks in Lean.
 It had been a known failure since loop iteration 45.
@@ -73,45 +81,45 @@ The trust boundary is unchanged: no <a href="#g-sorry">sorry</a> and no new <a h
 
 <h2 id="background">Background</h2>
 <p>Before this PR, a cnf lemma got two propositional searches.
-The first ran over every gate, the second over Z3's relevant core.
+The first ran over every gate, the second over Z3's relevant <a href="#g-unsat-core">unsat core</a>.
 If both failed, the lemma fell back to <a href="#g-grind">grind</a> over the fully unfolded clause.
 On the 11-node <code>tta_startup</code> input, that clause unfolds to 227 ites.
-grind ran out of <a href="#g-heartbeat">heartbeats</a> there, so Lean rejected the file.
-The PR traces the cause to the rewriter.
-Z3 logs the clause over simplified forms, such as <code>(ite c 0 0)</code> written as <code>0</code>.
-So the clause follows from what its leaves mean in <a href="#g-lra">linear real arithmetic</a>, not from their Boolean shape alone.
-This serves milestone 3 of the plan, equality and linear arithmetic.
-It also serves the regression scans, which the plan names as the top priority.</p>
+There grind ran out of <a href="#g-heartbeat">heartbeats</a>, and the whole file failed.
+The existing bridges between pairs of <a href="#g-literal">literals</a> did not help.
+This work serves milestone 3, equality and linear arithmetic, and the regression scans.</p>
 
 <h2 id="changes">What changed</h2>
-<p>Think of two crossword clues that secretly have the same answer.
-A solver who sees only the grid cannot know this.
-Z3 now whispers "these two agree", and Lean checks that hint before anyone relies on it.</p>
+<p>Think of a proofreader who checks a translation word by word.
+When a word appears in two spellings, the check stalls.
+Z3 now says "these two spellings mean the same", and Lean checks that note before anyone relies on it.</p>
 <ul>
   <li>When both propositional searches fail on a cnf lemma, the reconstructor now asks Z3 for theory clauses over the lemma's leaves, and Lean proves each one as a <code>have</code>.</li>
   <li>With those clauses added, the search retries with ten times its usual step and size limits, but the proof it keeps must still fit the old size bound.</li>
-  <li>The clause search stops, and the old grind fallback stays alone, when Z3 is undecided, finds a genuine model, needs more than 256 clauses, or proposes a clause over every leaf.</li>
-  <li>New tests check two small tta-shaped inputs in Lean with the fallback removed, cover every stop rule and the size cap in pure Python, and verify the full 11-node file in a slow test.</li>
-  <li>The plan document and the examples README now describe the new step, including the heartbeat caveat.</li>
+  <li>The search stops and leaves the old grind fallback alone when a check is undecided, a <a href="#g-model">model</a> survives, 256 clauses are reached, or a clause covers every leaf.</li>
+  <li>The 11-node benchmark is now in the repository, with a slow test that checks it in Lean.</li>
+  <li>Small tests now cover the new search, its stop rules, and the size cap.</li>
 </ul>
+<p>The loop is a form of <a href="#g-cegar">CEGAR</a>.
+Each round checks one model against the <a href="#g-theory-solver">theory solver</a> and turns the unsat core into a blocking clause.</p>
 
 <table>
-  <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+  <thead><tr><th>File</th><th>Role</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
   <tbody>
-    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">230</td><td class="num">17</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Tests</td><td class="num">170</td><td class="num">0</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Tests</td><td class="num">5</td><td class="num">2</td></tr>
-    <tr><td><code>examples/python/test_proof_to_lean_deep.py</code></td><td>Tests (comment)</td><td class="num">2</td><td class="num">1</td></tr>
-    <tr><td><code>examples/python/data/QF_LRA_tta_startup_simple_startup_11nodes.smt2</code></td><td>Test data, copied from z3test</td><td class="num">146</td><td class="num">0</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">43</td><td class="num">1</td></tr>
-    <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">6</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: the theory-clause loop</td><td class="num">230</td><td class="num">17</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>New tests and inputs</td><td class="num">170</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/data/QF_LRA_tta_startup_simple_startup_11nodes.smt2</code></td><td>Benchmark for the slow test</td><td class="num">146</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated plan entry</td><td class="num">43</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>cnf paragraph</td><td class="num">6</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>One test also disables the new loop</td><td class="num">5</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_deep.py</code></td><td>Comment update</td><td class="num">2</td><td class="num">1</td></tr>
     <tr><th>Total, 7 files</th><th></th><th class="num">602</th><th class="num">24</th></tr>
   </tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
+<p>All output below comes from real runs for this report. The input is from the PR's new tests.</p>
+
 <h3>(a) The input</h3>
-<p>This is <code>ite_with_equal_branches</code>, one of the PR's new test inputs, copied verbatim.</p>
 <pre><code>(set-logic QF_LRA)
 (declare-fun b0 () Bool)
 (declare-fun b1 () Bool)
@@ -124,12 +132,12 @@ Z3 now whispers "these two agree", and Lean checks that hint before anyone relie
              (or b0 (not (= w 0)) (= n 5))
              (not b0)))
 (check-sat)</code></pre>
-<p class="explain">The assertion says <code>w</code> equals an ite whose two branches are both 0. Z3's clause later speaks of <code>(= w 0)</code> instead.</p>
+<p class="explain">Here <code>w</code> is an ite whose two branches are both 0, so <code>w</code> is 0.
+The disjunction then forces <code>n = 5</code>, but <code>c = 3</code> makes <code>n</code> equal 4.</p>
 
 <h3>(b) Before</h3>
 <p>The base code did <strong>not</strong> reject this small file.
-I ran the base reconstructor on it, and Lean accepted the output.
-The cnf lemma was proved only by grind over the unfolded clause:</p>
+Lean accepted its output, with the cnf lemma proved only by grind over the unfolded clause:</p>
 <pre><code>private theorem th_lemma_53 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     : (formula_52 _atoms _vars) := by
   have _g6_0 : (formula_3 _atoms _vars) -&gt; (term_6 _atoms _vars) = (term_4 _atoms _vars) := fun _h =&gt; ite_eq_left _h
@@ -137,163 +145,146 @@ The cnf lemma was proved only by grind over the unfolded clause:</p>
   unfold formula_52 formula_51 formula_50 formula_23 ... term_2 term_1 term_0
   intro _g6_0 _g6_1 _g15_0 _g15_1
   grind (splits := 64)</code></pre>
-<p class="explain">This brute-force step works for 2 ites but not for the 227 ites of the real benchmark.</p>
-<p>The input that this PR newly certifies is the 106 KB 11-node file, far too large to show here.
-The implementer ran the base pipeline on it during this iteration.
-Lean rejected it with this first error (local path removed):</p>
-<pre><code>tta11.lean:11209:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached</code></pre>
+<p class="explain">On a small file this brute-force step succeeds.</p>
+<p>The real rejection is on the PR's 11-node benchmark, which is too long to show.
+Lean rejected the base code's output in its one cnf lemma:</p>
+<pre><code>old-tta11.lean:11209:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+old-tta11.lean:24835:16: error: (kernel) unknown constant '_private._stdin.0.Z3Proofs.NativeCertificate.p527fc6469c1e2652f46c29a93e1ec33f70a90a8a41a8ae16f0f039615b2e5f85.th_lemma_9449'</code></pre>
+<p class="explain">Paths are shortened. Grind ran out of heartbeats, so the lemma was never defined.</p>
 
 <h3>(c) After</h3>
-<p>I ran the current exporter and reconstructor on the input above.
-<code>./scripts/check_lean.sh</code> reported <span class="ok">Lean checks passed</span>.
-Trimmed excerpts follow.</p>
-<pre><code>noncomputable def term_15 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_13 _atoms _vars) (Classical.propDecidable _) (term_14 _atoms _vars) (term_14 _atoms _vars))
+<p>The current code produces this for the small input. First, the key declarations:</p>
+<pre><code>-- Atom 0: "b0"
+-- Atom 1: "b1"
+-- Variable 0: "n"
+-- Variable 1: "c"
+-- Variable 2: "w"
+...
+noncomputable def term_15 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := (@ite Rat (formula_13 _atoms _vars) (Classical.propDecidable _) (term_14 _atoms _vars) (term_14 _atoms _vars))
 def formula_16 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_8 _atoms _vars) = (term_15 _atoms _vars))
 ...
-def formula_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_8 _atoms _vars) = (term_14 _atoms _vars))</code></pre>
-<p class="explain"><code>formula_16</code> is "w equals the ite with two 0 branches", and <code>formula_19</code> is "w equals 0". To the Boolean search they are two unrelated leaves.</p>
+def formula_19 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_8 _atoms _vars) = (term_14 _atoms _vars))
+...</code></pre>
+<p class="explain"><code>formula_16</code> says <code>w</code> equals the ite with two 0 branches, and <code>formula_19</code> says <code>w = 0</code>. To the propositional abstraction these are two unrelated leaves.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     (_h0 : (formula_23 _atoms _vars))
     : False :=
-  ...</code></pre>
-<p class="explain">The theorem states that the whole assertion, <code>formula_23</code>, implies False.</p>
+...</code></pre>
+<p class="explain">The theorem statement says that the input assertion implies False.</p>
 <pre><code>private theorem th_lemma_53 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     : (formula_52 _atoms _vars) := by
   first
     | (have _f1 : (Iff (formula_21 _atoms _vars) (formula_51 _atoms _vars)) := by unfold formula_51 formula_21 term_2 term_0; grind (splits := 64)
        have _f2 : (Or (Not (formula_16 _atoms _vars)) (formula_19 _atoms _vars)) := by unfold formula_19 formula_16 term_15 term_14 formula_13 formula_12 formula_11 formula_10 formula_9 term_8; grind (splits := 64)
        refine Classical.byContradiction ?_
+       refine (fun (_f3 : (Not (formula_52 _atoms _vars))) =&gt; ?_)
        ...
        have _f14 := (Or.elim _f2 (fun _g =&gt; _g) (fun _g =&gt; absurd _g _f13))
        exact (False.elim (_f14 _f10)))
-    | (have _g6_0 : (formula_3 _atoms _vars) -&gt; (term_6 _atoms _vars) = (term_4 _atoms _vars) := fun _h =&gt; ite_eq_left _h
-       ...
+    | (...
        grind (splits := 64))</code></pre>
-<p class="explain"><code>_f2</code> is the new Z3-found theory clause "if w equals that ite, then w equals 0", proved by grind over just a few definitions. The short Boolean refutation then uses it, and the old fallback stays as the second alternative of <code>first</code>.</p>
+<p class="explain"><code>_f2</code> is the new theory clause "if <code>w</code> equals that ite, then <code>w = 0</code>", and <code>_f1</code> links <code>n = 5</code> with <code>5 = n</code>. With both, a short propagation proof finishes. The old grind fallback stays behind <code>first</code> as a second try.</p>
+<p class="note"><strong>Lean result:</strong> accepted ("Lean checks passed."). The 11-node benchmark also passed Lean with the current code.</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>All the PR's Lean reconstruction tests passed after the review fixes.
-The full 11-node benchmark checks in Lean in about half a minute.
-The local gate for this iteration was still running when this page was written.
-Its result is not recorded here.</p>
+<p>Only Python, tests, and docs changed, so the loop merged on its local gate.
+Every gate step passed, including about 500 Lean reconstruction tests.
+The slow 11-node test passed too, but CI does not run it.</p>
 <table>
-  <thead><tr><th>Check</th><th>Result</th><th>When</th></tr></thead>
+  <thead><tr><th>Check</th><th>Result</th><th>Notes</th></tr></thead>
   <tbody>
-    <tr><td><code>test_proof_to_lean*.py</code></td><td class="ok">528 tests OK, 9 skipped, 839 s</td><td>after review fixes</td></tr>
-    <tr><td>Slow 11-node test, with <code>Z3_LEAN_SLOW_TESTS=1</code></td><td class="ok">1 test OK, 31.5 s</td><td>after review fixes</td></tr>
-    <tr><td><code>./scripts/check_lean.sh</code></td><td class="ok">Lean checks passed</td><td>after review fixes</td></tr>
-    <tr><td><code>test_proof_certificate.py</code></td><td class="ok">119 tests OK</td><td>after review fixes</td></tr>
-    <tr><td>z3test proof tests</td><td class="ok">48 tests OK</td><td>after review fixes</td></tr>
-    <tr><td>11-node file in Lean</td><td class="ok">exit 0, 24 s, 2.60 GB peak</td><td>before review fixes</td></tr>
-    <tr><td><code>releaseClang</code> matrix cells</td><td class="ok">6/6 Boolean, 8/8 <code>lra_*</code> verified</td><td>before review fixes</td></tr>
-    <tr><td>Reviewer sweep of z3test smtlib-sample</td><td class="ok">208 inputs, no regression</td><td>before review fixes</td></tr>
-    <tr><td>Worked example, current code</td><td class="ok">Lean checks passed</td><td>for this report</td></tr>
-    <tr><td>Local gate</td><td class="warn">not recorded yet</td><td>running</td></tr>
+    <tr><td>Gate: certificate exporter tests</td><td class="ok">pass</td><td>19 s</td></tr>
+    <tr><td>Gate: Lean reconstruction tests</td><td class="ok">pass</td><td>844 s</td></tr>
+    <tr><td>Gate: z3test proof script tests</td><td class="ok">pass</td><td>18 s</td></tr>
+    <tr><td>Gate: Boolean matrix, legacy proof object</td><td class="ok">pass</td><td>5 s</td></tr>
+    <tr><td>Gate: QF_LRA matrix, clause log</td><td class="ok">pass</td><td>7 s</td></tr>
+    <tr><td><code>test_proof_to_lean*.py</code>, final code</td><td class="ok">528 run, OK, 9 skipped</td><td>839 s</td></tr>
+    <tr><td>Slow 11-node test</td><td class="ok">OK</td><td>31.5 s, needs <code>Z3_LEAN_SLOW_TESTS=1</code></td></tr>
+    <tr><td><code>check_lean.sh</code></td><td class="ok">passed</td><td></td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td class="ok">119 run, OK</td><td></td></tr>
+    <tr><td>z3test proof scripts</td><td class="ok">48 run, OK</td><td></td></tr>
+    <tr><td>11-node file in Lean</td><td class="ok">exit 0, 24 s, 2.60 GB peak</td><td>before review fixes. Base: heartbeat timeout</td></tr>
+    <tr><td>Reviewer sweep of z3test smtlib-sample</td><td class="ok">208 inputs, no regression</td><td>4 inputs got theory clauses</td></tr>
+    <tr><td>Worked example, for this report</td><td class="ok">Lean checks passed</td><td>small input and 11-node file</td></tr>
   </tbody>
 </table>
-<p>No CI status was recorded for this report, so CI results are unknown.
-The new tests run in the <code>releaseClang</code> job of the CI workflow.
-CI does not run the slow 11-node test.
-No C++ changed, so the native tests were not run.
+<p>GitHub CI status:</p>
+<table>
+  <thead><tr><th>Workflow / check</th><th>Result</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td><code>CI</code>, job <code>releaseClang</code>, check "Lean reconstruction tests"</td><td class="warn">unknown</td><td><a href="https://github.com/levnach/z3/commit/ac7f8bcd3c7f1a56ba234865be6d5e6df5988c84">merge commit</a></td></tr>
+  </tbody>
+</table>
+<p>No CI results were recorded for this PR. GitHub CI runs on <code>master</code> after the merge.
 There were no CI fix rounds.</p>
-<table>
-  <thead><tr><th>Workflow / check</th><th>Status</th><th>Link</th></tr></thead>
-  <tbody>
-    <tr><td>CI, job <code>releaseClang</code>, check "Lean reconstruction tests"</td><td class="warn">unknown</td><td><a href="https://github.com/levnach/z3/pull/117/checks">PR checks</a></td></tr>
-  </tbody>
-</table>
 
 <h2 id="review">Review</h2>
 <p>The reviewer approved, with no blocker and no major finding.</p>
 <ul>
-  <li><strong>Minor: timeouts escape <code>first</code>.</strong>
-    The reviewer built a tiny Lean file whose first alternative ran out of heartbeats.
-    Lean failed the whole theorem, even though the second alternative would have worked.
-    So a slow theory-clause <code>have</code> could break a lemma that grind alone used to prove.
-    <em>Partly fixed:</em> the kept proof is now capped at the old size bound, and the docs state the caveat.
-    A single slow <code>have</code> is still not caught, but no input in the sweep hit this.</li>
-  <li><strong>Nit: no overall time budget for the clause loop.</strong>
-    The reviewer worried that a big lemma could spend minutes in Python.
-    <em>Not changed:</em> the loop is capped at 256 clauses with a fixed limit per check.
-    The worst case seen was 2.24 s, and a wall-clock deadline would make output nondeterministic.</li>
+  <li><strong>Minor: timeouts are not caught.</strong>
+  The safety story said a bad clause just fails, and the old fallback then runs.
+  The reviewer tested this in a small Lean file.
+  A <code>have</code> that ran out of heartbeats failed the whole lemma, despite a working second branch.
+  So a new clause could break a lemma that grind used to prove.
+  <em>Partly fixed</em>: the kept proof is capped at the old size bound, a test checks the cap, and the docs were corrected.
+  The 208-input sweep found no remaining case.</li>
+  <li><strong>Nit: no total time limit.</strong>
+  Each check has a fixed resource limit, with at most 256 rounds.
+  <em>Not changed</em>, because a wall-clock limit would make the output vary between runs.</li>
   <li><strong>Nit: the stop rules had no direct tests.</strong>
-    A refactor could have dropped one silently.
-    <em>Fixed:</em> new pure-Python tests cover each stop rule and the size cap.</li>
-  <li><strong>Nit: a corruption experiment proved less than claimed.</strong>
-    The implementer flipped a theory clause, but the flipped clause was still true.
-    Lean rejected the file for a different reason.
-    <em>Accepted:</em> the claim was dropped. Soundness does not rest on it, since Lean proves every <code>have</code>.</li>
+  A refactor could have dropped one silently.
+  <em>Fixed</em> with a test for each rule.</li>
+  <li><strong>Nit: one summary claim was wrong.</strong>
+  The implementer flipped a clause to show Lean rejects it, but the flipped clause was still true.
+  <em>Accepted</em>, and the claim was dropped.
+  Soundness does not depend on it, since Lean checks every step.</li>
 </ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>A theory-clause <code>have</code> that exhausts heartbeats would still fail its lemma. The size cap and the every-leaf rule only make this less likely.</li>
-  <li>The small CI inputs need only the <code>(ite c 0 0)</code> kind of clause. The other kinds are covered only by the slow test, which CI skips.</li>
-  <li>The 15-node <code>tta_startup</code> input still fails, now in a different, purely propositional lemma.</li>
+  <li>One theory-clause <code>have</code> that runs out of heartbeats can still fail a lemma.</li>
+  <li>Python time grows on lemmas where both searches fail.</li>
+  <li>CI tests cover only the simplest kind of theory clause. Other kinds need the slow test.</li>
+  <li>The 15-node <code>tta_startup</code> file still fails, now in a propositional lemma.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-  <li>Retry at the larger budget when the clause search returns an empty list. Two QF_IDL inputs reach that case.</li>
-  <li>Minimize each unsat core with Z3 before shrinking it one literal at a time.</li>
+  <li>Retry at the larger budget when the abstraction is already unsat, as on two QF_IDL inputs.</li>
+  <li>Minimize each unsat core before shrinking it.</li>
   <li>Rescan QF_LRA, QF_LIA, and QF_IDL for cnf lemmas that theory clauses may now prove.</li>
+  <li>Add a CI-sized input that needs a clause about an ite's value.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
-  <dt id="g-atom">atom</dt>
-  <dd>The smallest true-or-false piece of a formula, such as <code>(= c 3)</code> or a Boolean variable <code>b0</code>.</dd>
-  <dt id="g-axiom">axiom</dt>
-  <dd>A statement Lean accepts without proof. The certificates add none of their own.</dd>
-  <dt id="g-boolean">Boolean</dt>
-  <dd>The sort with two values, true and false. Boolean structure means the and/or/not shape of a formula.</dd>
-  <dt id="g-clause">clause</dt>
-  <dd>A disjunction ("or") of literals. Example: <code>b0 or not (w = 0) or n = 5</code>.</dd>
-  <dt id="g-cnf-lemma">cnf lemma</dt>
-  <dd>A step in Z3's proof that turns an assertion into a clause, for conjunctive normal form. It must follow from the assertion.</dd>
-  <dt id="g-grind">grind</dt>
-  <dd>A general-purpose Lean tactic that combines case splits, congruence, and arithmetic. It is powerful but can be slow on big goals.</dd>
-  <dt id="g-heartbeat">heartbeat</dt>
-  <dd>Lean's unit of work. When a proof uses more than its heartbeat limit, Lean stops with a timeout error.</dd>
-  <dt id="g-ite">if-then-else term (ite)</dt>
-  <dd>A term whose value depends on a condition. <code>(ite (= c 5) 1 (+ c 1))</code> is 1 when c is 5, and c+1 otherwise.</dd>
-  <dt id="g-lazy-smt">lazy SMT (CEGAR loop)</dt>
-  <dd>A loop that solves the Boolean abstraction, checks the answer against the theory, and adds a theory clause to rule out each wrong answer. CEGAR means counterexample-guided abstraction refinement.</dd>
-  <dt id="g-leaf">leaf</dt>
-  <dd>A part of a formula that the propositional search treats as one opaque variable, such as a theory atom.</dd>
-  <dt id="g-lra">linear real arithmetic (QF_LRA)</dt>
-  <dd>The theory of real numbers with addition and multiplication by constants. QF_LRA is the SMT-LIB logic for it without quantifiers.</dd>
-  <dt id="g-literal">literal</dt>
-  <dd>An atom or its negation, such as <code>b0</code> or <code>not (w = 0)</code>.</dd>
-  <dt id="g-model">model</dt>
-  <dd>An assignment of values to variables that makes a formula true.</dd>
-  <dt id="g-oracle">oracle (untrusted)</dt>
-  <dd>A helper that suggests answers. Nothing it says is believed until Lean proves it.</dd>
-  <dt id="g-abstraction">propositional abstraction</dt>
-  <dd>The formula you get by replacing every theory atom with a plain Boolean variable. It keeps the and/or/not shape and forgets the arithmetic.</dd>
-  <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of facts leads to False, so the facts cannot all hold.</dd>
-  <dt id="g-rewriter">rewriter</dt>
-  <dd>The part of Z3 that simplifies terms, for example <code>(+ 0 x)</code> to <code>x</code>.</dd>
-  <dt id="g-satisfiable">satisfiable</dt>
-  <dd>Having at least one model.</dd>
-  <dt id="g-sorry">sorry</dt>
-  <dd>A Lean placeholder that skips a proof. A certificate containing it proves nothing.</dd>
-  <dt id="g-soundness">soundness</dt>
-  <dd>The guarantee that the checker never accepts a false claim.</dd>
-  <dt id="g-sort">sort</dt>
-  <dd>The type of a value, such as Int, Real, or Bool.</dd>
-  <dt id="g-tactic">tactic</dt>
-  <dd>A Lean command that builds part of a proof automatically, such as <code>grind</code> or <code>omega</code>.</dd>
-  <dt id="g-theory-clause">theory clause</dt>
-  <dd>A clause that is true because of what its atoms mean in a theory, not because of its Boolean shape. Example: <code>not (w = (ite c 0 0)) or w = 0</code>.</dd>
-  <dt id="g-unsat-core">unsat core</dt>
-  <dd>A subset of literals that is already contradictory on its own. Its negation is a clause that always holds.</dd>
+<dl class="glossary">
+  <dt id="g-atom">atom</dt><dd>A formula with no Boolean connective inside, such as <code>b0</code> or <code>(= c 3)</code>.</dd>
+  <dt id="g-axiom">axiom</dt><dd>A statement Lean accepts without proof. Adding one would mean trusting something unchecked.</dd>
+  <dt id="g-boolean">Boolean</dt><dd>The sort of truth values, true and false. In SMT-LIB it is <code>Bool</code>.</dd>
+  <dt id="g-cegar">CEGAR</dt><dd>Counterexample-guided abstraction refinement. Solve a simpler problem, check its answer, and add a fact that rules out each wrong answer.</dd>
+  <dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>(or b0 (not (= w 0)))</code>.</dd>
+  <dt id="g-cnf-lemma">cnf lemma</dt><dd>A step where Z3 claims that a clause follows from an assertion by conversion to conjunctive normal form.</dd>
+  <dt id="g-grind">grind</dt><dd>A general Lean tactic that searches for a proof by case splits and rewriting. It is strong but can be slow.</dd>
+  <dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit of work. A proof that uses more than its limit stops with a timeout error.</dd>
+  <dt id="g-ite">if-then-else term (ite)</dt><dd>A term that picks one of two values by a condition. <code>(ite (= c 5) 1 (+ c 1))</code> is 1 when c is 5, else c + 1.</dd>
+  <dt id="g-lazy-smt">lazy SMT</dt><dd>A solving style where a SAT search treats theory atoms as plain letters, and a theory solver adds clauses when a candidate answer breaks the theory.</dd>
+  <dt id="g-leaf">leaf</dt><dd>A part of a formula that the propositional abstraction treats as one opaque letter, usually a theory <a href="#g-atom">atom</a>.</dd>
+  <dt id="g-literal">literal</dt><dd>An atom or its negation, such as <code>b0</code> or <code>(not b0)</code>.</dd>
+  <dt id="g-model">model</dt><dd>An assignment of values that makes a set of formulas true.</dd>
+  <dt id="g-oracle">oracle</dt><dd>A helper that gives answers without proof. Here Z3 suggests clauses, and Lean checks each one.</dd>
+  <dt id="g-propositional-abstraction">propositional abstraction</dt><dd>The formula seen with every theory atom replaced by a letter. <code>(= w 0)</code> and <code>(= w (ite c 0 0))</code> become two unrelated letters.</dd>
+  <dt id="g-refutation">refutation</dt><dd>A proof that a set of facts leads to False.</dd>
+  <dt id="g-rewriter">rewriter</dt><dd>The part of Z3 that simplifies terms, for example <code>(+ 0 x)</code> to <code>x</code> and <code>(ite c 0 0)</code> to <code>0</code>.</dd>
+  <dt id="g-sorry">sorry</dt><dd>A Lean placeholder that skips a proof. A trusted result must not contain it.</dd>
+  <dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof, such as <code>grind</code> or <code>omega</code>.</dd>
+  <dt id="g-theory-clause">theory clause</dt><dd>A clause that is true because of what its atoms mean in arithmetic, not because of <a href="#g-boolean">Boolean</a> structure. Example: <code>w = (ite c 0 0)</code> implies <code>w = 0</code>.</dd>
+  <dt id="g-theory-solver">theory solver</dt><dd>The part of a solver that decides whether literals about numbers or functions can hold together.</dd>
+  <dt id="g-unsat-core">unsat core</dt><dd>A subset of formulas that is already contradictory on its own.</dd>
 </dl>
 
 <footer>
-  Generated by the Lean certificate improvement loop on 2026-11-11.
-  Source: <a href="https://github.com/levnach/z3/pull/117">levnach/z3#117</a>.
+Generated by the Lean certificate improvement loop on 2026-11-11.
 </footer>
+</main>
 </body>
 </html>
