@@ -8168,8 +8168,9 @@ def _merge_single_imports(graph, dependencies, local, external, needed, body, co
 # re-application of a step bound at the top level (`let _step_N := _step_N
 # _hyp...`) or of an imported lemma (`let _step_N := proof_step_N _inputs
 # _hyp...`, decidability witnesses before the hypotheses in the propositional
-# slice).
-_REAPPLICATION = re.compile(r"^ *let (_step_\d+) := ((?:proof_step_\d+ _inputs|_step_\d+)(?: _\w+)+)$")
+# slice). Its arguments are hypotheses and witnesses only, never another
+# step, so no application substituted here names a step pending beside it.
+_REAPPLICATION = re.compile(r"^ *let (_step_\d+) := ((?:proof_step_\d+ _inputs|_step_\d+)(?: _(?:hyp|df?)\d+)+)$")
 
 
 def _reapplications_in_place(lines):

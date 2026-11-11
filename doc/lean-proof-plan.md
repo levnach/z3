@@ -1695,10 +1695,10 @@ before). Tests:
 `test_reapplications_used_once_are_applied_in_place`
 (`test_proof_to_lean_lia.py`). A rescan of the earlier QF_AX/QF_AUFLIA
 memory failures: `storecomm_t2_np_nf_ai_00050_007` (14.3 MB) verifies in
-129 s at 7.64 GB, as it already did before this change; `swap_t1_pp_sf_ai_00010_008`
-(35.7 MB) still fails at the cap,
-after 1,928 of its 12,176 declarations, in its theory lemmas rather than
-its proof steps.
+129 s at 7.64 GB, as it already did before this change;
+`swap_t1_pp_sf_ai_00010_008` (35.7 MB) still fails at the cap, after 1,928
+of its 12,176 declarations, in its theory lemmas rather than its proof
+steps.
 
 ### Single imports, negated eliminations, and classical contradictions in place (2026-11-10)
 

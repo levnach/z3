@@ -2192,6 +2192,14 @@ class TestIntegerLeanIntegration(unittest.TestCase):
             "  let _step_7 := _step_7 _hyp1",
             "  let _tail_7_1 := _step_7.2",
             "  _step_7"])
+        # Decidability witnesses are arguments too; an argument naming
+        # another step is not a re-application, and its let stays.
+        self.assertEqual(proof_to_lean._reapplications_in_place([
+            "    let _step_5 := _step_5 _step_2",
+            "    let _step_4 := proof_step_4 _inputs _d3 _df8 _hyp1",
+            "    (_step_4.resolve_left _step_5)"]), [
+            "    let _step_5 := _step_5 _step_2",
+            "    ((proof_step_4 _inputs _d3 _df8 _hyp1).resolve_left _step_5)"])
 
     def test_steps_beyond_the_nesting_depth_are_bound_at_the_top_level(self):
         # Past _NESTED_STEP_DEPTH a step under hypotheses is bound at the
