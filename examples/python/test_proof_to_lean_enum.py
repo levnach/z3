@@ -493,10 +493,13 @@ def random_enum_array_instance(seed, variables=2, constraints=10, depth=2, index
 # and 110 of the small configuration failed Lean before the replay's keys
 # told constructors apart ((= x red) and (= x blue) shared a key). Which
 # hints a seed's log carries depends on Z3's search, so only verification is
-# asserted.
+# asserted. 53 with integer has Int lemmas with opaque atoms over
+# enumeration applications, whose outside definitions are unfolded before
+# the lemma's unfold; that unfold must therefore not name the applications
+# themselves (_folded_enumeration_cases), and the seed fails Lean if it does.
 _SMALL = {"variables": 2, "constraints": 6}
-ENUM_SEEDS = (({}, 24), ({}, 125), ({}, 181), ({"integer": True}, 133), ({"integer": True}, 150),
-              (_SMALL, 89), (_SMALL, 110))
+ENUM_SEEDS = (({}, 24), ({}, 125), ({}, 181), ({"integer": True}, 53), ({"integer": True}, 133),
+              ({"integer": True}, 150), (_SMALL, 89), (_SMALL, 110))
 
 
 # Pinned unsatisfiable seeds of random_enum_array_instance whose logs carry
@@ -866,7 +869,7 @@ class TestEnumerationValidation(unittest.TestCase):
         for node, fact in applications:
             self.assertEqual(graph.kind(node), z3.Z3_OP_UNINTERPRETED)
             arguments = ", ".join("(term_%d _atoms _m)" % argument for argument in graph.arguments(node))
-            self.assertRegex(fact, r"^:= _m\.enum_fcases_\d \[%s\]$" % re.escape(arguments))
+            self.assertRegex(fact, r"^:= _m\.enum_fcases_\d+ \[%s\]$" % re.escape(arguments))
         for lemma in lemmas:
             names = re.findall(r"have (_ec\d+) := _m\.enum_fcases_", lemma)
             if names:
