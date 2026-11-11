@@ -1694,8 +1694,14 @@ without the fallback's helpers (scaled ite gates), so then the search
 stops and the fallback stays alone, as before. Each
 clause is a `have` the theory tactic proves over the leaves' unfolded
 definitions and a fact for one more search, with ten times the prover's
-limits (`_THEORY_CLAUSE_BUDGET`; the fallback stays under `first`). Lean
-checks every clause and step, so a wrong clause is a rejection. The 11-node
+limits (`_THEORY_CLAUSE_BUDGET`; the fallback stays under `first`), while
+the proof kept stays within `_STRUCTURAL_REWRITE_CHARS` as before. Lean
+checks every clause and step, so a wrong clause is a rejection. A clause
+that does not hold is an elaboration error, which `first` catches; a
+theory tactic that runs out of heartbeats is not caught and fails the
+whole lemma, so the size bound and the every-leaf rule are heuristics
+against that, not a guarantee (no input of the z3test smtlib-sample sweep
+hit it). The 11-node
 input takes 45 clauses (1.4 s), the search 36,000 steps and keeps a
 0.45 MB proof, and the whole file verifies in 24 s at a 2.6 GB peak. The
 15-node input's cnf lemma now checks too; the file still fails in a

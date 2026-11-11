@@ -6431,7 +6431,8 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
     When neither search refutes the clause, it rests on what the leaves
     denote beyond the bridges, and the search is repeated with theory
     clauses over the leaves (_theory_clauses), each a `have` the theory
-    tactic proves, within _THEORY_CLAUSE_BUDGET times the limits. The
+    tactic proves, within _THEORY_CLAUSE_BUDGET times the limits; the proof
+    kept is still at most _STRUCTURAL_REWRITE_CHARS long. The
     unfolded theory
     proof (_grind_lemma) stays the fallback, taken by `first` when the
     structural attempt is not found or does not check, and alone when the
@@ -6443,6 +6444,7 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
     structure = _boolean_structure(graph, conclusion, atom_indices, memo, leaves, synthetic)
     bridges = _leaf_bridges(graph, leaves, synthetic)
     refutation, names, order = _cnf_refutation(graph, memo, structure, bridges)
+    clauses = None
     if refutation is None:
         # The propositional abstraction may not refute the clause: once more
         # with the theory clauses over its leaves that do (_theory_clauses).
@@ -6464,6 +6466,12 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
                for (bridge, definitions), name in zip(bridges, names)]
     attempt.append("refine Classical.byContradiction ?_")
     attempt.extend(refutation)
+    if clauses and sum(len(line) + 1 for line in attempt) > _STRUCTURAL_REWRITE_CHARS:
+        # The search over the theory clauses may look further, but the proof
+        # kept stays within what the first searches could keep: a longer one
+        # risks the lemma's heartbeats, which `first` does not catch (a
+        # runtime exception fails the whole lemma, fallback included).
+        attempt = None
     return _grind_lemma(graph, node, "th_lemma", atom_indices, variable_indices,
                         opaque_tactic=_opaque_tactic(graph, node), structural=attempt)
 
@@ -6517,14 +6525,20 @@ def _theory_clauses(graph, order, facts, atom_indices):
     as (structure, definitions), like a bridge: stated with a `have` that
     the theory tactic proves over the leaves' unfolded definitions, and
     given to the prover as a fact. z3 is an untrusted oracle here, as in
-    _relevant_structures: a clause that does not hold fails in Lean, and the
-    lemma keeps its fallback. A leaf whose meaning _theory_expression does
-    not read (an application, a term of an uninterpreted sort) is free in
-    the theory as in the abstraction. Returns None when a check is not
-    decided within _THEORY_CLAUSE_RLIMIT, a model is consistent with the
-    leaves (the clause does not hold, or rests on a leaf left free), a
-    clause would range over every leaf (the lemma is one theory fact, the
-    fallback's case), or _THEORY_CLAUSES clauses do not suffice.
+    _relevant_structures: a clause that does not hold is an error in Lean,
+    which `first` catches, and the lemma keeps its fallback. A theory
+    tactic that runs out of heartbeats is not caught (a runtime exception
+    fails the whole lemma); the clauses are minimal cores, a clause over
+    every leaf is not stated, and the kept proof is bounded (_cnf_lemma),
+    but that is a heuristic, not a bound on the tactic. A leaf whose
+    meaning _theory_expression does not read (an application, a term of an
+    uninterpreted sort) is free in the theory as in the abstraction.
+    Returns [] when the abstraction is already unsatisfiable (the prover
+    gave up within its limits), and None when a check is not decided within
+    _THEORY_CLAUSE_RLIMIT, a model is consistent with the leaves (the clause
+    does not hold, or rests on a leaf left free), a clause would range over
+    every leaf (the lemma is one theory fact, the fallback's case), or
+    _THEORY_CLAUSES clauses do not suffice.
     """
     context = z3.Context()
     abstraction, theory = z3.Solver(ctx=context), z3.Solver(ctx=context)

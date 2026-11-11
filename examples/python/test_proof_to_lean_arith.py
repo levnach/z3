@@ -1735,6 +1735,52 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         order = proof_to_lean._PropositionalProver(structure, classical=True).order
         self.assertIsNone(proof_to_lean._theory_clauses(graph, order, [structure], atom_indices))
 
+    def test_theory_clause_search_stop_rules(self):
+        # The other ways the search ends, over the cnf lemma of
+        # test_theory_clause_search_stops_at_a_model_the_leaves_allow.
+        source = THEORY_CLAUSE_INPUTS["ite_with_equal_branches"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        terms, tables = proof_to_lean._bind_input(source, graph, certificate["fragment"], certificate["query"])
+        atom_indices = {decl: index for index, decl in enumerate(sorted(tables["atoms"].values()))}
+        node = next(node for node in _th_lemma_nodes(certificate)
+                    if _th_lemma_parameters(certificate, node) == ["cnf"])
+        leaves, memo = {}, {}
+        structure = proof_to_lean._boolean_structure(graph, graph.conclusion(node), atom_indices, memo, leaves)
+        negated = [("not", structure)]
+        order = proof_to_lean._PropositionalProver(*negated, classical=True).order
+        # An abstraction that is already unsatisfiable needs no clause.
+        both = [structure, ("not", structure)]
+        self.assertEqual(proof_to_lean._theory_clauses(
+            graph, proof_to_lean._PropositionalProver(*both, classical=True).order, both, atom_indices), [])
+        # A check not decided within the resource limit, and a model left
+        # when the clauses allowed are used up.
+        with patch.object(proof_to_lean, "_THEORY_CLAUSE_RLIMIT", 1):
+            self.assertIsNone(proof_to_lean._theory_clauses(graph, order, negated, atom_indices))
+        with patch.object(proof_to_lean, "_THEORY_CLAUSES", 0):
+            self.assertIsNone(proof_to_lean._theory_clauses(graph, order, negated, atom_indices))
+        # A clause over every leaf of the facts restates them as one theory
+        # fact: the negation of a clause found above has only its leaves.
+        clause, _ = proof_to_lean._theory_clauses(graph, order, negated, atom_indices)[0]
+        refuted = [("not", clause)]
+        self.assertIsNone(proof_to_lean._theory_clauses(
+            graph, proof_to_lean._PropositionalProver(*refuted, classical=True).order, refuted, atom_indices))
+
+    def test_theory_clause_proof_is_kept_within_the_structural_limit(self):
+        # The search over the theory clauses may look further than the first
+        # searches, but a proof longer than they could keep is dropped and
+        # the unfolded fallback stays alone (a long attempt risks the
+        # lemma's heartbeats, which `first` does not catch).
+        source = THEORY_CLAUSE_INPUTS["ite_with_equal_branches"]
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        with patch.object(proof_to_lean, "_STRUCTURAL_REWRITE_CHARS", 1), \
+                patch.object(proof_to_lean, "_THEORY_CLAUSE_BUDGET", 10 ** 7):
+            text = proof_to_lean.reconstruct(source, certificate)
+        lemma, head, attempts = _cnf_lemma_attempts(certificate, text)
+        self.assertNotIn("refine Classical.byContradiction", lemma)
+        self.assertIn("unfold formula_", head)
+        self.assertEqual(attempts, [""])
+
     @lean_test_support.slow("a 106 KB QF_LRA benchmark, about 25 s of Lean at 2.6 GB")
     def test_time_triggered_startup_verifies_through_theory_clauses(self):
         # SMT-LIB QF_LRA tta_startup/simple_startup_11nodes.synchro.base
