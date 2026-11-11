@@ -2473,6 +2473,60 @@ nested arrays, quantifiers, or unsupported commands); sixteen synthetic
 inputs (`BOOL_ELEMENT_INPUTS` in `test_proof_to_lean_array.py`) and the
 Int-element `read_of_store_over_constant` verify in Lean.
 
+### Sets compared member by member (2026-11-11)
+
+Z3's rewriter simplifies a map of connectives over sets as it simplifies
+the connective over their members (`array_rewriter::mk_map_core`), and
+decides an equality between the results when they are constant arrays:
+`(setminus s s)` is the empty set, `(intersection (complement s) (setminus
+s t))` too, nested maps of `and` are flattened, sorted, and stripped of a
+repeated set, a difference of stores at one index is the store of the
+difference, `(= ((_ map and) s (complement s)) full)` is false. The
+certificate holds the sets before and after; they are equal as functions
+of their members, but by no identity of a single map node
+(`_map_identities`), so `grind` failed in the rewrite, or in a cnf lemma
+over such sets: 17 of the 114 exported seeds of `random_set_instance`
+1-400, and 26 of the 190 of 401-1000.
+
+`_pointwise_map_facts` (`proof_to_lean.py`) reads each set term over
+Booleans a rewrite or cnf lemma reaches as a Boolean function of its
+leaves: the sets its maps, set operators, and stores are over, the Boolean
+values stored or held by constant arrays (other than true and false), and,
+per stored index, whether the member's index is that one. It computes the
+truth table (at most `_POINTWISE_LEAVES` = 8 leaves and `_POINTWISE_SIZE`
+maps per term; a larger term is a leaf itself) and states
+
+- two terms of one function equal: `have _pwN : A = B := funext (fun _i =>
+  propext (rewrite_K_pwJ (_select a _i) ...))`;
+- the sides of an equality whose functions differ in every row different:
+  `A = B -> False`, at an inhabitant of the index sort (0 over Int and
+  Real; over an uninterpreted sort only when the interpretation already
+  states `nonempty`, next to an extensionality witness);
+- in a cnf lemma, the members of an equality's sides at each index the
+  lemma reads from a set of that sort, `A = B -> (Iff (member of A at i)
+  (member of B at i))`, by `congrFun` (three seeds of 401-1000: an
+  assertion logged as written, tied to a clause about one member).
+
+The auxiliary theorems `rewrite_K_pwJ` are over the members as
+propositions and are proved by `grind` with nothing else in its context;
+the member formulas are what the sets' definitions unfold to at an index,
+so the instances type-check by unfolding. The tables only choose which
+facts to state: a wrong table gives a theorem `grind` cannot prove or a
+fact that does not type-check. Steps without a map or set operator get
+nothing (stores alone stay with the store identities).
+
+After: all 304 exported seeds of 1-1000 verify in Lean (261 before; the
+other 64 unsatisfiable ones rest on the default-map axiom and stay
+rejected). Still open: an equality of sets decided false over an
+uninterpreted index sort when the interpretation has no `nonempty` field
+(`(= (union a (complement a)) (setminus b b))` over `(Array Index Bool)`).
+Tests (`test_proof_to_lean_array.py`): ten documented inputs in
+`SET_COMBINATOR_INPUTS` and the pinned seeds `POINTWISE_SET_SEEDS` (Lean;
+each failed before), `test_sets_are_compared_member_by_member`, and
+`test_map_facts_are_needed`, which drops the pointwise facts together with
+each identity of a single map (in a rewrite either proves the step) and
+has four inputs that need the pointwise facts themselves.
+
 ### Set logs: operators as written, unused default-map axioms (2026-11-11)
 
 A sweep of random constraints over four sets of integers
@@ -2518,7 +2572,8 @@ default-map axiom (no member is named, e.g. `(= ((_ map =>) a b) full)`
 with `a` full and `b` empty) and stay rejected; and 17 fail Lean in a
 rewrite where Z3's rewriter decides an equality of sets by map identities
 (`(setminus s1 s1)` is empty, `(not (not s))` is `s`, flattened and sorted
-`and`s), which have no theorem yet (14 of them exported before as well).
+`and`s), which had no theorem (14 of them exported before as well; they
+verify since "Sets compared member by member" above).
 `subset` itself is still rejected as an operator. Tests
 (`test_proof_to_lean_array.py`): six documented inputs in
 `SET_COMBINATOR_INPUTS` and the pinned seeds `SET_SEEDS` (Lean),
