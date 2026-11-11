@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #115: Apply single imports and negated eliminations in place in Lean lemmas</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --note-bg: #fff8c5; --ok: #1a7f37; --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+      --code-bg: #161b22; --border: #3d444d; --note-bg: #3b2e00; --ok: #3fb950; --warn: #d29922;
+    }
+  }
+  body { background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0; }
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.4rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.95rem; }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 8.5rem; }
+  .meta dd { margin: 0 0 0.2rem 8.5rem; }
+  .note { background: var(--note-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.9rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem; overflow-x: auto; line-height: 1.4; }
+  pre code { background: none; padding: 0; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .explain { margin-top: -0.4rem; color: var(--muted); }
+  dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--border); margin-top: 2.5rem; padding-top: 0.8rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Apply single imports and negated eliminations in place in Lean lemmas</h1>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/115">levnach/z3#115</a></dd>
+    <dt>State</dt><dd>OPEN</dd>
+    <dt>Date</dt><dd>2026-11-11T06:09:54Z</dd>
+    <dt>Loop iteration</dt><dd>114</dd>
+    <dt>Change commit</dt><dd><a href="https://github.com/levnach/z3/commit/9c01e304370c84a3d7c71aea3c4260e48d4ea0c4"><code>9c01e30</code></a></dd>
+  </dl>
+  <p class="note">This pull request is open and <strong>not merged</strong>. Everything below describes the change commit linked above.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+This PR makes the Lean text for large <a href="#g-refutation">refutations</a> smaller, so Lean stays under its 8 GB memory cap.
+It changes three patterns inside each <a href="#g-outlining">outlined</a> <a href="#g-lemma">lemma</a>.
+A negated <a href="#g-literal">literal</a> removed by a <a href="#g-resolution">resolution</a> step no longer needs a <a href="#g-double-negation">double-negation</a> wrapper.
+A lemma used only once is applied at that use instead of getting its own <a href="#g-let">let binding</a>.
+Every <a href="#g-proof-by-contradiction">proof by contradiction</a> in <a href="#g-classical">classical</a> lemmas now goes through one shared helper.
+As a result, a 14 KB <a href="#g-difference-logic">integer difference logic</a> benchmark verifies in Lean for the first time.
+So does one <a href="#g-arrays">theory of arrays</a> benchmark.
+The theorem statement and the <a href="#g-axiom">axioms</a> used are unchanged.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR, the pipeline could already reconstruct these benchmarks. The problem was size, not support.
+The benchmark <code>DTP_k2_n35_c245_s9</code> produced 32.2 MB of Lean <a href="#g-proof-term">proof terms</a>.
+Lean ran out of memory during <a href="#g-elaboration">elaboration</a> in every loop iteration so far.
+Earlier iterations trimmed the output too, for example by naming <a href="#g-hypothesis">hypotheses</a> directly.
+It serves milestone 3 of the plan, equality and linear arithmetic, and the scaling work in the regression matrix.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+  <li>A literal <code>(not p)</code> cut off a <a href="#g-clause">clause</a> by a proof of <code>p</code> now uses Lean's <code>Or.neg_resolve_left</code> or <code>Or.neg_resolve_right</code> on that proof directly.</li>
+  <li>A lemma that its importing lemma uses exactly once is now applied right where it is used, with no separate name.</li>
+  <li>Classical lemmas now call one proved helper, <code>classical_by_contradiction</code>, instead of binding a fresh <a href="#g-decidable">decidability</a> witness for each formula.</li>
+  <li>The 14 KB difference-logic benchmark now verifies in Lean, and a new slow test guards it.</li>
+  <li>New and tighter tests check that the old patterns are gone and the output stays small.</li>
+</ul>
+<p>The first change is like a recipe that used to say "add the opposite of no egg" and now just says "add the egg".</p>
+<table>
+  <thead><tr><th>File</th><th>What it is</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">113</td><td class="num">21</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Integer arithmetic tests</td><td class="num">64</td><td class="num">6</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td>Resolution tests</td><td class="num">9</td><td class="num">2</td></tr>
+    <tr><td><code>examples/python/data/QF_IDL_DTP_k2_n35_c245_s9.smt2</code></td><td>New benchmark copied from z3test</td><td class="num">48</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, new dated section</td><td class="num">27</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>One sentence on outlining</td><td class="num">7</td><td class="num">2</td></tr>
+    <tr><th>Total</th><th>6 files</th><th class="num">268</th><th class="num">31</th></tr>
+  </tbody>
+</table>
+<p>Measured Lean sizes, as reported in the PR:</p>
+<table>
+  <thead><tr><th>Input</th><th>Before</th><th>After</th><th>Lean result after</th></tr></thead>
+  <tbody>
+    <tr><td>QF_IDL <code>DTP_k2_n35_c245_s9</code></td><td class="num">32.2 MB</td><td class="num">26.1 MB</td><td>verified, 117 s, 7.86 GB peak</td></tr>
+    <tr><td>QF_AX <code>swap_t2_np_sf_ai_00009_002</code></td><td class="num">20.6 MB</td><td class="num">16.0 MB</td><td>verified, 105 s, 7.39 GB peak</td></tr>
+    <tr><td>QF_IDL <code>plan-21</code></td><td class="num">23.4 MB</td><td class="num">21.4 MB</td><td>verified, 79 s, 6.60 GB peak</td></tr>
+    <tr><td>QF_UF <code>NEQ004</code></td><td class="num">13.9 MB</td><td class="num">11.1 MB</td><td>not checked</td></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<p>
+The input this PR newly certifies is the DTP benchmark, with about 69,000 proof steps. That is too large to show.
+Small inputs already fit in memory, so none goes from rejected to accepted.
+Below are two real runs that show the new Lean shapes. Both inputs were also accepted before.
+</p>
+
+<h3>(a) Input</h3>
+<p>A tiny Boolean input. Unit resolution must cut the negated literal <code>(not q)</code> using the unit <code>q</code>.</p>
+<pre><code>(declare-const p Bool)
+(declare-const q Bool)
+(declare-const r Bool)
+(assert (or (not q) p (not r)))
+(assert q)
+(assert r)
+(assert (not p))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The pre-PR scripts accepted this input and Lean checked it. The resolution step was:</p>
+<pre><code>    (False.elim (((_step_10.resolve_left (fun _literal =&gt; _literal _step_12)).resolve_left _step_11) _step_13))</code></pre>
+<p class="explain">The proof of <code>q</code> is wrapped in a lambda that turns it into "not not q".</p>
+<p>For the DTP benchmark itself, the implementer recorded this failure before the PR. I did not rerun it.</p>
+<pre><code>After iter-113 it was 32.2 MB of Lean and stopped after
+13,579 of its 16,557 lemmas.</code></pre>
+
+<h3>(c) After</h3>
+<p>The current reconstructor's output for the tiny input, trimmed:</p>
+<pre><code>def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
+def formula_1 (_atoms : Nat -&gt; Prop) : Prop := (Not (formula_0 _atoms))
+...
+def formula_5 (_atoms : Nat -&gt; Prop) : Prop := (Or (formula_1 _atoms) (Or (formula_2 _atoms) (formula_4 _atoms)))
+...</code></pre>
+<p class="explain">Each formula gets a definition over the atoms <code>q</code>, <code>p</code>, <code>r</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
+    (_h0 : (formula_5 _atoms))
+    (_h1 : (formula_0 _atoms))
+    (_h2 : (formula_3 _atoms))
+    (_h3 : (formula_6 _atoms))
+    : False :=
+  ...
+    (False.elim (((_step_10.neg_resolve_left _step_12).resolve_left _step_11) _step_13))
+  _step_15</code></pre>
+<p class="explain">The theorem takes the four assertions as hypotheses, and the proof of <code>q</code> is now passed directly to <code>Or.neg_resolve_left</code>.</p>
+<p>The two other changes need outlined lemmas, so they only appear on bigger inputs. Here is one lemma from the PR's new test input, DTP seed 1, which has 20 integer variables and 140 clauses. Before:</p>
+<pre><code>private theorem proof_step_904 {_atoms : Nat -&gt; Prop} {_vars : Nat -&gt; Int}
+    (_inputs : Inputs _atoms _vars)
+    : (formula_881 _atoms _vars) :=
+  let _df881 := Classical.propDecidable (formula_881 _atoms _vars)
+  let _step_899 := proof_step_899 _inputs
+  ...
+    (False.elim (_step_901 (_step_899.resolve_left _hyp882)))
+  (@Decidable.byContradiction (formula_881 _atoms _vars) _df881 _step_903)</code></pre>
+<p>After:</p>
+<pre><code>private theorem classical_by_contradiction {p : Prop} (h : Not p -&gt; False) : p :=
+  @Decidable.byContradiction p (Classical.propDecidable p) h
+
+private theorem proof_step_904 {_atoms : Nat -&gt; Prop} {_vars : Nat -&gt; Int}
+    (_inputs : Inputs _atoms _vars)
+    : (formula_881 _atoms _vars) :=
+  ...
+    (False.elim (_step_901 ((proof_step_899 _inputs).resolve_left _hyp882)))
+  (classical_by_contradiction _step_903)</code></pre>
+<p class="explain">The single-use import of lemma 899 moved into its one use, and the witness let and formula vanished behind the helper.</p>
+<p>
+Lean accepted both new files: <code>check_lean.sh</code> reported "Lean checks passed" for each.
+The seed-1 file shrank from 565,430 to 518,423 characters.
+</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>
+In plain terms, the full reconstruction suite passed with Lean, run once by the implementer and once by the reviewer. Both slow memory-cap tests passed too.
+The final commit only removed dead code, and its Lean output was byte-identical on four inputs.
+</p>
+<table>
+  <thead><tr><th>Check</th><th>Who ran it</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>All <code>test_proof_to_lean*.py</code> suites, with Lean</td><td>Implementer, final state</td><td class="ok">521 tests, OK, 8 skipped</td></tr>
+    <tr><td>Same suite</td><td>Reviewer</td><td class="ok">521 tests, OK, 8 skipped</td></tr>
+    <tr><td>Slow tier: DTP and plan-21 memory-cap tests</td><td>Implementer</td><td class="ok">2 tests, OK</td></tr>
+    <tr><td>Slow DTP test alone</td><td>Reviewer</td><td class="ok">1 test, OK</td></tr>
+    <tr><td><code>test_proof_certificate.py</code></td><td>Implementer and reviewer</td><td class="ok">119 tests, OK</td></tr>
+    <tr><td>z3test proof scripts</td><td>Implementer and reviewer</td><td class="ok">48 tests, OK</td></tr>
+    <tr><td><code>check_lean.sh</code></td><td>Implementer</td><td class="ok">Lean checks passed</td></tr>
+    <tr><td>Proof matrix, Boolean inputs, legacy proof object</td><td>Implementer</td><td class="ok">6 of 6 lean-verified</td></tr>
+    <tr><td>Proof matrix, <code>lra_*.smt2</code>, clause log</td><td>Implementer</td><td class="ok">8 of 8 lean-verified</td></tr>
+    <tr><td>QF_AX <code>swap_t2</code> with the 8 GB cap</td><td>Implementer</td><td class="ok">exit 0, 0 errors</td></tr>
+    <tr><td>Loop's local gate</td><td>Driver</td><td class="warn">Not recorded yet</td></tr>
+  </tbody>
+</table>
+<p>The local gate had started but had not recorded a result when this page was written. No CI status was available, and there were no CI fix rounds.</p>
+<table>
+  <thead><tr><th>Workflow</th><th>Job and step</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><a href="https://github.com/levnach/z3/pull/115/checks">CI</a></td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td class="warn">Unknown</td></tr>
+  </tbody>
+</table>
+<p>CI does not run the slow tier, so it never checks the DTP benchmark itself.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved. There were no blocker, major, or minor findings. Two nits and two suggestions came up.</p>
+<ul>
+  <li><strong>Nit, dead term.</strong> Reading the resolution code, the reviewer found a <code>not_not_intro</code> term that could no longer reach the output. It only acted as a yes-or-no signal, so a future caller might emit it untested. It was replaced by a plain predicate.</li>
+  <li><strong>Nit, loose size bound.</strong> The slow DTP test allowed 27 MB, yet memory headroom was nearly gone. A small regression could pass the size check and still exhaust memory. The bound is now 26.5 MB.</li>
+  <li><strong>Suggestions.</strong> A comment now notes that one seed-1 check covers only classical imports. The proposed next size targets are left as follow-ups.</li>
+</ul>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>Soundness is unchanged. Lean re-checks every rewritten term, so a wrong rewrite rejects the certificate.</li>
+  <li>The helper is a proved theorem with the same axiom as the witnesses it replaces.</li>
+  <li>The DTP margin is thin, and only the slow tier watches it.</li>
+  <li>Two rewrites edit generated text by regular expression. When a pattern is not found exactly once, the old form stays.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Win more DTP margin, starting with nested step headers and repeated <code>_atoms _vars</code> applications.</li>
+  <li>Rescan earlier QF_AX and QF_AUFLIA memory failures, since some may verify now.</li>
+  <li>Use the helper on the non-outlined path too.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement Lean accepts without proof. Fewer axioms means more trust. Example: <code>Classical.choice</code>.</dd>
+  <dt id="g-classical">classical reasoning</dt>
+  <dd>Logic that assumes every statement is either true or false, even when no procedure can decide which.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals. Example: <code>(or (not q) p (not r))</code>.</dd>
+  <dt id="g-decidable">decidability</dt>
+  <dd>Having a way to tell whether a statement is true or false. In Lean, a "decidability witness" is that evidence as a value.</dd>
+  <dt id="g-double-negation">double negation</dt>
+  <dd>Stating "not not p" in place of p. Here, a lambda that turns a proof of p into a refutation of "not p".</dd>
+  <dt id="g-elaboration">elaboration</dt>
+  <dd>Lean's step that turns written proof text into fully typed internal terms. Its memory use grows with the text size.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A statement assumed inside part of a proof, later discharged by a lemma.</dd>
+  <dt id="g-difference-logic">integer difference logic</dt>
+  <dd>Constraints of the form <code>x - y &gt;= c</code> over integers. Its SMT-LIB logic name is QF_IDL.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A proved intermediate fact used by later proof steps.</dd>
+  <dt id="g-let">let binding</dt>
+  <dd>Giving a value a local name, as in <code>let x := ...</code>, so later lines can refer to it.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atom or its negation. Example: <code>p</code> or <code>(not q)</code>.</dd>
+  <dt id="g-outlining">outlining</dt>
+  <dd>Splitting one huge proof into many separate Lean lemmas, so each is checked on its own.</dd>
+  <dt id="g-proof-by-contradiction">proof by contradiction</dt>
+  <dd>Proving p by showing that "not p" leads to False.</dd>
+  <dt id="g-proof-term">proof term</dt>
+  <dd>A proof written as a Lean expression whose type is the statement it proves.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to False.</dd>
+  <dt id="g-resolution">resolution</dt>
+  <dd>An inference that removes a literal from a clause using a fact that contradicts it. Unit resolution uses single-literal facts. Example: from <code>(or (not q) p)</code> and <code>q</code>, conclude <code>p</code>.</dd>
+  <dt id="g-arrays">theory of arrays</dt>
+  <dd>Constraints over arrays read with <code>select</code> and written with <code>store</code>. Its SMT-LIB logic name is QF_AX.</dd>
+</dl>
+
+<footer>
+  Generated by the Lean certificate improvement loop on 2026-11-10.
+</footer>
+
+</main>
+</body>
+</html>
