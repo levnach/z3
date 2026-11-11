@@ -7803,14 +7803,9 @@ def _resolution(graph, terms, node):
     if remaining != set(positions):
         raise ReconstructionError("incorrect unit-resolution conclusion at node %d" % node)
 
-    def refutation(position):
-        """A proof of the negation of an eliminated or false literal, else None."""
-        if position in eliminations:
-            unit, negated_unit = eliminations[position]
-            return "_step_%d" % unit if negated_unit else "(not_not_intro _step_%d)" % unit
-        if graph.kind(literals[position]) == z3.Z3_OP_FALSE:
-            return "(fun _literal => _literal)"
-        return None
+    def cut(position):
+        """Whether the literal at position is eliminated or false, not kept."""
+        return position in eliminations or graph.kind(literals[position]) == z3.Z3_OP_FALSE
 
     def eliminate(subject, position, side):
         """Cut an eliminated or false literal off the left or right of subject.
@@ -7819,9 +7814,10 @@ def _resolution(graph, terms, node):
         or Or.neg_resolve_right, which take that proof itself: no
         double-negation lambda per elimination (70,817 of them were 2.6 MB of
         the 32 MB of Lean of QF_IDL DTP_k2_n35_c245_s9)."""
-        if position in eliminations and not eliminations[position][1]:
-            return "(%s.neg_resolve_%s _step_%d)" % (subject, side, eliminations[position][0])
-        return "(%s.resolve_%s %s)" % (subject, side, refutation(position))
+        if position not in eliminations:
+            return "(%s.resolve_%s (fun _literal => _literal))" % (subject, side)
+        unit, negated_unit = eliminations[position]
+        return "(%s.%sresolve_%s _step_%d)" % (subject, "" if negated_unit else "neg_", side, unit)
 
     def contradiction(position, value):
         """A proof of False from a proof value of an eliminated or false literal."""
@@ -7832,7 +7828,7 @@ def _resolution(graph, terms, node):
 
     def branch(position, value):
         literal = literals[position]
-        if refutation(position) is not None:
+        if cut(position):
             return "(False.elim %s)" % contradiction(position, value)
         if position in doubles:
             literal = doubles[position]
@@ -7852,11 +7848,11 @@ def _resolution(graph, terms, node):
     # that tail. In the QF_IDL DTP refutations most resolutions keep one
     # literal of a two-literal clause.
     last = len(literals) - 1
-    kept_before_last = [pos for pos in range(last) if refutation(pos) is None]
-    final = kept_before_last[-1] if kept_before_last and refutation(last) is not None else None
+    kept_before_last = [pos for pos in range(last) if not cut(pos)]
+    final = kept_before_last[-1] if kept_before_last and cut(last) else None
     subject, cases = "_step_%d" % first, []
     for position in range(last):
-        if refutation(position) is not None:
+        if cut(position):
             subject = eliminate(subject, position, "left")
         elif position == final:
             if position + 1 == last:

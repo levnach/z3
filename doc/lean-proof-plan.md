@@ -1685,8 +1685,8 @@ re-applies it to its hypotheses (`_merge_single_imports`). 15,068 proofs by
 contradiction named their formula and a witness `let _dfN :=
 Classical.propDecidable ...` (1.9 MB); classical lemmas now use one helper,
 `classical_by_contradiction`, which is `Decidable.byContradiction` at
-`Classical.propDecidable` (the same axiom as before; `Classical.
-byContradiction` would add `propext` and `Quot.sound`) and takes the
+`Classical.propDecidable` (the same axiom as before;
+`Classical.byContradiction` would add `propext` and `Quot.sound`) and takes the
 formula from the expected type. QF_IDL `DTP_k2_n35_c245_s9` goes from 32.2
 to 26.1 MB and verifies for the first time, in 117 s at a 7.86 GB peak;
 `swap_t2_np_sf_ai_00009_002` (QF_AX) from 20.6 to 16.0 MB and verifies

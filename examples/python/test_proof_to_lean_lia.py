@@ -2126,7 +2126,9 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         merged = direct = 0
         for lemma in text.split("\nprivate theorem proof_step_")[1:]:
             # An import that stays bound is used more than once, so its name
-            # occurs at least three times (twice per re-application).
+            # occurs at least three times (twice per re-application). The
+            # pattern matches classical imports (no witness arguments), which
+            # are all of this arithmetic input's lemmas.
             for step in re.findall(r"^  let _step_(\d+) := proof_step_\1 _inputs$", lemma, re.MULTILINE):
                 self.assertGreater(len(re.findall(r"\b_step_%s\b" % step, lemma)), 2, (step, lemma[:300]))
             merged += len(re.findall(r"^ +let _step_(\d+) := proof_step_\1 _inputs _hyp", lemma, re.MULTILINE))
@@ -2183,7 +2185,9 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         certificate = proof_certificate.export_clause_log_certificate(source)
         self.assertGreater(sum(certificate["rule_counts"].values()), 60000)
         text, report = lean_test_support.check(self, source, certificate)
-        self.assertLess(len(text), 27000000)
+        # 26,147,753 characters; the 7.86 GB peak leaves little margin, so
+        # the bound fails before a text regression runs Lean out of memory.
+        self.assertLess(len(text), 26500000)
         self.assertIn(_STANDARD_AXIOMS, report)
 
     def test_wide_farkas_conflicts_with_large_coefficients_verify(self):
