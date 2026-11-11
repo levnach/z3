@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #119: Declare uninterpreted functions and sorts in the theory-clause oracle</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+  --note-bg: #fff8c5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --note-bg: #2e2a1a;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+       max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; }
+a { color: var(--accent); }
+h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: .3rem; }
+h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; margin-top: 2.2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+.meta { color: var(--muted); margin: 0 0 1rem; }
+.meta dt { font-weight: 600; display: inline; }
+.meta dd { display: inline; margin: 0 1rem 0 .3rem; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; border: 1px solid var(--ok); color: var(--ok); font-weight: 600; font-size: .85rem; }
+.note { background: var(--note-bg); border-left: 4px solid var(--warn); padding: .5rem .8rem; margin: 1rem 0; }
+code { background: var(--code-bg); border-radius: 4px; padding: .05rem .3rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .7rem .9rem; overflow-x: auto; line-height: 1.4; }
+pre code { background: none; padding: 0; font-size: .82rem; }
+table { border-collapse: collapse; margin: .8rem 0; width: 100%; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pass { color: var(--ok); font-weight: 600; }
+.fail { color: var(--bad); font-weight: 600; }
+.unknown { color: var(--warn); font-weight: 600; }
+.explain { margin-top: -.3rem; color: var(--muted); }
+dl.glossary dt { font-weight: 600; margin-top: .6rem; }
+dl.glossary dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Declare uninterpreted functions and sorts in the theory-clause oracle</h1>
+<dl class="meta">
+  <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/119">levnach/z3 #119</a></dd>
+  <dt>State</dt><dd><span class="badge">OPEN</span></dd>
+  <dt>Date</dt><dd>2026-11-11T13:25:09Z</dd>
+  <dt>Loop iteration</dt><dd>118</dd>
+</dl>
+<p>This pull request is open and <strong>not merged</strong>. The change under review is commit
+<a href="https://github.com/levnach/z3/commit/2a374f329de75a1d17f3fd13ab61064eec81211c"><code>2a374f3</code></a>.
+It contains two commits: the change and a follow-up that addresses the review.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>The pipeline already asked Z3, acting as an untrusted <a href="#g-oracle">oracle</a>, for
+<a href="#g-theory-clause">theory clauses</a> that help prove a <a href="#g-cnf-lemma">cnf lemma</a>.
+Until now, that oracle could not read <a href="#g-uninterpreted-function">uninterpreted functions</a>,
+<a href="#g-predicate">predicates</a>, or <a href="#g-constant">constants</a> of an
+<a href="#g-uninterpreted-sort">uninterpreted sort</a>. This PR declares them in the oracle.
+The oracle can now find clauses that rest on <a href="#g-congruence">congruence</a> or on an
+<a href="#g-ite">if-then-else term</a> that the <a href="#g-rewriter">rewriter</a> simplified.
+Lean still proves each proposed clause with a <a href="#g-tactic">tactic</a>, so the
+<a href="#g-trust-boundary">trust boundary</a> does not move.
+More lemmas in the UF family of logics now get a <a href="#g-structural-proof">structural proof</a>
+before the <a href="#g-fallback">fallback</a>. No benchmark moves from failing to verified.
+The gain is in how the <a href="#g-refutation">refutation</a> is proved, not in how many inputs are certified.</p>
+
+<h2 id="background">Background</h2>
+<p>PR #117 added the oracle for cnf lemmas whose <a href="#g-propositional-abstraction">propositional abstraction</a>
+search had failed. It read only arithmetic and <a href="#g-boolean">Boolean</a> nodes.
+An application such as <code>(f 0)</code> stayed an opaque <a href="#g-leaf">leaf</a> to it.
+So when Z3 logged a <a href="#g-clause">clause</a> over the rewritten form of an application,
+the oracle's search ended in a <a href="#g-model">model</a>. That lemma then kept the fallback alone.
+This PR serves milestone 3 of the plan, "Equality and linear arithmetic", which adds
+uninterpreted functions and equality reasoning.</p>
+
+<h2 id="changes">What changed</h2>
+<p>Think of the oracle as a translator. Before, it left every word it did not recognise untranslated.
+Now it knows the names of functions and sorts, even though it still knows nothing about what they mean.</p>
+<ul>
+  <li>The oracle can now see functions, predicates, and constants of an uninterpreted sort, over Bool, Int, Real, and named sorts.</li>
+  <li>Cnf lemmas that need congruence, or an <code>ite</code> with equal branches, can now get a structural proof that Lean checks without the fallback.</li>
+  <li>Array terms and datatype constructors stay opaque, and an enumeration sort is treated as uninterpreted, so the oracle never knows more than Lean.</li>
+  <li>Three new inputs, in QF_UF, QF_UFLIA, and QF_UFLRA, are checked in Lean with the fallback removed.</li>
+  <li>Two new unit tests pin down exactly which terms the oracle declares and which it leaves free.</li>
+  <li>The plan document and the examples README describe the new behaviour.</li>
+</ul>
+<p>The core change is the new function <code>_theory_function</code> in the reconstructor.
+Four existing tests were adjusted because the new clauses changed the text they inspect.</p>
+<table>
+  <thead><tr><th>File</th><th>Component</th><th>Added</th><th>Removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">51</td><td class="num">11</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td>Tests (new)</td><td class="num">141</td><td class="num">0</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Tests (adjusted)</td><td class="num">29</td><td class="num">19</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td>Tests (adjusted)</td><td class="num">10</td><td class="num">1</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Tests (adjusted)</td><td class="num">2</td><td class="num">1</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Docs</td><td class="num">33</td><td class="num">3</td></tr>
+    <tr><td><code>examples/python/README</code></td><td>Docs</td><td class="num">2</td><td class="num">1</td></tr>
+    <tr><th>Total, 7 files</th><th></th><th class="num">268</th><th class="num">36</th></tr>
+  </tbody>
+</table>
+
+<h2 id="example">Worked example</h2>
+<div class="note">This PR does not newly certify any input. The PR says so, and the run below confirms it.
+The old pipeline also accepts this file. What changes is the proof of one lemma.
+It used to be a single automated tactic call. Now it is a short structural proof with a single oracle clause.</div>
+
+<h3>(a) The input</h3>
+<p>This is the QF_UF input from the PR's new test, with declarations packed onto fewer lines.</p>
+<pre><code>(set-logic QF_UF)
+(declare-sort U 0)
+(declare-fun b0 () Bool) (declare-fun b1 () Bool)
+(declare-fun a () U) (declare-fun e () U) (declare-fun z () U)
+(declare-fun n () U) (declare-fun w () U)
+(declare-fun f (U) U) (declare-fun g (U) U)
+(assert (and (= n (ite (= (f a) e) (f e) (g (f a))))
+             (= w (ite (and (not b0) (not b1)) z z))
+             (= (f a) e)
+             (or b0 (not (= w z)) (not (= n (f e))))
+             (not b0)))
+(check-sat)</code></pre>
+<p class="explain">The second conjunct says <code>w</code> equals an <code>ite</code> whose two branches are both <code>z</code>.
+Z3 logged the related clause using <code>w = z</code> directly.</p>
+
+<h3>(b) Before</h3>
+<p>The base commit's scripts, run on the same file, gave no error. They printed this line, with the path shortened:</p>
+<pre><code>Lean checked the refutation; wrote old-example.lean</code></pre>
+<p>The lemma in question was proved by unfolding every definition and calling <code>grind</code>:</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_40 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_39 _atoms _m) := by
+  unfold formula_39 formula_38 formula_23 ... term_1 term_0
+  grind (splits := 64)</code></pre>
+<p class="explain">The old oracle could not read <code>w</code> or <code>z</code>, so it found no clause, and this fallback was the only proof.</p>
+
+<h3>(c) After</h3>
+<p>The current reconstructor generated the following file. These are excerpts.</p>
+<pre><code>-- Element 3: "w"
+-- Element 4: "z"
+...
+structure Interpretation where
+  U : Type
+  elems : Nat -&gt; U
+  funs : Nat -&gt; List U -&gt; U
+  preds : Nat -&gt; List U -&gt; Prop
+  bool : Prop -&gt; U
+...
+def term_9 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 3
+...
+def term_15 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 4
+noncomputable def term_16 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := (@ite _m.U (formula_14 _atoms _m) (Classical.propDecidable _) (term_15 _atoms _m) (term_15 _atoms _m))
+def formula_17 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_9 _atoms _m) = (term_16 _atoms _m))
+def formula_18 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_9 _atoms _m) = (term_15 _atoms _m))</code></pre>
+<p class="explain">The sort <code>U</code> becomes a type, <code>w</code> and <code>z</code> become elements of it, and the two equalities about <code>w</code> become named formulas.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    (_h0 : (formula_23 _atoms _m))
+    : False :=
+  ...</code></pre>
+<p class="explain">The main theorem says that the asserted formula leads to <code>False</code> for every interpretation.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_40 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_39 _atoms _m) := by
+  first
+    | (have _f1 : (Or (Not (formula_17 _atoms _m)) (formula_18 _atoms _m)) := by unfold formula_18 formula_17 term_16 term_15 formula_14 formula_13 formula_12 formula_11 formula_10 term_9; grind (splits := 64)
+       refine Classical.byContradiction ?_
+       refine (fun (_f2 : (Not (formula_39 _atoms _m))) =&gt; ?_)
+       ...
+       have _f13 := (Or.elim _f1 (fun _g =&gt; _g) (fun _g =&gt; absurd _g _f12))
+       exact (False.elim (_f13 _f9)))
+    | (unfold formula_39 formula_38 formula_23 ... term_1 term_0
+       grind (splits := 64))</code></pre>
+<p class="explain">The new first attempt states the oracle's clause "if <code>w</code> equals the <code>ite</code>, then <code>w = z</code>", proves just that clause, and then finishes by Boolean steps. The old proof stays below as the fallback.</p>
+<p><strong>Lean check:</strong> <code>scripts/check_lean.sh</code> reported "Lean checks passed." on the generated file.
+I also removed the fallback from this lemma and checked it again. Lean accepted the structural proof on its own.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>In plain terms, every reconstruction test passed, including the three new inputs.
+The new structural proofs were checked in Lean with the fallback removed.
+A deliberately corrupted clause was rejected by Lean.
+The UF-family scan found three benchmark files whose proof changed, and each changed in one lemma.
+All three verified both before and after the change.
+The first full test run had four failures. These were the four text-shape tests that were then adjusted.</p>
+<table>
+  <thead><tr><th>Check</th><th>Who ran it</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code>, after the review fix</td><td>PR author, per the PR description</td><td class="pass">533 tests, OK, 9 skipped</td></tr>
+    <tr><td>Reconstruction tests, before the review fix</td><td>Reviewer</td><td class="pass">532 tests, OK, 9 skipped</td></tr>
+    <tr><td>Reconstruction tests, first implementer run</td><td>Implementer</td><td class="fail">532 tests, 3 failures, 1 error</td></tr>
+    <tr><td>Same tests after adjusting four tests</td><td>Implementer</td><td class="pass">532 tests, OK, 9 skipped</td></tr>
+    <tr><td>Certificate exporter tests</td><td>Implementer, reviewer, PR author</td><td class="pass">119 tests, OK</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>Implementer, PR author</td><td class="pass">Lean checks passed</td></tr>
+    <tr><td>z3test proof tests</td><td>Implementer, reviewer, PR author</td><td class="pass">48 tests, OK</td></tr>
+    <tr><td>Clause with flipped polarity, fallback removed</td><td>Implementer, reviewer</td><td class="pass">Rejected by Lean, as intended</td></tr>
+    <tr><td>Regression matrix cells: legacy proof object, Boolean inputs</td><td>Implementer</td><td class="pass">6 of 6 verified</td></tr>
+    <tr><td>Regression matrix cells: clause log, <code>lra_*</code> inputs</td><td>Implementer</td><td class="pass">8 of 8 verified</td></tr>
+    <tr><td>UF-family scan, QF_UFLIA (25 files) and non-qg5 QF_UF files</td><td>Implementer</td><td>3 files changed one lemma each. All verify before and after.</td></tr>
+    <tr><td>Local gate record</td><td>Driver</td><td class="unknown">Not recorded yet</td></tr>
+  </tbody>
+</table>
+<p>No CI status was recorded in the inputs for this report, so CI results are unknown here.
+Local results do not imply that CI passed. See the PR's checks page for the current status.
+No CI fix rounds were recorded.</p>
+<table>
+  <thead><tr><th>CI workflow / job</th><th>Step relevant to this PR</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean, which runs the <code>test_proof_to_lean*.py</code> suite</td>
+        <td class="unknown">Unknown, see <a href="https://github.com/levnach/z3/pull/119/checks">PR checks</a></td></tr>
+    <tr><td>All other checks</td><td>None known</td><td class="unknown">Unknown, see <a href="https://github.com/levnach/z3/pull/119/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+<p>The PR has no C++ change, so the native test suite and the SMT2 regressions were not run locally.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer approved the change, with no blocker, major, or minor findings. They raised four nits, and all four were fixed.</p>
+<table>
+  <thead><tr><th>Severity</th><th>Count</th><th>Resolved</th></tr></thead>
+  <tbody>
+    <tr><td>Blocker</td><td class="num">0</td><td>n/a</td></tr>
+    <tr><td>Major</td><td class="num">0</td><td>n/a</td></tr>
+    <tr><td>Minor</td><td class="num">0</td><td>n/a</td></tr>
+    <tr><td>Nit</td><td class="num">4</td><td>4 fixed</td></tr>
+  </tbody>
+</table>
+<ol>
+  <li><strong>Repeated work.</strong> The reviewer read the new translation loop and saw that each application's declaration was built twice. The result was correct but wasteful on wide terms. The fix builds it once and keeps it until the node is processed.</li>
+  <li><strong>Untested promise.</strong> The docstrings said enumeration constants are treated as uninterpreted and constructors stay free, but no test checked this. A later edit could have broken it silently. A new unit test now covers both cases. The reviewer had also checked an enumeration input by hand, and Lean accepted it.</li>
+  <li><strong>A test filter that was too wide.</strong> An adjusted test skipped every proof attempt that started with a contradiction step, not only the attempts in cnf lemmas. That could hide a future bug in other lemmas. The filter now applies only to cnf lemmas, identified from the certificate.</li>
+  <li><strong>Formatting.</strong> One paragraph in the plan document had an overlong line. It was rewrapped.</li>
+</ol>
+<p>The reviewer also suggested a per-clause limit on Lean's effort, so that a slow clause falls back gracefully. That suggestion was not adopted in this PR and is listed as a follow-up.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+  <li>Soundness is unchanged. A wrong clause is an error inside <code>first</code>, and Lean moves on to the fallback.</li>
+  <li>More lemmas now try the structural attempt first. If a clause's tactic runs out of <a href="#g-heartbeat">heartbeats</a>, <code>first</code> does not catch that, and the whole lemma fails. Every checked case took under 3 seconds, but that is not a guarantee.</li>
+  <li>The QF_UF qg5 and qg7 files and the QF_AUFLIA and QF_UFLRA sample sets were not rescanned.</li>
+  <li>It is unknown whether any input exists where only the new clauses succeed. Generated inputs of up to 24 nodes still passed through the fallback.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<ul>
+  <li>Cap each clause's heartbeats, so that a slow clause degrades to the fallback.</li>
+  <li>Find a UF input where the fallback fails but the theory clauses succeed.</li>
+  <li>Teach the oracle about arrays and datatypes, for inputs such as dlx-regfile.</li>
+  <li>Rescan the qg5 and qg7 QF_UF files.</li>
+</ul>
+
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+  <dt id="g-array">array</dt><dd>A theory of maps from indices to values, read with <code>select</code> and written with <code>store</code>.</dd>
+  <dt id="g-boolean">Boolean</dt><dd>A value that is either true or false. Its sort is <code>Bool</code>.</dd>
+  <dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>b0 ∨ ¬(w = z)</code>. It holds when at least one literal holds.</dd>
+  <dt id="g-cnf-lemma">cnf lemma</dt><dd>A clause Z3 records when it turns a formula into clauses. The reconstructor must prove it from the input formula.</dd>
+  <dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal results. If <code>a = b</code>, then <code>f(a) = f(b)</code>.</dd>
+  <dt id="g-constant">constant</dt><dd>A symbol with no arguments, such as <code>w</code> of sort <code>U</code>.</dd>
+  <dt id="g-datatype-constructor">datatype constructor</dt><dd>A function that builds a value of a datatype, such as <code>red</code> in an enumeration of colours.</dd>
+  <dt id="g-enumeration-sort">enumeration sort</dt><dd>A sort with a fixed, finite list of distinct values, such as <code>Color</code> with <code>red</code> and <code>green</code>.</dd>
+  <dt id="g-fallback">fallback</dt><dd>The second proof attempt, used when the first one does not check. Here it unfolds all definitions and calls <code>grind</code>.</dd>
+  <dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit for measuring how much work a tactic does. A proof that exceeds its heartbeat limit stops with an error.</dd>
+  <dt id="g-ite">if-then-else term</dt><dd>A term that picks one of two values by a condition, written <code>(ite c x y)</code> in SMT-LIB.</dd>
+  <dt id="g-leaf">leaf</dt><dd>A subterm that a procedure treats as an opaque unit, without looking inside it.</dd>
+  <dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>b0</code> or <code>¬(w = z)</code>.</dd>
+  <dt id="g-model">model</dt><dd>An assignment of values to symbols that makes a formula true. Finding one shows the formula is satisfiable.</dd>
+  <dt id="g-oracle">oracle</dt><dd>A helper whose answers are used as hints but never trusted. Each hint is checked independently.</dd>
+  <dt id="g-predicate">predicate</dt><dd>An uninterpreted function whose result is Boolean, such as <code>(r x)</code>.</dd>
+  <dt id="g-propositional-abstraction">propositional abstraction</dt><dd>A formula with each theory atom replaced by a Boolean variable, so only its Boolean structure remains.</dd>
+  <dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to <code>False</code>.</dd>
+  <dt id="g-rewriter">rewriter</dt><dd>The part of Z3 that simplifies terms, for example turning <code>(ite c z z)</code> into <code>z</code>.</dd>
+  <dt id="g-sort">sort</dt><dd>The type of a value, such as <code>Int</code>, <code>Real</code>, <code>Bool</code>, or a declared sort like <code>U</code>.</dd>
+  <dt id="g-structural-proof">structural proof</dt><dd>A proof built step by step from named facts, rather than one call to an automated tactic.</dd>
+  <dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof, such as <code>unfold</code> or <code>grind</code>.</dd>
+  <dt id="g-theory-clause">theory clause</dt><dd>A clause that is true because of what its symbols mean, such as <code>¬(w = ite c z z) ∨ w = z</code>.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt><dd>The line between parts whose output must be checked and parts that are trusted. Here Lean checks every hint from Z3, so Z3 is not trusted.</dd>
+  <dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning. Only congruence is known about it. Example: <code>(declare-fun f (U) U)</code>.</dd>
+  <dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A declared sort with no fixed values, such as <code>(declare-sort U 0)</code>.</dd>
+</dl>
+
+<footer>Generated by the Lean certificate improvement loop on 2026-11-11.</footer>
+</body>
+</html>
