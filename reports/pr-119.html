@@ -51,13 +51,13 @@ footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--borde
 <h1>Declare uninterpreted functions and sorts in the theory-clause oracle</h1>
 <dl class="meta">
   <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/119">levnach/z3 #119</a></dd>
-  <dt>State</dt><dd><span class="badge">OPEN</span></dd>
-  <dt>Date</dt><dd>2026-11-11T13:25:09Z</dd>
+  <dt>State</dt><dd><span class="badge">MERGED</span></dd>
+  <dt>Date</dt><dd>2026-11-11T13:40:05Z</dd>
   <dt>Loop iteration</dt><dd>118</dd>
 </dl>
-<p>This pull request is open and <strong>not merged</strong>. The change under review is commit
-<a href="https://github.com/levnach/z3/commit/2a374f329de75a1d17f3fd13ab61064eec81211c"><code>2a374f3</code></a>.
-It contains two commits: the change and a follow-up that addresses the review.</p>
+<p>This pull request was merged into <code>master</code> on 2026-11-11T13:40:05Z as commit
+<a href="https://github.com/levnach/z3/commit/e2dd401935aa8d59434baf3bf92b1306c109287b"><code>e2dd401</code></a>.
+That single commit carries both of the PR's commits: the change and a follow-up that addresses the review.</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
@@ -133,7 +133,7 @@ It used to be a single automated tactic call. Now it is a short structural proof
 Z3 logged the related clause using <code>w = z</code> directly.</p>
 
 <h3>(b) Before</h3>
-<p>The base commit's scripts, run on the same file, gave no error. They printed this line, with the path shortened:</p>
+<p>The base commit's scripts, run on the same file, gave no error. Their certificate was byte-for-byte the same as the new one. The old reconstructor printed this line, with the path shortened:</p>
 <pre><code>Lean checked the refutation; wrote old-example.lean</code></pre>
 <p>The lemma in question was proved by unfolding every definition and calling <code>grind</code>:</p>
 <pre><code>set_option maxHeartbeats 1000000 in
@@ -144,7 +144,7 @@ private theorem th_lemma_40 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
 <p class="explain">The old oracle could not read <code>w</code> or <code>z</code>, so it found no clause, and this fallback was the only proof.</p>
 
 <h3>(c) After</h3>
-<p>The current reconstructor generated the following file. These are excerpts.</p>
+<p>The reconstructor at the merge commit generated the following file. These are excerpts.</p>
 <pre><code>-- Element 3: "w"
 -- Element 4: "z"
 ...
@@ -180,11 +180,12 @@ private theorem th_lemma_40 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
     | (unfold formula_39 formula_38 formula_23 ... term_1 term_0
        grind (splits := 64))</code></pre>
 <p class="explain">The new first attempt states the oracle's clause "if <code>w</code> equals the <code>ite</code>, then <code>w = z</code>", proves just that clause, and then finishes by Boolean steps. The old proof stays below as the fallback.</p>
-<p><strong>Lean check:</strong> <code>scripts/check_lean.sh</code> reported "Lean checks passed." on the generated file.
+<p><strong>Lean check:</strong> <code>scripts/check_lean.sh</code> reported "Lean checks passed." on the file generated at the merge commit.
 I also removed the fallback from this lemma and checked it again. Lean accepted the structural proof on its own.</p>
 
 <h2 id="verification">How it was verified</h2>
 <p>In plain terms, every reconstruction test passed, including the three new inputs.
+The loop's local gate, which mirrors the Lean steps of the main CI job, also passed, and the PR was merged on that result.
 The new structural proofs were checked in Lean with the fallback removed.
 A deliberately corrupted clause was rejected by Lean.
 The UF-family scan found three benchmark files whose proof changed, and each changed in one lemma.
@@ -204,17 +205,28 @@ The first full test run had four failures. These were the four text-shape tests 
     <tr><td>Regression matrix cells: legacy proof object, Boolean inputs</td><td>Implementer</td><td class="pass">6 of 6 verified</td></tr>
     <tr><td>Regression matrix cells: clause log, <code>lra_*</code> inputs</td><td>Implementer</td><td class="pass">8 of 8 verified</td></tr>
     <tr><td>UF-family scan, QF_UFLIA (25 files) and non-qg5 QF_UF files</td><td>Implementer</td><td>3 files changed one lemma each. All verify before and after.</td></tr>
-    <tr><td>Local gate record</td><td>Driver</td><td class="unknown">Not recorded yet</td></tr>
   </tbody>
 </table>
-<p>No CI status was recorded in the inputs for this report, so CI results are unknown here.
-Local results do not imply that CI passed. See the PR's checks page for the current status.
+<p>The change touches only documentation, Python examples, and tests. So the loop merged it on its local gate instead of waiting for GitHub CI.
+The gate ran on the loop machine, a Darwin arm64 host, against the current Release build.</p>
+<table>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
+  <tbody>
+    <tr><td>Python example tests: certificate exporter</td><td class="pass">pass</td><td class="num">19 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="pass">pass</td><td class="num">843 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="pass">pass</td><td class="num">18 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix, legacy proof object</td><td class="pass">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix, clause log</td><td class="pass">pass</td><td class="num">6 s</td></tr>
+  </tbody>
+</table>
+<p>No CI status files were recorded for this PR, so CI results are unknown here.
+The local gate does not prove that CI passed. GitHub CI still runs on <code>master</code> after the merge.
 No CI fix rounds were recorded.</p>
 <table>
   <thead><tr><th>CI workflow / job</th><th>Step relevant to this PR</th><th>Status</th></tr></thead>
   <tbody>
-    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean, which runs the <code>test_proof_to_lean*.py</code> suite</td>
-        <td class="unknown">Unknown, see <a href="https://github.com/levnach/z3/pull/119/checks">PR checks</a></td></tr>
+    <tr><td>CI / Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean, which runs the <code>test_proof_to_lean*.py</code> suite</td>
+        <td class="unknown">Unknown, see <a href="https://github.com/levnach/z3/commit/e2dd401935aa8d59434baf3bf92b1306c109287b">merge commit checks</a></td></tr>
     <tr><td>All other checks</td><td>None known</td><td class="unknown">Unknown, see <a href="https://github.com/levnach/z3/pull/119/checks">PR checks</a></td></tr>
   </tbody>
 </table>
