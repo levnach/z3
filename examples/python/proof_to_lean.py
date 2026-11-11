@@ -8034,6 +8034,10 @@ def _outline_steps(graph, steps, dependencies, signature, tails, boundaries):
     # The interpretation is implicit in each lemma, determined by the type of
     # _inputs: a lemma is imported as `proof_step_N _inputs`.
     implicit = re.sub(r"\((_\w+ : [^()]*)\)", r"{\1}", signature)
+    if "(" in implicit:
+        # A binder whose type has parentheses would stay explicit, and every
+        # `proof_step_N _inputs` import would be ill-typed.
+        raise ReconstructionError("cannot make the interpretation implicit: %s" % signature)
     witnesses = {}
     for root in sorted(boundaries):
         local, external, pending = set(), set(), [root]

@@ -420,7 +420,8 @@ def disjunctive_temporal_instance(seed, variables=20, clauses=140):
     """Random clauses of two difference bounds, like SMT-LIB QF_IDL DTP_k2_n35_c245_s9.
 
     The refutation is a search: unit resolutions under the hypotheses of
-    many lemmas (seed 1: about 1,100 steps, 66 hypotheses).
+    many lemmas (seed 1: 1,095 steps, 66 hypotheses; seed 2: 2,832
+    steps, 118 hypotheses).
     """
     generator = random.Random(seed)
     lines = ["(set-logic QF_IDL)"] + ["(declare-const x%d Int)" % i for i in range(variables)]
@@ -2082,6 +2083,25 @@ class TestIntegerLeanIntegration(unittest.TestCase):
                 self.assertGreater(uses[int(step)], 1)
         self.assertGreater(under_hypotheses, 100)
         self.assertGreater(len(re.findall(r"^    let _step_\d+ : ", text, re.MULTILINE)), 1000)
+
+    def test_steps_beyond_the_nesting_depth_are_bound_at_the_top_level(self):
+        # Past _NESTED_STEP_DEPTH a step under hypotheses is bound at the
+        # top level as a function of them and re-applied by its one user,
+        # like a shared step. The default depth is never reached on these
+        # instances, so a depth of one makes every chain of single uses
+        # take that path.
+        source = disjunctive_temporal_instance(1)
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        uses = collections.Counter(premise for node in certificate["nodes"] for premise in node["arguments"][:-1])
+        with patch.object(proof_to_lean, "_NESTED_STEP_DEPTH", 1):
+            text = self.checked_text(source, certificate)
+        reapplied = [int(step) for step in re.findall(r"^    let _step_(\d+) := _step_\1 _hyp", text, re.MULTILINE)]
+        self.assertTrue(any(uses[step] == 1 for step in reapplied))
+        # Nesting is one level deep: no nested step has a step nested in it.
+        self.assertNotRegex(text, r"\n    let _step_\d+ : .*:=\n    let _step_\d+ : ")
+        self.assertEqual(len(re.findall(r"^ +let _step_\d+ (?!:=)", text, re.MULTILINE))
+                         + len(text.split("\nprivate theorem proof_step_")[1:]),
+                         sum(certificate["rule_counts"].values()))
 
     @lean_test_support.slow("QF_IDL plan-21, 25 MB of Lean, about 90 s at 7.5 GB")
     def test_planning_refutation_verifies_under_the_memory_cap(self):
