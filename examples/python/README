@@ -347,11 +347,10 @@ step:
     several clauses, is bridged by a th-lemma with hint "cnf" and one
     unit-resolution (no conjunct below one a model already refutes is
     checked; z3 only chooses the source, Lean proves the lemma). When no
-    single assertion implies the
-    clause (Z3 found a contradiction while asserting, or simplified an ite
-    inside one assertion under a unit asserted by another, which shows in
-    alldiff clauses), the cnf lemma is over an unsat core of the
-    assertions. Clauses with true, not
+    single assertion implies the clause (Z3 found a contradiction while
+    asserting, or simplified an ite inside one assertion under a unit
+    asserted by another, which shows in alldiff clauses), the cnf lemma is
+    over an unsat core of the assertions. Clauses with true, not
     false, or complementary literals are def-axiom nodes. Nothing else is
     accepted as an assumption. In Lean a cnf lemma is first proved by gate
     propagation over the Boolean structure of the clause with the theory

@@ -1511,9 +1511,6 @@ class _Replay:
         if time.monotonic() > self.deadline:
             raise ProofExportError("the clause-log replay exceeded the time limit of %d s" % self.time_limit)
 
-    def _valid(self, claim):
-        return self._check(claim)[0] == z3.unsat
-
     def _check(self, claim):
         """A bounded check of the negated claim: its result (unsat when the claim is valid) and the solver."""
         self._check_deadline()

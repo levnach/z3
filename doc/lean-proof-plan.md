@@ -1689,14 +1689,15 @@ failed implication check, or from a failed equivalence check whose model
 makes the clause false. The order of the checks, so the source chosen, is
 unchanged: the certificates of the large data inputs and of qlock-4-10-8
 are identical, and qlock-4-10-8 exports in 141 s with 8,251 checks. Lean
-still fails on it
-(38 MB; a theory lemma's `first | omega | grind` times out at `whnf`, then
-the 8 GB cap). Trying the equivalence candidates first for the implication
-too took the export to 28 s, but it picks deeper conjuncts as sources, and
-on tta_startup 11 nodes the propositional search then fails over the
-smaller cnf lemma (Lean would fall back to grind, which fails); not done.
-Test: `test_implication_search_skips_conjuncts_a_model_refutes`
-(`test_proof_certificate.py`).
+still fails on it (38 MB; a theory lemma's `first | omega | grind` times
+out at `whnf`, then the 8 GB cap). Trying the equivalence candidates first
+for the implication too took the export to 28 s, but it picks deeper
+conjuncts as sources, and on tta_startup 11 nodes the propositional search
+then fails over the smaller cnf lemma (Lean would fall back to grind,
+which fails); not done. Test:
+`test_implication_search_skips_conjuncts_a_model_refutes`
+(`test_proof_certificate.py`), which also pins that a model of a failed
+equivalence check refutes and an undecided check refutes nothing.
 
 ### Theory clauses over uninterpreted functions and sorts (2026-11-11)
 

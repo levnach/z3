@@ -2302,7 +2302,7 @@ class TestClauseLogReplay(unittest.TestCase):
         # The solver calls of the assumption search check it too.
         replay = proof_clause_log._Replay(_LRA, fragment, assertions, context, 5)
         replay.deadline -= 6
-        for call in (replay._valid, replay._check, replay._implying_assertions):
+        for call in (replay._check, replay._implying_assertions):
             with self.subTest(call=call.__name__), \
                     self.assertRaisesRegex(proof_certificate.ProofExportError, "replay exceeded the time limit of 5 s"):
                 call(z3.BoolVal(True, context))
@@ -2647,10 +2647,21 @@ class TestClauseLogReplay(unittest.TestCase):
         q, s = z3.Bools("q s", context)
         p = [z3.Bool("p%d" % i, context) for i in range(width)]
         checked = []
+        implications = []
         original = proof_clause_log._Replay._check
+        # When set, every implication check from an and comes back unknown,
+        # as on qlock, where those checks hit the resource limit.
+        cut_off_ands = []
 
         def check(replay, claim):
             checked.append((claim.decl().kind(), claim.arg(0).decl().kind()))
+            if claim.decl().kind() == z3.Z3_OP_IMPLIES:
+                if claim.arg(0).decl().kind() == z3.Z3_OP_AND:
+                    implications.append("and")
+                    if cut_off_ands:
+                        return z3.unknown, None
+                else:
+                    implications.append(str(claim.arg(0)))
             return original(replay, claim)
 
         def assume(literals):
@@ -2658,6 +2669,7 @@ class TestClauseLogReplay(unittest.TestCase):
             replay = proof_clause_log._Replay(source, fragment, assertions, context)
             self.assertGreater(len(replay._candidate_sources(z3.Or(literals))), 2 * width - 4)
             checked.clear()
+            implications.clear()
             with patch.object(proof_clause_log._Replay, "_check", check):
                 self.assertIsNotNone(replay.assume(literals))
             return replay.dag.rule_counts
@@ -2680,6 +2692,22 @@ class TestClauseLogReplay(unittest.TestCase):
         counts = assume([p[7], q, z3.Bool("r", context), s])
         self.assertEqual(checked, [(z3.Z3_OP_IMPLIES, z3.Z3_OP_AND)])
         self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 1, 0))
+        cut_off_ands.append(True)
+        # With the ands undecided, only the equivalence model refutes the
+        # leaf over p7, q, r: its implication is not checked, the other
+        # leaves are (each sharing q), then the fallback.
+        counts = assume([p[7], q])
+        self.assertEqual(checked[0], (z3.Z3_OP_EQ, z3.Z3_OP_OR))
+        self.assertNotIn("Or(p7, q, r)", implications)
+        self.assertIn("Or(p8, q)", implications)
+        self.assertEqual((counts["th-lemma"], counts["asserted"]), (1, 2))
+        # An undecided check refutes nothing: the leaf over p5 and q below
+        # the undecided ands is still checked, and is the source chosen.
+        counts = assume([p[5], q, s])
+        self.assertEqual(implications[-1], "Or(p5, q)")
+        self.assertEqual(implications.count("Or(p5, q)"), 1)
+        self.assertEqual((counts["th-lemma"], counts["asserted"]), (1, 1))
+        self.assertGreater(counts["and-elim"], 0)
 
     def test_assumption_search_index_is_linear_on_deep_terms(self):
         # The index first kept the symbol set of every subterm, quadratic on
