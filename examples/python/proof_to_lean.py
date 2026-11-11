@@ -1154,6 +1154,12 @@ class _Graph:
     # The terms each formula floors (_floored_terms), by node (a cache: every
     # lemma's _real_argument_pairs visits the reachable formulas again).
     floored_terms: dict = field(default_factory=dict, compare=False, repr=False)
+    # The auxiliary theorems _pointwise_map_facts has stated, by their text:
+    # their names. A step that compares two sets as an earlier one did uses
+    # that step's theorem, so the lines each call returns must be written
+    # out, in the order of the calls (reconstruct writes the steps' lemmas
+    # in node order).
+    pointwise_theorems: dict = field(default_factory=dict, compare=False, repr=False)
 
     def constructor_index(self, name, sort):
         """The index of a constructor in _m.ctors: the enumerations by sort name, each in declaration order."""
@@ -3197,7 +3203,7 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
     # this alternative should then be computed over reachable.
     store_body = gates + full_unfold + fallback
     fallback = gates + unfold + fallback
-    alternatives.append(fallback)
+    bodies = [fallback]
     if (any(graph.kind(term) == z3.Z3_OP_STORE for term in reachable) if prefix == "rewrite"
             else _store_identity_instance(graph, reachable)):
         # Z3's rewriter may have applied the store identities: the folded
@@ -3218,9 +3224,21 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
         # Numeral expressions evaluated first, as the rewriter compares
         # indices and values by value ((/ 2 2) is 1.0).
         values, value_names = _numeral_facts(graph, reachable, atom_indices, variable_indices)
-        alternatives.append(store_body[:-1] + values
-                            + [_ARRAY_REWRITE_TACTIC % "".join(name + ", " for name in value_names + names),
-                               "all_goals " + store_body[-1]])
+        bodies.append(store_body[:-1] + values
+                      + [_ARRAY_REWRITE_TACTIC % "".join(name + ", " for name in value_names + names),
+                         "all_goals " + store_body[-1]])
+    if pointwise_facts:
+        # Without the pointwise facts first: a step that needs none is
+        # proved as it was before them, whatever they cost. grind closes
+        # the classes of the sets they equate under every map and read in
+        # its context, and that is not cheap: a cnf lemma over sixteen
+        # nested maps of xor, proved in 0.6 s without its eleven such
+        # equalities, ran out of the heartbeats with them (which first does
+        # not catch). A step that needs them fails these attempts (`grind`
+        # failed) and repeats its facts with them.
+        stated = set(pointwise_facts)
+        alternatives.extend([tactic for tactic in body if tactic not in stated] for body in bodies)
+    alternatives.extend(bodies)
     if len(alternatives) == 1:
         lines.extend("  " + tactic for tactic in fallback)
     else:
@@ -4079,10 +4097,15 @@ _POINTWISE_SET_OPERATORS = {z3.Z3_OP_SET_UNION: "or", z3.Z3_OP_SET_INTERSECT: "a
                             z3.Z3_OP_SET_DIFFERENCE: "setminus", z3.Z3_OP_SET_COMPLEMENT: "not"}
 # A set term is compared pointwise (_pointwise_map_facts) over at most this
 # many leaves (sets, Boolean values, and stored-index tests; its truth table
-# has 2^n rows) and this many maps and stores, counted as a tree (the
-# comparison writes its member formula out); a larger one is taken as a set
-# of its own. A step that reaches more than _POINTWISE_SETS Boolean set
-# terms gets no pointwise facts.
+# has 2^n rows) and this many maps and stores, counted as its member formula
+# writes them (the comparison writes that formula out): as a tree, and an
+# argument once per occurrence in its map's formula (_pointwise_occurrences;
+# a map of xor writes each argument twice and a map of ite its condition, so
+# the formula of a nest of them doubles per level: sixteen nested maps of
+# xor wrote 10.8 MB and Lean ran out of heartbeats while the limit was on
+# the number of maps). A larger term is taken as a set of its own. A step
+# that reaches more than _POINTWISE_SETS Boolean set terms gets no
+# pointwise facts.
 _POINTWISE_LEAVES = 8
 _POINTWISE_SIZE = 48
 _POINTWISE_SETS = 256
@@ -4104,6 +4127,13 @@ def _pointwise_function(graph, node):
     if any(_array_components(sort)[1] != "Bool" for sort in decl.domain):
         return None
     return _POINTWISE_FUNCTIONS.get(decl.parameters[0])
+
+
+def _pointwise_occurrences(graph, node):
+    """How many times the member formula of a map or set operator writes that of each argument (_map_application)."""
+    marks = ["\0%d\0" % position for position in range(len(graph.arguments(node)))]
+    written = _map_application(graph, node, marks)
+    return [written.count(mark) for mark in marks]
 
 
 def _expanded_table(table, leaves, onto):
@@ -4156,7 +4186,11 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
     proved by function extensionality from an auxiliary theorem over the
     members as propositions, which grind proves with nothing else in its
     context; the member formulas are what the sets' definitions unfold to
-    at an index. The tables only choose the facts: Lean checks each.
+    at an index. Two sets of one member formula (a union and the map of or
+    over the same sets) are equal by rfl at each index, without a theorem,
+    and an auxiliary theorem is stated once per certificate: a later
+    comparison of the same text uses it (_Graph.pointwise_theorems). The
+    tables only choose the facts: Lean checks each.
 
     With members_read (a cnf lemma, whose clause the solver assumed about
     members while the assertion it is tied to equates sets), each such
@@ -4164,8 +4198,8 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
     lemma reads from a set of its sort, by congruence, unless there are
     more than _COMPARISON_READS such facts.
 
-    Returns the lines of the auxiliary theorems, named name_pwN, and the
-    facts.
+    Returns the lines of the auxiliary theorems stated here, named
+    name_pwN, and the facts.
     """
     def inline(sub):
         return "(%s)" % _inline(graph, sub, atom_indices, variable_indices)
@@ -4177,9 +4211,10 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
     if len(sets) > _POINTWISE_SETS or not any(_pointwise_function(graph, node) is not None for node in sets):
         return [], []
     # Per set: its leaves, its truth table over them, and the number of maps
-    # and stores in it as a tree. Ids are topological, so arguments come
-    # first. A leaf is a set, a Boolean value, or the proposition that the
-    # member's index is a stored one, named by its kind and node.
+    # and stores its member formula writes (_POINTWISE_SIZE). Ids are
+    # topological, so arguments come first. A leaf is a set, a Boolean
+    # value, or the proposition that the member's index is a stored one,
+    # named by its kind and node.
     tables, functions = {}, set()
 
     def value_table(value):
@@ -4197,13 +4232,15 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
             # The stored value at the stored index, the array's member elsewhere.
             function = _POINTWISE_FUNCTIONS["ite"]
             operands = [((("index", arguments[1]),), 2, 0), value_table(arguments[2]), tables[arguments[0]]]
+            written = (1, 1, 1)
         elif function is not None and all(argument in tables for argument in arguments):
             operands = [tables[argument] for argument in arguments]
+            written = _pointwise_occurrences(graph, node)
         else:
             operands = None
         if operands is not None:
             leaves = tuple(sorted({leaf for operand in operands for leaf in operand[0]}))
-            size = 1 + sum(operand[2] for operand in operands)
+            size = 1 + sum(count * operand[2] for count, operand in zip(written, operands))
             if len(leaves) <= _POINTWISE_LEAVES and size <= _POINTWISE_SIZE:
                 full = (1 << (1 << len(leaves))) - 1
                 tables[node] = (leaves, function(full, *(_expanded_table(operand[1], operand[0], leaves)
@@ -4238,15 +4275,21 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
         return inline(node) if kind == "value" else "(%s = %s)" % (at, inline(node))
 
     def auxiliary(left, right, statement):
-        """State the auxiliary theorem of two sets; returns it applied to their leaves' members at _i."""
+        """The auxiliary theorem of two sets applied to their leaves' members at _i, stated unless it was before.
+
+        None if the two have one member formula (sets of one function may).
+        """
         leaves = sorted(set(tables[left][0]) | set(tables[right][0]))
         names = {leaf: "_p%d" % position for position, leaf in enumerate(leaves)}
-        theorem = "%s_pw%d" % (name, len(theorems) // 3)
-        theorems.extend([
-            "",
-            "private theorem %s%s :" % (theorem, " (%s : Prop)" % " ".join(names[leaf] for leaf in leaves)
-                                        if leaves else ""),
-            "    %s := by grind" % (statement % (member(left, names), member(right, names)))])
+        sides = (member(left, names), member(right, names))
+        if sides[0] == sides[1]:
+            return None
+        stated = ["%s :" % (" (%s : Prop)" % " ".join(names[leaf] for leaf in leaves) if leaves else ""),
+                  "    %s := by grind" % (statement % sides)]
+        theorem = graph.pointwise_theorems.get(tuple(stated))
+        if theorem is None:
+            theorem = graph.pointwise_theorems[tuple(stated)] = "%s_pw%d" % (name, len(theorems) // 3)
+            theorems.extend(["", "private theorem %s%s" % (theorem, stated[0]), stated[1]])
         return "(%s)" % " ".join([theorem] + [leaf_member(leaf, "_i") for leaf in leaves])
 
     classes = {}
@@ -4258,8 +4301,9 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
         first = next((node for node in members if node not in functions), members[0])
         for node in members:
             if node != first:
-                facts.append("have _pw%d : %s = %s := funext (fun _i => propext %s)" % (
-                    node, inline(node), inline(first), auxiliary(node, first, "(Iff %s %s)")))
+                proof = auxiliary(node, first, "(Iff %s %s)")
+                facts.append("have _pw%d : %s = %s := funext (fun _i => %s)" % (
+                    node, inline(node), inline(first), "rfl" if proof is None else "propext %s" % proof))
     equalities = [node for node in sorted(reachable) if graph.kind(node) == z3.Z3_OP_EQ
                   and all(argument in keys for argument in graph.arguments(node))
                   and any(argument in functions for argument in graph.arguments(node))]

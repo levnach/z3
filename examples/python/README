@@ -1300,7 +1300,15 @@ equality of two terms of one function and the difference of an equality's
 sides that differ in every row, each by function extensionality from an
 auxiliary theorem over the members as propositions that grind proves on its
 own, and in a cnf lemma the members of an equality's sides at the indices it
-reads (_pointwise_map_facts). The rewriter turns setminus a b into the map of and over a and the
+reads (_pointwise_map_facts). A term is read this way while its member
+formula writes at most 48 maps and stores (a map of xor writes each argument
+twice and a map of ite its condition, so a nest of them doubles per level);
+a larger one is a leaf. Two terms of one member formula are equal by rfl, an
+auxiliary theorem is stated once per certificate, and the step is first
+tried without these facts, then with them: grind closes the classes of the
+equated sets under every map in its context, which exhausted the heartbeats
+of a lemma that needed none of them. The rewriter turns setminus a b into
+the map of and over a and the
 complement of b, a different Lean function, so each setminus node is stated
 equal to that map by rfl; union, intersection, and complement share their
 Lean function with the map they become. A map of any other function is

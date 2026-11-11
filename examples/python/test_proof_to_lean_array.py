@@ -1399,6 +1399,46 @@ SET_COMBINATOR_INPUTS = {
 (check-sat)
 """,
 }
+
+
+def _nested_maps(function, depth, *others):
+    """depth nested maps of function, each over the one below (the set a at the bottom) and others."""
+    term = "a"
+    for _ in range(depth):
+        term = "(%s %s)" % (function, " ".join((term,) + others))
+    return term
+
+
+# Sixteen nested maps of xor, and of ite: a map of xor writes the member
+# formula of each argument twice and a map of ite that of its condition, so
+# the formula of the nest doubles per level. The pointwise comparison counts
+# what it writes, and a step first tries without its facts; neither read
+# needs one (every second level of the first nest is a or (xor a b)). With
+# the maps counted as a tree the certificate of the first was 10.8 MB and
+# Lean ran out of heartbeats on an auxiliary theorem; with small auxiliary
+# theorems and the facts in the step's only attempt, grind ran out of them
+# in the cnf lemma over the eleven equalities of the nest's levels.
+SET_COMBINATOR_INPUTS.update({
+    "set_read_of_nested_xor_maps": """(declare-fun a () (Array Int Bool))
+(declare-fun b () (Array Int Bool))
+(declare-fun c () (Array Int Bool))
+(declare-fun i () Int)
+(assert (select %s i))
+(assert (not (select a i)))
+(assert (= c (setminus a a)))
+(check-sat)
+""" % _nested_maps("(_ map xor)", 16, "b"),
+    "set_read_of_nested_ite_maps": """(declare-fun a () (Array Int Bool))
+(declare-fun b () (Array Int Bool))
+(declare-fun c () (Array Int Bool))
+(declare-fun d () (Array Int Bool))
+(declare-fun i () Int)
+(assert (select %s i))
+(assert (not (select (union %s %s) i)))
+(assert (= d (setminus a a)))
+(check-sat)
+""" % ((_nested_maps("(_ map (ite (Bool Bool Bool) Bool))", 16, "b", "c"),) * 3),
+})
 # Maps of other functions ((_ map f) a ...): uninterpreted functions and
 # predicates of up to three arguments, the Boolean connective xor, = and
 # distinct, Int and Real +, -, and comparisons, and ite, over elements of
@@ -3056,6 +3096,41 @@ class TestArrayValidation(unittest.TestCase):
                 self.assertNotIn("_pw", text_of("sets_equal_member_by_member"))
                 if limit != "_POINTWISE_SIZE":  # a union and a complement: one map each
                     self.assertNotIn("_pw", text_of("members_of_equal_sets"))
+        # The maps are counted as the member formula writes them: five
+        # nested maps of xor write 31 (1, 3, 7, 15, 31), a sixth would make
+        # 63, over _POINTWISE_SIZE, and is a set of its own, the leaf of the
+        # next five. So no comparison is of more than twice the limit, the
+        # largest here of 31 maps against one; counted as a tree, sixteen
+        # levels were under the limit and wrote megabytes.
+        self.assertEqual(proof_to_lean._POINTWISE_SIZE, 48)
+        for name, largest in (("set_read_of_nested_xor_maps", 32), ("set_read_of_nested_ite_maps", None)):
+            with self.subTest(name=name):
+                text = text_of(name)
+                self.assertLess(len(text), 200000)
+                statements = re.findall(r"private theorem \w+_pw\d+([^\n]*:\n[^\n]*) := by grind\n", text)
+                written = max(statement.count("(Or (And ") for statement in statements)
+                self.assertLessEqual(written, 2 * proof_to_lean._POINTWISE_SIZE)
+                if largest is not None:
+                    self.assertEqual(written, largest)
+                # An auxiliary theorem is stated once: the steps that compare
+                # the same two member formulas share it.
+                self.assertEqual(len(set(statements)), len(statements))
+                uses = re.findall(r"have _pw\d+ : [^\n]* propext \(\w+_pw\d+ ", text)
+                self.assertGreater(len(uses), len(statements))
+                # A step tries without its pointwise facts first, then
+                # repeats its attempts with them.
+                steps = [step for step in text.split("\n\n") if "have _pw" in step]
+                self.assertTrue(steps)
+                for step in steps:
+                    stated = ["have _pw" in attempt for attempt in step.split("\n    | (")[1:]]
+                    self.assertEqual(stated, sorted(stated), step)
+                    self.assertEqual(stated.count(True), stated.count(False), step)
+        # Two sets of one member formula (a difference and the intersection
+        # with the complement) are equal by rfl at each index: no theorem.
+        text = text_of("setminus_as_intersection")
+        self.assertRegex(text, r"have _pw\d+ : \(\(term_\d+ [^)]*\)\) = \(\(term_\d+ [^)]*\)\) := "
+                               r"funext \(fun _i => rfl\)\n")
+        self.assertNotRegex(text, r"theorem \w+_pw\d+")
         # No map or set operator, no fact: stores alone are left to the store identities.
         for name in ("set_read_through_numeral_stores_to_own_index", "set_insert_elsewhere"):
             with self.subTest(name=name):
@@ -4472,11 +4547,28 @@ class TestArrayLeanIntegration(unittest.TestCase):
     def test_map_facts_are_needed(self):
         """Without the read facts below a map, or the map identities, grind cannot prove the steps over maps.
 
-        In a rewrite the pointwise facts (proof_to_lean._pointwise_map_facts)
-        prove what the identities of a single map do, so they are dropped
-        with each fact; the last four inputs need the pointwise facts
+        Each kind of fact is dropped alone, the pointwise facts
+        (proof_to_lean._pointwise_map_facts) left in place: an euf lemma
+        gets none of those, and union_commutes needs the commutativity of
+        its map in one. The rewriter's identities of a single map of
+        connectives (the six inputs of rewriter below) are what the
+        pointwise facts prove as well in a rewrite, and all a rewrite has
+        beyond the pointwise limits. Those inputs are reconstructed over the
+        limit on a step's sets (_POINTWISE_SETS), so without pointwise
+        facts: Lean accepts that text, by the identities alone, and rejects
+        it without them. The last four inputs need the pointwise facts
         themselves.
         """
+        def check(text):
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "facts.lean"
+                output.write_text(text)
+                result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(output)], text=True,
+                                        capture_output=True)
+            return result.returncode, result.stdout + result.stderr
+
+        rewriter = {"complement_twice", "intersection_idempotent", "map_of_stores", "setminus_named",
+                    "map_of_store_and_constant", "map_of_constants"}
         for name, fact in (("z3test_t8", r"have _m\d+_\d+ : "), ("read_of_map_over_constants", r"have _m\d+_\d+ := "),
                            ("union_commutes", r"have _mc\d+ := "), ("complement_twice", r"have _mn\d+ := "),
                            ("intersection_idempotent", r"have _mi\d+ := "), ("map_of_stores", r"have _ms\d+ := "),
@@ -4495,18 +4587,17 @@ class TestArrayLeanIntegration(unittest.TestCase):
                            ("members_of_equal_sets", r"have _pwr\d+_\d+ : ")):
             with self.subTest(name=name):
                 source = ARRAY_INPUTS[name]
-                text = proof_to_lean.reconstruct(source, _export(source))
+                sets = 0 if name in rewriter else proof_to_lean._POINTWISE_SETS
+                with mock.patch.object(proof_to_lean, "_POINTWISE_SETS", sets):
+                    text = proof_to_lean.reconstruct(source, _export(source))
                 pattern = re.compile(r"^\s*" + fact)
-                lines = text.split("\n")
-                self.assertTrue(any(map(pattern.match, lines)), text)
-                stripped = _without_facts(text, re.compile(r"^\s*(?:%s|have _pwn?\d+ : )" % fact).match)
-                with tempfile.TemporaryDirectory() as directory:
-                    output = Path(directory) / "stripped.lean"
-                    output.write_text(stripped)
-                    result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(output)], text=True,
-                                            capture_output=True)
-                report = result.stdout + result.stderr
-                self.assertNotEqual(result.returncode, 0, report)
+                self.assertTrue(any(map(pattern.match, text.split("\n"))), text)
+                if name in rewriter:
+                    self.assertNotIn("_pw", text)
+                    code, report = check(text)
+                    self.assertEqual(code, 0, report)
+                code, report = check(_without_facts(text, pattern.match))
+                self.assertNotEqual(code, 0, report)
                 errors = [line for line in report.split("\n") if "error:" in line]
                 self.assertTrue(errors, report)
                 for error in errors:

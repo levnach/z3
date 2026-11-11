@@ -2494,10 +2494,13 @@ leaves: the sets its maps, set operators, and stores are over, the Boolean
 values stored or held by constant arrays (other than true and false), and,
 per stored index, whether the member's index is that one. It computes the
 truth table (at most `_POINTWISE_LEAVES` = 8 leaves and `_POINTWISE_SIZE`
-maps per term; a larger term is a leaf itself) and states
+= 48 maps and stores per term, counted as its member formula writes them;
+a larger term is a leaf itself) and states
 
 - two terms of one function equal: `have _pwN : A = B := funext (fun _i =>
-  propext (rewrite_K_pwJ (_select a _i) ...))`;
+  propext (rewrite_K_pwJ (_select a _i) ...))`, or `funext (fun _i => rfl)`
+  when the two have one member formula (a union and the map of `or` over
+  the same sets);
 - the sides of an equality whose functions differ in every row different:
   `A = B -> False`, at an inhabitant of the index sort (0 over Int and
   Real; over an uninterpreted sort only when the interpretation already
@@ -2515,17 +2518,56 @@ facts to state: a wrong table gives a theorem `grind` cannot prove or a
 fact that does not type-check. Steps without a map or set operator get
 nothing (stores alone stay with the store identities).
 
+What the facts cost is bounded in two ways, both found on `(select X i)`,
+`(not (select a i))`, `(= c (setminus a a))` with `X` sixteen nested maps
+`((_ map xor) ... b)` over `a`, which verified in 0.6 s before any
+pointwise fact (every second level of the nest has the function of `a` or
+of `(xor a b)`, and no step needs to know):
+
+- A map of `xor` writes the member formula of each argument twice and a
+  map of `ite` that of its condition, so the formula of a nest doubles per
+  level. `_POINTWISE_SIZE` counts a map's argument once per occurrence in
+  what `_map_application` writes (`_pointwise_occurrences`): five nested
+  maps of `xor` count 31, the sixth is a leaf. Counted as a tree of maps,
+  the sixteen levels were under the limit: 10.8 MB of text, and an
+  auxiliary theorem out of heartbeats (172 MB at twenty levels).
+- A step is first tried without its pointwise facts and then again with
+  them (`_grind_lemma`; each attempt is an alternative of `first`). With
+  small auxiliary theorems and the facts in the only attempt, the cnf
+  lemma of that input, given the eleven equalities between the levels of
+  the nest, ran out of its 1,000,000 heartbeats (`whnf`, inside `grind`,
+  after 15 s); stating the facts and clearing them took 0.6 s, so the cost
+  is `grind` closing the classes of the equated sets under the maps and
+  reads of its context. `first` does not catch a heartbeat timeout, so
+  the attempt without the facts has to come first: a step that needs none
+  is proved as before, and a step that needs them fails the first attempt
+  with `grind` failed, as it did before the facts existed.
+
+An auxiliary theorem is stated once per certificate
+(`_Graph.pointwise_theorems`, by its text): a later step that compares the
+same two member formulas uses the earlier step's theorem. Over the 304
+exported seeds of 1-1000 that is 221 auxiliary theorems instead of 477
+(207 of those had one formula on both sides, now `rfl`), 7.19 MB of text
+against 6.80 MB (the repeated attempts), and the same Lean time (131 s).
+
 After: all 304 exported seeds of 1-1000 verify in Lean (261 before; the
 other 64 unsatisfiable ones rest on the default-map axiom and stay
 rejected). Still open: an equality of sets decided false over an
 uninterpreted index sort when the interpretation has no `nonempty` field
-(`(= (union a (complement a)) (setminus b b))` over `(Array Index Bool)`).
+(`(= (union a (complement a)) (setminus b b))` over `(Array Index Bool)`);
+and a step that needs some of its pointwise facts while `grind` cannot
+afford all of them (none is known).
 Tests (`test_proof_to_lean_array.py`): ten documented inputs in
 `SET_COMBINATOR_INPUTS` and the pinned seeds `POINTWISE_SET_SEEDS` (Lean;
-each failed before), `test_sets_are_compared_member_by_member`, and
-`test_map_facts_are_needed`, which drops the pointwise facts together with
-each identity of a single map (in a rewrite either proves the step) and
-has four inputs that need the pointwise facts themselves.
+each failed before), the sixteen nested maps of `xor` and of `ite`
+(`set_read_of_nested_xor_maps`, `set_read_of_nested_ite_maps`; Lean),
+`test_sets_are_compared_member_by_member`, and
+`test_map_facts_are_needed`. The last drops each kind of fact alone; for
+the six rewriter identities of a single map of connectives, which the
+pointwise facts prove as well, it reconstructs the input without pointwise
+facts (over `_POINTWISE_SETS`), checks that Lean accepts it by the
+identities alone, and that Lean rejects it without them. Four inputs need
+the pointwise facts themselves.
 
 ### Set logs: operators as written, unused default-map axioms (2026-11-11)
 
