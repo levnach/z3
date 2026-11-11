@@ -7979,8 +7979,8 @@ def _outline_boundaries(graph, direct=frozenset()):
     rather than being cut. Only steps the root uses are outlined; the log
     may record derivations the refutation never needs. Arguments precede
     their node, so one increasing pass sees every premise's final size before
-    its consumer. The direct hypothesis steps (_direct_hypotheses) are no
-    steps of their own and are never outlined.
+    its consumer. The direct hypothesis steps (_direct_hypotheses) are not
+    bound as steps and are never outlined.
     """
     reachable, pending = set(), [graph.proof]
     while pending:
@@ -8031,7 +8031,8 @@ def _step_blocks(graph, terms, dependencies, excluded):
     lemmas, premises of conjunction tails) stay at the top level, and
     nesting stops at _NESTED_STEP_DEPTH levels, so no let value nests more
     than that many others. A premise without a term (a direct hypothesis,
-    see _direct_hypotheses) is no step: its consumers name its binder.
+    see _direct_hypotheses) is not bound as a step: its consumers name its
+    binder.
     """
     uses = Counter(premise for node in terms for premise in graph.arguments(node)[:-1])
     inner, depth = {}, {}

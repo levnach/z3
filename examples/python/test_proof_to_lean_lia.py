@@ -2116,13 +2116,15 @@ class TestIntegerLeanIntegration(unittest.TestCase):
                          + len(text.split("\nprivate theorem proof_step_")[1:]),
                          sum(certificate["rule_counts"].values()) - certificate["rule_counts"]["hypothesis"])
 
-    @lean_test_support.slow("QF_IDL plan-21, 25 MB of Lean, about 90 s at 7.5 GB")
+    @lean_test_support.slow("QF_IDL plan-21, 23.4 MB of Lean, about 90 s at 7.0 GB")
     def test_planning_refutation_verifies_under_the_memory_cap(self):
         # SMT-LIB QF_IDL planning/plan-21.cvc (110 KB): 25,842 proof steps.
         # Its 33 MB of Lean ran out of the 8 GB cap of check_lean.sh after
         # 95 s ("(kernel) excessive memory consumption"); with the steps
-        # under hypotheses bound inside their consumers it is 25 MB and
-        # verifies (see the test above).
+        # under hypotheses bound inside their consumers it was 25 MB and
+        # verified; with hypotheses named by their binders and resolutions
+        # closed by Or.resolve_right it is 23.4 MB, verified in 87 s at a
+        # 7.0 GB peak (see the test above).
         source = (_EXAMPLES / "data" / "QF_IDL_plan-21.cvc.smt2").read_text()
         certificate = proof_certificate.export_clause_log_certificate(source)
         self.assertGreater(sum(certificate["rule_counts"].values()), 25000)

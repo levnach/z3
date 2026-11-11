@@ -621,6 +621,20 @@ class TestProofToLeanIntegration(unittest.TestCase):
         self.assertNotRegex(text, r"let _step_\d+ := _step_\d+ _hyp\d+\n")
         self.assertNotIn("cases _d", text)
 
+    def test_hypothesis_premise_of_a_lemma_used_by_another_step(self):
+        # The hypothesis false is the premise of a lemma, which discharges
+        # its binder, so it keeps a step of its own; the resolution that also
+        # uses it re-applies that step to the binder.
+        source = "(declare-const p Bool)(assert p)(assert (not p))"
+        text = self.check(source, make_certificate(source, [
+            ("hypothesis", [], "false"),
+            ("unit-resolution", [2], "false"),
+            ("lemma", [2], "(not false)"),
+            ("lemma", [3], "(not false)"),
+            ("unit-resolution", [0, 1], "false"),
+        ]))
+        self.assertRegex(text, r"let (_step_\d+) \((_hyp\d+) : [^\n]*\n +\2\n(.*\n)* +let \1 := \1 \2\n")
+
     def test_scoped_structural_proofs_and_double_negation(self):
         source = "".join("(declare-const %s Bool)" % atom for atom in "pqr")
         source += "(assert (= p q))(assert (and p r))(assert (not q))"
