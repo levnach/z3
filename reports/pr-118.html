@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #118: Give normalized-rewrite links a capped budget of their own in Lean</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
+  --code-bg: #f6f8fa; --border: #d0d7de; --ok: #1a7f37; --warn: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
+    --code-bg: #161b22; --border: #30363d; --ok: #3fb950; --warn: #d29922;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+       max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: .3rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }
+h3 { font-size: 1.05rem; margin-top: 1.4rem; }
+a { color: var(--accent); }
+.meta { color: var(--muted); font-size: .95rem; }
+.badge { display: inline-block; padding: .05rem .5rem; border-radius: 1rem; border: 1px solid var(--ok);
+         color: var(--ok); font-weight: 600; font-size: .85rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+       background: var(--code-bg); padding: .05rem .25rem; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+      overflow-x: auto; font-size: .8rem; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: inherit; }
+table { border-collapse: collapse; margin: .8rem 0; width: 100%; font-size: .92rem; }
+th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--code-bg); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.pass { color: var(--ok); font-weight: 600; }
+.unk { color: var(--warn); font-weight: 600; }
+.note { color: var(--muted); font-size: .92rem; }
+dt { font-weight: 600; margin-top: .6rem; }
+dd { margin-left: 1.2rem; }
+footer { margin-top: 3rem; border-top: 1px solid var(--border); padding-top: .6rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Give normalized-rewrite links a capped budget of their own in Lean</h1>
+<p class="meta">
+<a href="https://github.com/levnach/z3/pull/118">Pull request #118</a> on levnach/z3 &middot;
+State: <span class="badge">OPEN</span> &middot; Opened 2026-11-11T11:56:02Z &middot; Loop iteration 117
+</p>
+<p class="meta">This pull request is open and <strong>not merged</strong>.
+The change under review is commit
+<a href="https://github.com/levnach/z3/commit/3c8cb88aba396a67f8a08df02950c556f98289ff"><code>3c8cb88</code></a>.
+It contains two commits on top of <code>ac7f8bc</code>.</p>
+</header>
+
+<h2 id="summary">In one paragraph</h2>
+<p>
+Some <a href="#g-lemma">lemmas</a> in the generated Lean file prove that a
+<a href="#g-normalized-rewrite">normalized rewrite</a> is an
+<a href="#g-equivalence">equivalence</a>. They are proved by a small
+<a href="#g-propositional">propositional</a> prover with a fixed
+<a href="#g-budget">step budget</a>. That prover first builds
+<a href="#g-link">links</a> between parts of the two sides that differ only by
+<a href="#g-flattening">flattening</a>. On one large
+<a href="#g-qf-lra">QF_LRA</a> benchmark, the 481 links used up the whole budget.
+The search over the two sides then never ran. The lemma fell back to the
+<a href="#g-grind"><code>grind</code></a> <a href="#g-tactic">tactic</a>, which failed.
+This PR gives each link a small allowance of its own, capped at the size of the normal budget.
+The benchmark <code>tta_startup/simple_startup_15nodes</code> now verifies in Lean.
+No new <a href="#g-axiom">axiom</a> or trust is added. Every step is still a
+<a href="#g-have"><code>have</code></a> that the Lean <a href="#g-kernel">kernel</a> checks.
+</p>
+
+<h2 id="background">Background</h2>
+<p>
+Before this PR, the previous iteration let the same benchmark pass its
+<a href="#g-cnf">CNF</a> lemma. The file still failed at one
+<a href="#g-normalized-rewrite">normalized rewrite</a>. Its left side is a
+<a href="#g-left-nested">left-nested</a> tree of binary
+<a href="#g-conjunction">conjunctions</a> and <a href="#g-disjunction">disjunctions</a>
+over 480 <a href="#g-atom">atoms</a>. Its right side is the same formula after the
+<a href="#g-rewriter">rewriter</a> flattened it. The structural prover gave up, and the
+<a href="#g-fallback">fallback</a> could not prove it either. The pipeline could already handle
+smaller rewrites of this shape. It could not handle ones whose links alone cost more than the budget.
+This work serves milestone 3 of the plan, linear arithmetic, checked against the
+z3test benchmark sample.
+</p>
+
+<h2 id="changes">What changed</h2>
+<ul>
+<li>A normalized rewrite with many links now keeps its full search budget, so the prover can finish the <a href="#g-structural-proof">structural proof</a> instead of handing it to <code>grind</code>.</li>
+<li>The extra allowance is capped at the normal budget, so a rewrite's proof can grow to at most twice the old size limit.</li>
+<li>Very large rewrites, such as one with 931 links, still go to <code>grind</code> alone, exactly as before this PR.</li>
+<li>A new test builds a small rewrite with the same shape and checks it in Lean with the <code>grind</code> fallback removed.</li>
+<li>The plan document gains a dated section that explains the allowance, the cap, and the measurements.</li>
+</ul>
+<p>Think of a hiking trip with one shared food bag. Before, the climb to base camp ate all the food, and nobody could reach the summit. Now base camp gets its own small bag. The summit team still starts with the full shared bag.</p>
+
+<table>
+<thead><tr><th>File</th><th>Component</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstructor</td><td class="num">22</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td>Tests</td><td class="num">79</td><td class="num">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">38</td><td class="num">3</td></tr>
+<tr><td colspan="2"><strong>Total, 3 files</strong></td><td class="num"><strong>139</strong></td><td class="num"><strong>3</strong></td></tr>
+</tbody>
+</table>
+<p class="note">The new constants are <code>_LINK_STEPS</code> (100) and <code>_LINK_CHARS</code> (5,000). They are used in <code>_PropositionalProver._prove_links</code>. No C++ code changed.</p>
+
+<h2 id="example">Worked example</h2>
+<p>
+The real input this PR fixes is 180 KB, far too big to show. So this example uses the PR's own
+test generator, <code>startup_shaped_rewrite_instance</code>, with 3 nodes instead of 6.
+The declarations are grouped six to a line. At the default limits, the old and new code
+already agree on an input this small. The PR's test therefore scales the step limit down to
+mimic the large case. Here the limit is set to 300 steps instead of 20,000. All output below comes
+from real runs of the old and new scripts.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(declare-const x1 Real) (declare-const x2 Real) (declare-const x3 Real) (declare-const x4 Real) (declare-const x5 Real) (declare-const x6 Real)
+(declare-const x7 Real) (declare-const x8 Real) (declare-const x9 Real) (declare-const x10 Real) (declare-const x11 Real) (declare-const x12 Real)
+(declare-const x13 Real) (declare-const x14 Real) (declare-const x15 Real) (declare-const x16 Real) (declare-const x17 Real) (declare-const x18 Real)
+(assert (or (or (and (and (&lt;= x1 5) (not (&lt;= x4 5))) (or (and (and (&lt;= x2 5) (not (&lt;= x5 5))) (or (not (&lt;= x7 5)) (not (&lt;= x8 5)))) (and (and (&lt;= x3 5) (not (&lt;= x6 5))) (or (not (&lt;= x9 5)) (not (&lt;= x10 5)))))) (and (and (&lt;= x2 5) (not (&lt;= x5 5))) (or (and (and (&lt;= x1 5) (not (&lt;= x4 5))) (or (not (&lt;= x11 5)) (not (&lt;= x12 5)))) (and (and (&lt;= x3 5) (not (&lt;= x6 5))) (or (not (&lt;= x13 5)) (not (&lt;= x14 5))))))) (and (and (&lt;= x3 5) (not (&lt;= x6 5))) (or (and (and (&lt;= x1 5) (not (&lt;= x4 5))) (or (not (&lt;= x15 5)) (not (&lt;= x16 5)))) (and (and (&lt;= x2 5) (not (&lt;= x5 5))) (or (not (&lt;= x17 5)) (not (&lt;= x18 5))))))))
+(assert (&gt; x1 5)) (assert (&gt; x2 5)) (assert (&gt; x3 5))
+(check-sat)</code></pre>
+<p>Each node needs <code>x1</code>, <code>x2</code>, or <code>x3</code> to be at most 5, but the last line forbids that. So the input is unsat.</p>
+
+<h3>(b) Before</h3>
+<p>The old code gave no error message on this input. Its prover silently ran out of steps while building the 13 links. It then left the whole lemma to <code>grind</code>:</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem normalized_rewrite_154 (_atoms : Nat -&gt; Prop) (_atom0 : Prop) ... (_atom17 : Prop)
+    : (Iff (Or (Or (And (And _atom0 (Not _atom1)) ... )) (Or (And _atom0 (And (Not _atom1) ... )))) :=
+  by grind (splits := 64)</code></pre>
+<p>On this tiny input, Lean accepted that file because <code>grind</code> can prove the lemma. On the real 15-node benchmark, the same situation ended in failure. According to the PR, <code>grind</code> failed on <code>normalized_rewrite_15304</code> after 156 s at 3.83 GB. I could not find a small input that the old code rejects outright. The difference only turns into a rejection at the large scale, where <code>grind</code> gives up. I did not rerun that 156-second check myself.</p>
+
+<h3>(c) After</h3>
+<p>The new code, at the same 300-step limit, produced a file byte-identical to the one from the default limits. Some declarations:</p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((5 : Rat))
+def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_0 _atoms _vars) &lt;= (term_1 _atoms _vars))
+...</code></pre>
+<p>Each SMT-LIB term and formula becomes a Lean definition over rational variables.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_74 _atoms _vars))
+    (_h1 : (formula_75 _atoms _vars))
+    (_h2 : (formula_76 _atoms _vars))
+    (_h3 : (formula_77 _atoms _vars))
+    : False :=
+...</code></pre>
+<p>The main theorem says the four assertions together imply <code>False</code>.</p>
+<pre><code>private theorem normalized_rewrite_154 (_atoms : Nat -&gt; Prop) (_atom0 : Prop) ... (_atom17 : Prop)
+    : (Iff (Or (Or (And (And _atom0 (Not _atom1)) ... )) (Or (And _atom0 (And (Not _atom1) ... )))) :=
+  by first
+    | (let _s0 : Prop := (And _atom0 (Not _atom1))
+       let _s1 : Prop := (And _atom2 (Not _atom3))
+       let _s2 : Prop := (Or (Not _atom4) (Not _atom5))
+       let _s3 : Prop := (And _s1 _s2)
+       ...
+       let _s23 : Prop := (And _atom2 (And (Not _atom3) _s2))
+       ...
+       let _s36 : Prop := (Iff _s23 _s3)
+       ...
+       let _s48 : Prop := (Iff _s35 _s22)
+       have _f19 : _s36 := by
+         refine Iff.intro (fun (_f1 : _s23) =&gt; ?_) (fun (_f11 : _s3) =&gt; ?_)
+         · refine Classical.byContradiction (fun (_f2 : Not _s3) =&gt; ?_)
+           have _f5 := _f1.1
+           have _f6 := _f1.2.1
+           have _f7 := _f1.2.2
+           have _f8 := (fun (_g : _s1) =&gt; _f2 (And.intro _g _f7))
+           exact (False.elim (_f8 (And.intro _f5 _f6)))
+         · refine Classical.byContradiction (fun (_f12 : Not _s23) =&gt; ?_)
+           have _f15 := _f11.1
+           have _f16 := _f11.2
+           have _f17 := _f15.1
+           have _f18 := _f15.2
+           exact (False.elim (_f12 (And.intro _f17 (And.intro _f18 _f16))))
+       ...
+       have _f251 : _s48 := by
+         ...
+       refine Iff.intro (fun (_f252 : _s22) =&gt; ?_) (fun (_f254 : _s35) =&gt; ?_)
+       · refine Classical.byContradiction (fun (_f253 : Not _s35) =&gt; ?_)
+         exact (False.elim ((fun _g =&gt; _f253 (Iff.mpr _f251 _g)) _f252))
+       · refine Classical.byContradiction (fun (_f255 : Not _s22) =&gt; ?_)
+         exact (False.elim (_f255 (Iff.mp _f251 _f254))))
+    | grind (splits := 64)</code></pre>
+<p>Now the lemma has a full structural proof. The 13 links, <code>_s36</code> to <code>_s48</code>, each say that a nested group equals its flattened copy. The first link, <code>_f19</code>, shows that <code>a ∧ (b ∧ c)</code> and <code>(a ∧ b) ∧ c</code> agree. The last link covers the whole formula, and two short steps finish the equivalence. <code>grind</code> remains only as a fallback.</p>
+<p><strong>Lean result:</strong> <code>check_lean.sh</code> printed <code>Lean checks passed.</code> for the new file. It also passed with the <code>grind</code> fallback replaced by <code>fail "no fallback"</code>. So the structural proof stands on its own.</p>
+
+<h2 id="verification">How it was verified</h2>
+<p>In plain terms: the whole Lean reconstruction test suite passed, and the 15-node benchmark now checks in about 41 seconds.
+The reviewer and the integrator both reproduced that result. A sweep of the z3test QF_LRA sample found that only this one benchmark changed.
+I did not rerun these checks. The figures below come from the PR description and the review.</p>
+<table>
+<thead><tr><th>Check (local)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td class="pass">530 tests, OK, 9 skipped</td></tr>
+<tr><td>The two new tests alone</td><td class="pass">2 tests, OK</td></tr>
+<tr><td>Certificate exporter tests</td><td class="pass">119 tests, OK</td></tr>
+<tr><td>z3test proof tests</td><td class="pass">48 tests, OK</td></tr>
+<tr><td><code>check_lean.sh</code> on the Lean workspace</td><td class="pass">Lean checks passed</td></tr>
+<tr><td>releaseClang matrix cells: legacy proof object on Boolean inputs</td><td class="pass">6 of 6 Lean-verified</td></tr>
+<tr><td>releaseClang matrix cells: clause log on <code>lra_*.smt2</code></td><td class="pass">8 of 8 Lean-verified</td></tr>
+<tr><td>tta_startup 15 nodes, end to end</td><td class="pass">passes, 41.1 s, 2.90 GB peak, 5.2 MB of Lean</td></tr>
+<tr><td>Python-only scan of 25 QF_LRA sample inputs</td><td>only the 15-node input changed, from 1 prover failure to 0</td></tr>
+<tr><td>Generated rewrites with 30, 35, 40 nodes</td><td>byte-identical to the pre-PR certificates</td></tr>
+<tr><td>C++ unit tests and SMT2 regressions</td><td>not run, since no C++ code changed</td></tr>
+</tbody>
+</table>
+<p>The formal local gate, which records its results in a separate file, had not written those results when this page was made. Its results are therefore unknown here.</p>
+
+<table>
+<thead><tr><th>CI workflow / check</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean", gate "Lean reconstruction tests" (runs the new tests)</td><td class="unk">not recorded</td></tr>
+<tr><td>All other checks</td><td class="unk">not recorded</td></tr>
+</tbody>
+</table>
+<p class="note">No CI status files were available, so this page reports no CI outcome. See the
+<a href="https://github.com/levnach/z3/pull/118/checks">PR's checks page</a> for live results. There were no CI fix rounds.</p>
+
+<h2 id="review">Review</h2>
+<p>The reviewer first asked for changes. All three findings were fixed in the second commit.</p>
+<table>
+<thead><tr><th>Severity</th><th>Finding</th><th>Resolution</th></tr></thead>
+<tbody>
+<tr><td>major</td><td>The link allowance had no upper limit.</td><td>Fixed: capped at the normal budget.</td></tr>
+<tr><td>minor</td><td>The new test kept the <code>grind</code> fallback during the Lean check.</td><td>Fixed: checked with the fallback removed.</td></tr>
+<tr><td>nit</td><td>The plan still described the old size bound.</td><td>Fixed: the plan now states the doubled bound.</td></tr>
+</tbody>
+</table>
+<p><strong>Major.</strong> The reviewer scaled the new test's generator up to 30, 35, and 40 nodes. Before the PR, these rewrites went to <code>grind</code> and passed. With the uncapped allowance, they got huge structural proofs instead. Lean became three to five times slower on them. At 40 nodes, the kernel ran out of memory, so an input that used to verify now failed. This mattered because a budget exists to keep proofs inside Lean's limits. The fix caps the allowance at the budget itself. The 30-, 35-, and 40-node files became byte-identical to the old ones again. The 15-node benchmark still passes. A new test pins the cap.</p>
+<p><strong>Minor.</strong> The new test checked its file with <code>grind</code> still present as a fallback. If a link were broken, <code>grind</code> would quietly prove the lemma anyway. The test would then pass and hide the bug. The reviewer showed by hand that a tampered link is rejected once the fallback is gone. The test now removes the fallback before checking. Its step limit went from 300 to 1,000 so that the 6-node case fits under the cap.</p>
+<p><strong>Nit.</strong> The plan document still said the structural proof was bounded by the old limits. A reader could have trusted a wrong size estimate. The text now says the bound is up to twice those limits for linked rewrites.</p>
+
+<h2 id="risks">Risks and open questions</h2>
+<ul>
+<li>Soundness is unchanged. No axiom, <code>sorry</code>, or skipped check was added.</li>
+<li>Some rewrites now get a structural proof of up to about 2 MB, which Lean tries before <code>grind</code>. Such a proof is valid but may check more slowly than <code>grind</code> would. The scan found no such input besides the 15-node benchmark.</li>
+<li>The 15-node benchmark itself is not pinned by a test. That would need 180 KB of test data in a slow test.</li>
+<li>The scan could not judge some inputs, such as the Heizmann and most LassoRanker inputs. They hit z3's 60-second limit or the scan's deadline. Other logics with normalized rewrites were not scanned.</li>
+<li>CI and local gate results are unknown at the time of writing.</li>
+</ul>
+
+<h2 id="next">What comes next</h2>
+<p>The PR and the reviewer both suggest making each link cheaper. A link could be proved with a direct <a href="#g-reassociation">re-association</a> term instead of a search. That would cut the per-link cost that made the allowance necessary. It is listed in the backlog.</p>
+
+<h2 id="glossary">Glossary</h2>
+<dl>
+<dt id="g-atom">atom</dt>
+<dd>A formula with no Boolean connectives inside, such as <code>x1 &lt;= 5</code>. The Lean file names them <code>_atom0</code>, <code>_atom1</code>, and so on.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement that Lean accepts without proof. Adding a new one would mean trusting something unchecked.</dd>
+<dt id="g-budget">budget (step budget)</dt>
+<dd>A limit on how many proof steps and characters the prover may produce before it gives up.</dd>
+<dt id="g-cnf">CNF (conjunctive normal form)</dt>
+<dd>A formula written as an AND of clauses, where each clause is an OR of literals.</dd>
+<dt id="g-conjunction">conjunction</dt>
+<dd>An AND of formulas, written <code>and</code> in SMT-LIB and <code>And</code> in Lean.</dd>
+<dt id="g-disjunction">disjunction</dt>
+<dd>An OR of formulas, written <code>or</code> in SMT-LIB and <code>Or</code> in Lean.</dd>
+<dt id="g-equivalence">equivalence</dt>
+<dd>A statement that two formulas are true in exactly the same cases, written <code>Iff</code> in Lean.</dd>
+<dt id="g-fallback">fallback</dt>
+<dd>A second proof method tried only when the first fails. Here, <code>first | structural proof | grind</code>.</dd>
+<dt id="g-flattening">flattening</dt>
+<dd>Turning nested binary operators into one operator with many arguments. For example, <code>(and (and a b) c)</code> becomes <code>(and a b c)</code>.</dd>
+<dt id="g-grind"><code>grind</code></dt>
+<dd>A general-purpose automatic Lean tactic. It can prove many lemmas, but it may fail or use much memory on large ones.</dd>
+<dt id="g-have"><code>have</code></dt>
+<dd>A Lean step that states a fact and proves it, so later steps can use it.</dd>
+<dt id="g-kernel">kernel</dt>
+<dd>The small core of Lean that checks every proof term. It is the part that must be trusted.</dd>
+<dt id="g-left-nested">left-nested</dt>
+<dd>A chain of binary operators grouped to the left, such as <code>((a or b) or c) or d</code>.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A helper theorem proved on the way to the main theorem.</dd>
+<dt id="g-link">link</dt>
+<dd>In this prover, a proved equivalence between two parts of a rewrite that differ only by flattening or regrouping.</dd>
+<dt id="g-normalized-rewrite">normalized rewrite</dt>
+<dd>A proof step where the rewriter turns an assertion into a simpler but equivalent form. Lean must prove the two forms equivalent.</dd>
+<dt id="g-propositional">propositional</dt>
+<dd>About formulas built from atoms with AND, OR, NOT, and IMPLIES only, where the atoms are treated as plain true-or-false values.</dd>
+<dt id="g-qf-lra">QF_LRA</dt>
+<dd>The SMT-LIB logic of quantifier-free linear real arithmetic. Example: <code>(&lt;= (+ x y) 5)</code> over Real variables.</dd>
+<dt id="g-reassociation">re-association</dt>
+<dd>Regrouping an operator's arguments without changing their order, as in <code>(a ∧ b) ∧ c</code> to <code>a ∧ (b ∧ c)</code>.</dd>
+<dt id="g-rewriter">rewriter</dt>
+<dd>The z3 component that simplifies formulas before solving, for example by flattening.</dd>
+<dt id="g-structural-proof">structural proof</dt>
+<dd>A step-by-step proof that follows the shape of the two formulas, written out as <code>have</code> steps.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A Lean command that builds part of a proof automatically, such as <code>grind</code> or <code>refine</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-11.
+</footer>
+</body>
+</html>
