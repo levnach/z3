@@ -1809,8 +1809,8 @@ three `read_at_a_*` inputs and the four `negation_map*` inputs in
 
 Still failing, with `grind` failed instead of the kernel error: a map of a
 two-store chain (the rewriter's store chain of maps has an identity for
-the outer level only), and `to_int` of a numeral expression under an
-application (`grind` does not evaluate `Rat.floor` of a literal).
+the outer level only). `to_int` of a numeral expression under an
+application verifies since 2026-11-12, see "Floors under applications".
 
 The two `test_negated_zero_literals_fail_in_the_kernel` tests are expected
 to fail when `lean/lean-toolchain` moves to a toolchain whose `grind` no
@@ -4058,6 +4058,54 @@ shift facts, the `is_int` axioms, invalid declarations, and the rejected
 cut). Of the 81 unsatisfiable `random_floor_instance` seeds in 1-200, 151
 of 162 runs verify in Lean (each about 1 s); the other 11 are such
 integrality cuts (eight clause-log rejections, three legacy Lean failures).
+
+Update (2026-11-12): Floors under applications. A floor that is an
+argument of a function, a predicate, or a read needs its value as an Int:
+Z3's rewriter turns `(f (to_int 0.5))` into `(f 0)` and `(f (to_int (+
+(to_real x) 0.5)))` into `(f x)`, and the equation between the casts into
+Rat, the only one stated so far (and only for an integer-valued floored
+term), gives `grind` no congruence between the two applications. Every
+such rewrite failed in Lean on the clause log (`grind` failed); the legacy
+core, whose proof rewrites the argument first, failed on `is_int` of a
+constant only. Now (`_floor_shift_facts`):
+
+- `floor a = D + floor c` for a floored term `a` that is an integer form
+  `D` over Int terms plus any constant `c`, not only an integer one:
+  through `Rat.floor_intCast` when `c` is an integer, else through a
+  private lemma `_floor_value` (the floor of a Rat between an Int and its
+  successor is that Int, from core's `Rat.le_floor_iff` and
+  `Rat.floor_lt_iff`), whose two bounds `grind` proves;
+- that equation and the one between floors differing by an integer are
+  stated between Int terms (`_zi`, `_di`) and then cast into Rat (`_z`,
+  `_d`, as before);
+- the floor of a constant (`D` empty) is replaced by its value in the goal
+  and in every fact (`generalize`, then `subst`): with `(Rat.floor (-2))`
+  in its context `grind` ran out of heartbeats on the rewrite of `(= (to_int
+  x) (to_int (- 2.0)))` into bounds of `x` (107 s to the timeout, which
+  `first` does not catch), and proves it at once over `-2`;
+- the `push_cast` that ends the cast facts may now close the goal (`(=
+  (to_int 2.5) 2)` is `2 = 2` by then), so the final tactic of a step with
+  cast facts runs under `all_goals`.
+
+`(is_int c)` over a constant with no Int term in the input (`(assert
+(is_int 0.5))`) was rejected by the reconstructor on both cores ("qf_lira
+certificates contain both Int and Real arithmetic": the certificate
+declares `is_int` and Real numerals only): an `is_int` declaration now
+counts as Int arithmetic, since `(is_int t)` is a statement about the floor
+of `t`. A certificate with `is_int` labelled `qf_lra` or `qf_uflra` is
+rejected.
+
+Of the 148 unsatisfiable `random_floor_argument_instance` seeds in 1-600
+(`test_proof_to_lean_uflira.py`: `f`, `g`, `p` applied to floors of
+numerals, of casts, and of their sums, `is_int` under an ite), 109 failed
+in Lean on the clause log before and all verify now; on the legacy core 4
+of the 74 in 1-300 failed and all verify. Tests:
+`FLOOR_ARGUMENT_INPUTS` (15 documented inputs) and `FLOOR_ARGUMENT_SEEDS`
+(5 seeds) on both cores, `TestFloorArgumentValidation` (the facts, without
+Lean) in `test_proof_to_lean_uflira.py`; three more `FLOOR_INPUTS` and
+`test_is_int_of_a_constant_is_a_certificate_over_both_sorts` in
+`test_proof_to_lean_lira.py`; a read and a store at a floor in
+`test_proof_to_lean_array.py`.
 
 Update (2026-11-02, later): such integrality cuts through floors are now
 certified on both cores. The exporter and the reconstructor accept a cut

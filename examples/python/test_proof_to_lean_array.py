@@ -763,6 +763,17 @@ NUMERAL_EXPRESSION_INPUTS = {
 (assert (= (select a 0) 2))
 (check-sat)
 """,
+    # A read and a store at the floor of a fraction, which Z3's rewriter
+    # evaluates: the index needs the floor's value as an Int
+    # (proof_to_lean._floor_shift_facts).
+    "read_at_the_floor_of_a_fraction": """(declare-fun a () (Array Int Int))
+(assert (not (= (select a (to_int 0.5)) (select a 0))))
+(check-sat)
+""",
+    "store_at_the_floor_of_a_fraction": """(declare-fun a () (Array Int Int))
+(assert (not (= (select (store a (to_int 1.5) 7) 1) 7)))
+(check-sat)
+""",
 }
 # Functions into arrays: one family per Lean array type (_m.arrs_funs,
 # _m.arrs_ii_funs, ...) taking the argument list like _m.funs. Their
@@ -2469,7 +2480,8 @@ _FRAGMENTS = {"arrays_with_integer_weights": "qf_uflia", "real_read_own_write": 
               "real_set": "qf_uflra", "real_index_store_over_another_constant": "qf_uflira",
               "real_read_of_an_array_equated_to_a_constant": "qf_uflra",
               "int_read_of_a_store_at_real_indices": "qf_uflira",
-              "read_stored_back_at_a_fraction_of_one": "qf_uflira", "fraction_sums_as_indices": "qf_uflra"}
+              "read_stored_back_at_a_fraction_of_one": "qf_uflira", "fraction_sums_as_indices": "qf_uflra",
+              "read_at_the_floor_of_a_fraction": "qf_uflira", "store_at_the_floor_of_a_fraction": "qf_uflira"}
 _FRAGMENTS.update((name, "qf_uflia") for name, source in BOOL_ELEMENT_INPUTS.items()
                   if "Array Int Bool" in source)
 # Set combinators are over Int indices (qf_uflia) except these, named
