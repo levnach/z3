@@ -1106,22 +1106,31 @@ class TestIntegerValidation(unittest.TestCase):
         self.assertEqual(len(arith_nodes), 3)
         self.assertIn("first | omega | grind", text)
         # abs is Lean's ite with the classical instance, so its definitions
-        # are noncomputable like an ite's; the negative divisor is a negated
-        # numeral under / and %.
+        # are noncomputable like an ite's, and its negative branch is the
+        # difference from zero (proof_to_lean._negation); the negative
+        # divisor is a negated numeral under %, and the quotient by it the
+        # difference a theorem equates with Lean's / (_negative_quotient).
         abs_source = LIA_INPUTS["lia_abs"]
         abs_text = proof_to_lean.reconstruct(abs_source, proof_certificate.export_clause_log_certificate(abs_source))
         self.assertRegex(abs_text, r"noncomputable def term_\d+ \(_atoms : Nat -> Prop\) \(_vars : Nat -> Int\) : Int := "
                                    r"\(@ite Int \(\(term_(\d+) _atoms _vars\) >= \(\(0 : Int\)\)\) "
-                                   r"\(Classical.propDecidable _\) \(term_\1 _atoms _vars\) \(-\(term_\1 _atoms _vars\)\)\)")
+                                   r"\(Classical.propDecidable _\) \(term_\1 _atoms _vars\) "
+                                   r"\(\(\(0 : Int\)\) - \(term_\1 _atoms _vars\)\)\)")
         negative_source = LIA_INPUTS["lia_negative_divisor"]
         negative_text = proof_to_lean.reconstruct(
             negative_source, proof_certificate.export_clause_log_certificate(negative_source))
         self.assertRegex(negative_text, r": Int := \(-\(term_\d+ _atoms _vars\)\)")
         self.assertRegex(negative_text, r": Int := \(\(term_\d+ _atoms _vars\) % \(term_\d+ _atoms _vars\)\)")
+        self.assertRegex(
+            negative_text, r"def (term_\d+) .* : Int := \(\(\(0 : Int\)\) - \((\(term_\d+ _atoms _vars\)) / "
+                           r"\(\(\(0 : Int\)\) - (\(term_\d+ _atoms _vars\))\)\)\)\n"
+                           r"theorem \1_quotient .* : \(\1 _atoms _vars\) = \(\2 / \3\) := _div_neg _ _\n")
+        self.assertNotRegex(negative_text, r": Int := \(\(term_\d+ _atoms _vars\) / ")
+        self.assertNotIn("_quotient", text)
 
     def test_rem_is_stated_at_its_numeral_divisor(self):
         # Z3's rem is (ite (>= k 0) (mod t k) (- (mod t k))); at a numeral k
-        # Lean states it as t % k, or -(t % k) for a negative k, and each rem
+        # Lean states it as t % k, or 0 - t % k for a negative k, and each rem
         # term reaches the certificate with its two axioms as arith hints.
         source = LIA_INPUTS["lia_rem"]
         certificate = proof_certificate.export_clause_log_certificate(source)
@@ -1149,7 +1158,7 @@ class TestIntegerValidation(unittest.TestCase):
             signs.append(divisor > 0)
             remainder = r"\(term_\d+ _atoms _vars\) % \(term_\d+ _atoms _vars\)"
             self.assertRegex(text, r"def term_%d \(_atoms : Nat -> Prop\) \(_vars : Nat -> Int\) : Int := %s\n" % (
-                node, r"\(%s\)" % remainder if divisor > 0 else r"\(-\(%s\)\)" % remainder))
+                node, r"\(%s\)" % remainder if divisor > 0 else r"\(\(\(0 : Int\)\) - \(%s\)\)" % remainder))
         self.assertEqual(sorted(signs), [False, True])
         rem_node = next(index for index, raw in enumerate(nodes) if raw["declaration"] == rem)
         for mutate, message in [
