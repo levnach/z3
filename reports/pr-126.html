@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #126: Render Int negations and negative quotients as differences in Lean</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+    --soft: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.6; max-width: 52rem; margin: 2rem auto; padding: 0 1.1rem;
+}
+h1 { font-size: 1.65rem; line-height: 1.25; margin: 0 0 .6rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.02rem; margin: 1.4rem 0 .4rem; }
+a { color: var(--link); }
+p, ul, dl { margin: .6rem 0; }
+li { margin: .3rem 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+  background: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: .05em .3em; }
+pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px;
+  padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; margin: .6rem 0; }
+pre code { background: none; border: 0; padding: 0; font-size: .82rem; white-space: pre; }
+table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
+th, td { border: 1px solid var(--line); padding: .4rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--soft); }
+td.n { text-align: right; white-space: nowrap; }
+.meta { color: var(--muted); font-size: .95rem; margin: .2rem 0; }
+.badge { display: inline-block; border: 1px solid var(--warn); color: var(--warn);
+  border-radius: 999px; padding: 0 .6rem; font-size: .82rem; font-weight: 600; }
+.ok { color: var(--ok); font-weight: 600; }
+.unk { color: var(--warn); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.note { color: var(--muted); font-size: .92rem; }
+.scroll { overflow-x: auto; }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin: .1rem 0 0 1.2rem; }
+footer { margin: 3rem 0 2rem; padding-top: .8rem; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Render Int negations and negative quotients as differences in Lean</h1>
+<p class="meta">
+  <a href="https://github.com/levnach/z3/pull/126">Pull request #126</a> in levnach/z3
+  &nbsp;·&nbsp; <span class="badge">OPEN</span> not merged
+</p>
+<p class="meta">Date: 2026-11-12T19:35:21Z &nbsp;·&nbsp; Loop iteration 125</p>
+<p class="meta">This pull request is open and has not been merged. The change commit is
+  <a href="https://github.com/levnach/z3/commit/c703f7936471494a02ab5d6688e020ae6e992465"><code>c703f7936</code></a>.</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+The reconstructor now writes every negation of a <a href="#g-term">term</a> of
+<a href="#g-sort">sort</a> Int as the difference <code>0 - t</code>.
+A <a href="#g-quotient">quotient</a> by a negative <a href="#g-constant">constant</a> becomes a difference too.
+A small <a href="#g-lemma">theorem</a> beside it, checked by the <a href="#g-kernel">kernel</a>, says it equals the ordinary quotient.
+The values are unchanged.
+This removes the known kernel rejections caused by a defect in the <a href="#g-tactic">tactic</a>
+<code>grind</code>, which mishandles the <a href="#g-numeral">numeral</a> <code>-0</code>.
+Inputs such as <code>(f (div 2 (- 5)))</code>, with an
+<a href="#g-uf">uninterpreted function</a> applied to such a term, now get a
+<a href="#g-certificate">certificate</a> that Lean accepts.
+No <a href="#g-axiom">axiom</a> was added, and the <a href="#g-trust-boundary">trust boundary</a> did not move.
+</p>
+
+<h2>Background</h2>
+<p>
+Before this PR, a negation became a difference only when the reconstructor's own evaluation showed the negated term to be zero.
+Lean's <a href="#g-simplifier">simplifier</a> reaches zero in more ways.
+Examples are a <a href="#g-remainder">remainder</a> by 1, an <a href="#g-ite">if-then-else term</a> with a decided condition, and a quotient by a negative constant.
+There <code>grind</code> met <code>-0</code>, the kernel rejected its proof, and the
+<a href="#g-refutation">refutation</a> failed in Lean.
+A read from an <a href="#g-array">array</a> at such an index failed the same way.
+The work serves milestone 3 of the plan, equality and <a href="#g-linear-arithmetic">linear arithmetic</a>.
+</p>
+
+<h2>What changed</h2>
+<p>
+An analogy: a clerk misreads one spelling of "minus nothing".
+So every form now says "nothing, take away t", which is the same amount.
+</p>
+<ul>
+  <li><strong>Reconstructor, negations.</strong> Inputs with terms such as <code>(- (mod x 1))</code> or <code>(- (ite true 0 1))</code> now verify, because every Int negation is written <code>0 - t</code>.</li>
+  <li><strong>Reconstructor, quotients.</strong> A <code>div</code> by a negative constant, such as <code>(- 5)</code> or <code>(* 5 (- 1))</code>, now verifies, written <code>0 - t / (0 - d)</code> beside a kernel-checked theorem.</li>
+  <li><strong>Reconstructor, remainder bounds.</strong> Bounds on a remainder under a negative divisor now prove however the divisor is spelled, a fix made after review.</li>
+  <li><strong>Reconstructor, cleanup.</strong> The previous PR's evaluator, which predicted the zero terms, is deleted.</li>
+  <li><strong>Tests.</strong> New <a href="#g-regression">regression tests</a> pin the new forms, check the inputs in Lean, and confirm the old forms still fail.</li>
+  <li><strong>Documentation.</strong> The plan, the README, and a header comment in each generated file describe the new forms.</li>
+</ul>
+<p class="note">A negated positive numeral stays <code>-k</code>, and negations of sort Real are unchanged. No C++ changed.</p>
+<table>
+  <thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="n">84</td><td class="n">65</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td class="n">137</td><td class="n">58</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="n">64</td><td class="n">9</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="n">36</td><td class="n">10</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="n">21</td><td class="n">16</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="n">80</td><td class="n">71</td></tr>
+    <tr><th>Total, 6 files in 2 commits</th><th class="n">422</th><th class="n">229</th></tr>
+  </tbody>
+</table>
+
+<h2>Worked example</h2>
+<p>
+The input is the new test <code>zero_quotient_by_a_negative</code>.
+All output comes from real runs made for this report.
+</p>
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UFLIA)
+(declare-fun f (Int) Int)
+(declare-const x Int)
+(assert (= (f (div 2 (- 5))) 1))
+(assert (= (f 0) 2))
+(check-sat)</code></pre>
+<p>
+Under <a href="#g-euclidean">Euclidean division</a>, 2 divided by −5 is 0.
+So the input says <code>f(0)</code> is both 1 and 2.
+</p>
+<h3>(b) Before</h3>
+<p>
+The code of the base commit <code>a170b5246</code> generated a Lean file, and Lean rejected it.
+The directory of the temporary file is cut from the first line.
+</p>
+<pre><code>z3_proof_c4sngdzm.lean:50:23: error: (kernel) application type mismatch
+  eq_false_of_decide (eagerReduce (Eq.refl false))
+argument has type
+  false = false
+but function has type
+  decide (-0 = 0) = false → (-0 = 0) = False
+Lean checking failed; no proof was published.</code></pre>
+<p>Line 50 of that file is the <code>grind</code> call in the <a href="#g-rewrite">rewrite</a> step <code>rewrite_13</code>.</p>
+<h3>(c) After</h3>
+<p>Lean accepted the new file. The check printed <code>Lean checks passed.</code></p>
+<pre><code>...
+-- Int div by a negative constant d is written 0 - t / (0 - d), which is t / d: see the theorem term_N_quotient after each such definition.
+...
+structure Interpretation where
+  U : Type
+  ...
+  int : Int -&gt; U
+  ifuns : Nat -&gt; List U -&gt; Int</code></pre>
+<p>A header comment announces the new form, and <code>ifuns</code> carries the uninterpreted function <code>f</code>.</p>
+<pre><code>private theorem _div_neg (t d : Int) : ((0 : Int)) - t / (((0 : Int)) - d) = t / d := by
+  rw [Int.zero_sub d, Int.ediv_neg, Int.zero_sub, Int.neg_neg]</code></pre>
+<p>This new lemma says that the difference form equals the ordinary quotient for all integers.</p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((2 : Int))
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((5 : Int))
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (-(term_1 _atoms _vars _m))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (((0 : Int)) - ((term_0 _atoms _vars _m) / (((0 : Int)) - (term_2 _atoms _vars _m))))
+theorem term_3_quotient (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (term_3 _atoms _vars _m) = ((term_0 _atoms _vars _m) / (term_2 _atoms _vars _m)) := _div_neg _ _
+def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := _m.ifuns 0 [(_m.int (term_3 _atoms _vars _m))]
+def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((1 : Int))
+def formula_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_4 _atoms _vars _m) = (term_5 _atoms _vars _m))
+...</code></pre>
+<p><code>term_3</code> is the quotient in its new form, and <code>term_3_quotient</code> proves it is still 2 divided by −5.</p>
+<pre><code>private theorem rewrite_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_12 _atoms _vars _m) := by
+  unfold formula_12 formula_11 formula_6 term_5
+  first
+    | (generalize (term_8 _atoms _vars _m) = _o0
+       generalize (term_4 _atoms _vars _m) = _o1
+       omega)
+    | (unfold term_8 term_7 term_4 term_3 term_2 term_1 term_0
+       first | omega | grind (splits := 64))
+...</code></pre>
+<p>This step failed before. It now unfolds the new <code>term_3</code>, so <code>grind</code> never meets <code>-0</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_6 _atoms _vars _m))
+    (_h1 : (formula_9 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p>The final theorem says the two assertions imply <code>False</code>, whatever <code>f</code> means.</p>
+
+<h2>How it was verified</h2>
+<p>
+Every local test suite passed on the final commit.
+Random sweeps found only fixes: 39 kernel failures disappeared, and nothing that verified before fails now.
+Lean also rejected three deliberately damaged certificates.
+</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Local check</th><th>Run by</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Lean reconstruction suite, <code>test_proof_to_lean*.py</code></td><td>Integrator, final commit</td><td><span class="ok">Pass</span>: 550 tests, 9 skipped</td></tr>
+    <tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td>Integrator</td><td><span class="ok">Pass</span>: 120 tests</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>Integrator</td><td><span class="ok">Pass</span></td></tr>
+    <tr><td>Proof script tests in z3test</td><td>Integrator</td><td><span class="ok">Pass</span>: 48 tests</td></tr>
+    <tr><td>Gated matrix cells</td><td>Integrator</td><td><span class="ok">Pass</span>: Boolean 6 of 6, linear real arithmetic 8 of 8</td></tr>
+    <tr><td>Slow wide-division test, skipped by default</td><td>Integrator</td><td><span class="ok">Pass</span></td></tr>
+    <tr><td>80 probe inputs of the implementer and the reviewer</td><td>Integrator</td><td>77 verify. Three are unchanged from before: one <code>grind</code> failure, one exporter rejection, one satisfiable input.</td></tr>
+    <tr><td>Five random sweeps, old against new output</td><td>Implementer, first commit</td><td>292 changed files all verify. 39 failed in the kernel before.</td></tr>
+    <tr><td>Division and remainder generators, old against new</td><td>Reviewer, first commit</td><td>266 changed certificates verify with both. Lean time about 4% higher.</td></tr>
+    <tr><td>Tampered quotient definitions and a false <code>_div_neg</code></td><td>Reviewer</td><td>All 3 rejected by Lean</td></tr>
+    <tr><td><code>test-z3</code> and the SMT2 regressions</td><td>Nobody</td><td>Not run, because no C++ changed</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">
+The suite ran before one local variable was renamed in a new test.
+That test was re-run afterwards and passed.
+</p>
+<p>
+The loop's local gate had not been recorded when this report was written.
+No CI status was recorded either, and GitHub showed no checks on the branch at that time.
+There were no CI fix rounds.
+</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>CI workflow</th><th>Job or check</th><th>Result</th><th>Link</th></tr></thead>
+  <tbody>
+    <tr><td><code>CI</code></td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean". This is where the changed tests run.</td><td><span class="unk">No result recorded</span></td><td><a href="https://github.com/levnach/z3/pull/126/checks">PR checks</a></td></tr>
+    <tr><td><code>Lean proofs</code>, on demand</td><td>Runs the same script</td><td><span class="unk">No result recorded</span></td><td><a href="https://github.com/levnach/z3/pull/126/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Review</h2>
+<p>
+The reviewer approved the change with one minor finding and two nits.
+All three were fixed in the second commit.
+</p>
+<h3>Minor: a helper fact that could no longer be proved</h3>
+<p>
+The reviewer wrote the divisor −3 as <code>(- (- (- 3)))</code> inside a <a href="#g-cut">cut</a>.
+For such a step the reconstructor states helper facts that bound each remainder.
+The upper bound's proof used a rewrite that only matches a divisor written as a negation.
+This divisor is now a difference, so the fact was stated but could not be proved.
+The certificate still verified through a fallback proof.
+It mattered because the fallback hid a stated fact that Lean could never prove.
+The bound is now proved from the divisor's absolute value.
+A new Lean test checks it for four spellings of −3.
+The integrator corrected one detail: the first attempt already failed before this PR, so no fast path was lost.
+</p>
+<h3>Nit: documentation showed the old forms</h3>
+<p>
+The README still described <code>rem</code> and <code>abs</code> with the old minus forms, which a reader would no longer find in a certificate.
+The README, a code comment, and the generated header now show the difference forms.
+</p>
+<h3>Nit: tests used one spelling of a negative divisor</h3>
+<p>
+Every negative divisor in the tests was written <code>(- k)</code>.
+A later edit could narrow the rule to that spelling and still pass, while <code>(div 2 (* 5 (- 1)))</code> failed again.
+Two inputs with other spellings were added.
+</p>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li><strong>Soundness.</strong> None identified. <code>0 - t</code> equals <code>-t</code>, and the kernel checks the quotient identity.</li>
+  <li><strong>Breadth.</strong> Every certificate with an Int negation changes its text. A proof that needs to see <code>-t</code> could exist outside the tests, and it would <a href="#g-fail-closed">fail closed</a>.</li>
+  <li><strong>Readability.</strong> The final statement now shows <code>0 - t / (0 - d)</code>, which the adjacent theorem explains.</li>
+  <li><strong>Toolchain.</strong> The workaround targets a defect in the <code>grind</code> of Lean 4.34.0. Two <a href="#g-counterfactual">counterfactual tests</a> fail once a toolchain lacks it, which signals removal.</li>
+  <li><strong>Cost.</strong> One measurement showed about 10% more reconstruction time on a heavily shared divisor.</li>
+</ul>
+
+<h2>What comes next</h2>
+<p>These backlog items are unchanged by this PR.</p>
+<ul>
+  <li>A rewrite that normalizes the divisor of a <code>mod</code> always wastes one failed attempt.</li>
+  <li><code>(f (to_int 0.5))</code> against <code>(f 0)</code> still fails in <code>grind</code>.</li>
+  <li>A map over two stores with the Int negation map still fails in <code>grind</code>.</li>
+  <li>Two random seeds are rejected with <code>unsupported or invalid def-axiom clause</code>.</li>
+  <li>The exporter rejects quotients and remainders of numerals by a negative numeral.</li>
+  <li>The linear form of a term should be cached.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+  <dt id="g-array">array</dt>
+  <dd>A value that maps indices to elements. <code>(select a i)</code> reads the element at index <code>i</code>, and <code>store</code> writes one.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. Adding one would mean trusting something Lean did not check.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>A file of evidence for a result that an independent checker can verify. Here it is the generated Lean file.</dd>
+  <dt id="g-constant">constant</dt>
+  <dd>An expression with no variables, so its value is fixed. Examples: <code>(- 5)</code> and <code>(* 5 (- 1))</code>.</dd>
+  <dt id="g-counterfactual">counterfactual test</dt>
+  <dd>A test that switches a fix off and checks that the old failure comes back. It shows the fix is still needed.</dd>
+  <dt id="g-cut">cut</dt>
+  <dd>A step in integer arithmetic that uses the fact that variables are whole numbers. Example: from <code>2x ≥ 1</code> conclude <code>x ≥ 1</code>.</dd>
+  <dt id="g-euclidean">Euclidean division</dt>
+  <dd>Integer division where the remainder is never negative. Example: 2 divided by −5 is 0 with remainder 2.</dd>
+  <dt id="g-fail-closed">fail closed</dt>
+  <dd>To fail by rejecting. A broken proof is refused. It is never accepted by mistake.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term that picks one of two values by a condition, written <code>ite</code> in SMT-LIB. Example: <code>(ite true 0 1)</code> is 0.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small core of Lean that checks every finished proof. A proof counts only if the kernel accepts it.</dd>
+  <dt id="g-lemma">lemma, theorem</dt>
+  <dd>A proved statement. A lemma is usually a small one used as a step toward a larger theorem.</dd>
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Arithmetic where variables are only added and multiplied by constants. Example: <code>2x + 3y ≤ 7</code>.</dd>
+  <dt id="g-numeral">numeral</dt>
+  <dd>A number written out directly, such as <code>5</code> or <code>-2</code>.</dd>
+  <dt id="g-quotient">quotient</dt>
+  <dd>The result of integer division, written <code>div</code> in SMT-LIB and <code>/</code> in Lean.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions cannot all hold. It ends by deriving <code>False</code>.</dd>
+  <dt id="g-regression">regression test</dt>
+  <dd>A test kept so that a fixed problem is noticed if it returns.</dd>
+  <dt id="g-remainder">remainder</dt>
+  <dd>What is left after integer division, written <code>mod</code> in SMT-LIB and <code>%</code> in Lean. Z3 also has <code>rem</code>, whose sign follows the divisor.</dd>
+  <dt id="g-rewrite">rewrite</dt>
+  <dd>A proof step that replaces a term or formula with an equal one. Example: replacing <code>(div 2 (- 5))</code> with <code>0</code>.</dd>
+  <dt id="g-simplifier">simplifier</dt>
+  <dd>The part of a prover that rewrites terms into simpler equal ones, for example by evaluating constants.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof. <code>grind</code>, <code>omega</code>, and <code>decide</code> are tactics. The kernel still checks what they build.</dd>
+  <dt id="g-term">term</dt>
+  <dd>An expression that denotes a value, such as <code>x</code>, <code>(- x)</code>, or <code>(f 0)</code>.</dd>
+  <dt id="g-trust-boundary">trust boundary</dt>
+  <dd>The line between what is checked and what is simply believed. It moves when a new unchecked assumption is added.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. All that is known is that equal arguments give equal results. Example: <code>f</code> in <code>(declare-fun f (Int) Int)</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-12.
+</footer>
+
+</body>
+</html>
