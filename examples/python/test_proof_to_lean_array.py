@@ -1503,6 +1503,34 @@ SET_COMBINATOR_INPUTS.update({
 (check-sat)
 """,
 })
+
+
+def _stores_over_complements(levels, reads):
+    """reads reads, at i0, i1, ..., of levels stores of false at j0, j1, ..., each over the complement of the one below.
+
+    The set s is at the bottom, and every read's index is asserted equal to
+    the top store's, so every read is false and their disjunction refuted.
+    """
+    lines, term = ["(declare-fun s () (Array Int Bool))"], "s"
+    for level in range(levels):
+        lines.append("(declare-fun j%d () Int)" % level)
+        term = "(store (complement %s) j%d false)" % (term, level)
+    lines.extend("(declare-fun i%d () Int)" % read for read in range(reads))
+    lines.append("(assert (or %s))" % " ".join("(select %s i%d)" % (term, read) for read in range(reads)))
+    lines.extend("(assert (= i%d j%d))" % (read, levels - 1) for read in range(reads))
+    return "\n".join(lines + ["(check-sat)"]) + "\n"
+
+
+# Seven reads of three stores alternating with complements. The rewrite of
+# the disjunction needs none of the facts of the reads through the stores
+# into the complements (the pointwise facts prove it, 0.5 s in Lean), and
+# each such store is a case split on its index for grind: with those facts
+# in every attempt of the step, the attempt made first, without the
+# pointwise facts, did not fail but ran out of the heartbeats after 55 s
+# (which first does not catch; with five reads the step took 6.6 s). So
+# they are stated in attempts of their own, after the others
+# (proof_to_lean._grind_lemma).
+SET_COMBINATOR_INPUTS["set_reads_through_stores_alternating_with_complements"] = _stores_over_complements(3, 7)
 # A set equated with a store, and the maps of another assertion read at the
 # stored index: Z3 evaluates the member of the set there ((= (store s j
 # false) t) makes (select t j) false) and logs a clause over the members
@@ -1918,7 +1946,7 @@ MAP_FUNCTION_INPUTS = {
     # A read through a store at another numeral reaches a map: the rewriter
     # skips the store and evaluates the read of the map with no read term of
     # it in the certificate, so the map's read fact goes with the store's
-    # (_map_below; random sweep seeds 110, 137, 172).
+    # (_read_levels; random sweep seeds 110, 137, 172).
     "read_through_store_to_map": """(declare-fun a () (Array Int Int))
 (assert (= (select (store ((_ map (- (Int) Int)) a) 1 2) 0) 2))
 (assert (= (select a 0) 2))
@@ -3168,10 +3196,11 @@ class TestArrayValidation(unittest.TestCase):
                          r"have _n(\d+)_0 := _store_apply [^\n]*\n *have _nm\1_0 : _select [^\n]* = " + empty % (2, 2))
         # A store at another numeral was skipped to the map before too.
         self.assertRegex(text_of("set_read_through_store_to_map"), r"have _sm\d+ : ")
-        # A chain of more than _MAP_STORE_LEVELS stores is read as one over
-        # a plain array (one fact per level and read is quadratic in a long
-        # chain): the levels the rewriter skips and the one where the skip
-        # stops, and the map only if that is the last store.
+        # A read goes through at most _MAP_STORE_LEVELS stores the rewriter
+        # does not skip (one fact per level and read is quadratic in a long
+        # chain); below more of them it keeps the levels the rewriter skips
+        # and the one where the skip stops, and the map only below a store
+        # it skips.
         self.assertEqual(proof_to_lean._MAP_STORE_LEVELS, 8)
         with mock.patch.object(proof_to_lean, "_MAP_STORE_LEVELS", 1):
             self.assertNotRegex(text_of("set_read_through_two_stores_to_a_map"), r"have _s\d+_1 := |have _sm\d+ : ")
@@ -3182,6 +3211,75 @@ class TestArrayValidation(unittest.TestCase):
         for name in ("bool_store_chain", "set_read_through_numeral_stores", "read_through_numeral_stores"):
             with self.subTest(name=name):
                 self.assertNotRegex(text_of(name), r"have _(sm|sim|nm)\d+")
+
+    def test_reads_through_unskipped_stores_are_stated_last(self):
+        """The facts of reads through stores the rewriter does not skip are in attempts after all the others."""
+        def text_of(name):
+            return proof_to_lean.reconstruct(ARRAY_INPUTS[name], self.certificates[name])
+
+        def attempts(text):
+            """The proof attempts of each theorem by name: the alternatives of its first, or its one body."""
+            steps = {}
+            for block in text.split("\n\n"):
+                name = re.search(r"^(?:private )?theorem (\S+)", block, re.MULTILINE)
+                if name is None or ":= by\n" not in block:
+                    continue
+                body = block.split(":= by\n", 1)[1]
+                # Tactics before the first (an unfold outside opaque atoms)
+                # go with every attempt.
+                opening, first, alternatives = ("\n" + body).partition("\n  first\n    | (")
+                if first:
+                    opening = [line[2:] for line in opening.split("\n")[1:]]
+                    steps[name.group(1)] = ["\n".join(opening + [alternative[:-1].replace("\n       ", "\n")])
+                                            for alternative in alternatives.split("\n    | (")]
+                else:
+                    steps[name.group(1)] = ["\n".join(line[2:] for line in body.split("\n"))]
+            return steps
+
+        through = re.compile(r"have _(sm|sim|nm)\d+")
+        for name, grown in (("set_read_at_a_variable_through_a_store_to_a_map", 1),
+                            ("set_read_through_two_stores_to_a_map", 1),
+                            ("set_read_of_a_store_pulled_out_of_a_difference", 1),
+                            ("set_read_of_a_difference_of_stores", 3),
+                            ("set_read_of_an_ite_of_stores_over_maps", 4),
+                            ("set_read_of_a_stored_row_over_a_map", 1),
+                            ("set_reads_through_stores_alternating_with_complements", 2),
+                            # Stores the rewriter skips, and no stores over maps: nothing to add.
+                            ("set_read_through_store_to_map", 0), ("read_through_store_to_map", 0),
+                            ("bool_store_chain", 0), ("set_read_of_nested_xor_maps", 0)):
+            with self.subTest(name=name):
+                steps = attempts(text_of(name))
+                # Without such reads (no store of theirs to go through) the
+                # text has the attempts there were before them, and with
+                # them every step keeps those, in order, before its own.
+                with mock.patch.object(proof_to_lean, "_MAP_STORE_LEVELS", 0):
+                    before = attempts(text_of(name))
+                self.assertEqual(list(steps), list(before))
+                added = {step: steps[step][len(before[step]):] for step in steps
+                         if steps[step] != before[step]}
+                self.assertEqual(len(added), grown)
+                for step, alternatives in added.items():
+                    self.assertEqual(steps[step][:len(before[step])], before[step])
+                    self.assertFalse(any(through.search(alternative) for alternative in before[step]), step)
+                    # The attempts added state every fact (the pointwise
+                    # ones too): one per proof body, not one per attempt.
+                    self.assertLessEqual(len(alternatives), max(1, len(before[step]) // 2))
+                    for alternative in alternatives:
+                        self.assertRegex(alternative, through)
+                        self.assertEqual("have _pw" in alternative,
+                                         any("have _pw" in other for other in before[step]))
+        # The limit is on the stores of all the levels the facts of one read
+        # walk, not on one run of stores: below the second store that is not
+        # skipped, the third gets its own fact and the complement below it
+        # none.
+        name = "set_reads_through_stores_alternating_with_complements"
+        levels = r"have _sm(\d+) : [^\n]*:= rfl\n *have _sm\1_1 := _store_apply [^\n]*\n *have _sm\1_2 : [^\n]*:= rfl\n"
+        third = r" *have _sm\1_3 := _store_apply [^\n]*\n"
+        self.assertRegex(text_of(name), levels + third + r" *have _sm\1_4 : [^\n]*:= rfl\n")
+        with mock.patch.object(proof_to_lean, "_MAP_STORE_LEVELS", 2):
+            limited = text_of(name)
+        self.assertRegex(limited, levels + third)
+        self.assertNotRegex(limited, r"have _sm\d+_4 ")
 
     def test_tampered_bool_element_arrays_are_rejected(self):
         def relabelled(source, target):

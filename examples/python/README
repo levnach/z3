@@ -1286,10 +1286,14 @@ gets that fact, and so do the maps, stores, and constant arrays below it,
 since Z3's rewriter evaluates a read through all of them with no read term of
 the levels in between; a read of a store at another numeral over a map gets
 the map's facts too, the rewriter skipping the store, and so does a read
-through up to eight stores at any indices (the rewriter simplifies the map
-below member by member and pulls stores out of maps, so the read is compared
-with members of the sets), also below the branches of an ite and in a stored
-row. The identities the euf solver and the rewriter apply to
+through up to eight stores it does not skip, counted over all the stores and
+maps the facts of that read walk (the rewriter simplifies the map below
+member by member and pulls stores out of maps, so the read is compared with
+members of the sets), also below the branches of an ite and in a stored row.
+Each store that is not skipped is a case split on its index for grind, so
+the facts through such stores are stated in attempts of their own, after the
+step's other attempts: a step that needs none is proved as without them. The
+identities the euf solver and the rewriter apply to
 maps are theorems instantiated per map node: maps of and and or commute (euf
 compares them as commutative) and are idempotent, a double complement
 cancels, a map of stores at one index is the store of the map (a constant
