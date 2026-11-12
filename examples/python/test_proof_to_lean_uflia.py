@@ -237,6 +237,9 @@ _ZERO_NEGATION_TERMS = {
     # Zero as a remainder and as a quotient of numerals (Euclidean).
     "negated_zero_remainder": ("(f (- (mod 6 3)))", True),
     "negated_zero_quotient": ("(f (- (div 1 3)))", True),
+    # Lean's simplifier turns t / -k into -(t / k), which this negation
+    # cancels; without it, (f (div 2 (- 3))), the literal -0 is still
+    # reached and the certificate is rejected (no negation to render).
     "negated_zero_quotient_by_a_negative": ("(f (- (div 2 (- 3))))", False),
     # rem by a negative numeral is the negated remainder.
     "zero_rem_by_a_negative": ("(f (rem 6 (- 3)))", True),
@@ -304,6 +307,15 @@ NONZERO_NEGATION_INPUTS = {
 (check-sat)
 """,
 }
+
+
+# The message of the tests that pin grind's defect (also used by
+# test_proof_to_lean_array), for whoever moves lean/lean-toolchain.
+_NEGATED_ZERO_ACCEPTED = (
+    "Lean accepted a certificate with an Int negation of zero rendered as -t: the toolchain's grind no longer "
+    "has the defect that proof_to_lean._negation and _INT_MAP_NEGATION work around. Remove the "
+    "test_negated_zero_literals_fail_in_the_kernel tests (see 'Int negations of zero rendered as differences' "
+    "in doc/lean-proof-plan.md).")
 
 
 def _cnf_nodes(graph):
@@ -1169,7 +1181,7 @@ class TestIntegerMixedLeanIntegration(unittest.TestCase):
                 output = Path(directory) / "checked.lean"
                 output.write_text(text)
                 result = lean_test_support.run_check_lean(output)
-                self.assertNotEqual(result.returncode, 0)
+                self.assertNotEqual(result.returncode, 0, _NEGATED_ZERO_ACCEPTED)
                 self.assertIn("(kernel) application type mismatch", result.stdout + result.stderr)
 
     # Seeds of random_instance with zeros whose certificates failed in the
@@ -1273,8 +1285,11 @@ class TestLegacyIntegerMixedLeanIntegration(unittest.TestCase):
                 # A refutation by congruence and rewriting alone needs fewer
                 # axioms than the standard three, or none.
                 axioms = re.search(r"\.unsat' depends on axioms: \[([^\]]*)\]", report)
-                self.assertLessEqual(set(axioms.group(1).split(", ")) if axioms else set(),
-                                     set(_STANDARD_AXIOMS[1:-1].split(", ")), report)
+                if axioms is None:
+                    self.assertIn(".unsat' does not depend on any axioms", report)
+                else:
+                    self.assertLessEqual(set(axioms.group(1).split(", ")),
+                                         set(_STANDARD_AXIOMS[1:-1].split(", ")), report)
 
     # Seeds whose legacy proofs need the arithmetic solver (many random
     # instances are refuted by congruence and resolution alone there): plain

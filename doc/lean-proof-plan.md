@@ -1718,11 +1718,38 @@ now. Tests: `ZERO_NEGATION_INPUTS`, `NONZERO_NEGATION_INPUTS`, and
 when a later toolchain no longer has it), and `read_at_a_negated_zero` and
 the four `negation_map*` inputs in `test_proof_to_lean_array.py`.
 
-Still failing: a negation of an ite whose condition is decided and whose
-chosen branch is zero, `(f (- (ite true 0 1)))` (`_integer_value` does not
-evaluate an ite; the kernel error as before), and a map of a two-store
+The rendering covers a negation the input writes over a term whose value
+`_integer_value` computes. `grind` still reaches the literal `-0`, and the
+kernel still rejects the proof (all of these fail the same way before and
+after, in an argument of `f` against `(f 0)`), where:
+
+- the term is zero for every value of a variable without the variable
+  cancelling in the linear form, `(- (mod x 1))` and `(rem x (- 1))`
+  (`_integer_value` is None under a variable);
+- the simplifier introduces the negation itself, from a quotient by a
+  negative numeral (`t / -k` becomes `-(t / k)`): `(div 2 (- 5))`, `(div 0
+  (- 3))`, `(div (* 0 x) (- 3))`, `(abs (div 2 (- 5)))`. The input has no
+  negation to render; `(- (div 2 (- 3)))` verifies only because its own
+  negation cancels the introduced one;
+- the negated term is an ite whose condition is decided and whose chosen
+  branch is zero, `(f (- (ite true 0 1)))` (`_integer_value` does not
+  evaluate an ite).
+
+Each fails closed: Lean rejects the certificate. Also still failing, now
+with `grind` failed instead of the kernel error: a map of a two-store
 chain (the rewriter's store chain of maps has an identity for the outer
-level only), now with `grind` failed instead of the kernel error.
+level only).
+
+`_integer_value` reads the linear form of each negated term with
+`_linear_term`, which is not memoized over shared subterms, so a negation
+of a term built by repeated sharing (`t(i+1) = (+ t(i) t(i))`) adds one
+more walk that is exponential in the depth to those the reconstructor
+already makes (20 levels: 7.3 s against 5.4 s before).
+
+The two `test_negated_zero_literals_fail_in_the_kernel` tests are expected
+to fail when `lean/lean-toolchain` moves to a toolchain whose `grind` no
+longer has the defect; they are then to be removed (the rendering stays
+valid, and may be dropped with them).
 
 ### Assumption search skips conjuncts a model refutes (2026-11-11)
 

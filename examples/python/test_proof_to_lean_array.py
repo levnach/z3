@@ -34,6 +34,7 @@ import proof_clause_log
 import lean_test_support
 import proof_to_lean
 from test_proof_to_lean_lia import _STANDARD_AXIOMS, _hints, _z3_available
+from test_proof_to_lean_uflia import _NEGATED_ZERO_ACCEPTED
 
 _DECLARATIONS = """(declare-sort Index 0)
 (declare-sort Element 0)
@@ -5216,7 +5217,7 @@ class TestArrayLeanIntegration(unittest.TestCase):
                 output = Path(directory) / "negated.lean"
                 output.write_text(text)
                 result = lean_test_support.run_check_lean(output)
-                self.assertNotEqual(result.returncode, 0)
+                self.assertNotEqual(result.returncode, 0, _NEGATED_ZERO_ACCEPTED)
                 self.assertIn("(kernel) application type mismatch", result.stdout + result.stderr)
 
     def test_map_facts_are_needed(self):
