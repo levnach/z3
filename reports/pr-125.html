@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #125: Render Int negations of zero as differences in Lean certificates</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfbf9;
+  --fg: #1d2126;
+  --muted: #5a626c;
+  --line: #d9dcdf;
+  --panel: #f1f2f0;
+  --link: #0b5cad;
+  --badge-bg: #dff3e3;
+  --badge-fg: #17602b;
+  --warn-bg: #fff4d6;
+  --warn-fg: #6b4a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15181c;
+    --fg: #e4e6e9;
+    --muted: #a0a8b2;
+    --line: #353b43;
+    --panel: #1e2228;
+    --link: #7db8f5;
+    --badge-bg: #1d3a26;
+    --badge-fg: #9be0ad;
+    --warn-bg: #3a3014;
+    --warn-fg: #f0d58a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+main { max-width: 48rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .75rem; }
+h2 { font-size: 1.2rem; margin: 2.25rem 0 .5rem; padding-top: .75rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 1.25rem 0 .25rem; }
+p { margin: .6rem 0; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+:not(pre) > code { background: var(--panel); padding: .05em .3em; border-radius: 3px; }
+pre {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: .75rem .9rem;
+  overflow-x: auto;
+  line-height: 1.45;
+  margin: .6rem 0;
+}
+pre code { font-size: .82rem; }
+.meta { color: var(--muted); font-size: .92rem; margin: 0; padding: 0; list-style: none; }
+.meta li { margin: .15rem 0; }
+.badge {
+  display: inline-block; padding: .05rem .55rem; border-radius: 999px;
+  background: var(--badge-bg); color: var(--badge-fg); font-weight: 600; font-size: .85rem;
+}
+.unknown {
+  display: inline-block; padding: 0 .45rem; border-radius: 4px;
+  background: var(--warn-bg); color: var(--warn-fg); font-size: .85rem; font-weight: 600;
+}
+.tablewrap { overflow-x: auto; margin: .75rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: .4rem .6rem; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+ul { padding-left: 1.25rem; }
+li { margin: .35rem 0; }
+.note { color: var(--muted); font-size: .9rem; }
+dl { margin: .5rem 0; }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin: .1rem 0 0 1.25rem; }
+footer { margin-top: 2.5rem; padding-top: .75rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+<h1>Render Int negations of zero as differences in Lean certificates</h1>
+<ul class="meta">
+<li><a href="https://github.com/levnach/z3/pull/125">Pull request #125</a> in levnach/z3, targeting <code>master</code></li>
+<li>State: <span class="badge">OPEN</span> — this pull request is not merged.</li>
+<li>Change commit: <a href="https://github.com/levnach/z3/commit/7a53ceed9359ddb54e0b080a40cc62a9b2d46a00"><code>7a53ceed9</code></a></li>
+<li>Date: 2026-11-12T04:22:08Z</li>
+<li>Loop iteration: 124</li>
+</ul>
+</header>
+
+<section>
+<h2>In one paragraph</h2>
+<p>This PR changes how the generated Lean file writes the <a href="#g-negation">negation</a> of an Int <a href="#g-term">term</a> whose value is always zero. It is now <code>0 - t</code> instead of <code>-t</code>. Both are the same integer, so the theorem says the same thing. The reason is a defect in the <code>grind</code> <a href="#g-tactic">tactic</a> of the pinned Lean version. When it met the term <code>-0</code> under an <a href="#g-uf">uninterpreted function</a>, an <a href="#g-array">array</a> <a href="#g-select">read</a>, or a <a href="#g-store">store</a>, it built a proof that the Lean <a href="#g-kernel">kernel</a> rejected. A correct <a href="#g-refutation">refutation</a> from Z3 therefore could not be certified. With the new spelling these inputs pass the Lean check. No <a href="#g-axiom">axiom</a> is added and no check is skipped.</p>
+</section>
+
+<section>
+<h2>Background</h2>
+<p>Before this PR, Int inputs with uninterpreted functions and arrays were already certified through the <a href="#g-clause-log">clause log</a>. One family was an exception: inputs that negate a zero-valued Int term in an argument, such as <code>(f (- 0))</code>. Lean rejected them with a kernel error that no fallback tactic could catch. The same error appeared when a <a href="#g-map">map</a> negated an array holding a stored zero, as the review of PR #124 reported. The Real <a href="#g-sort">sort</a> never had the problem. <a href="#g-certificate">Certificates</a> built from Z3's older proof object already passed. The work serves milestone 3, equality and <a href="#g-linear">linear arithmetic</a>, and the array part of milestone 4.</p>
+</section>
+
+<section>
+<h2>What changed</h2>
+<h3>Reconstructor</h3>
+<ul>
+<li>You can now certify Int inputs that negate an always-zero term in an argument, such as <code>(select a (- (mod 6 3)))</code>.</li>
+<li>You can now certify inputs where the Int negation map runs over an array holding a zero.</li>
+<li>Other negations are untouched: <code>(- 2)</code> is still the <a href="#g-numeral">numeral</a> <code>-2</code>, and Real negations keep <code>-t</code>.</li>
+</ul>
+<h3>Tests</h3>
+<ul>
+<li>You can now tell when the workaround is obsolete: tests restore the old spelling and expect the kernel error.</li>
+</ul>
+<h3>Documentation</h3>
+<ul>
+<li>You can now read in the plan and the README which inputs are covered and which still fail.</li>
+</ul>
+<p>An analogy: one clerk misreads “minus zero” on a form, so the form now says “zero minus zero”. The amount is the same. The helper that picks the spelling is <code>_negation</code>.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>File</th><th>Role</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">78</td><td class="num">5</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td>Tests, functions over Int</td><td class="num">250</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Tests, arrays</td><td class="num">110</td><td class="num">2</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan</td><td class="num">77</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">11</td><td class="num">1</td></tr>
+<tr><th>Total, 5 files, 2 commits</th><th></th><th class="num">526</th><th class="num">10</th></tr>
+</tbody>
+</table>
+</div></section>
+
+<section>
+<h2>Worked example</h2>
+<p>The input is <code>negated_zero_argument</code> from the PR's new tests. It says <code>f(-0) = 1</code> and <code>f(0) = 2</code>, which cannot both hold. All output below comes from real runs for this report.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UFLIA)
+(declare-fun f (Int) Int)
+(declare-const x Int)
+(assert (= (f (- 0)) 1))
+(assert (= (f 0) 2))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The scripts of the base commit <code>5b3c7d45f</code> exported the certificate, but the Lean check of the generated file failed. The temporary file's directory is removed from the message.</p>
+<pre><code>z3_proof_qrplbl3v.lean:49:23: error: (kernel) application type mismatch
+  eq_false_of_decide (eagerReduce (Eq.refl false))
+argument has type
+  false = false
+but function has type
+  decide (-0 = 0) = false → (-0 = 0) = False
+Lean checking failed; no proof was published.</code></pre>
+<p>Line 49 is the last tactic call of the lemma shown in (c). The old and new Lean files differ in exactly one line:</p>
+<pre><code>-def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (-(term_0 _atoms _vars _m))
++def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (((0 : Int)) - (term_0 _atoms _vars _m))</code></pre>
+
+<h3>(c) After</h3>
+<p>Lean accepted the file generated by this PR: <code>scripts/check_lean.sh</code> printed <code>Lean checks passed.</code></p>
+<pre><code>structure Interpretation where
+  U : Type
+  ...
+  int : Int -&gt; U
+  ifuns : Nat -&gt; List U -&gt; Int
+
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((0 : Int))
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := (((0 : Int)) - (term_0 _atoms _vars _m))
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := _m.ifuns 0 [(_m.int (term_1 _atoms _vars _m))]
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := ((1 : Int))
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_2 _atoms _vars _m) = (term_3 _atoms _vars _m))
+def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := _m.ifuns 0 [(_m.int (term_0 _atoms _vars _m))]
+...</code></pre>
+<p>These are the declarations. The second definition is the input's <code>(- 0)</code>, now spelled <code>0 - 0</code>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_4 _atoms _vars _m))
+    (_h1 : (formula_7 _atoms _vars _m))
+    : False :=
+  ...</code></pre>
+<p>This is the theorem: whatever function <code>f</code> stands for, the two assertions together lead to <code>False</code>.</p>
+<pre><code>def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_3 _atoms _vars _m) = (term_5 _atoms _vars _m))
+def formula_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := (Iff (formula_4 _atoms _vars _m) (formula_9 _atoms _vars _m))
+...
+set_option maxHeartbeats 1000000 in
+private theorem rewrite_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_10 _atoms _vars _m) := by
+  unfold formula_10 formula_9 formula_4 term_3
+  first
+    | (generalize (term_5 _atoms _vars _m) = _o0
+       generalize (term_2 _atoms _vars _m) = _o1
+       omega)
+    | (unfold term_5 term_2 term_1 term_0
+       have _r1_0 : (term_1 _atoms _vars _m) = (term_0 _atoms _vars _m) := by unfold term_1 term_0; first | omega | grind (splits := 64)
+       unfold term_1 term_0 at _r1_0
+       first | omega | grind (splits := 64))</code></pre>
+<p>This lemma is the <a href="#g-rewrite">rewrite step</a> that failed before. It shows <code>0 - 0 = 0</code>, then uses <a href="#g-congruence">congruence</a> to turn <code>f(0 - 0) = 1</code> into <code>1 = f(0)</code>.</p>
+</section>
+
+<section>
+<h2>How it was verified</h2>
+<p>All local test suites passed on the final commit. Every random input that failed in the kernel before now passes, and none that passed before fails.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Check</th><th>Run by</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests</td><td>Integrator, final commit</td><td>548 run, all passed, 9 skipped</td></tr>
+<tr><td>Certificate exporter tests</td><td>Integrator, final commit</td><td>120 passed</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td>Integrator, final commit</td><td>Passed</td></tr>
+<tr><td>Proof tests of the benchmark repository</td><td>Integrator, final commit</td><td>48 passed</td></tr>
+<tr><td>Regression matrix, Boolean inputs</td><td>Integrator, final commit</td><td>6 of 6 verified by Lean</td></tr>
+<tr><td>Regression matrix, linear real inputs</td><td>Integrator, final commit</td><td>8 of 8 verified by Lean</td></tr>
+<tr><td>Random inputs with negated zeros, plain, seeds 1–1000</td><td>Implementer, first commit</td><td>190 unsat. 56 failed in the kernel before, 0 fail now</td></tr>
+<tr><td>Random inputs with negated zeros, with a sort and <code>ite</code>, seeds 1–500</td><td>Implementer, first commit</td><td>69 unsat. 25 failed in the kernel before, 0 fail now</td></tr>
+<tr><td>More random seeds, outside the implementer's range</td><td>Reviewer, first commit</td><td>38 unsat. 37 verify, 11 of them failed before. 1 rejected by the exporter</td></tr>
+<tr><td>Text comparison of old and new Lean files, clause log</td><td>Reviewer, first commit</td><td>393 identical, 106 differ only by the new spelling, 0 other</td></tr>
+<tr><td>Zero-value computation against Z3's simplifier, random numeral terms</td><td>Reviewer, first commit</td><td>400 of 400 agree</td></tr>
+<tr><td>New tests run against the old reconstructor</td><td>Reviewer, first commit</td><td>They fail, as they should</td></tr>
+<tr><td>Loop's local gate</td><td>Loop driver</td><td><span class="unknown">not recorded</span></td></tr>
+</tbody>
+</table>
+</div>
+<p>The second commit changed only tests and documentation. The loop's local gate had not recorded a result when this report was written. No C++ changed, so the C++ tests were not run.</p>
+<h3>CI</h3>
+<p>No CI status was recorded for this report, so nothing is claimed about CI. No CI fix rounds were recorded. The PR description names the one job that runs the new tests.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Workflow</th><th>Check</th><th>Result</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>CI</td><td>Ubuntu build - cmake - releaseClang, step “Check native proofs in Lean”</td><td><span class="unknown">unknown</span></td><td><a href="https://github.com/levnach/z3/pull/125/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section>
+<h2>Review</h2>
+<p>The reviewer approved the change. There were no blockers and no major findings, one minor finding, and two nits.</p>
+<ul>
+<li><strong>Minor, documented and not fixed in code.</strong> The reviewer tried inputs with no negation of zero at all, such as <code>(f (div 2 (- 5)))</code>. Lean's <a href="#g-simplifier">simplifier</a> turns the quotient into a negated quotient, which is <code>-0</code> again. The kernel rejects these exactly as before the PR, so nothing wrong is accepted. It mattered because the documentation made the problem look closed. The plan, the README, and the backlog now list these cases.</li>
+<li><strong>Nit, documented and not fixed.</strong> The reviewer negated a term in which each level adds the previous level to itself. The new zero check walks it as a tree, so its time doubles per level. At 20 levels reconstruction took 7.3 s against 5.4 s before. The old code already grew this way, so the fix is left for a separate change.</li>
+<li><strong>Nit, fixed.</strong> One new test checked which axioms Lean reports. It would also have passed if the report said nothing about axioms. It now requires Lean's explicit statement in that case.</li>
+</ul>
+<p>One suggestion was also taken up. The tests that pin the Lean defect now explain, when they fail, what to remove after a Lean upgrade.</p>
+</section>
+
+<section>
+<h2>Risks and open questions</h2>
+<ul>
+<li><a href="#g-soundness">Soundness</a>: no risk was identified. A wrong zero check would only pick the other spelling of the same number.</li>
+<li>The fix is a partial workaround for a defect of Lean 4.34.0. The cases from the minor finding still fail.</li>
+<li>Negations of heavily shared terms get slower. No test or random input showed it.</li>
+<li>Three existing inputs with an Int negation map now produce different text. They still verify.</li>
+<li>The CI result and the local gate result are unknown.</li>
+</ul>
+</section>
+
+<section>
+<h2>What comes next</h2>
+<p>The PR lists these follow-ups. None is a new failure.</p>
+<ul>
+<li>Zeros reached without a negation in the input: quotients by a negative numeral, and <code>mod</code> or <code>rem</code> by 1 or -1 under a variable.</li>
+<li>A negated <a href="#g-ite">if-then-else term</a> whose condition is already decided.</li>
+<li>A map over a chain of two stores with the Int negation map.</li>
+<li>Two other rejections met on the way: <code>(f (to_int 0.5))</code>, and some <code>rem</code> terms with a negative divisor.</li>
+<li>Caching the linear form of each term, which removes the slowdown.</li>
+</ul>
+</section>
+
+<section>
+<h2>Glossary</h2>
+<dl>
+<dt id="g-array">array</dt>
+<dd>A value that maps every index to an element, like a table with one entry per index. Example: <code>(Array Int Int)</code>.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement accepted without proof. A proof that adds none rests only on the logic's standard foundations.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>A file with the evidence for a solver's answer, detailed enough for an independent checker to confirm it.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of simple facts or their negations. Example: “<code>f(0)</code> is not 2, or <code>f(0)</code> is not 1”.</dd>
+<dt id="g-clause-log">clause log</dt>
+<dd>The solver's record of the <a href="#g-clause">clauses</a> it derived while solving, each with a hint about why it holds.</dd>
+<dt id="g-congruence">congruence</dt>
+<dd>The rule that equal arguments give equal results. Example: if <code>a = b</code> then <code>f(a) = f(b)</code>.</dd>
+<dt id="g-ite">if-then-else term</dt>
+<dd>A term that picks one of two values by a condition. Written <code>(ite c a b)</code> in SMT-LIB.</dd>
+<dt id="g-kernel">kernel</dt>
+<dd>The small core of a proof assistant that checks every finished proof. A proof counts only if the kernel accepts it.</dd>
+<dt id="g-linear">linear arithmetic</dt>
+<dd>Arithmetic where variables are only added and multiplied by constants. Example: <code>2x + y ≤ 3</code>.</dd>
+<dt id="g-map">map</dt>
+<dd>An array operator that applies a function to every element. Example: negating each element of an array.</dd>
+<dt id="g-negation">negation (arithmetic)</dt>
+<dd>The unary minus of a number. Written <code>(- t)</code> in SMT-LIB and <code>-t</code> in Lean.</dd>
+<dt id="g-numeral">numeral</dt>
+<dd>A number written out as a constant, such as <code>0</code>, <code>2</code>, or <code>-2</code>.</dd>
+<dt id="g-select">read</dt>
+<dd>Looking up an array at an index. Written <code>(select a i)</code> in SMT-LIB.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions is contradictory, ending in <code>False</code>.</dd>
+<dt id="g-rewrite">rewrite step</dt>
+<dd>A proof step that replaces a formula by an equivalent, usually simpler one.</dd>
+<dt id="g-simplifier">simplifier</dt>
+<dd>The part of a prover that rewrites terms to simpler equal terms. Example: <code>0 - 0</code> becomes <code>0</code>.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-soundness">soundness</dt>
+<dd>The property that only true statements can be proved. A soundness bug would let a wrong result pass.</dd>
+<dt id="g-store">store</dt>
+<dd>An array equal to another except at one index. Written <code>(store a i v)</code> in SMT-LIB.</dd>
+<dt id="g-tactic">tactic</dt>
+<dd>A proof-search procedure in a proof assistant. It builds a proof, which the kernel then checks.</dd>
+<dt id="g-term">term</dt>
+<dd>An expression that denotes a value. Examples: <code>0</code>, <code>x + 1</code>, <code>f(0)</code>.</dd>
+<dt id="g-uf">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. Only congruence is known about it. Example: <code>(declare-fun f (Int) Int)</code>.</dd>
+</dl>
+</section>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-12 (UTC).
+</footer>
+
+</main>
+</body>
+</html>
