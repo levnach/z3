@@ -439,6 +439,21 @@ def disjunctive_temporal_instance(seed, variables=20, clauses=140):
 # its regex), then the unfolded fallback, which states the folded ite gates
 # first when the lemma has any (proof_to_lean._folded_ite_gates).
 _FALLBACK_AFTER = r"\n       %s\)\n    \| \((?:unfold |have _g)"
+# The proof of a mod atom's upper bound under a negative divisor
+# (proof_to_lean._mod_bound_facts).
+_NEGATIVE_MOD_BOUND = "exact Int.lt_of_lt_of_le (Int.emod_lt _ (by decide)) (by decide)"
+
+
+def negative_mod_source(divisor):
+    """Remainders of x, y, and x + y by a negative constant, written as the given term, that cannot all be 2.
+
+    The rewrite of each assertion and the cut state the bounds of their mod
+    atoms. No logic: under QF_LIA Z3 calls a divisor that is not a numeral
+    nonlinear.
+    """
+    return "".join(["(declare-const x Int)\n", "(declare-const y Int)\n"]
+                   + ["(assert (= (mod %s %s) 2))\n" % (term, divisor) for term in ("(+ x y)", "x", "y")]
+                   + ["(check-sat)\n"])
 
 
 def modular_chains_instance(depth=6, function=False):
@@ -771,9 +786,11 @@ class TestIntegerValidation(unittest.TestCase):
                     if tactic == "omega":
                         mods = []  # The coefficients certify the combination over the atoms alone.
                     self.assertEqual(block.count("exact Int.emod_nonneg _ (by decide)"), len(mods))
-                    self.assertEqual(block.count("exact Int.emod_lt_of_pos _ (by decide)"), len(mods))
-                    self.assertEqual(block.count("rw [Int.emod_neg]; "),
-                                     sum(1 for atom in mods if proof_to_lean._integer_divisor(graph, atom) < 0))
+                    # The upper bound under a negative divisor is by its absolute value.
+                    negative = sum(1 for atom in mods if proof_to_lean._integer_divisor(graph, atom) < 0)
+                    self.assertEqual(block.count("exact Int.emod_lt_of_pos _ (by decide)"), len(mods) - negative)
+                    self.assertEqual(block.count(_NEGATIVE_MOD_BOUND), negative)
+                    self.assertNotIn("Int.emod_neg", block)
                     self.assertEqual("revert _m" in block, bool(mods))
                     self.assertEqual("have _m" in block, bool(mods))
                     # The fallback unfolds the atoms and everything under them
@@ -1771,6 +1788,35 @@ class TestIntegerLeanIntegration(unittest.TestCase):
                 hints |= _hints(certificate)
         self.assertLessEqual({"cut", "farkas", "bound", "implied-eq", "euf", "arith"}, hints)
 
+    def test_mod_bounds_prove_however_a_negative_divisor_is_written(self):
+        # The bounds 0 <= m < |k| of a mod atom are stated inside the
+        # generalized attempt, whose failure the unfolded fallback hides
+        # (and the rewrite that normalizes a divisor relates two atoms, so
+        # its attempt fails whatever the facts do). Lean therefore checks
+        # every stated bound as a theorem of its own, next to the
+        # certificate: under a negated numeral, and under constants rendered
+        # as differences or as a product, where the earlier rewrite with
+        # Int.emod_neg found no negation to match.
+        signature = "(_atoms : Nat -> Prop) (_vars : Nat -> Int)"
+        for divisor in ("(- 3)", "(- (- (- 3)))", "(- (+ 1 2))", "(* 3 (- 1))"):
+            with self.subTest(divisor=divisor):
+                source = negative_mod_source(divisor)
+                certificate = proof_certificate.export_clause_log_certificate(source)
+                self.assertIn("cut", _hints(certificate))
+                text = proof_to_lean.reconstruct(source, certificate)
+                facts = sorted(set(re.findall(r"have _m\d+_[01] : (.*) := by (.*)", text)))
+                upper = [statement for statement, proof in facts if proof.endswith(_NEGATIVE_MOD_BOUND)]
+                self.assertGreaterEqual(len(upper), 3)
+                self.assertTrue(all(statement.endswith(" < ((3 : Int))") for statement in upper), upper)
+                # Every divisor is negative: one lower and one upper bound per atom.
+                self.assertEqual(len(facts), 2 * len(upper))
+                self.assertNotIn("Int.emod_neg", text)
+                theorems = "".join("private theorem mod_bound_%d %s : %s := by %s\n\n" % (
+                    index, signature, statement, proof) for index, (statement, proof) in enumerate(facts))
+                head, unsat = text.split("\ntheorem unsat ")
+                lean_test_support.check(self, source, certificate,
+                                        text=head + "\n" + theorems + "theorem unsat " + unsat)
+
     def test_pinned_random_instances_verify(self):
         for seed in PINNED_SEEDS:
             source = random_instance(seed)
@@ -1872,7 +1918,7 @@ class TestIntegerLeanIntegration(unittest.TestCase):
             certificate = self.check(source)
         self.assertLessEqual({"farkas", "bound", "cut"}, _hints(certificate))
         text = proof_to_lean.reconstruct(source, certificate)
-        self.assertIn("rw [Int.emod_neg]; exact Int.emod_lt_of_pos _ (by decide)", text)
+        self.assertIn(_NEGATIVE_MOD_BOUND, text)
         self.assertRegex(text, _FALLBACK_AFTER % "omega")
         # The cuts are proved over the generalized atoms by grind with two million
         # heartbeats: under the solver of Z3Prover/z3 at ac62f5a6a (simplex pivoting

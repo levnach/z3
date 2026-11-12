@@ -224,7 +224,7 @@ UFLIA_INPUTS = {
 # literal -0 for a numeral other than 0, and the kernel rejects the proof it
 # builds on that ("application type mismatch" at decide (-0 = 0) = false),
 # so an Int negation is rendered as the difference 0 - t
-# (proof_to_lean._negation) and a div by a negative numeral d, which the
+# (proof_to_lean._negation) and a div by a negative constant d, which the
 # simplifier rewrites to a negation, as 0 - t / (0 - d)
 # (proof_to_lean._negative_quotient). Next to each term: whether its
 # clause-log certificate failed in Lean with every negation rendered as -t
@@ -287,6 +287,21 @@ ZERO_NEGATION_INPUTS.update({
 (declare-sort U 0)
 (declare-fun g (Int) U)
 (assert (not (= (g (- 0)) (g 0))))
+(check-sat)
+""", True),
+    # Negative divisors that are constants without being a negated numeral
+    # (proof_to_lean._negative_quotient reads the divisor's value, not its
+    # form). No logic: under QF_UFLIA Z3 calls such divisors nonlinear.
+    "zero_quotient_by_a_negative_product": ("""\
+(declare-fun f (Int) Int)
+(assert (= (f (div 2 (* 5 (- 1)))) 1))
+(assert (= (f 0) 2))
+(check-sat)
+""", True),
+    "zero_quotient_by_a_thrice_negated_numeral": ("""\
+(declare-fun f (Int) Int)
+(assert (= (f (div 2 (- (- (- 5))))) 1))
+(assert (= (f 0) 2))
 (check-sat)
 """, True),
 })
@@ -785,7 +800,7 @@ class TestIntegerMixedValidation(unittest.TestCase):
         self.assertIn("th_lemma", proof_to_lean.reconstruct(self.source, certificate))
 
     def test_int_negations_are_rendered_as_differences(self):
-        """An Int negation is 0 - t, of a positive numeral -k; a div by a negative numeral d is 0 - t / (0 - d)."""
+        """An Int negation is 0 - t, of a positive numeral -k; a div by a negative constant d is 0 - t / (0 - d)."""
         zero = r"\(\(0 : Int\)\)"
         operand = r"\(term_\d+ _atoms _vars _m\)"
         difference = re.compile(r"^(?:noncomputable )?def term_\d+ .* : Int := \(%s - %s\)$" % (zero, operand), re.M)
@@ -828,7 +843,7 @@ class TestIntegerMixedValidation(unittest.TestCase):
                     # The identity of the quotients is stated where one is rendered.
                     self.assertEqual("private theorem _div_neg (t d : Int) : ((0 : Int)) - t / (((0 : Int)) - d) "
                                      "= t / d := by" in text, theorems > 0)
-                    self.assertEqual("-- Int div by a negative numeral d is written 0 - t / (0 - d)" in text,
+                    self.assertEqual("-- Int div by a negative constant d is written 0 - t / (0 - d)" in text,
                                      theorems > 0)
                     self.assertEqual("_quotient" in text, theorems > 0)
                     if theorems:
@@ -841,7 +856,8 @@ class TestIntegerMixedValidation(unittest.TestCase):
         self.assertEqual(quotients, {
             "negated_zero_quotient_by_a_negative", "zero_quotient_by_a_negative", "quotient_of_zero_by_a_negative",
             "quotient_of_a_zero_product_by_a_negative", "abs_of_a_zero_quotient_by_a_negative",
-            "quotient_of_a_remainder_by_one", "negated_quotient_by_a_negative"})
+            "quotient_of_a_remainder_by_one", "negated_quotient_by_a_negative",
+            "zero_quotient_by_a_negative_product", "zero_quotient_by_a_thrice_negated_numeral"})
         # A div by a positive numeral keeps Lean's operator.
         plain = UFLIA_INPUTS["uflia_div_mod"]
         plain_text = proof_to_lean.reconstruct(plain, proof_certificate.export_clause_log_certificate(plain))

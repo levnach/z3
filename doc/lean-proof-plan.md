@@ -1328,7 +1328,8 @@ the bounds and the div and mod rows it rests on as literals. So `_grind_lemma`
 now proves an Int th-lemma under those hints in two attempts: first the
 definitions outside the atoms are unfolded, every `mod` atom gets its
 bounds `0 <= m < |k|` (`Int.emod_nonneg`, `Int.emod_lt_of_pos`, through
-`Int.emod_neg` for a negative divisor; the solver fixes these at base level
+`Int.emod_neg` for a negative divisor, since 2026-11-12 `Int.emod_lt` with
+`decide`, see "Int negations rendered as differences"; the solver fixes these at base level
 and omits them from the lemmas it explains, which left one cut unprovable
 without them) stated and reverted, the atoms are `generalize`d to fresh
 integers, and `omega` (farkas, bound: it closes the linear goal at once)
@@ -1700,7 +1701,7 @@ The reconstructor renders such terms as differences, which are the same
 numbers and which the simplifier evaluates with their operands:
 
 - `_negation`: every Int negation is `0 - t`, for a unary minus, the
-  negative branch of `abs`, and `rem` by a negative numeral. Which terms
+  negative branch of `abs`, and `rem` by a negative constant. Which terms
   the simplifier evaluates to 0 is not for the reconstructor to predict
   (the first version, iteration 124, rendered the difference only where
   its own evaluation of the term gave zero, and missed `(- (mod x 1))`,
@@ -1708,7 +1709,9 @@ numbers and which the simplifier evaluates with their operands:
   positive numeral keeps the form `-k`, so `(- 2)` is still the numeral
   `-2`. Where `t` does not evaluate, the simplifier normalizes `0 - t` to
   the form it gives `-t`;
-- `_negative_quotient`: a `div` by a negative constant `d` is `0 - t / (0 -
+- `_negative_quotient`: a `div` by a negative constant `d` (a negated
+  numeral, or a constant expression such as `(* 5 (- 1))` or `(- (- (-
+  5)))`, read by `_linear_term`) is `0 - t / (0 -
   d)`. The definition is followed by a theorem `term_N_quotient` that it
   equals `t / d` over the operands' definitions, proved by the file's
   `_div_neg` (`Int.ediv_neg`), so the kernel checks the identity the
@@ -1721,8 +1724,24 @@ Real negations keep `-t`: `Rat` has no such defect. The theorem's
 statement changes only in those definitions, to terms equal to the old
 ones. The legacy core's certificates of these inputs verified before (no
 step of theirs gives `grind` the literal) and verify with the differences.
-Tests: `ZERO_NEGATION_INPUTS` (22 inputs, 19 of which the kernel rejected
-with the old renderings), `NONZERO_NEGATION_INPUTS`, `ZERO_SEEDS`, and
+
+One proof read the old form: the upper bound `m < |k|` that
+`_mod_bound_facts` states for a mod atom under a negative divisor was
+`rw [Int.emod_neg]`, which needs the divisor to be a negation in the
+text. A divisor `(- (- (- 3)))` or `(- (+ 1 2))` is a difference now, so
+the bound is `Int.emod_lt` (by the divisor's absolute value) compared with
+`|k|` by `decide`, whatever the constant divisor looks like (`(* 3 (- 1))`
+never was a negation). The generalized attempts of the rewrites that
+normalize such a divisor fail all the same, before and after: they relate
+the mod by the written divisor with the mod by `-3`, two atoms once
+generalized, and the unfolded fallback proves them
+(`test_mod_bounds_prove_however_a_negative_divisor_is_written` in
+`test_proof_to_lean_lia.py` has Lean check each stated bound as a theorem
+of its own, since the fallback would hide a bound that fails).
+
+Tests: `ZERO_NEGATION_INPUTS` (24 inputs, 21 of which the kernel rejected
+with the old renderings, two of them quotients by `(* 5 (- 1))` and `(- (-
+(- 5)))`), `NONZERO_NEGATION_INPUTS`, `ZERO_SEEDS`, and
 `SIMPLIFIER_SEEDS` (random instances over the terms the simplifier takes to
 `-0` on its own) in `test_proof_to_lean_uflia.py` (both cores;
 `test_int_negations_are_rendered_as_differences` pins the forms and the
