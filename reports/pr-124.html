@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c1e21; --muted: #5b6370; --line: #d6dae0;
-  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --badge: #fff4d6;
+  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --badge: #e6f4ea;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #15181c; --fg: #e3e6ea; --muted: #9aa3ae; --line: #343a42;
-    --panel: #1e2329; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --badge: #3a2f12;
+    --panel: #1e2329; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --badge: #173222;
   }
 }
 * { box-sizing: border-box; }
@@ -55,12 +55,12 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <h1>Certify reads through stores into maps and sets equated with stores</h1>
 <p class="meta">
 <span><a href="https://github.com/levnach/z3/pull/124">Pull request #124</a></span>
-<span>State: <span class="badge">OPEN</span></span>
-<span>Date: 2026-11-12T02:23:35Z</span>
+<span>State: <span class="badge">MERGED</span></span>
+<span>Date: 2026-11-12T02:39:08Z</span>
 <span>Loop iteration 123</span>
 </p>
-<p>This pull request is open and is not merged. It targets <code>master</code>. The change commit is
-<a href="https://github.com/levnach/z3/commit/8795c1ca9643a93ea051eb9bcec4a927e9a885bb"><code>8795c1ca9</code></a>.</p>
+<p>Merged into <code>master</code> on 2026-11-12T02:39:08Z as merge commit
+<a href="https://github.com/levnach/z3/commit/5b3c7d45f97707ba535cc1db3112a806f629f6ed"><code>5b3c7d45f</code></a>.</p>
 </header>
 
 <h2>In one paragraph</h2>
@@ -83,9 +83,9 @@ facts only when it reached a map. The work serves milestone 4 of the plan, "Broa
 integration", for <a href="#g-array">arrays</a>.</p>
 
 <h2>What changed</h2>
-<p>Picture a set as a row of light switches. A store flips one switch, and a map builds a new row from
-other rows. To know one switch of a stored row, you may have to look at the row underneath. The old proofs
-never looked underneath.</p>
+<p>Picture a set as a row of light switches. A store sets one switch, and a map builds a new row from
+other rows. To know one switch of a stored row, you may have to look underneath. The old proofs never
+did.</p>
 <ul>
 <li><strong>Reconstructor.</strong> A select through up to eight stores at variable indices now gets a fact
 for every store and for the map below, found by <code>_read_levels</code>.</li>
@@ -108,11 +108,12 @@ earlier attempts are the old ones, line for line.</li>
 <tr><th>Total</th><th class="n">597</th><th class="n">162</th></tr>
 </tbody>
 </table>
-<p class="note">The PR has two commits: the change, and the fixes made after review. There is no C++ change.</p>
+<p class="note">The PR's two commits, the change and the review fixes, were merged as one. There is no C++
+change.</p>
 
 <h2>Worked example</h2>
 <p>The input is the PR's test <code>set_read_at_a_variable_through_a_store_to_a_map</code>. All output
-comes from real runs made for this report.</p>
+comes from real runs made for this report on the merged code.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(declare-fun s () (Array Int Bool))
@@ -123,9 +124,9 @@ comes from real runs made for this report.</p>
 false keeps it empty. The assertion claims a member.</p>
 
 <h3>(b) Before</h3>
-<p>The scripts of the base commit <code>1bb828779</code> exported a certificate and wrote a Lean file of 170
-lines, which the Lean check rejected. The directory is removed from the path below.</p>
-<pre><code>z3_proof_rgie1mhx.lean:147:33: error: `grind` failed
+<p>The scripts of the base commit <code>1bb828779</code> exported the same certificate, but the Lean check
+rejected their Lean file. The directory is removed from the path below.</p>
+<pre><code>z3_proof_rf1egs18.lean:147:33: error: `grind` failed
 case grind.2
 ...
 _s6 :
@@ -141,8 +142,7 @@ Lean checking failed; no proof was published.</code></pre>
 it.</p>
 
 <h3>(c) After</h3>
-<p>This PR writes a Lean file of 187 lines from the same certificate, and the Lean check accepted
-it.</p>
+<p>The merged code writes a Lean file of 187 lines, and the Lean check accepted it.</p>
 
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := _m.arrs_ib 0
 def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := (_map2 (fun _p _q : Prop =&gt; And _p (Not _q)) (term_0 _atoms _vars _m) (term_0 _atoms _vars _m))
@@ -173,8 +173,8 @@ private theorem rewrite_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m
        first | omega | grind (splits := 64))
     ...</code></pre>
 <p>The new fact <code>_sm6</code> reads the difference at <code>i</code> as "in <code>s</code> and not
-in <code>s</code>", by <a href="#g-rfl">definitional equality</a>. The first four of the six attempts are the
-base commit's, unchanged.</p>
+in <code>s</code>", by <a href="#g-rfl">definitional equality</a>. A text comparison shows the first four of
+the six attempts are the base commit's, unchanged.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     (_h0 : (formula_6 _atoms _vars _m))
@@ -184,18 +184,26 @@ base commit's, unchanged.</p>
 <code>False</code>.</p>
 
 <h2>How it was verified</h2>
-<p>The integrator ran every local test command on the head commit's content, and all passed. A sweep of
-about 1,200 random set problems verifies all but four in Lean. Those four produce the same Lean text as at
-the base commit.</p>
+<p>Every local test passed, and the loop merged the PR on its local gate. The gate repeats the relevant CI
+steps on the loop's macOS machine. Of about 1,200 random set problems, all but four verify in Lean. Those
+four produce the same Lean text as at the base commit.</p>
 <table>
-<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="n">Time</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction tests</td><td><span class="ok">pass</span>, 541 tests, 9 skipped, 876 s</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span></td><td class="n">19 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span></td><td class="n">876 s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span></td><td class="n">19 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td><span class="ok">pass</span>, 6 of 6 verified in Lean</td><td class="n">6 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td><span class="ok">pass</span>, 8 of 8 verified in Lean</td><td class="n">7 s</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Other local check, run before the merge</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests</td><td><span class="ok">pass</span>, 541 tests, 9 skipped</td></tr>
 <tr><td>Certificate exporter tests</td><td><span class="ok">pass</span>, 120 tests</td></tr>
 <tr><td>Lean project check, <code>scripts/check_lean.sh</code></td><td><span class="ok">pass</span></td></tr>
 <tr><td>z3test proof script tests</td><td><span class="ok">pass</span>, 48 tests</td></tr>
-<tr><td>Boolean matrix, legacy proof object</td><td><span class="ok">pass</span>, 6 of 6 verified in Lean</td></tr>
-<tr><td>QF_LRA matrix, clause log</td><td><span class="ok">pass</span>, 8 of 8 verified in Lean</td></tr>
 <tr><td>228 documented array inputs compared with the base text</td><td>216 identical, 12 keep the base attempts first</td></tr>
 <tr><td>The reviewer's failing input, three stores and seven selects</td><td><span class="ok">pass</span> in 0.6 s, after a timeout at 54.3 s on the first commit</td></tr>
 </tbody>
@@ -212,47 +220,48 @@ the base commit.</p>
 </table>
 <p class="note">The base column comes from earlier runs. All runs were on macOS. No C++ changed, so the
 C++ tests were not run.</p>
-<p>The loop's local gate was still running when this report was written, so its result is not recorded.
-No CI status was recorded either, and GitHub reported no checks on the branch. There were no CI fix
-rounds.</p>
+<p>The change touches only Python examples, their tests, and documentation, so the loop did not wait for
+GitHub CI. GitHub listed no checks on the PR and no workflow run on the merge commit when this report was
+written. The CI result on <code>master</code> is unknown. There were no CI fix rounds.</p>
 <table>
 <thead><tr><th>CI workflow</th><th>Check</th><th>Status</th><th>Link</th></tr></thead>
 <tbody>
 <tr><td><code>CI</code></td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean". The PR
 description names this as the only job that runs the new tests.</td>
 <td><span class="warn">no run recorded</span></td>
-<td><a href="https://github.com/levnach/z3/pull/124/checks">PR checks</a></td></tr>
+<td><a href="https://github.com/levnach/z3/pull/124/checks">PR checks</a>,
+<a href="https://github.com/levnach/z3/commit/5b3c7d45f97707ba535cc1db3112a806f629f6ed/checks">merge commit checks</a></td></tr>
 </tbody>
 </table>
 
 <h2>Review</h2>
-<p>The verdict on the first commit was REQUEST_CHANGES. The second commit fixes all three findings.</p>
+<p>The verdict on the first commit was REQUEST_CHANGES, with one major and two minor findings. The second
+commit fixes all three.</p>
 <ul>
-<li><strong>Major, fixed.</strong> The reviewer built stress inputs: stores alternating with
-<a href="#g-complement">complements</a>, read at several indices. One verified in half a second at the base
-commit and failed after 55 seconds with the first commit. The new facts were in every proof attempt. Each
-store is a <a href="#g-case-split">case split</a> for <code>grind</code>, so an early attempt hit the
-<a href="#g-heartbeat">heartbeat limit</a> instead of failing fast. Lean cannot try the next attempt after
-that, so a certificate that passed before was rejected. The fix appends the attempts with the new facts
+<li><strong>Major, fixed.</strong> The reviewer read stores alternating with
+<a href="#g-complement">complements</a> at several indices. One such input verified in half a second at the
+base commit and failed after 55 seconds with the first commit. The new facts were in every proof attempt.
+Each store is a <a href="#g-case-split">case split</a> for <code>grind</code>, so an early attempt hit the
+<a href="#g-heartbeat">heartbeat limit</a> instead of failing fast. Lean does not try the next attempt after
+that, so a certificate that passed before was rejected. Now the new facts appear only in attempts added
 last.</li>
-<li><strong>Minor, fixed.</strong> The limit of eight stores counted one run of stores only, so a select
-through stores alternating with maps got thousands of facts. It now counts over the whole walk of one
-select.</li>
-<li><strong>Minor, fixed.</strong> No test read such a term at more than one index. The failing input is now
-a Lean-checked test, and a new test checks the order of the attempts.</li>
+<li><strong>Minor, fixed.</strong> The limit of eight stores counted one run of stores only, so alternating
+stores and maps got thousands of facts. It now covers the whole walk of one select.</li>
+<li><strong>Minor, fixed.</strong> No test read such a term at more than one index. The failing input is
+now a Lean-checked test, and a new test checks the order of the attempts.</li>
 </ul>
-<p>Two further suggestions concern failures that exist at the base commit, and they went to the
-backlog.</p>
+<p>Two further suggestions concern failures that exist at the base commit. They are follow-ups.</p>
 
 <h2>Risks and open questions</h2>
 <ul>
 <li><a href="#g-soundness">Soundness</a>: only facts inside tactic proofs are added, and Lean rejects a
 wrong one.</li>
-<li>An input that fails anyway now fails more slowly: 60 seconds instead of 13 in the reviewer's largest
+<li>An input that fails anyway now fails more slowly, 60 seconds instead of 13 in the reviewer's largest
 case.</li>
 <li>The added attempts always combine the new select facts with the
-<a href="#g-pointwise">pointwise facts</a>. No tested input needs one kind without the other.</li>
-<li>The member facts for a set equated with a store cover Boolean sets only.</li>
+<a href="#g-pointwise">pointwise facts</a>. No tested input needs one kind alone.</li>
+<li>The member facts cover Boolean sets only.</li>
+<li>All runs were on macOS, and no GitHub CI result is recorded.</li>
 </ul>
 
 <h2>What comes next</h2>
@@ -260,8 +269,8 @@ case.</li>
 <li>Seed 1701: a select through two stores over a plain set still gets one fact only.</li>
 <li>Seed 2483: an equality of a store and a map that fails at one index only has no fact.</li>
 <li>Seeds 2801 and 3083 fail as at the base commit and are not analysed.</li>
-<li>A store over an Int map fails with a Lean kernel type mismatch. The PR description says to look at
-this first.</li>
+<li>A store over an Int map fails with a Lean kernel type mismatch. The PR description puts this
+first.</li>
 </ul>
 
 <h2>Glossary</h2>
@@ -273,15 +282,15 @@ this first.</li>
 <dt id="g-axiom">axiom</dt>
 <dd>A statement accepted without proof. A Lean file that adds none relies only on Lean's standard ones.</dd>
 <dt id="g-boolean">Boolean</dt>
-<dd>The sort with the two values true and false.</dd>
+<dd>The <a href="#g-sort">sort</a> with the two values true and false.</dd>
 <dt id="g-case-split">case split</dt>
 <dd>A proof step that considers two cases separately, such as "the index is 1" and "the index is not 1".</dd>
 <dt id="g-certificate">certificate</dt>
 <dd>A file of evidence for a result that an independent checker can verify without trusting the solver.</dd>
 <dt id="g-clause">clause</dt>
-<dd>A disjunction of literals, such as "p or not q".</dd>
+<dd>A disjunction of <a href="#g-literal">literals</a>, such as "p or not q".</dd>
 <dt id="g-cnf">cnf lemma</dt>
-<dd>A proof step that ties a clause to the formula it was derived from.</dd>
+<dd>A proof step that ties a <a href="#g-clause">clause</a> to the formula it was derived from.</dd>
 <dt id="g-complement">complement</dt>
 <dd>The set of all indices that are not members of a given set. It is a map of "not".</dd>
 <dt id="g-congruence">congruence</dt>
