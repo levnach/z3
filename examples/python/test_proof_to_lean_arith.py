@@ -1303,8 +1303,12 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         # replay ("unsupported operator in the clause log: div0"), the
         # second by the reconstructor ("invalid def-axiom clause"). See
         # test_proof_certificate.py (ZERO_DIVISION_INPUTS, DECIDED_ITE_INPUTS).
-        from test_proof_certificate import DECIDED_ITE_INPUTS, ZERO_DIVISION_INPUTS
+        from test_proof_certificate import DECIDED_ITE_INPUTS, ZERO_DIVISION_INPUTS, ZERO_DIVISION_NAMESAKE_INPUTS
         sources = dict(ZERO_DIVISION_INPUTS)
+        # A function or predicate of the input named div0 or mod0 stays, as
+        # a symbol of the interpretation named in the header alone.
+        namesakes = {"namesake_" + name: function for name, (_, function, _) in ZERO_DIVISION_NAMESAKE_INPUTS.items()}
+        sources.update({"namesake_" + name: source for name, (source, _, _) in ZERO_DIVISION_NAMESAKE_INPUTS.items()})
         sources.update({"ite_" + name: source for name, (source, _) in DECIDED_ITE_INPUTS.items()})
         lean_test_support.prefetch((source, proof_certificate.export_clause_log_certificate(source))
                                     for source in sources.values())
@@ -1320,9 +1324,13 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 else:
                     self.assertLessEqual(set(axioms.group(1).split(", ")), standard)
                 text = proof_to_lean.reconstruct(source, certificate)
-                self.assertNotIn("div0", text)
-                self.assertNotIn("mod0", text)
-                if name in ZERO_DIVISION_INPUTS:
+                self.assertEqual(re.findall(r"[^\n]*(?:div0|mod0)[^\n]*", text),
+                                 [line for line in text.splitlines() if name in namesakes
+                                  and re.fullmatch(r'-- (?:Function|Predicate|Int function) \d+: "%s"'
+                                                   % namesakes[name], line)])
+                if name in namesakes:
+                    self.assertTrue(re.search(r"(?:div0|mod0)", text), text)
+                if name in ZERO_DIVISION_INPUTS or name in namesakes:
                     # The guarded axioms are theorems of the file, proved by
                     # the Int tactic, though the refutation uses none.
                     self.assertGreaterEqual(text.count("private theorem th_lemma_"), 3)

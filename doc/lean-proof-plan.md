@@ -1184,7 +1184,11 @@ simplifier forms with and without a sort); all 27 verify now.
   one, so the replay now leaves out the inferred and deleted clauses over
   such a term: an application of `/0`, `div0`, or `mod0`, a `/`, `div`,
   `mod`, or `rem` by a zero numeral, or a definition over one
-  (`_Terms.divides_by_zero`). As with the phantom literals, leaving a
+  (`_Terms.divides_by_zero`). A function the input declares under one of
+  those names stays its own: Z3 accepts the declaration only over other
+  argument sorts than two arithmetic ones, the log prints both by the bare
+  name, and the sorts of an application's arguments tell them apart
+  (`ZERO_DIVISION_NAMESAKE_INPUTS`). As with the phantom literals, leaving a
   clause out only removes support for later steps: an inference that needs
   it is not derivable by unit propagation and the log is rejected. An
   assumed clause over such a term is rejected ("the clause log assumes a
@@ -1212,7 +1216,8 @@ still rejected there are `is-A` recognizers written the old way
 Real term without a logic ("cannot mix Int and Real arithmetic"). Tests:
 `ZERO_DIVISION_INPUTS` and `DECIDED_ITE_INPUTS` in
 `test_proof_certificate.py` (the pinned log, what is left out and what
-stays rejected, symbols of the input named `mod0` and `div0`), their Lean
+stays rejected, symbols of the input named `mod0` and `div0`, the
+reconstruction of the decided gates without a Lean run), their Lean
 counterparts and `test_decided_ite_gates_without_a_guard_literal` in
 `test_proof_to_lean_arith.py`, and `UNSIMPLIFIED_SEEDS` in
 `test_proof_to_lean_uflia.py`.

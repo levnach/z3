@@ -1236,6 +1236,21 @@ ZERO_DIVISION_INPUTS = {
                      + "(assert (p (f (div (f x) (- 2)))))\n"),
     "abs": "(declare-fun f (Int) Int)\n" + _INT_PREFIX + "(assert (= (abs (div y (- 5))) (f y)))\n",
 }
+# The same with a binary function the input declares under the name of one
+# of Z3's functions for a division by zero, over other argument sorts (Z3
+# rejects the declaration over two arithmetic sorts, those of its own). The
+# log prints the input's applications and the solver's by the same bare
+# name; the sorts of the arguments tell them apart, and only the solver's
+# clauses are left out. Each entry is (source, name, argument sorts).
+_SORT_PREFIX = "(declare-sort U 0)\n(declare-const a U)\n"
+ZERO_DIVISION_NAMESAKE_INPUTS = {
+    "div0_sort": (_SORT_PREFIX + "(declare-fun div0 (U U) U)\n" + _INT_PREFIX
+                  + "(assert (= (div0 a a) a))\n(assert (= (div x (- 3)) y))\n", "div0", ["U", "U"]),
+    "mod0_predicate": (_SORT_PREFIX + "(declare-fun mod0 (U U) Bool)\n" + _INT_PREFIX
+                       + "(assert (mod0 a a))\n(assert (= (mod x (- 3)) y))\n", "mod0", ["U", "U"]),
+    "div0_mixed": (_SORT_PREFIX + "(declare-fun div0 (Int U) Int)\n" + _INT_PREFIX
+                   + "(assert (= (div0 x a) (div x (- 3))))\n", "div0", ["Int", "U"]),
+}
 # The same after a false assertion for ites whose condition is a constant
 # under its negations: Z3 logs the one gate that is not trivially true with
 # its guard, the negation of a constant, stated as false: (tseitin false (=
@@ -2524,10 +2539,12 @@ class TestClauseLogReplay(unittest.TestCase):
         for tampered, message in [
             (_LIA_DIV_LOG.replace("(arith $22)", "(arith true)"), "arith hint has no literals besides true"),
             (_LIA_DIV_LOG.replace("(arith $22)", "(arith false)"), "not an arithmetic atom"),
-            (_LIA_DIV_LOG.replace("(div x 3)", "(div x 0)"), r"assumes a clause over a division by zero: \$11"),
+            (_LIA_DIV_LOG.replace("(div x 3)", "(div x 0)"),
+             r"assumes a clause over a division by zero: \(not \$11\)"),
             (_LIA_DIV_LOG.replace("(mod x 3)", "(mod x x)"), "integer mod is supported only by a nonzero constant"),
             (_LIA_DIV_LOG.replace("(arith $22)", "(arith)"), "arith hint has no literals"),
-            (_LIA_DIV_LOG.replace("(mod x 3)", "(rem x 0)"), r"assumes a clause over a division by zero: \$11"),
+            (_LIA_DIV_LOG.replace("(mod x 3)", "(rem x 0)"),
+             r"assumes a clause over a division by zero: \(not \$11\)"),
         ]:
             with self.subTest(message=message):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
@@ -3515,11 +3532,17 @@ class TestClauseLogReplay(unittest.TestCase):
         # Only the solver's inferences are left out: an assumed clause over
         # a division by zero is tied to no assertion (no assertion has one),
         # by a definition's name or written out.
-        for assumed, message in (("$20", r"assumes a clause over a division by zero: \$20"),
-                                 ("$26", r"assumes a clause over a division by zero: \$26"),
-                                 ("(= $11 (div0 x $10))", "unsupported operator in the clause log: div0")):
+        for assumed in ("$20", "$26", "(not $20)", "(= $11 (div0 x $10))", "(= (mod x 0) y)"):
+            message = "assumes a clause over a division by zero: %s$" % re.escape(assumed)
             with self.subTest(assumed=assumed), self.assertRaisesRegex(proof_certificate.ProofExportError, message):
                 self.replay(source, _ZERO_DIVISION_LOG.replace("(assume $13)", "(assume %s)" % assumed))
+        # The replay rejects or leaves out every clause over such a
+        # definition before it builds a literal; a term built over one
+        # otherwise is rejected by its name.
+        terms = proof_clause_log._Terms(z3.Context(), [])
+        terms.define("$1", "Int", ["div0", "1", "2"])
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, r"uses a term over a division by zero: \$1$"):
+            terms.build(["=", "$1", "1"])
         # A clause left out supports no later step: the resolvent of two
         # clauses over div0 is not derivable, and in a trimmed log the
         # clause depending on them is a forward dependency. With the input's
@@ -3573,6 +3596,25 @@ class TestClauseLogReplay(unittest.TestCase):
         self.assertFalse(own.divides_by_zero(["mod0", "x"]))
         self.assertTrue(own.divides_by_zero(["mod0", "x", "0"]))
         self.assertTrue(own.divides_by_zero(["mod0", "x", "1"]))
+        # A binary one is told from Z3's by the sorts of the arguments.
+        binary = proof_clause_log._Terms(context, z3.parse_smt2_string(
+            "(declare-sort U 0)(declare-fun div0 (U U) U)(declare-fun mod0 (Int U) Int)(declare-const a U)"
+            "(declare-const x Int)(assert (= (div0 a a) a))(assert (> (mod0 x a) x))", ctx=context))
+        binary.define("$1", "Int", ["-", "3"])
+        for sexpr, expected in [
+            (["div0", "a", "a"], False), (["div0", "a", ["div0", "a", "a"]], False), (["mod0", "x", "a"], False),
+            (["mod0", ["+", "x", "$1"], "a"], False),
+            (["div0", "x", "$1"], True), (["mod0", "x", "0"], True), (["div0", "x", "a"], True),
+            (["mod0", "a", "a"], True), (["=", "a", ["div0", "a", ["div0", "x", "x"]]], True),
+            # Arguments that do not build decide nothing: the walk goes on
+            # into them, and building the term reports them.
+            (["div0", "a", "b"], False), (["div0", ["div0", "x", "$1"], "a"], True),
+            (["mod0", ["mod", "x", "0"], "a"], True),
+        ]:
+            with self.subTest(sexpr=sexpr):
+                self.assertEqual(binary.divides_by_zero(sexpr), expected)
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, "undeclared or fresh symbol: b"):
+            binary.build(["div0", "a", "b"])
 
     @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
     def test_divisions_by_constant_expressions_after_a_false_assertion(self):
@@ -3615,6 +3657,21 @@ class TestClauseLogReplay(unittest.TestCase):
         certificate = proof_certificate.export_clause_log_certificate(function)
         self.assertEqual([d["domain"] for d in certificate["declarations"] if d["name"] in ("mod0", "div0")],
                          [["Int"]])
+        # A binary function of the input under such a name is applied in
+        # the log next to the solver's own, whose clauses alone are left out
+        # (until 2026-11-12: "ill-sorted application of div0").
+        for name, (source, function, domain) in ZERO_DIVISION_NAMESAKE_INPUTS.items():
+            with self.subTest(name=name):
+                log = proof_clause_log.run_clause_log(z3_executable, source)
+                self.assertIn("(declare-fun %s (%s) " % (function, " ".join(domain)), log)
+                applications = set(re.findall(r"\(%s (\S+) " % function, log))
+                self.assertLessEqual({"a", "x"} if domain[0] == "U" else {"x"}, applications)
+                self.assertRegex(log, r"\(%s x (?:0|\$\d+)\)" % function)  # the solver's
+                certificate = proof_certificate.export_clause_log_certificate(source)
+                self.assertEqual(certificate["fragment"], "qf_uflia")
+                self.assertEqual([d["domain"] for d in certificate["declarations"] if d["name"] in ("mod0", "div0")],
+                                 [domain])
+                self.assertGreaterEqual(certificate["rule_counts"]["th-lemma"], 3)
         constants = ("(declare-const mod0 Bool)(declare-const div0 Bool)(declare-const p Bool)"
                      "(assert (or mod0 div0 p))(assert (or (not mod0) p))(assert (or (not div0) p))(assert (not p))")
         self.assertRegex(proof_clause_log.run_clause_log(z3_executable, constants), r"\(infer [^\n]*(mod0|div0)")
@@ -3623,8 +3680,11 @@ class TestClauseLogReplay(unittest.TestCase):
                          ["div0", "mod0"])
 
     @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
-    def test_decided_ite_gates_after_a_false_assertion_are_logged_with_a_false_guard(self):
+    def test_decided_ite_gates_after_a_false_assertion_have_a_false_guard_and_reconstruct(self):
+        import proof_to_lean  # the reconstructor, without a Lean run
         z3_executable = proof_certificate.default_z3_executable()
+        lemma = re.compile(r"private theorem def_axiom_\d+ [^\n]*\n    : [^\n]* :=\n"
+                           r"  \(fun \(_hc : [^\n]*\) => [^\n]*\) True\.intro\n")
         for name, (source, decided) in DECIDED_ITE_INPUTS.items():
             with self.subTest(name=name):
                 log = proof_clause_log.run_clause_log(z3_executable, source)
@@ -3638,6 +3698,10 @@ class TestClauseLogReplay(unittest.TestCase):
                     self.assertRegex(log, r"\(ite (?:true|\$\d+) ")
                 certificate = proof_certificate.export_clause_log_certificate(source)
                 self.assertGreaterEqual(certificate["rule_counts"]["def-axiom"], 1)
+                # The reconstructor proves that gate from the case that
+                # holds (until 2026-11-12: "invalid def-axiom clause"); Lean
+                # checks the lemma in test_proof_to_lean_arith.py.
+                self.assertEqual(bool(lemma.search(proof_to_lean.reconstruct(source, certificate))), decided)
 
     def test_distinct_gate_clauses_become_def_axioms(self):
         def distinct_gates(certificate):

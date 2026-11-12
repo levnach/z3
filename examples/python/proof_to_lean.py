@@ -8172,7 +8172,11 @@ def _ite_gate_lemma(graph, terms, node):
     split is on p rather than on c because Z3 logs the gates of
     (ite (not p) a b) with the double negation collapsed, p or ... = a, and
     because a split on p proves c and (not c) by lifting without eliminating
-    any double negation, so the lemma stays axiom-free.
+    any double negation, so the lemma stays axiom-free. When p is the
+    constant true or false and the clause has no guard literal (Z3 states the
+    guard, the negation of a constant, as false), there is nothing to split
+    on: the equation of the case that holds proves the clause, without a
+    decidability witness (_ite_gate_decided).
     """
     conclusion = graph.conclusion(node)
     literals = graph.clause(conclusion)
