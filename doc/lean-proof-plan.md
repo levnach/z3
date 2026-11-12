@@ -2473,6 +2473,48 @@ nested arrays, quantifiers, or unsupported commands); sixteen synthetic
 inputs (`BOOL_ELEMENT_INPUTS` in `test_proof_to_lean_array.py`) and the
 Int-element `read_of_store_over_constant` verify in Lean.
 
+### Reads through stores into maps, members of sets equated with stores (2026-11-11)
+
+After "Default values read at a generic index" below, 4 of the 630
+unsatisfiable `random_set_instance` seeds of 1-1600 still failed in Lean
+(`grind`, in a rewrite or cnf lemma; seeds 1083, 1088, 1398, 1486). Two
+causes, both a missing fact rather than a missing rule:
+
+- **A read through a store into a map.** `(select (store (setminus s s) 1
+  false) i)` is rewritten to false, and `(complement (store s j true))`
+  under a difference to `(store (complement s) j false)`, whose read at 0 a
+  cnf lemma compares with members of `s` and `t`. The read of the store had its
+  `_store_apply` fact, which mentions the read of the map below, but that
+  read is no term of the certificate and had no fact: only a store at a
+  value index other than the read's (which the rewriter skips) led on to
+  the map. Now a read of up to `_MAP_STORE_LEVELS` (8) stores over a map or
+  set operator gets the fact of every store and the read facts of the map
+  (`_read_levels`, `_map_below`), also for the branches of an ite over
+  arrays (`_sim` facts) and for stored rows (`_nm` facts). Longer chains
+  keep the levels the rewriter skips.
+- **Members of a set equated with a store.** With `(= (store s j false)
+  t)` asserted, Z3 evaluates `(select t j)` inside the maps of another
+  assertion and logs a clause over members alone, which the replay ties to
+  both assertions by a cnf lemma. That lemma reaches the store and no map,
+  and `_pointwise_map_facts` stated its facts only next to a map. Now a cnf
+  lemma that reaches a store of a Boolean set gets the `_pwr` facts (the
+  members of each such equality's sides at the indices the lemma reads, by
+  `congrFun`), and only those.
+
+Nothing is trusted: the new facts are `rfl`, `_store_apply` instances, or
+`congrFun` of the hypothesis, and Lean checks each. Tests: nine documented
+inputs (`SET_COMBINATOR_INPUTS`, each failed at the previous commit),
+`STORE_OVER_MAP_SEEDS`, `test_reads_through_stores_reach_maps`, the cnf
+cases of `test_sets_are_compared_member_by_member`, and four entries of
+`test_map_facts_are_needed` (Lean rejects the text without the facts). All
+630 unsat seeds of 1-1600 verify (626 before), and 399 of the 401 of
+1601-2600 (397 before). Still open, the two that fail: a read through
+stores over a plain set at variable indices down to a store at the read's
+own index (`(select (store (store s j true) i true) j)` in a cnf lemma, seed
+1701) gets one level only; and an equality the rewriter decides false at a
+stored index (`(= (store s 1 true) ((_ map xor) t t))`, seed 2483) has no
+fact, the sides differing at 1 only and not at every index.
+
 ### Default values read at a generic index: the default-map axiom (2026-11-11)
 
 The array solver's default-map axiom, `(= (default (map f a b)) (f (default

@@ -3977,6 +3977,13 @@ def _map_identities(graph, node, inline):
     return helpers
 
 
+# A read of at most this many stores over a map or set operator gets the
+# fact of every store and the read of the map (_read_levels, _map_below); a
+# longer chain is read as one over a plain array (one fact per level and read
+# is quadratic in a long chain read at each of its indices).
+_MAP_STORE_LEVELS = 8
+
+
 def _read_levels(graph, array, read):
     """The store and constant-array levels of a read of a store or constant array that get facts (_array_helpers).
 
@@ -3984,10 +3991,21 @@ def _read_levels(graph, array, read):
     constant at the bottom: Z3's rewriter evaluates such a read ((select
     (store (const v) y w) x) is (ite (= x y) w v)) with no read term of the
     levels below in the certificate.
+
+    A read of at most _MAP_STORE_LEVELS stores over a map or set operator
+    gets every store too (the caller adds the read of the map, _map_below):
+    the rewriter simplifies the map member by member ((setminus s s) is
+    empty, so (select (store (setminus s s) 1 false) i) is false) and pulls
+    a store out of a map ((complement (store s j true)) is (store
+    (complement s) j false)), also at an index that is no value, and the
+    read of the result is then compared with the members of the sets, with
+    no read term of the map below the stores in the certificate.
     """
     levels = [array]
     while graph.kind(levels[-1]) == z3.Z3_OP_STORE:
         levels.append(graph.arguments(levels[-1])[0])
+    if 1 < len(levels) <= _MAP_STORE_LEVELS + 1 and _set_function(graph, levels[-1]) is not None:
+        return levels[:-1]
     if graph.kind(levels[-1]) != z3.Z3_OP_CONST_ARRAY:
         # Over a plain array the rewriter skips the stores at a value index
         # (a numeral, or true or false over Bool indices) other than the
@@ -4053,18 +4071,18 @@ def _level_fact(graph, name, store, read, inline):
         name, _array_types(graph.decl(store).range)[0], inline(graph.arguments(store)[0]), inline(read))
 
 
-def _skipped_to_map(graph, levels, read):
-    """The map below a store chain whose every store the rewriter skips at read, or None (_read_levels).
+def _map_below(graph, levels):
+    """The map or set operator below the last of the store levels of a read (_read_levels), or None.
 
-    Z3's rewriter skips stores at a value index other than the read's and
-    evaluates the read of the map it reaches ((select (store ((_ map -) a)
-    1 2) 0) is (- (select a 0))) with no read term of the map in the
-    certificate.
+    The levels reach it when the chain is short (_MAP_STORE_LEVELS), or
+    when the rewriter skips every store above the last (each at a value
+    index other than the read's) and evaluates the read of the map ((select
+    (store ((_ map -) a) 1 2) 0) is (- (select a 0))). The fact of the last
+    store then mentions the read of the map, of which the certificate may
+    have no term, so the caller states its read facts (_map_read_facts).
     """
     bottom = levels[-1]
-    if graph.kind(bottom) != z3.Z3_OP_STORE or not all(
-            graph.kind(store) == z3.Z3_OP_STORE and _distinct_values(graph, graph.arguments(store)[1], read)
-            for store in levels):
+    if graph.kind(bottom) != z3.Z3_OP_STORE:
         return None
     below = graph.arguments(bottom)[0]
     return below if _set_function(graph, below) is not None else None
@@ -4091,7 +4109,7 @@ def _map_read_facts(graph, prefix, array, read, inline):
             for store in levels:
                 helpers.append(_level_fact(graph, prefix if not helpers else "%s_%d" % (prefix, len(helpers)),
                                            store, read, inline))
-            below = _skipped_to_map(graph, levels, read)
+            below = _map_below(graph, levels)
             if below is not None:
                 pending.append(below)
             continue
@@ -4174,7 +4192,7 @@ def _array_helpers(graph, reachable, atom_indices, variable_indices, congruence=
             for level, store in enumerate(levels):
                 name = "_s%d" % node if level == 0 else "_s%d_%d" % (node, level)
                 helpers.append(_level_fact(graph, name, store, read, inline))
-            below = _skipped_to_map(graph, levels, read)
+            below = _map_below(graph, levels)
             if below is not None:
                 helpers.extend(_map_read_facts(graph, "_sm%d" % node, below, read, inline))
         elif kind == z3.Z3_OP_SELECT and graph.kind(graph.arguments(node)[0]) == z3.Z3_OP_ITE and not ite_leaves:
@@ -4186,10 +4204,14 @@ def _array_helpers(graph, reachable, atom_indices, variable_indices, congruence=
             # the facts of a read of it (its levels as for a read of a store).
             array, read = graph.arguments(node)
             count = 0
-            for branch in _ite_branches(graph, array):
-                for store in _read_levels(graph, branch, read):
+            for position, branch in enumerate(_ite_branches(graph, array)):
+                levels = _read_levels(graph, branch, read)
+                for store in levels:
                     helpers.append(_level_fact(graph, "_si%d_%d" % (node, count), store, read, inline))
                     count += 1
+                below = _map_below(graph, levels)
+                if below is not None:
+                    helpers.extend(_map_read_facts(graph, "_sim%d_%d" % (node, position), below, read, inline))
         elif (kind == z3.Z3_OP_SELECT and graph.kind(graph.arguments(node)[0]) == z3.Z3_OP_SELECT
               and graph.is_array(graph.arguments(node)[0])):
             # A read of a row of nested arrays: Z3's rewriter evaluates the
@@ -4203,10 +4225,14 @@ def _array_helpers(graph, reachable, atom_indices, variable_indices, congruence=
             # through the row read's own fact.
             row, read = graph.arguments(node)
             count = 0
-            for value in _stored_rows(graph, row):
-                for store in _read_levels(graph, value, read):
+            for position, value in enumerate(_stored_rows(graph, row)):
+                levels = _read_levels(graph, value, read)
+                for store in levels:
                     helpers.append(_level_fact(graph, "_n%d_%d" % (node, count), store, read, inline))
                     count += 1
+                below = _map_below(graph, levels)
+                if below is not None:
+                    helpers.extend(_map_read_facts(graph, "_nm%d_%d" % (node, position), below, read, inline))
         if graph.is_array(node) and _set_function(graph, node) is not None:
             helpers.extend(_map_identities(graph, node, inline))
         if congruence:
@@ -4366,7 +4392,12 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
     members while the assertion it is tied to equates sets), each such
     equality also implies that its sides' members agree at every index the
     lemma reads from a set of its sort, by congruence, unless there are
-    more than _COMPARISON_READS such facts.
+    more than _COMPARISON_READS such facts. These facts alone are stated
+    for a lemma that reaches a store of a set and no map or set operator:
+    Z3 evaluates the maps of an assertion at a member under another
+    assertion that equates a set with a store ((= (store s j false) t)
+    makes (select t j) false), and the clause it logs has the members
+    only.
 
     Returns the lines of the auxiliary theorems stated here, named
     name_pwN, and the facts.
@@ -4378,7 +4409,9 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
         return graph.is_array(node) and _array_components(graph.decl(node).range)[1] == "Bool"
 
     sets = [node for node in sorted(reachable) if boolean_set(node)]
-    if len(sets) > _POINTWISE_SETS or not any(_pointwise_function(graph, node) is not None for node in sets):
+    mapped = any(_pointwise_function(graph, node) is not None for node in sets)
+    if len(sets) > _POINTWISE_SETS or not (mapped or (members_read and any(
+            graph.kind(node) == z3.Z3_OP_STORE for node in sets))):
         return [], []
     # Per set: its leaves, its truth table over them, and the number of maps
     # and stores its member formula writes (_POINTWISE_SIZE). Ids are
@@ -4462,8 +4495,10 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
             theorems.extend(["", "private theorem %s%s" % (theorem, stated[0]), stated[1]])
         return "(%s)" % " ".join([theorem] + [leaf_member(leaf, "_i") for leaf in leaves])
 
+    # A step without a map or set operator (a cnf lemma that reaches a store)
+    # gets the members of its equalities' sides alone, below.
     classes = {}
-    for node in sets:
+    for node in sets if mapped else ():
         classes.setdefault(keys[node], []).append(node)
     for members in classes.values():
         # The first set that is not a map or store (there is at most one: a
@@ -4477,7 +4512,7 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
     equalities = [node for node in sorted(reachable) if graph.kind(node) == z3.Z3_OP_EQ
                   and all(argument in keys for argument in graph.arguments(node))
                   and any(argument in functions for argument in graph.arguments(node))]
-    for node in equalities:
+    for node in equalities if mapped else ():
         left, right = graph.arguments(node)
         (sort, leaves, table), other = keys[left], keys[right]
         # Functions that differ in every row depend on the same leaves. The

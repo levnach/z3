@@ -1440,6 +1440,109 @@ SET_COMBINATOR_INPUTS.update({
 (check-sat)
 """ % ((_nested_maps("(_ map (ite (Bool Bool Bool) Bool))", 16, "b", "c"),) * 3),
 })
+# Reads through stores into a map or set operator where the rewriter does
+# not skip the stores (the read's index or a stored one is no value). Z3's
+# rewriter simplifies the map below member by member and pulls stores out of
+# maps, so the certificate compares the read with members of the sets and has
+# no read term of the map below the stores. Each failed in Lean (grind, in a
+# rewrite or cnf lemma) before proof_to_lean._read_levels gave such a read
+# every store level and the read of the map (random_set_instance seeds 1083,
+# 1088, 1398; only stores at a value index other than the read's reached the
+# map before, read_through_store_to_map).
+SET_COMBINATOR_INPUTS.update({
+    # (setminus s s) is empty, so is its store of false: the read is false.
+    "set_read_at_a_variable_through_a_store_to_a_map": """(declare-fun s () (Array Int Bool))
+(declare-fun i () Int)
+(assert (select (store (setminus s s) 1 false) i))
+(check-sat)
+""",
+    # Two stores, the upper at a variable.
+    "set_read_through_two_stores_to_a_map": """(declare-fun s () (Array Int Bool))
+(declare-fun i () Int)
+(declare-fun j () Int)
+(assert (select (store (store (setminus s s) 1 false) j false) i))
+(check-sat)
+""",
+    # The second assertion simplifies to false, so the first is logged as
+    # written; the rewriter reads the difference at 0 as the member of t and
+    # that of (store (complement s) j false), the complement of the store,
+    # which is read below a store at j (seed 1398).
+    "set_read_of_a_store_pulled_out_of_a_difference": """(declare-fun s () (Array Int Bool))
+(declare-fun t () (Array Int Bool))
+(declare-fun j () Int)
+(assert (select (setminus t (store s j true)) 0))
+(assert (not (select ((as const (Array Int Bool)) true) 1)))
+(check-sat)
+""",
+    # The same with a store in each set of the difference (seed 1088).
+    "set_read_of_a_difference_of_stores": """(declare-fun s () (Array Int Bool))
+(declare-fun t () (Array Int Bool))
+(declare-fun i () Int)
+(assert (select (setminus (store s 1 true) (store t i true)) 0))
+(assert (select t i))
+(assert (= s ((as const (Array Int Bool)) false)))
+(check-sat)
+""",
+    # A read of an ite over such stores: the read is pushed into the
+    # branches, each a store over a map.
+    "set_read_of_an_ite_of_stores_over_maps": """(declare-fun s () (Array Int Bool))
+(declare-fun i () Int)
+(declare-fun j () Int)
+(declare-fun p () Bool)
+(assert (select (ite p (store (complement s) j false) (store (setminus s s) j false)) i))
+(assert (select s i))
+(check-sat)
+""",
+    # A read of a stored row that is such a store.
+    "set_read_of_a_stored_row_over_a_map": """(declare-fun r () (Array Int (Array Int Bool)))
+(declare-fun s () (Array Int Bool))
+(declare-fun i () Int)
+(declare-fun j () Int)
+(declare-fun k () Int)
+(assert (select (select (store r k (store (setminus s s) j false)) k) i))
+(check-sat)
+""",
+})
+# A set equated with a store, and the maps of another assertion read at the
+# stored index: Z3 evaluates the member of the set there ((= (store s j
+# false) t) makes (select t j) false) and logs a clause over the members
+# alone, which the replay ties to the two assertions by a cnf lemma. The
+# lemma reaches the store and no map, so it had no fact for the members of
+# the equality's sides (proof_to_lean._pointwise_map_facts stated them only
+# next to a map) and failed in Lean (random_set_instance seed 1486).
+SET_COMBINATOR_INPUTS.update({
+    "member_of_a_set_equated_with_a_store": """(declare-fun s () (Array Int Bool))
+(declare-fun t () (Array Int Bool))
+(declare-fun u () (Array Int Bool))
+(declare-fun j () Int)
+(assert (= (store s j false) t))
+(assert (not (select ((_ map xor) ((_ map and) t u) ((_ map =>) t s)) j)))
+(assert (select s j))
+(check-sat)
+""",
+    "member_of_a_set_equated_with_a_store_on_the_right": """(declare-fun s () (Array Int Bool))
+(declare-fun t () (Array Int Bool))
+(declare-fun u () (Array Int Bool))
+(declare-fun j () Int)
+(assert (= t (store s j false)))
+(assert (not (select ((_ map xor) ((_ map and) t u) ((_ map =>) t s)) j)))
+(assert (select s j))
+(check-sat)
+""",
+    # Two such equalities, the second store over the first's set.
+    "members_of_sets_equated_with_stores": """(declare-fun s () (Array Int Bool))
+(declare-fun t () (Array Int Bool))
+(declare-fun u () (Array Int Bool))
+(declare-fun i () Int)
+(declare-fun j () Int)
+(assert (= (store s j false) t))
+(assert (= u (store t i true)))
+(assert (not (select ((_ map xor) ((_ map and) t u) ((_ map =>) u s)) j)))
+(assert (select s j))
+(assert (not (= i j)))
+(check-sat)
+""",
+})
 # Refuted through the default value of a map: no member is named, so the
 # array solver compares default values, and that of a map is its function
 # of the arrays' (the default-map axiom, (= (default (map f a b)) (f
@@ -1815,7 +1918,7 @@ MAP_FUNCTION_INPUTS = {
     # A read through a store at another numeral reaches a map: the rewriter
     # skips the store and evaluates the read of the map with no read term of
     # it in the certificate, so the map's read fact goes with the store's
-    # (_skipped_to_map; random sweep seeds 110, 137, 172).
+    # (_map_below; random sweep seeds 110, 137, 172).
     "read_through_store_to_map": """(declare-fun a () (Array Int Int))
 (assert (= (select (store ((_ map (- (Int) Int)) a) 1 2) 0) 2))
 (assert (= (select a 0) 2))
@@ -3036,6 +3139,50 @@ class TestArrayValidation(unittest.TestCase):
         facts = levels("read_of_store_over_constant")
         self.assertIn("_select_const", [fact for _, fact in facts])
 
+    def test_reads_through_stores_reach_maps(self):
+        """A read through stores into a map gets every store level and the read of the map, at any index."""
+        def text_of(name):
+            return proof_to_lean.reconstruct(ARRAY_INPUTS[name], self.certificates[name])
+
+        member = r"\(_select \(\(term_\d+ [^)]*\)\) \(_vars %d\)\)"
+        empty = r"\(And %s \(Not %s\)\) := rfl\n" % (member, member)
+        # (select (store (setminus s s) 1 false) i): the store is not
+        # skipped at i, and the read of the difference below it is stated.
+        text = text_of("set_read_at_a_variable_through_a_store_to_a_map")
+        self.assertRegex(text, r"have _s(\d+) := _store_apply [^\n]* \(\(\(1 : Int\)\)\) \(False\) "
+                               r"\(_vars 0\)\n *have _sm\1 : _select [^\n]* \(_vars 0\) = " + empty % (0, 0))
+        # Two stores, the upper at j: both levels, then the difference.
+        text = text_of("set_read_through_two_stores_to_a_map")
+        self.assertRegex(text, r"have _s(\d+) := _store_apply [^\n]* \(_vars 0\) \(False\) \(_vars 1\)\n"
+                               r" *have _s\1_1 := _store_apply [^\n]* \(\(\(1 : Int\)\)\) \(False\) \(_vars 1\)\n"
+                               r" *have _sm\1 : _select [^\n]* \(_vars 1\) = " + empty % (1, 1))
+        # The rewriter's store of a complement, read at 0 below j.
+        self.assertRegex(text_of("set_read_of_a_store_pulled_out_of_a_difference"),
+                         r"have _s(\d+) := _store_apply [^\n]* \(_vars 0\) \(False\) \(\(\(0 : Int\)\)\)\n"
+                         r" *have _sm\1 : _select [^\n]* \(\(\(0 : Int\)\)\) = \(Not \(_select [^\n]*\)\) := rfl\n")
+        # The branches of an ite and a stored row: the map below each.
+        text = text_of("set_read_of_an_ite_of_stores_over_maps")
+        self.assertRegex(text, r"have _si(\d+)_0 := _store_apply [^\n]*\n *have _sim\1_0 : _select [^\n]* := rfl\n"
+                               r" *have _si\1_1 := _store_apply [^\n]*\n *have _sim\1_1 : _select [^\n]* := rfl\n")
+        self.assertRegex(text_of("set_read_of_a_stored_row_over_a_map"),
+                         r"have _n(\d+)_0 := _store_apply [^\n]*\n *have _nm\1_0 : _select [^\n]* = " + empty % (2, 2))
+        # A store at another numeral was skipped to the map before too.
+        self.assertRegex(text_of("set_read_through_store_to_map"), r"have _sm\d+ : ")
+        # A chain of more than _MAP_STORE_LEVELS stores is read as one over
+        # a plain array (one fact per level and read is quadratic in a long
+        # chain): the levels the rewriter skips and the one where the skip
+        # stops, and the map only if that is the last store.
+        self.assertEqual(proof_to_lean._MAP_STORE_LEVELS, 8)
+        with mock.patch.object(proof_to_lean, "_MAP_STORE_LEVELS", 1):
+            self.assertNotRegex(text_of("set_read_through_two_stores_to_a_map"), r"have _s\d+_1 := |have _sm\d+ : ")
+            for name in ("set_read_at_a_variable_through_a_store_to_a_map", "set_read_through_store_to_map"):
+                with self.subTest(name=name):
+                    self.assertRegex(text_of(name), r"have _sm\d+ : ")
+        # Stores over a plain array or set reach no map.
+        for name in ("bool_store_chain", "set_read_through_numeral_stores", "read_through_numeral_stores"):
+            with self.subTest(name=name):
+                self.assertNotRegex(text_of(name), r"have _(sm|sim|nm)\d+")
+
     def test_tampered_bool_element_arrays_are_rejected(self):
         def relabelled(source, target):
             def mutate(certificate):
@@ -3387,6 +3534,28 @@ class TestArrayValidation(unittest.TestCase):
         for name in ("set_read_through_numeral_stores_to_own_index", "set_insert_elsewhere"):
             with self.subTest(name=name):
                 self.assertNotIn("_pw", text_of(name))
+        # Except in a cnf lemma that reaches a store of a set: the members
+        # of the sides of its equalities at the indices it reads, and no
+        # other pointwise fact. Here the store's member at its own index
+        # against the set's; the maps of the input are in other lemmas.
+        set_member = r"\(_select \(\(term_\d+ [^)]*\)\) \(_vars 0\)\)"
+        store_member = (r"\(@ite Prop \(\(_vars 0\) = \(_vars 0\)\) \(Classical.propDecidable _\) False "
+                        r"\(_select [^\n]* \(_vars 0\)\)\)")
+        for name, sides in (("member_of_a_set_equated_with_a_store", store_member + " " + set_member),
+                            ("member_of_a_set_equated_with_a_store_on_the_right", set_member + " " + store_member),
+                            ("members_of_sets_equated_with_stores", store_member + " " + set_member)):
+            with self.subTest(name=name):
+                steps = [step for step in text_of(name).split("\n\n") if "have _pwr" in step]
+                self.assertEqual(len(steps), 1)
+                self.assertIn("theorem th_lemma_", steps[0])
+                self.assertNotIn("_map", steps[0])
+                self.assertNotRegex(steps[0], r"have _pwn?\d+ : |theorem \w+_pw\d+")
+                self.assertRegex(steps[0], r"have _pwr\d+_\d+ : \(\(term_\d+ [^)]*\)\) = \(\(term_\d+ [^)]*\)\) -> "
+                                           r"\(Iff " + sides + r"\) := "
+                                           r"fun _h => Iff.of_eq \(congrFun _h \(_vars 0\)\)\n")
+                # The limit on a step's sets holds for these facts too.
+                with mock.patch.object(proof_to_lean, "_POINTWISE_SETS", 0):
+                    self.assertNotIn("_pw", text_of(name))
         # Truth tables: bit r is the value in the row whose bit k is leaf k's.
         expanded, essential = proof_to_lean._expanded_table, proof_to_lean._essential_table
         self.assertEqual(expanded(0b10, ("a",), ("a", "b")), 0b1010)
@@ -4367,6 +4536,15 @@ POINTWISE_SET_SEEDS = (64, 83, 94, 957)
 # of seeds 1-1000. 1035: a fresh seed. The 64 such seeds of 1-1000 and the
 # 40 of 1001-1600 all verify.
 GENERIC_DEFAULT_SEEDS = (67, 289, 657, 1035)
+# Pinned unsatisfiable seeds of random_set_instance that exported but failed
+# in Lean (grind) on iteration 123's macOS build, the only four of the 630
+# unsat seeds of 1-1600 that did. 1083: a read at i through a store at 1 into
+# an empty difference, in a rewrite. 1088 and 1398: a read below the store
+# that the rewriter pulls out of a complement, in a cnf lemma. These three
+# had no read fact of the map below the store (proof_to_lean._read_levels).
+# 1486: a cnf lemma over the members of a set equated with a store, which
+# reaches no map (proof_to_lean._pointwise_map_facts).
+STORE_OVER_MAP_SEEDS = (1083, 1088, 1398, 1486)
 
 
 def array_chain_instance(depth=6, use="value"):
@@ -4532,7 +4710,7 @@ class TestArrayLeanIntegration(unittest.TestCase):
 
     def test_pinned_random_set_instances_verify(self):
         sources = []
-        for seed in SET_SEEDS + POINTWISE_SET_SEEDS + GENERIC_DEFAULT_SEEDS:
+        for seed in SET_SEEDS + POINTWISE_SET_SEEDS + GENERIC_DEFAULT_SEEDS + STORE_OVER_MAP_SEEDS:
             source = random_set_instance(seed)
             self.assertIsNotNone(source, "seed %d is no longer unsatisfiable" % seed)
             sources.append((seed, source, _export(source)))
@@ -4848,8 +5026,10 @@ class TestArrayLeanIntegration(unittest.TestCase):
         beyond the pointwise limits. Those inputs are reconstructed over the
         limit on a step's sets (_POINTWISE_SETS), so without pointwise
         facts: Lean accepts that text, by the identities alone, and rejects
-        it without them. The last four inputs need the pointwise facts
-        themselves.
+        it without them. The four inputs after need the pointwise facts
+        themselves, and the last four the read of the map below stores the
+        rewriter does not skip (in a rewrite, below an ite's branches, and
+        below a stored row) and the members of a set equated with a store.
         """
         def check(text):
             with tempfile.TemporaryDirectory() as directory:
@@ -4876,7 +5056,11 @@ class TestArrayLeanIntegration(unittest.TestCase):
                            ("sets_equal_member_by_member", r"have _pw\d+ : "),
                            ("sets_differ_at_every_member", r"have _pwn\d+ : "),
                            ("set_difference_of_stores_at_one_index", r"have _pw\d+ : "),
-                           ("members_of_equal_sets", r"have _pwr\d+_\d+ : ")):
+                           ("members_of_equal_sets", r"have _pwr\d+_\d+ : "),
+                           ("set_read_at_a_variable_through_a_store_to_a_map", r"have _sm\d+ : "),
+                           ("set_read_of_an_ite_of_stores_over_maps", r"have _sim\d+_\d+ : "),
+                           ("set_read_of_a_stored_row_over_a_map", r"have _nm\d+_\d+ : "),
+                           ("member_of_a_set_equated_with_a_store", r"have _pwr\d+_\d+ : ")):
             with self.subTest(name=name):
                 source = ARRAY_INPUTS[name]
                 sets = 0 if name in rewriter else proof_to_lean._POINTWISE_SETS
