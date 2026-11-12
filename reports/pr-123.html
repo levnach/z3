@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c1e21; --muted: #5b6370; --line: #d6dae0;
-  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --badge: #e7f0fb;
+  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --badge: #e6f4ea;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #15181c; --fg: #e3e6ea; --muted: #9aa3ae; --line: #343a42;
-    --panel: #1e2329; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --badge: #1d2c40;
+    --panel: #1e2329; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --badge: #1c3324;
   }
 }
 * { box-sizing: border-box; }
@@ -55,52 +55,47 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <h1>Certify the default-map axiom at an index no store writes</h1>
 <p class="meta">
 <span><a href="https://github.com/levnach/z3/pull/123">Pull request #123</a></span>
-<span>State: <span class="badge">OPEN</span></span>
-<span>Date: 2026-11-12T00:07:21Z</span>
+<span>State: <span class="badge">MERGED</span></span>
+<span>Date: 2026-11-12T00:22:46Z</span>
 <span>Loop iteration 122</span>
 </p>
-<p>This pull request is open. It is <strong>not merged</strong>. The change commit is
-<a href="https://github.com/levnach/z3/commit/7dfcbb0ff1e367b861af3e179c502c3ed475c798"><code>7dfcbb0ff</code></a>,
-and the target branch is <code>master</code>.</p>
+<p>Merged into <code>master</code> on 2026-11-12T00:22:46Z as merge commit
+<a href="https://github.com/levnach/z3/commit/1bb828779210aa542600a6e8d9729bdc7357098c"><code>1bb828779</code></a>.</p>
 </header>
 
 <h2>In one paragraph</h2>
-<p>The pipeline can now certify a <a href="#g-refutation">refutation</a> that rests on the
+<p>The pipeline now certifies a <a href="#g-refutation">refutation</a> that uses the
 <a href="#g-default-map">default-map axiom</a> of the <a href="#g-array">array</a>
 <a href="#g-theory-solver">theory solver</a>. This works when no <a href="#g-assertion">assertion</a>
 of the input names a <a href="#g-default">default value</a>. Z3 uses this axiom to compare
 <a href="#g-set">sets</a> without naming a member. The <a href="#g-reconstructor">reconstructor</a>
 now reads every default value at one <a href="#g-index">index</a> that no <a href="#g-store">store</a>
-in the <a href="#g-certificate">certificate</a> writes. At that index the axiom holds by
-<a href="#g-rfl">definitional equality</a>, so Lean takes nothing on trust. The final
+in the <a href="#g-certificate">certificate</a> writes. There the axiom holds by
+<a href="#g-rfl">definitional equality</a>, so Lean proves it outright. The final
 <a href="#g-theorem">theorem</a> keeps its statement and <a href="#g-hypothesis">hypotheses</a>, and no
-Lean <a href="#g-axiom">axiom</a> is added. In a sweep of random set problems, all 104 inputs rejected
-for this reason now pass the Lean check.</p>
+Lean <a href="#g-axiom">axiom</a> is added. All 104 random set inputs that were rejected for this axiom
+now pass the Lean check.</p>
 
 <h2>Background</h2>
-<p>Before this PR, the pipeline certified set refutations that read concrete members, including sets
-compared member by member since pull request #122. Every refutation that used the default-map axiom was
-rejected. The axiom could not be proved for the Lean definition in use then, because a
-<a href="#g-map">map</a> of two arrays need not have a default value in that sense. This was the only
-rejection left in the random set sweep. The work serves milestone 4 of the plan, "Broader theories and
-integration", for arrays.</p>
+<p>Before this PR, the pipeline certified set refutations that read concrete members. Every refutation that used the default-map axiom was
+rejected. The earlier Lean definition of a default value could not prove the axiom, because the arguments
+of a <a href="#g-map">map</a> need not have such a value. This was the only rejection left in the random
+set sweep. The work serves milestone 4 of the plan, "Broader theories and integration", for arrays.</p>
 
 <h2>What changed</h2>
 <p>An analogy helps. Picture an array as an endless row of lockers. A store repaints one locker.
 To learn the usual colour of the row, open one locker that nobody repainted.</p>
 <ul>
-<li><strong>Reconstructor, default values.</strong> When a refutation uses the default-map axiom and the
-input names no default value, every default value becomes a read at one generic index.</li>
-<li><strong>Reconstructor, a proved fresh index.</strong> The Lean file picks that index, named
-<code>_generic_i</code>, and proves that it differs from every stored index.</li>
-<li><strong>Reconstructor, the axiom as a fact.</strong> The axiom is stated in array theory lemmas,
-rewrite steps, and cnf lemmas, and Lean accepts it by definitional equality.</li>
+<li><strong>Reconstructor.</strong> When a refutation uses the axiom, every default value becomes a
+read at one generic index.</li>
+<li><strong>Reconstructor.</strong> The Lean file picks that index, named <code>_generic_i</code>, and
+proves that it differs from every stored index.</li>
+<li><strong>Reconstructor.</strong> Array theory lemmas, rewrite steps, and cnf lemmas can now state the
+axiom, and Lean accepts it by definitional equality.</li>
 <li><strong>Exporter.</strong> A refutation that uses the axiom is now rejected only when an assertion
 names a default value.</li>
-<li><strong>Tests.</strong> Fifteen new inputs and four pinned random seeds are checked in Lean. A
-tampering test confirms that Lean rejects an index not proved fresh.</li>
-<li><strong>Documentation.</strong> The plan gains a dated section, and the README paragraph on maps is
-updated.</li>
+<li><strong>Tests and documentation.</strong> Fifteen new inputs and four pinned random seeds are checked
+in Lean, and the plan gains a dated section.</li>
 </ul>
 <table>
 <thead><tr><th>File</th><th class="n">Lines added</th><th class="n">Lines removed</th></tr></thead>
@@ -110,13 +105,14 @@ updated.</li>
 <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="n">30</td><td class="n">2</td></tr>
 <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="n">219</td><td class="n">37</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="n">308</td><td class="n">16</td></tr>
-<tr><th>Total, two commits</th><th class="n">663</th><th class="n">75</th></tr>
+<tr><th>Total</th><th class="n">663</th><th class="n">75</th></tr>
 </tbody>
 </table>
-<p class="note">There is no C++ change.</p>
+<p class="note">The PR had two commits, squashed into the merge commit. There is no C++ change.</p>
 
 <h2>Worked example</h2>
-<p>The input is the PR's test <code>store_under_union_default</code>. All output comes from real runs.</p>
+<p>The input is the PR's test <code>store_under_union_default</code>. All output comes from real runs
+on the merge commit.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(declare-fun a () (Array Int Bool))
@@ -125,17 +121,16 @@ updated.</li>
 (assert (= (union (store a i false) b) ((as const (Array Int Bool)) false)))
 (assert (= a ((as const (Array Int Bool)) true)))
 (check-sat)</code></pre>
-<p>A full set minus one member, joined with another set, is claimed to be empty. No member is named, so
-Z3 refutes this through default values.</p>
+<p>The input claims that a full set minus one member, joined with another set, is empty.</p>
 
 <h3>(b) Before</h3>
-<p>The exporter at the base commit <code>97c261e53</code> stopped with this message and wrote no certificate.</p>
+<p>The exporter at the base commit <code>97c261e53</code> stopped with this message.</p>
 <pre><code>proof_certificate.py: error: the default value of a map is not certified</code></pre>
-<p>The base reconstructor, given the certificate that the new exporter writes, rejected it as well.</p>
+<p>The base reconstructor, given the new exporter's certificate, rejected it as well.</p>
 <pre><code>proof_to_lean.py: error: the default value of a map is not certified at node 45</code></pre>
 
 <h3>(c) After</h3>
-<p>The new code writes a Lean file of 425 lines. The Lean check accepted it with "Lean checks passed."</p>
+<p>The merged code writes a Lean file of 425 lines, and the Lean check accepted it.</p>
 
 <pre><code>-- The array solver's default values (the input names none) are the arrays' values at one index that no store writes: _generic_i over Int.
 ...
@@ -145,19 +140,21 @@ private theorem _default_const {I E : Type} (g : I) (v : E) : _default g (_const
 
 private theorem _default_store {I E : Type} (g : I) (a : I -&gt; E) (i : I) (v : E) (h : Not (g = i)) :
     _default g (_store a i v) = _default g a := _store_off a i v g h</code></pre>
-<p>The default value of an array is now its value at index <code>g</code>. A store keeps it only
-with a proof that <code>g</code> is not the stored index.</p>
+<p>The default value of an array is now its value at index <code>g</code>, which a store keeps only
+off the stored index.</p>
 
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := _m.arrs_ib 0
 def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int := _vars 0
 ...
+noncomputable def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := (_store (term_0 _atoms _vars _m) (term_1 _atoms _vars _m) (formula_2 _atoms _vars _m))
+def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := _m.arrs_ib 1
 noncomputable def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : (Int -&gt; Prop) := (_map2 Or (term_3 _atoms _vars _m) (term_4 _atoms _vars _m))
 ...
 def formula_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_5 _atoms _vars _m) = (term_6 _atoms _vars _m))
 ...
 def formula_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_0 _atoms _vars _m) = (term_9 _atoms _vars _m))</code></pre>
-<p>These declarations name the array <code>a</code>, the stored index <code>i</code>, the union, and the
-two assertions, and none of them mentions a default value.</p>
+<p>These declarations name the sets, the stored index, the union, and the two assertions, with no
+default value.</p>
 
 <pre><code>noncomputable def _generic_i (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Int :=
   Classical.choose (_int_unbounded ([(term_1 _atoms _vars _m)] : List Int))
@@ -165,44 +162,43 @@ private theorem _generic_i_fresh (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; In
   Classical.choose_spec (_int_unbounded ([(term_1 _atoms _vars _m)] : List Int))
 private theorem _generic_i_ne_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation) : Not ((_generic_i _atoms _vars _m) = (term_1 _atoms _vars _m)) :=
   _fresh_ne _ _ (_generic_i_fresh _atoms _vars _m) _ (List.Mem.head _)</code></pre>
-<p>The generic index is chosen outside the list of stored indices, here only <code>i</code>, and the last
-theorem proves that it is not <code>i</code>.</p>
+<p>The generic index is chosen outside the list of stored indices, here only <code>i</code>, and
+proved different from it.</p>
 
 <pre><code>private theorem th_lemma_45 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     : (formula_41 _atoms _vars _m) := by
   unfold formula_41 formula_33 formula_20 formula_19 formula_18
-  have _t3 : (term_3 _atoms _vars _m) = (_store ((term_0 _atoms _vars _m)) (_vars 0) (False)) := rfl
-  have _t12 : (term_12 _atoms _vars _m) = (_map2 Or ((term_3 _atoms _vars _m)) ((term_4 _atoms _vars _m))) := rfl
-  have _mc12 := _map2_or_comm ((term_3 _atoms _vars _m)) ((term_4 _atoms _vars _m))
+  ...
   have _d18 := _default_store (_generic_i _atoms _vars _m) ((term_0 _atoms _vars _m)) (_vars 0) (False) (_generic_i_ne_1 _atoms _vars _m)
   have _d33 : _default (_generic_i _atoms _vars _m) ((term_12 _atoms _vars _m)) = (Or (_default (_generic_i _atoms _vars _m) ((term_3 _atoms _vars _m))) (_default (_generic_i _atoms _vars _m) ((term_4 _atoms _vars _m)))) := rfl
   first | omega | grind (splits := 64)</code></pre>
-<p>This lemma is the default-map axiom for the union: the fact <code>_d33</code> holds by
-definitional equality, and the store fact above it uses the freshness proof.</p>
+<p>This lemma is the default-map axiom for the union, where the fact <code>_d33</code> holds by
+definitional equality.</p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpretation)
     (_h0 : (formula_7 _atoms _vars _m))
     (_h1 : (formula_10 _atoms _vars _m))
     : False :=
   ...</code></pre>
-<p>The final theorem still says that the two assertions together imply <code>False</code>, with no extra hypothesis.</p>
+<p>The final theorem still says that the two assertions imply <code>False</code>, with no extra
+hypothesis.</p>
 
 <h2>How it was verified</h2>
-<p>Every existing test still passes. Of about 630 random set problems, all but four now verify in Lean,
-and none is rejected. Those four fail in a <a href="#g-tactic">tactic</a> step without default values,
-as they did with the base code. The numbers are the integrator's macOS runs at the change commit.</p>
+<p>The loop merged this PR on its local gate, because only Python, tests, and documentation changed.
+The gate repeats the relevant steps of the Linux CI job on macOS. All five steps passed.</p>
 <table>
-<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="n">Time</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction tests</td><td><span class="ok">pass</span>, 539 tests, 9 skipped</td></tr>
-<tr><td>Exporter tests</td><td><span class="ok">pass</span>, 120 tests</td></tr>
-<tr><td>Lean project check, <code>scripts/check_lean.sh</code></td><td><span class="ok">pass</span>, "Lean checks passed."</td></tr>
-<tr><td>Proof script tests in z3test</td><td><span class="ok">pass</span>, 48 tests</td></tr>
-<tr><td>Matrix cell <code>legacy-proof-object</code>, Boolean inputs</td><td><span class="ok">pass</span>, 6 of 6 verified in Lean</td></tr>
-<tr><td>Matrix cell <code>smt-clause-log-nopp</code>, linear real inputs</td><td><span class="ok">pass</span>, 8 of 8 verified in Lean</td></tr>
-<tr><td>C++ unit tests and SMT2 regressions</td><td>not run, since no C++ changed</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span>, 120 tests</td><td class="n">19s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span>, 539 tests, 9 skipped</td><td class="n">870s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span>, 48 tests</td><td class="n">18s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td><span class="ok">pass</span>, 6 of 6 verified in Lean</td><td class="n">5s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td><span class="ok">pass</span>, 8 of 8 verified in Lean</td><td class="n">7s</td></tr>
 </tbody>
 </table>
+<p>Before the merge, the integrator swept about 630 random set problems. All but four verify in
+Lean, and none is rejected. Those four fail in a <a href="#g-tactic">tactic</a> step without default
+values, as with the base code. No C++ changed, so the C++ tests were not run.</p>
 <table>
 <thead><tr><th>Random set seeds</th><th class="n">Unsat inputs</th><th class="n">Verified at base</th><th class="n">Verified now</th><th class="n">Rejected now</th></tr></thead>
 <tbody>
@@ -211,56 +207,51 @@ as they did with the base code. The numbers are the integrator's macOS runs at t
 <tr><th>Total</th><th class="n">630</th><th class="n">522</th><th class="n">626</th><th class="n">0</th></tr>
 </tbody>
 </table>
-<p class="note">The base counts come from earlier Lean runs by the implementer and iteration 121. The
-four failing seeds are 1083, 1088, 1398, and 1486.</p>
-<p>The driver's local gate had not recorded a result when this report was written. No CI check had been
-reported on the PR either, so CI is unknown. There were no CI fix rounds.</p>
+<p class="note">Base counts come from earlier Lean runs by the implementer and iteration 121.</p>
+<p>The CI result is unknown. No CI status was recorded for this PR. GitHub showed no checks on its
+branch and no run for the merge commit when this report was written. There were no CI fix rounds.</p>
 <table>
 <thead><tr><th>CI workflow</th><th>Check</th><th>Status</th><th>Link</th></tr></thead>
 <tbody>
-<tr><td><code>CI</code></td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean". The PR description
-names this as the only job that runs the new tests.</td><td><span class="warn">no run reported</span></td>
+<tr><td><code>CI</code></td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean". The PR
+description names this as the only job that runs the new tests.</td>
+<td><span class="warn">no run recorded</span></td>
 <td><a href="https://github.com/levnach/z3/pull/123/checks">PR checks</a></td></tr>
 </tbody>
 </table>
 
 <h2>Review</h2>
-<p>The verdict was APPROVE, with no blocker and no major finding. The reviewer tampered with a generated
-file in five ways, such as dropping a stored index from the list. Lean rejected every tampered file.</p>
+<p>The verdict was APPROVE, with no blocker and no major finding. The reviewer tampered with a
+generated file in five ways, and Lean rejected each one.</p>
 <ul>
 <li><strong>Minor, fixed.</strong> A test asserted, for twelve pinned seeds, whether the Lean file reads
-a generic index. That depends on the route Z3 takes to the refutation, measured only on macOS. On Linux
-another route for an older seed would verify in Lean, yet fail the test. The test now asserts this for
-the four new seeds only.</li>
+a generic index. That depends on Z3's route to the refutation, measured only on macOS. A different
+route on Linux could verify in Lean yet fail the test. The test now asserts this for the four new seeds
+only.</li>
 <li><strong>Nit, fixed.</strong> Two edited documentation paragraphs were too wide and were re-wrapped.</li>
-<li><strong>Nit, rejected with evidence.</strong> The reviewer tried an unrelated Real-indexed array next
-to sets over Int. The Lean file defined a Real generic index too, which the reviewer called unused. The
-integrator found four lemmas in that file that use it, so removing it would break them. The input is now
-the fifteenth Lean-checked test.</li>
+<li><strong>Nit, rejected with evidence.</strong> The reviewer tried a Real-indexed array next to sets
+over Int, and called the extra Real generic index unused. The integrator found four lemmas that use it,
+so it stays. That input is now a Lean-checked test.</li>
 </ul>
-<p>One suggestion led to a code comment on how the exporter's and reconstructor's tests for the axiom
-differ. A clearer error for refutations that only Lean turns down was not added, since no input needs it.</p>
+<p>One suggestion led to a code comment on how the exporter and the reconstructor recognise the axiom.
+Another, a clearer error for refutations that only Lean turns down, was not done.</p>
 
 <h2>Risks and open questions</h2>
 <ul>
-<li>The tests expect Z3 to take the default-value route on the new inputs. That was measured on macOS
-only.</li>
-<li><a href="#g-soundness">Soundness</a> rests on Lean. The mode requires that no assertion mentions a
-default value, and the reconstructor checks this.</li>
-<li>The exporter now accepts some refutations that a later stage could still turn down. Examples are a
-stored index that mentions a default value, or a lemma needing case facts of an
-<a href="#g-enumeration">enumeration</a>. No tested input produced either.</li>
-<li>The freshness proofs grow quadratically with the number of distinct stored indices. The reviewer
-measured 200 stores at 6.5 seconds and 3.0 GB.</li>
+<li>The tests expect Z3 to take the default-value route, which was measured on macOS only.</li>
+<li><a href="#g-soundness">Soundness</a> rests on Lean, and on the reconstructor's check that no assertion
+mentions a default value.</li>
+<li>The exporter now accepts some refutations that a later stage could still turn down. No tested input
+produced one.</li>
+<li>The freshness proofs grow quadratically with the number of distinct stored indices.</li>
 </ul>
 
 <h2>What comes next</h2>
 <ul>
 <li>The axiom next to a default value that the input names stays rejected.</li>
-<li>In the two failing seeds that were examined, a read through a store into a map lacks a read fact.</li>
 <li>A map over a chain of two stores fails in a rewrite step.</li>
-<li>Maps over arrays of an enumeration are still rejected by the exporter.</li>
-<li>Linear-size freshness proofs and enumeration case facts are in the backlog.</li>
+<li>Maps over arrays of an <a href="#g-enumeration">enumeration</a> are still rejected by the exporter.</li>
+<li>The four failing seeds and linear-size freshness proofs remain open.</li>
 </ul>
 
 <h2>Glossary</h2>
@@ -275,15 +266,15 @@ measured 200 stores at 6.5 seconds and 3.0 GB.</li>
 <dd>The sort with the two values true and false.</dd>
 <dt id="g-certificate">certificate</dt>
 <dd>A file of evidence for a result that an independent checker can verify without trusting the solver.</dd>
-<dt id="g-choice">choice</dt>
-<dd>The Lean principle <code>Classical.choose</code>. It picks a witness from a proof that one exists.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A disjunction of literals, such as "p or not q".</dd>
 <dt id="g-cnf">cnf lemma</dt>
-<dd>A proof step that turns a formula into clauses, each an "or" of simple facts.</dd>
+<dd>A proof step that turns a formula into clauses.</dd>
 <dt id="g-const-array">constant array</dt>
 <dd>An array with the same element at every index, written <code>((as const (Array Int Bool)) true)</code>.</dd>
 <dt id="g-default-map">default-map axiom</dt>
 <dd>The array solver's rule that the default value of a map is the function applied to the arguments' default values.
-Example: the default of <code>(union a b)</code> is the default of <code>a</code> or the default of <code>b</code>.</dd>
+Example: the default value of <code>(union a b)</code> is the default value of <code>a</code> or that of <code>b</code>.</dd>
 <dt id="g-default">default value</dt>
 <dd>A single representative element of an array, written <code>(default a)</code>. For a constant array it is the constant.</dd>
 <dt id="g-rfl">definitional equality</dt>
@@ -296,6 +287,8 @@ Example: the default of <code>(union a b)</code> is the default of <code>a</code
 <dd>An assumption of a theorem. Here the hypotheses are exactly the input's assertions.</dd>
 <dt id="g-index">index</dt>
 <dd>The position at which an array is read or written.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atomic formula or its negation.</dd>
 <dt id="g-map">map</dt>
 <dd>An array built by applying a function at every index of other arrays, written <code>((_ map f) a b)</code>.</dd>
 <dt id="g-reconstructor">reconstructor</dt>
@@ -306,8 +299,6 @@ Example: the default of <code>(union a b)</code> is the default of <code>a</code
 <dd>A proof step that replaces a term with a simpler equal one.</dd>
 <dt id="g-seed">seed</dt>
 <dd>A number that fixes the output of a random generator. Each seed here names one random set problem.</dd>
-<dt id="g-select">select</dt>
-<dd>A read of an array at an index, written <code>(select a i)</code>.</dd>
 <dt id="g-set">set</dt>
 <dd>An array with Boolean elements. An index is a member when its element is true. Union and intersection are maps of "or" and "and".</dd>
 <dt id="g-sort">sort</dt>
