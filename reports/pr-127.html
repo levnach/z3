@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c1e21; --muted: #5b6370; --line: #d5d9e0;
-  --soft: #f4f6f9; --link: #0b57d0; --ok: #116329; --warn: #8a5a00; --badge: #e7f0ff;
+  --soft: #f4f6f9; --link: #0b57d0; --ok: #116329; --warn: #8a5a00; --badge: #e6f4ea;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171c; --fg: #e4e7ec; --muted: #9aa3b2; --line: #343a46;
-    --soft: #1d2129; --link: #8ab4f8; --ok: #6fd08c; --warn: #e3b341; --badge: #1f2b44;
+    --soft: #1d2129; --link: #8ab4f8; --ok: #6fd08c; --warn: #e3b341; --badge: #1c3324;
   }
 }
 * { box-sizing: border-box; }
@@ -35,9 +35,9 @@ pre {
 table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .93rem; }
 th, td { border: 1px solid var(--line); padding: .4rem .55rem; text-align: left; vertical-align: top; }
 th { background: var(--soft); }
-td.num { text-align: right; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
 .meta { color: var(--muted); font-size: .93rem; margin: .2rem 0; }
-.badge { display: inline-block; background: var(--badge); border: 1px solid var(--line); border-radius: 999px; padding: .05rem .6rem; font-weight: 600; font-size: .85rem; }
+.badge { display: inline-block; background: var(--badge); color: var(--ok); border: 1px solid var(--line); border-radius: 999px; padding: .05rem .6rem; font-weight: 600; font-size: .85rem; }
 .ok { color: var(--ok); font-weight: 600; }
 .warn { color: var(--warn); font-weight: 600; }
 .note { color: var(--muted); font-size: .92rem; margin-top: -.3rem; }
@@ -51,8 +51,8 @@ footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--line)
 <header>
 <h1>Leave out division-by-zero clauses and prove decided ite gates</h1>
 <p class="meta"><a href="https://github.com/levnach/z3/pull/127">Pull request #127</a> in levnach/z3, targeting <code>master</code></p>
-<p class="meta"><span class="badge">OPEN</span> This pull request is not merged. Its change commit is <a href="https://github.com/levnach/z3/commit/b0b6377d82dc520664784502c9d2507c801ee7e5"><code>b0b6377d8</code></a>.</p>
-<p class="meta">Date: 2026-11-12T21:29:37Z. Loop iteration 126.</p>
+<p class="meta"><span class="badge">MERGED</span> Merged on 2026-11-12T21:45:22Z as commit <a href="https://github.com/levnach/z3/commit/d909af55075145665e6e8e93d12281f82e3aab9b"><code>d909af550</code></a>.</p>
+<p class="meta">Date: 2026-11-12T21:45:22Z. Loop iteration 126.</p>
 </header>
 
 <h2>In one paragraph</h2>
@@ -60,8 +60,8 @@ footer { margin-top: 3rem; padding-top: .8rem; border-top: 1px solid var(--line)
 This PR lets two more kinds of inputs pass through the <a href="#g-clause-log">clause log</a> into a checked <a href="#g-certificate">certificate</a>.
 Both appear when one <a href="#g-assertion">assertion</a> simplifies to false and Z3 then logs the later assertions unsimplified.
 First, the <a href="#g-replay">replay</a> now leaves out the <a href="#g-clause">clauses</a> that the arithmetic solver states about a <a href="#g-division-by-zero">division by zero</a>.
-Second, the reconstructor now proves the <a href="#g-gate-clause">gate clause</a> of an <a href="#g-ite">if-then-else term</a> whose condition is the constant true.
-On a random <a href="#g-qf-uflia">QF_UFLIA</a> generator, 27 of 244 unsat inputs were rejected for these reasons, and all 27 now verify in Lean.
+Second, the reconstructor now proves the <a href="#g-gate-clause">gate clause</a> of an <a href="#g-ite">if-then-else term</a> whose condition is a constant.
+Of 244 random <a href="#g-qf-uflia">QF_UFLIA</a> unsat inputs, 27 were rejected for these reasons, and all 27 now verify in Lean.
 No <a href="#g-axiom">axiom</a> is added, and the final <a href="#g-theorem">theorem</a> still has exactly the input's assertions as <a href="#g-hypothesis">hypotheses</a>.
 </p>
 
@@ -70,8 +70,7 @@ No <a href="#g-axiom">axiom</a> is added, and the final <a href="#g-theorem">the
 Before this PR, the pipeline certified Int <code>div</code>, <code>mod</code>, and <code>rem</code> by a nonzero <a href="#g-numeral">numeral</a>, and gate clauses of ordinary ite terms.
 It failed when an earlier assertion folded to false and the log was replayed without <a href="#g-trimming">trimming</a>.
 Then a divisor written as a <a href="#g-constant-expression">constant expression</a>, such as <code>(- 3)</code>, reached the arithmetic solver before the <a href="#g-rewriter">rewriter</a> folded it.
-The replay stopped with "unsupported operator".
-A gate clause for <code>(ite true a b)</code> was rejected as invalid.
+The replay rejected the log, and a gate clause for <code>(ite true a b)</code> was rejected as invalid.
 The <a href="#g-refutation">refutation</a> used none of these clauses.
 The work serves milestone 3, equality and linear arithmetic.
 </p>
@@ -97,7 +96,7 @@ If the final total depends on a struck note, the audit fails.
 </p>
 
 <table>
-<thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<thead><tr><th>File</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
 <tbody>
 <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">94</td><td class="num">1</td></tr>
 <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">35</td><td class="num">1</td></tr>
@@ -106,15 +105,15 @@ If the final total depends on a struck note, the audit fails.
 <tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td class="num">35</td><td class="num">0</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">57</td><td class="num">0</td></tr>
 <tr><td><code>examples/python/README</code></td><td class="num">3</td><td class="num">1</td></tr>
-<tr><th>Total, 7 files in 2 commits</th><th class="num">674</th><th class="num">7</th></tr>
+<tr><th>Total, 7 files</th><th class="num">674</th><th class="num">7</th></tr>
 </tbody>
 </table>
-<p class="note">No C++ file and no Lean library file changed.</p>
+<p class="note">The branch's two commits were merged as one commit. No C++ file and no Lean library file changed.</p>
 
 <h2>Worked example</h2>
 <p>
-This input combines two of the PR's new test inputs: a division by <code>(- 3)</code> and a decided ite.
-All output below comes from real runs made for this report.
+This input combines two of the PR's new test inputs.
+All output below comes from real runs on the merged code.
 </p>
 
 <h3>(a) The input</h3>
@@ -133,7 +132,7 @@ With the last assertion replaced by <code>(assert (&lt; (ite (not true) x y) x))
 <pre><code>proof_to_lean.py: error: unsupported or invalid def-axiom clause at node 28</code></pre>
 
 <h3>(c) After</h3>
-<p>The current code exports and reconstructs the input. The Lean check accepted the file: <span class="ok">"Lean checks passed."</span></p>
+<p>The merged code exports and reconstructs the input. The Lean check accepted the file: <span class="ok">"Lean checks passed."</span></p>
 <pre><code>def formula_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := True
 def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
 def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
@@ -172,7 +171,7 @@ private theorem th_lemma_46 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
   ...
   first | omega | grind (splits := 64)</code></pre>
 <p>
-This guarded division fact stays in the certificate: "0 equals −3, or −3 times the quotient plus the remainder equals the dividend".
+This guarded <a href="#g-theory-lemma">theory lemma</a> stays in the certificate: "0 equals −3, or −3 times the quotient plus the remainder equals the dividend".
 </p>
 
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
@@ -184,44 +183,53 @@ This guarded division fact stays in the certificate: "0 equals −3, or −3 tim
 
 <h2>How it was verified</h2>
 <p>
-Every local test suite passed on the branch head, and several hundred random inputs showed no regression.
-Every newly accepted input was also checked in Lean, and Lean rejected tampered versions of the new gate proof.
-The C++ unit tests and SMT2 regressions were not run, because no C++ changed.
+Every step of the loop's local gate passed, and the PR was merged on that result.
+The gate repeats, on the loop machine, the steps of the CI job that exercise this work.
 </p>
 <table>
-<thead><tr><th>Local check</th><th>Run on</th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Detail</th><th class="num">Time</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction tests</td><td>head <code>b0b6377d8</code></td><td><span class="ok">Pass.</span> 553 tests, 9 skipped</td></tr>
-<tr><td>Certificate exporter tests</td><td>head</td><td><span class="ok">Pass.</span> 124 tests</td></tr>
-<tr><td>Lean project build and checks</td><td>head</td><td><span class="ok">Pass.</span> "Lean checks passed."</td></tr>
-<tr><td>Proof script tests in z3test</td><td>head</td><td><span class="ok">Pass.</span> 48 tests</td></tr>
-<tr><td>Two gated matrix cells</td><td>head</td><td><span class="ok">Pass.</span> 6 of 6 and 8 of 8 verified in Lean</td></tr>
-<tr><td>Review fixes change no other certificate</td><td>head against <code>9edf1955b</code></td><td><span class="ok">Pass.</span> 167 texts identical</td></tr>
-<tr><td>Three namesake certificates checked directly</td><td>head</td><td><span class="ok">Pass.</span> Each fails when a false theorem is appended</td></tr>
-<tr><td>Implementer's random sweeps, base against branch</td><td><code>9edf1955b</code></td><td>310 unsat inputs. 30 rejected at the base now verify. 280 have the same text</td></tr>
-<tr><td>Reviewer's differential on fresh seeds</td><td><code>9edf1955b</code></td><td>167 unsat inputs. 139 same text, 28 newly reconstructed, all 28 verify</td></tr>
-<tr><td>Reviewer's tampered gate proofs</td><td><code>9edf1955b</code></td><td>6 of 6 fail in Lean with type mismatches</td></tr>
-<tr><td>New tests against the base modules</td><td><code>9edf1955b</code></td><td>7 of 8 new or changed tests fail, as they should</td></tr>
-<tr><td>The loop's local gate</td><td>head</td><td><span class="warn">Not recorded</span> when this report was written</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">Pass</span></td><td>124 tests</td><td class="num">20s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">Pass</span></td><td>553 tests, 9 skipped</td><td class="num">891s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">Pass</span></td><td>48 tests</td><td class="num">17s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td><span class="ok">Pass</span></td><td>6 of 6 verified in Lean</td><td class="num">5s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td><span class="ok">Pass</span></td><td>8 of 8 verified in Lean</td><td class="num">7s</td></tr>
 </tbody>
 </table>
 
 <p>
-No CI status was recorded when this report was written, so no check is marked as passed.
+Earlier, several hundred random inputs showed no regression, and Lean rejected tampered versions of the new gate proof.
+The C++ unit tests and SMT2 regressions were not run, because no C++ changed.
+</p>
+<table>
+<thead><tr><th>Other local evidence</th><th>Run on</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean project build and checks</td><td>branch head <code>b0b6377d8</code></td><td><span class="ok">Pass.</span> "Lean checks passed."</td></tr>
+<tr><td>Review fixes change no other certificate</td><td>branch head against <code>9edf1955b</code></td><td><span class="ok">Pass.</span> 167 texts identical</td></tr>
+<tr><td>Three namesake certificates checked directly</td><td>branch head</td><td><span class="ok">Pass.</span> Each fails when a false theorem is appended</td></tr>
+<tr><td>Implementer's random sweeps, base against branch</td><td><code>9edf1955b</code></td><td>310 unsat inputs. 30 rejected at the base now verify. 280 have the same text</td></tr>
+<tr><td>Reviewer's differential on fresh seeds</td><td><code>9edf1955b</code></td><td>167 unsat inputs. 139 same text, 28 newly reconstructed, all 28 verify</td></tr>
+<tr><td>Reviewer's tampered gate proofs</td><td><code>9edf1955b</code></td><td>6 of 6 fail in Lean with type mismatches</td></tr>
+<tr><td>New tests against the base modules</td><td><code>9edf1955b</code></td><td>7 of 8 new or changed tests fail, as they should</td></tr>
+</tbody>
+</table>
+
+<p>
+GitHub reported no checks on the PR's branch, so no CI check is marked as passed below.
+GitHub CI runs on <code>master</code> after the merge, and its result is not known here.
 There were no CI fix rounds, and no failure was judged unrelated.
-The PR description names the jobs that run the new tests.
 </p>
 <table>
 <thead><tr><th>Workflow</th><th>Job or check</th><th>What it runs</th><th>Status</th></tr></thead>
 <tbody>
-<tr><td>CI</td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td>The Lean reconstruction tests</td><td><span class="warn">Not recorded.</span> See the <a href="https://github.com/levnach/z3/pull/127/checks">PR checks</a></td></tr>
-<tr><td>CI</td><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td>The certificate exporter tests</td><td><span class="warn">Not recorded.</span> See the <a href="https://github.com/levnach/z3/pull/127/checks">PR checks</a></td></tr>
+<tr><td>CI</td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td>The Lean reconstruction tests</td><td><span class="warn">Not recorded.</span> See the <a href="https://github.com/levnach/z3/commit/d909af55075145665e6e8e93d12281f82e3aab9b/checks">merge commit's checks</a></td></tr>
+<tr><td>CI</td><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td>The certificate exporter tests</td><td><span class="warn">Not recorded.</span> See the <a href="https://github.com/levnach/z3/commit/d909af55075145665e6e8e93d12281f82e3aab9b/checks">merge commit's checks</a></td></tr>
 <tr><td>Lean proofs</td><td>On-demand workflow</td><td>The same Lean script</td><td><span class="warn">Not recorded</span></td></tr>
 </tbody>
 </table>
 
 <h2>Review</h2>
-<p>The reviewer approved the change with no blocker, major, or minor finding. All four nits were fixed in the second commit.</p>
+<p>The reviewer approved the change with no blocker, major, or minor finding. All four nits were fixed before the merge.</p>
 <ol>
 <li>
 <strong>Nit, fixed: a namesake function.</strong>
@@ -231,30 +239,27 @@ It now compares the argument sorts with the declared ones.
 </li>
 <li>
 <strong>Nit, fixed: a misplaced error message.</strong>
-The message about an assumed clause came from a term builder that does not know its caller.
-A future caller could have reported an assumed clause where none exists.
+The message about an assumed clause came from code that does not know its caller.
 It is now raised where a clause is assumed, and it names the <a href="#g-literal">literal</a>.
 </li>
 <li>
 <strong>Nit, fixed: a stale comment.</strong>
-The gate lemma's documentation still said every proof splits on the condition.
-It now describes the decided case.
+The gate lemma's documentation now describes the decided case.
 </li>
 <li>
 <strong>Nit, fixed: a test that could not fail.</strong>
 One new test passed on the old code, because it only pinned the shape of Z3's log.
-Reverting the reconstructor's change would have left it green.
 It now also reconstructs each certificate, so it fails on the base.
 </li>
 </ol>
 
 <h2>Risks and open questions</h2>
 <ul>
-<li>No soundness risk was identified. Leaving a clause out can only make a later step underivable, which is a rejection.</li>
-<li>Divisions by zero are recognized by name and by the spelling of zero. A wrong guess can drop or reject a clause, never admit one.</li>
-<li>Lean must still prove the unused guarded division facts. Here a former rejection could become a Lean failure.</li>
-<li>Only logs under 4,096 characters, which are replayed untrimmed, show either case.</li>
-<li>Unknown: the CI results, and whether the two live-log tests find a <code>z3</code> executable in the Python wheel job.</li>
+<li>No soundness risk was identified. Leaving a clause out can only cause a rejection.</li>
+<li>Divisions by zero are recognized by name and spelling. A wrong guess can drop or reject a clause, never admit one.</li>
+<li>Lean must still prove the unused guarded division lemmas, so a former rejection could become a Lean failure.</li>
+<li>Only logs short enough to be replayed untrimmed show either case.</li>
+<li>Unknown: the CI result on <code>master</code>, and whether the two live-log tests find a <code>z3</code> executable in the Python wheel job.</li>
 </ul>
 
 <h2>What comes next</h2>
@@ -263,7 +268,7 @@ It now also reconstructs each certificate, so it fails on the base.
 <li>An Int <code>abs</code> nested in a Real term, without a declared logic, is still rejected when unsimplified.</li>
 <li>Unused lemmas of an untrimmed log are still proved in Lean, which costs time and could fail.</li>
 </ul>
-<p class="note">All three are in the loop's backlog and are unchanged by this PR.</p>
+<p class="note">All three are in the loop's backlog.</p>
 
 <h2>Glossary</h2>
 <dl>
@@ -305,6 +310,8 @@ It now also reconstructs each certificate, so it fails on the base.
 <dd>The type of a value, such as Int, Real, or Bool.</dd>
 <dt id="g-theorem">theorem</dt>
 <dd>A statement together with a proof that Lean has checked.</dd>
+<dt id="g-theory-lemma">theory lemma</dt>
+<dd>A clause that holds by the rules of a theory such as integer arithmetic. Example: "d equals 0, or d times the quotient plus the remainder equals the dividend".</dd>
 <dt id="g-trimming">trimming</dt>
 <dd>Cutting a clause log down to the clauses the refutation depends on.</dd>
 <dt id="g-uninterpreted-function">uninterpreted function</dt>
