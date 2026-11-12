@@ -2535,11 +2535,13 @@ of the 262 of 1001-1600, 258 verify (218 before) and none is rejected. The
 other four fail in Lean as they did before (`grind` in a rewrite or cnf
 lemma, not through default values: 1083, 1088, 1398, 1486). Still
 rejected: the axiom next to a default value the input names. Tests
-(`test_proof_to_lean_array.py`): fourteen documented inputs
-(`GENERIC_DEFAULT_INPUTS`: Int and Real indices, both at once, stores under
-and over the map, maps of `+`, `<=`, `ite`, and an uninterpreted function,
-a row of nested arrays, a trimmed log, enumeration arrays next to the
-sets; Lean), the pinned seeds `GENERIC_DEFAULT_SEEDS` (Lean),
+(`test_proof_to_lean_array.py`): fifteen documented inputs
+(`GENERIC_DEFAULT_INPUTS`: Int and Real indices, both at once, a
+Real-indexed array that takes no default value next to sets over Int,
+stores under and over the map, maps of `+`, `<=`, `ite`, and an
+uninterpreted function, a row of nested arrays, a trimmed log, enumeration
+arrays next to the sets; Lean), the pinned seeds `GENERIC_DEFAULT_SEEDS`
+(Lean),
 `test_default_values_are_read_at_a_generic_index`,
 `test_default_values_of_maps_are_rejected` (now inputs that name a default
 value), and `test_the_generic_index_is_proved_off_the_stored_indices`.
@@ -2623,11 +2625,12 @@ against 6.80 MB (the repeated attempts), and the same Lean time (131 s).
 
 After: all 304 exported seeds of 1-1000 verify in Lean (261 before; the
 other 64 unsatisfiable ones rest on the default-map axiom and stayed
-rejected until "Default values read at a generic index" above). Still open: an equality of sets decided false over an
-uninterpreted index sort when the interpretation has no `nonempty` field
-(`(= (union a (complement a)) (setminus b b))` over `(Array Index Bool)`);
-and a step that needs some of its pointwise facts while `grind` cannot
-afford all of them (none is known).
+rejected until "Default values read at a generic index" above). Still
+open: an equality of sets decided false over an uninterpreted index sort
+when the interpretation has no `nonempty` field (`(= (union a (complement
+a)) (setminus b b))` over `(Array Index Bool)`); and a step that needs
+some of its pointwise facts while `grind` cannot afford all of them (none
+is known).
 Tests (`test_proof_to_lean_array.py`): ten documented inputs in
 `SET_COMBINATOR_INPUTS` and the pinned seeds `POINTWISE_SET_SEEDS` (Lean;
 each failed before), the sixteen nested maps of `xor` and of `ite`

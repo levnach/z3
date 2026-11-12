@@ -1010,6 +1010,12 @@ def _generic_defaults(graph):
     indexes an array of the certificate to the index nodes of the stores
     over it, in order (_generic_index_definitions); it stays empty
     otherwise, and _check_th_lemma rejects the axiom.
+
+    Every such index sort has an index, not only those a default term of
+    the certificate is taken over: a rewrite or cnf lemma that compares
+    arrays states the default value of each store and constant array it
+    reaches (_constant_array_comparisons), whether or not the solver took
+    one.
     """
     mentions = set()
     for node in range(len(graph.nodes)):

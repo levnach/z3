@@ -704,6 +704,9 @@ def _default_map_axiom(literal):
     side counts, and so does that value as a literal of its own (a set's
     is a formula), except the default-value axiom of a store over that map,
     (= (default (store m i v)) (default m)), which holds of every array.
+    The reconstructor's test (proof_to_lean._default_map_axiom) reads the
+    equalities only: it rejects an array th-lemma with any other literal
+    (_check_th_lemma), so a bare default value never reaches it.
     """
     atom = _strip(literal)[0]
     if z3.is_default(atom):
