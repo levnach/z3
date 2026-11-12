@@ -1674,6 +1674,56 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 
 ## Boolean and EUF proof infrastructure
 
+### Int negations of zero rendered as differences (2026-11-11)
+
+An Int input with the negation of zero in an argument of a function,
+predicate, read, or store, `(f (- 0))`, `(p (- (* 0 x)) x)`, `(select a (-
+(mod 6 3)))`, reconstructed through the clause log and then failed in
+Lean, not in a tactic but in the kernel: `(kernel) application type
+mismatch ... decide (-0 = 0) = false`. The pinned toolchain's `grind` takes
+the Int term `-0` for a numeral other than `0` (a negated literal is its
+normal form of a negative numeral) and builds a disequality proof by
+evaluation that the kernel rejects. The error comes after the tactic block,
+so no alternative of a step's `first` catches it. `grind` meets the literal
+whenever its simplifier evaluates the negated term to `0`: a numeral
+expression, a linear form whose variables cancel by a zero factor, a `div`
+or `mod` of numerals. The same happened where a map identity applies an
+Int negation map to a stored or constant `0` (`((_ map -) (store a i 0))`:
+`grind` beta-reduces `(fun v => -v) 0`), the kernel error the iteration
+123 review found on stores over negation maps.
+
+The reconstructor now renders such a negation as the difference `0 - t`,
+which is the same number and which the simplifier evaluates to `0`:
+
+- `_negation` for a unary minus, the negative branch of `abs`, and `rem`
+  by a negative numeral, when `_integer_value` gives the negated Int term
+  the value zero whatever its variables are (the constant of a linear form
+  whose variables cancel, with `div`, `mod`, `rem`, and `abs` of such
+  values evaluated as Lean does). Every other negation keeps the form
+  `-t`, so `(- 2)` is still the numeral `-2`;
+- `_INT_MAP_NEGATION`: the Int negation map is `fun v => 0 - v` (its value
+  at a stored term is not known where the function is rendered), in the
+  lambda and in the read facts. The Real one keeps `-v`: `Rat` has no such
+  defect.
+
+The theorem's statement changes only in those definitions, to a term equal
+to the old one. The legacy core's certificates of these inputs verified
+before (no step of theirs gives `grind` the literal) and verify with the
+differences. Of 259 unsatisfiable `random_instance(zeros=True)` seeds
+(numerals replaced by eight forms of negated zero; 1-1000 plain, 1-500
+with a sort and ite terms) 81 failed in the kernel before and none fails
+now. Tests: `ZERO_NEGATION_INPUTS`, `NONZERO_NEGATION_INPUTS`, and
+`ZERO_SEEDS` in `test_proof_to_lean_uflia.py` (both cores;
+`test_negated_zero_literals_fail_in_the_kernel` pins the defect, and tells
+when a later toolchain no longer has it), and `read_at_a_negated_zero` and
+the four `negation_map*` inputs in `test_proof_to_lean_array.py`.
+
+Still failing: a negation of an ite whose condition is decided and whose
+chosen branch is zero, `(f (- (ite true 0 1)))` (`_integer_value` does not
+evaluate an ite; the kernel error as before), and a map of a two-store
+chain (the rewriter's store chain of maps has an identity for the outer
+level only), now with `grind` failed instead of the kernel error.
+
 ### Assumption search skips conjuncts a model refutes (2026-11-11)
 
 `assume` ties an assumed clause no key matches to the first candidate
