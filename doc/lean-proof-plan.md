@@ -3917,13 +3917,32 @@ and z3test's nl38.
   certificate's tactic for theory steps. At most five factors are split.
 - **Where it is tried**, always as the first attempt, the existing proofs
   after it: a rewrite step, for the comparisons of its left side over a
-  product whose polynomial the right side does not keep up to a common
-  factor (`_sign_split`; a rewrite the normalized-rewrite path takes is
-  left to it); a cnf lemma that is one theory fact, after the polynomial
-  refutation; a theory clause over the leaves of a cnf lemma
-  (`_sign_split_clause`, `_theory_clause_proof`). Only comparisons of Int
-  terms under propositional connectives get an attempt. Certificates
-  without an Int product are untouched.
+  product that the right side does not keep (`_sign_split`; a rewrite the
+  normalized-rewrite path takes is left to it); a cnf lemma that is one
+  theory fact, after the polynomial refutation; a theory clause over the
+  leaves of a cnf lemma (`_sign_split_clause`, `_theory_clause_proof`).
+  Certificates without an Int product are untouched.
+- **Which comparisons of a rewrite are factored.** The right side keeps a
+  comparison when it has one over the same monomials up to a common factor
+  that compares them with zero exactly if the left one does, once
+  normalized as the rewriter does (`_compares_with_zero`: divided by the
+  gcd of the coefficients, the constant rounded, so `(<= (* 2 (* m n)) 1)`
+  is `(<= (* m n) 0)`). The rewriter splits only comparisons with zero,
+  so `(>= (* m n) 7)` kept on the right side says nothing about a `(<= (*
+  m n) 0)` beside it on the left, which is factored. A rewrite that only
+  normalizes its product comparisons gets no attempt.
+- **What the proof reads.** Comparisons of Int terms under `and`, `or`,
+  `not`, `=`, `=>`, `xor`, and `ite` of formulas. Any other formula there
+  (a predicate application, a `distinct`, a comparison of other terms) is
+  an atom of the step's propositional structure and stays folded, as the
+  atoms of the linear forms do; a step in which the rewriter also changed
+  such a formula fails the attempt and keeps its other proofs.
+- **Monomials equated with zero are not split.** `(= (* m n) 0)` to `(or
+  (= m 0) (= n 0))` is `Int.mul_eq_zero`, which the step's own grind is
+  given: one line where the split of five factors is 63 leaves (a rewrite
+  of four such equations over five variables took 124 kB and 1.9 s of Lean
+  with the split, 17 kB and 0.5 s without). A step gets an attempt only if
+  it factors some other comparison; then the equations are factored with it.
 
 Nothing is trusted: the factoring is a hint for Lean, which checks the
 identity, the case split, and every leaf; a step that needs more than the
@@ -3938,12 +3957,23 @@ verified fails. The 19 others: 2 use an `nla` lemma without a refutation,
 17 fail in Lean (a `cut`, `bound`, or `implied-eq` over products; a
 rewrite or cnf lemma that needs more than signs, as "3 is no square" or `m
 n = -1`; a rewrite the replay ties to another assertion). Tests:
-`test_proof_to_lean_sign_split.py` (11 documented inputs, 3 pinned logs, 10
-pinned seeds, one input outside).
+`test_proof_to_lean_sign_split.py` (15 documented inputs, 12 of them
+through the legacy proof object too, 3 pinned logs, 10 pinned seeds, one
+input outside, and a pinned log whose split attempt fails in Lean and
+whose other proofs hold: the file verifies, and does not with the split as
+the only proof of its steps).
 
 Next: factors that are ites (the gate facts of the ite next to the split,
-`(> (* (ite p m 1) n) 0)`), squares of sums, and the sign splits the
-legacy core records (not measured).
+`(> (* (ite p m 1) n) 0)`); an atom the rewriter renames next to the
+product (`(abs n)` to its ite: the split takes the two for different
+atoms, fails, and the bridged proof after it holds); theory clauses of cnf
+lemmas with a leaf that is no comparison of Int terms (no attempt);
+squares of sums. The legacy core's rewrite steps go through the same
+function: 12 of the 15 documented inputs verify through the legacy proof
+object (none before), `factors_of_the_quotient` and `five_factors` fail in
+Lean there as before, and `square_against_its_root` is rejected by the
+exporter (`arith assumed nlsat`); of 24 probe inputs 11 fail at the base
+and verify, none that verified fails. No sweep of the legacy path was run.
 
 ### Lemmas of the nonlinear solver by polynomial refutations (2026-11-13)
 

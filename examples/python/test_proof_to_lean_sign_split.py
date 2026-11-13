@@ -95,8 +95,43 @@ SIGN_INPUTS = {
 (assert (> (g m) 0))
 (assert (> n 0))
 """, {"rewrite"}),
+    # The rewriter splits (<= (* m n) 0) and keeps (>= (* m n) 7), a comparison of the same monomials.
+    "split_next_to_a_kept_comparison": ("qf_lia", _INTS + """(assert (or (<= (* m n) 0) (>= (* m n) 7)))
+(assert (> m 0))
+(assert (> n 0))
+(assert (< (* m n) 7))
+""", {"rewrite"}),
+    # A predicate application next to the product: an atom of the step's propositional structure.
+    "predicate_next_to_the_product": ("qf_uflia", "(declare-fun q (Int) Bool)\n" + _INTS + """\
+(assert (or (q m) (<= (* m n) 0)))
+(assert (not (q m)))
+(assert (> m 0))
+(assert (> n 0))
+""", {"rewrite"}),
+    # An ite of formulas, its branches normalized by the same rewrite: a connective of the step.
+    "ite_of_formulas": ("qf_lia", "(declare-const p Bool)\n" + _INTS + """\
+(assert (or (ite p (> k 0) (< k 0)) (<= (* m n) 0)))
+(assert (= k 0))
+(assert (> m 0))
+(assert (> n 0))
+""", {"rewrite"}),
+    # A monomial equated with zero is left to Int.mul_eq_zero only where nothing else is split.
+    "zero_product_next_to_a_split": ("qf_lia", _INTS + """(assert (or (= (* m n) 0) (<= (* m k) 0)))
+(assert (> m 0))
+(assert (> n 0))
+(assert (> k 0))
+""", {"rewrite"}),
 }
 SIGN_INPUTS = {name: (fragment, source + _CHECK, kinds) for name, (fragment, source, kinds) in SIGN_INPUTS.items()}
+
+# The inputs of SIGN_INPUTS whose refutations verify through the legacy proof object too, where the
+# split is a rewrite step of the assertion. (Of the others, factors_of_the_quotient and five_factors
+# fail in Lean there, as before, on a rewrite step that gets a split; square_against_its_root is
+# rejected by the exporter: th-lemma arith assumed nlsat.)
+LEGACY_SIGN_INPUTS = ("nonnegative_product", "nonpositive_product", "zero_product_without_a_root",
+                      "quotient_over_products", "conjunction", "negated_disjunction", "chain_of_signs",
+                      "function_factor", "split_next_to_a_kept_comparison", "predicate_next_to_the_product",
+                      "ite_of_formulas", "zero_product_next_to_a_split")
 
 # Inputs that get a sign split and are not certified by it: Lean rejects them.
 NOT_CERTIFIED = {
@@ -187,6 +222,36 @@ _CONJUNCTION_LOG = """\
 """
 _PINNED_LOGS = {"nonnegative_product": _NONNEGATIVE_LOG, "zero_product_without_a_root": _ZERO_LOG,
                 "conjunction": _CONJUNCTION_LOG}
+# A step whose sign split fails in Lean and whose other proofs hold: the rewriter turns (abs n) into an
+# ite, another atom to the split, which keeps atoms folded; the next proof equates the two atoms.
+_FALLBACK_SOURCE = _INTS + "(assert (> (* m (abs n)) 2))\n(assert (< (* (abs n) m) 1))\n" + _CHECK
+_FALLBACK_LOG = """\
+(declare-fun n () Int)
+(define-const $15 Bool (>= n 0))
+(define-const $19 Int (* (- 1) n))
+(define-const $20 Int (ite $15 n $19))
+(define-const $29 Bool (= $20 n))
+(declare-fun tseitin (Bool Bool) Proof)
+(define-const $28 Bool (not $15))
+(define-const $31 Proof (tseitin $28 $29))
+(infer (not $15) $29 $31)
+(define-const $30 Bool (= $20 $19))
+(define-const $32 Proof (tseitin $15 $30))
+(infer $15 $30 $32)
+(declare-fun m () Int)
+(define-const $21 Int (* m $20))
+(define-const $22 Bool (<= $21 2))
+(assume (not $22))
+(define-const $24 Bool (<= 1 $21))
+(assume (not $24))
+(declare-fun farkas (Int Bool Int Bool) Proof)
+(define-const $23 Bool (not $22))
+(define-const $25 Bool (not $24))
+(define-const $33 Proof (farkas 1 $25 1 $23))
+(infer $33)
+(declare-fun rup () Proof)
+(infer rup)
+"""
 
 
 @functools.lru_cache(maxsize=None)
@@ -195,12 +260,41 @@ def _certificate(name):
     return _export(SIGN_INPUTS[name][1])
 
 
+@functools.lru_cache(maxsize=None)
+def _legacy_certificate(name):
+    """The certificate of a documented input from the legacy proof object, exported once for the module."""
+    return proof_certificate.export_certificate(SIGN_INPUTS[name][1])
+
+
 def _replay(name):
     """The certificate of a documented input from its pinned log, whatever Z3 logs today."""
+    return _replay_log(SIGN_INPUTS[name][1], _PINNED_LOGS[name])
+
+
+def _replay_log(source, log):
     context = z3.Context()
-    source = SIGN_INPUTS[name][1]
     assertions, fragment = proof_certificate.parse_assertions(source, context, integer=True)
-    return proof_clause_log.build_certificate(source, fragment, assertions, _PINNED_LOGS[name], context)
+    return proof_clause_log.build_certificate(source, fragment, assertions, log, context)
+
+
+def _split_alone(text):
+    """A reconstruction with the steps that start with a sign split left no other proof, and their number.
+
+    The proofs of a step are the alternatives of one `first`, the split's
+    the first of them (it starts from the folded goal, `show`); a blank
+    line ends the step.
+    """
+    kept, steps, split, dropping = [], 0, False, False
+    for line in text.split("\n"):
+        if not line:
+            split = dropping = False
+        elif line.startswith("    | (show "):
+            split, steps = True, steps + 1
+        elif line.startswith("    | (") and split:
+            dropping = True
+        if not dropping:
+            kept.append(line)
+    return "\n".join(kept), steps
 
 
 def _split_steps(text):
@@ -253,6 +347,30 @@ class TestSignFactoring(unittest.TestCase):
         self.assertNotEqual(shape({(1, 2): one}), shape({(1,): one}))
         self.assertEqual(shape({(): one}), ())
 
+    def test_comparisons_with_zero(self):
+        # What Z3's rewriter splits: a comparison that, divided by the gcd of its coefficients
+        # and rounded, has a zero right side. The polynomial is that of left - right.
+        one = Fraction(1)
+        zero = proof_to_lean._compares_with_zero
+        le, ge, lt, gt, eq = z3.Z3_OP_LE, z3.Z3_OP_GE, z3.Z3_OP_LT, z3.Z3_OP_GT, z3.Z3_OP_EQ
+        product = {(1, 2): one}
+        for kind in (le, ge, lt, gt, eq):
+            with self.subTest(kind=kind):
+                self.assertTrue(zero(kind, product))
+                self.assertFalse(zero(kind, {**product, (): -7 * one}))
+                self.assertFalse(zero(kind, {(): 0 * one}))
+        double = {(1, 2): 2 * one, (3,): -4 * one}
+        # 2 v <= 1 is v <= 0, 2 v <= -1 is v <= -1; 2 v >= -1 is v >= 0, 2 v >= 1 is v >= 1.
+        for kind, constant, expected in [(le, -1, True), (le, 1, False), (le, -2, False), (ge, 1, True),
+                                         (ge, -1, False), (ge, 2, False),
+                                         # 2 v < 1 is not (v >= 1), 2 v < -1 is not (v >= 0); 2 v > -1 is
+                                         # not (v <= -1), 2 v > 1 is not (v <= 0).
+                                         (lt, -1, False), (lt, 1, True), (gt, 1, False), (gt, -1, True),
+                                         # An equation is not rounded: 2 v = 1 is false.
+                                         (eq, -1, False), (eq, 1, False)]:
+            with self.subTest(kind=kind, constant=constant):
+                self.assertEqual(zero(kind, {**double, (): constant * one}), expected)
+
 
 class TestSignSplitValidation(unittest.TestCase):
     """Validation without Lean: which steps get a sign split, and its shape."""
@@ -269,6 +387,13 @@ class TestSignSplitValidation(unittest.TestCase):
                 self.assertEqual(certificate["fragment"], fragment)
                 text = proof_to_lean.reconstruct(source, certificate)
                 self.assertEqual(_kinds(_split_steps(text)), kinds)
+                self.assertNotIn("sorry", text)
+
+    def test_legacy_rewrites_get_sign_splits(self):
+        for name in LEGACY_SIGN_INPUTS:
+            with self.subTest(name=name):
+                text = proof_to_lean.reconstruct(SIGN_INPUTS[name][1], _legacy_certificate(name))
+                self.assertEqual(_kinds(_split_steps(text)), {"rewrite"})
                 self.assertNotIn("sorry", text)
 
     def test_a_rewrite_is_proved_by_the_signs_of_its_factors(self):
@@ -344,12 +469,53 @@ class TestSignSplitValidation(unittest.TestCase):
         self.assertFalse(graph.integer_products)
         for node in _steps(graph, z3.Z3_OP_PR_REWRITE):
             self.assertIsNone(proof_to_lean._sign_split(graph, node, rewrite=True))
+        # A monomial equated with zero is Int.mul_eq_zero, which the step's grind has: no split.
+        for name in ("zero_product", "zero_product_of_three"):
+            with self.subTest(name=name):
+                source = PRODUCT_INPUTS[name][1]
+                self.assertEqual(_split_steps(proof_to_lean.reconstruct(source, _export(source))), {})
         # More factors than the split takes: the step keeps its other proofs.
         factors = ["x%d" % position for position in range(proof_to_lean._SIGN_SPLIT_FACTORS + 1)]
         wide = ("".join("(declare-const %s Int)\n" % factor for factor in factors)
                 + "(assert (< (* %s) 0))\n" % " ".join(factors)
                 + "".join("(assert (> %s 0))\n" % factor for factor in factors) + _CHECK)
         self.assertEqual(_split_steps(proof_to_lean.reconstruct(wide, _export(wide))), {})
+
+    def test_a_split_comparison_next_to_a_kept_one_is_a_candidate(self):
+        # (or (<= (* m n) 0) (>= (* m n) 7)): the right side keeps (>= (* m n) 7), which is not
+        # what the rewriter made of (<= (* m n) 0); only that comparison is factored.
+        source = SIGN_INPUTS["split_next_to_a_kept_comparison"][1]
+        graph = proof_to_lean._validate_graph(source, _certificate("split_next_to_a_kept_comparison"))
+        split = [lines for lines in (proof_to_lean._sign_split(graph, node, rewrite=True)
+                                     for node in _steps(graph, z3.Z3_OP_PR_REWRITE)) if lines]
+        self.assertEqual(len(split), 1)
+        self.assertEqual(sum(line.startswith("have _i") for line in split[0]), 1)
+        self.assertIn("+ ((0 : Int)) := by delta", split[0][1])
+
+    def test_formulas_the_split_does_not_read_stay_folded(self):
+        # The predicate application is no comparison of Int terms: the split's unfold leaves its definition.
+        source = SIGN_INPUTS["predicate_next_to_the_product"][1]
+        graph = proof_to_lean._validate_graph(source, _certificate("predicate_next_to_the_product"))
+        applications = {"formula_%d" % node for node in range(len(graph.nodes))
+                        if not graph.is_term(node) and graph.kind(node) == z3.Z3_OP_UNINTERPRETED
+                        and graph.arguments(node)}
+        self.assertTrue(applications)
+        split = [lines for lines in (proof_to_lean._sign_split(graph, node, rewrite=True)
+                                     for node in _steps(graph, z3.Z3_OP_PR_REWRITE)) if lines]
+        self.assertEqual(len(split), 1)
+        unfold, = [line for line in split[0] if line.startswith("unfold ")]
+        self.assertFalse(applications & set(unfold.split()), unfold)
+
+    def test_a_failing_split_is_followed_by_the_other_proofs(self):
+        text = proof_to_lean.reconstruct(_FALLBACK_SOURCE, _replay_log(_FALLBACK_SOURCE, _FALLBACK_LOG))
+        steps = _split_steps(text)
+        self.assertEqual(_kinds(steps), {"rewrite"})
+        alone, cut = _split_alone(text)
+        self.assertEqual(cut, len(steps))
+        self.assertEqual(_split_steps(alone), steps)
+        # Every step with a split has at least one more alternative, and only those are dropped.
+        self.assertGreaterEqual(text.count("\n    | (") - alone.count("\n    | ("), cut)
+        self.assertEqual(text.count("theorem "), alone.count("theorem "))
 
     def test_pinned_seeds_get_sign_splits(self):
         for seed in SIGN_SEEDS:
@@ -382,8 +548,30 @@ class TestSignSplitLeanIntegration(unittest.TestCase):
                 checks.append((name, source, _certificate(name)))
         self._verify(checks)
 
+    def test_legacy_inputs_verify(self):
+        self._verify([("legacy " + name, SIGN_INPUTS[name][1], _legacy_certificate(name))
+                      for name in LEGACY_SIGN_INPUTS])
+
     def test_pinned_logs_verify(self):
         self._verify([(name, SIGN_INPUTS[name][1], _replay(name)) for name in _PINNED_LOGS])
+
+    def test_a_step_whose_split_fails_is_proved_by_its_other_proofs(self):
+        # The file verifies, and it does not with the split as the only proof of its steps:
+        # the split attempt fails in Lean and the proofs after it close the steps.
+        certificate = _replay_log(_FALLBACK_SOURCE, _FALLBACK_LOG)
+        self._verify([("fallback", _FALLBACK_SOURCE, certificate)])
+        alone, cut = _split_alone(proof_to_lean.reconstruct(_FALLBACK_SOURCE, certificate))
+        self.assertTrue(cut)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "split_alone.lean"
+            output.write_text(alone)
+            result = lean_test_support.run_check_lean(output)
+            report = result.stdout + result.stderr
+            self.assertNotEqual(result.returncode, 0, report)
+            errors = [line for line in report.split("\n") if "error:" in line]
+            self.assertTrue(errors, report)
+            for error in errors:
+                self.assertIn("`grind` failed", error)
 
     def test_pinned_random_instances_verify(self):
         checks = []

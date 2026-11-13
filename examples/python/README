@@ -954,7 +954,16 @@ by Int.lt_trichotomy, the sign of the product follows in every case
 (Int.mul_pos and its three variants, Int.mul_eq_zero), and with that, the
 factors' signs, and 0 <= a * a for the squares the step compares, omega
 (else grind) closes the step as linear arithmetic over the atoms and the
-products as written. The attempt goes first and the proofs the step had
+products as written. In a rewrite step the comparisons factored are those
+of the left side that the right side does not keep: one over the same
+monomials up to a common factor that is compared with zero exactly if the
+left one is (after the rewriter's division by the gcd and rounding), so
+(>= (* m n) 7) kept next to a split (<= (* m n) 0) does not hide it. A
+formula of the step that is no comparison of Int terms and no connective
+(a predicate application, a distinct) stays folded as an atom. A step
+whose only products are monomials equated with zero gets no split: (= (*
+m n) 0) is (or (= m 0) (= n 0)) by Int.mul_eq_zero, which grind is given.
+The attempt goes first and the proofs the step had
 stay as its fallbacks; a step that needs more than the signs ((= (* m m)
 3) to false) still fails in Lean. Z3's rewriter distributes to_real over a product, so (to_real
 (* m n)) is the Real product of (to_real m) and (to_real n) in the log, a
