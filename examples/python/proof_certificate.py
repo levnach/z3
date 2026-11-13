@@ -857,6 +857,20 @@ def map_parameters(expr):
     return result
 
 
+def require_subset(expr):
+    """Check a (subset a b): two sets (arrays with Bool elements) of one sort, not indexed by arrays.
+
+    Z3's rewriter makes (= (setminus a b) empty) of it, so the sets are
+    those a set operator takes (map_parameters).
+    """
+    sort = expr.arg(0).sort() if expr.num_args() == 2 else None
+    if (sort is None or expr.decl().params() or not is_array_sort(sort) or not expr.arg(1).sort().eq(sort)
+            or sort.range().kind() != z3.Z3_BOOL_SORT):
+        raise ProofExportError("unsupported subset (two sets of one sort are supported): %s" % expr.sexpr())
+    if sort.domain().kind() == z3.Z3_ARRAY_SORT:
+        raise ProofExportError("maps and set operators over arrays indexed by arrays are not supported: %s" % sort)
+
+
 def _require_default(expr):
     """Check an input's (default a): the array solver's value of a at all but finitely many indices.
 
@@ -1034,6 +1048,10 @@ def classify_fragment(assertions):
                 pass
             elif decl.kind() == z3.Z3_OP_ARRAY_DEFAULT:
                 _require_default(expr)  # The default value of a set, an atom too.
+            elif decl.kind() == z3.Z3_OP_SET_SUBSET:
+                # (subset a b) over two sets (checked as arrays when visited):
+                # every member of a is one of b.
+                require_subset(expr)
             elif decl.kind() == z3.Z3_OP_IS_INT:
                 # (is_int t) is (= (to_real (to_int t)) t) by SMT-LIB's definition.
                 real = integer = True
