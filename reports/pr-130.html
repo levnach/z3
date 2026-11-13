@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c1e21; --muted: #5b6370; --line: #d6dae0;
-  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --badge: #e7f0fb;
+  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --badge: #e3f4e7;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171a; --fg: #e4e7eb; --muted: #9aa4b1; --line: #343a42;
-    --panel: #1d2126; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --badge: #1c2b3d;
+    --panel: #1d2126; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --badge: #1c3324;
   }
 }
 * { box-sizing: border-box; }
@@ -32,7 +32,7 @@ li { margin: 0.35rem 0; }
 .meta { color: var(--muted); font-size: 0.92rem; }
 .meta span { display: inline-block; margin-right: 1rem; }
 .badge { background: var(--badge); border: 1px solid var(--line); border-radius: 999px; padding: 0.05rem 0.6rem; font-weight: 600; color: var(--fg); }
-.note { background: var(--panel); border-left: 4px solid var(--link); padding: 0.6rem 0.9rem; border-radius: 4px; }
+.note { background: var(--panel); border-left: 4px solid var(--ok); padding: 0.6rem 0.9rem; border-radius: 4px; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; background: var(--panel); padding: 0.05rem 0.3rem; border-radius: 3px; }
 pre { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem 0.9rem; overflow-x: auto; line-height: 1.45; }
 pre code { background: none; padding: 0; font-size: 0.82rem; white-space: pre; }
@@ -40,7 +40,7 @@ pre code { background: none; padding: 0; font-size: 0.82rem; white-space: pre; }
 table { border-collapse: collapse; width: 100%; font-size: 0.93rem; margin: 0.8rem 0; }
 th, td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
 th { background: var(--panel); }
-td.num { text-align: right; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
 .ok { color: var(--ok); font-weight: 600; }
 .warn { color: var(--warn); font-weight: 600; }
 .cap { color: var(--muted); font-size: 0.9rem; margin-top: -0.3rem; }
@@ -55,12 +55,12 @@ footer { margin-top: 3rem; padding-top: 0.8rem; border-top: 1px solid var(--line
 <h1>Certify subset over sets in Lean certificates</h1>
 <p class="meta">
 <span><a href="https://github.com/levnach/z3/pull/130">Pull request #130</a></span>
-<span>State: <span class="badge">OPEN</span></span>
-<span>Date: 2026-11-13T05:41:35Z</span>
+<span>State: <span class="badge">MERGED</span></span>
+<span>Date: 2026-11-13T05:58:18Z</span>
 <span>Loop iteration 129</span>
 </p>
-<p class="note">This pull request is open. It is not merged. The change commit is
-<a href="https://github.com/levnach/z3/commit/f4a2ab5bf6d905554341a45cf1b6bb94b37225ef"><code>f4a2ab5bf</code></a>.</p>
+<p class="note">Merged into <code>master</code> on 2026-11-13T05:58:18Z as commit
+<a href="https://github.com/levnach/z3/commit/1192f9bcffe74115709aee3cd222739e957ee133"><code>1192f9bcf</code></a>.</p>
 </header>
 
 <h2>In one paragraph</h2>
@@ -74,7 +74,7 @@ Of 1105 random unsat inputs with a subset, 1104 now yield a <a href="#g-refutati
 
 <h2>Background</h2>
 <p>The pipeline already certified sets, which are <a href="#g-array">arrays</a> with <a href="#g-boolean">Boolean</a> elements.
-It read union, intersection, difference, and complement through the clause log.
+It read union, intersection, <a href="#g-set-difference">set difference</a>, and complement through the clause log.
 Subset was the last of Z3's set operators it rejected, and it sat in the backlog since iteration 120.
 The work serves milestone 4 of the plan, "Broader theories and integration", which lists arrays.
 This PR covers sets whose <a href="#g-index">index</a> <a href="#g-sort">sort</a> is Int or Real.
@@ -86,13 +86,13 @@ Sets over an <a href="#g-uninterpreted-sort">uninterpreted sort</a> or over Bool
 <li><strong>Clause-log replay.</strong> The replay now reads a subset that Z3 logs as written, and accepts the array solver's <a href="#g-theory-lemma">theory lemma</a> about it.</li>
 <li><strong>Reconstructor, statement.</strong> The Lean theorem now states the subset as "every member of the first set is in the second", and the lemma <code>_subset_eq</code> ties that to the rewriter's equality.</li>
 <li><strong>Reconstructor, helper facts.</strong> Each proof step that reaches a subset now gets small facts, chosen by a <a href="#g-truth-table">truth table</a> and proved in Lean.</li>
-<li><strong>Tests and docs.</strong> A new test module pins accepted inputs, rejected inputs, and random seeds.</li>
+<li><strong>Tests and docs.</strong> A new test module pins accepted inputs, rejected inputs, and random seeds, and the docs list the known limits.</li>
 </ul>
 <p>An analogy: the theorem keeps a contract's original wording, and a proven lemma shows Z3's translation says the same.</p>
 
 <div class="tablewrap">
 <table>
-<thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<thead><tr><th>File</th><th>Role</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
 <tbody>
 <tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">19</td><td class="num">0</td></tr>
 <tr><td><code>examples/python/proof_clause_log.py</code></td><td>Clause-log replay</td><td class="num">10</td><td class="num">1</td></tr>
@@ -100,15 +100,15 @@ Sets over an <a href="#g-uninterpreted-sort">uninterpreted sort</a> or over Bool
 <tr><td><code>examples/python/test_proof_to_lean_subset.py</code></td><td>New tests</td><td class="num">747</td><td class="num">0</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan</td><td class="num">86</td><td class="num">1</td></tr>
 <tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">22</td><td class="num">1</td></tr>
-<tr><th colspan="2">Total, 6 files, 2 commits</th><th class="num">1047</th><th class="num">10</th></tr>
+<tr><th colspan="2">Total, 6 files</th><th class="num">1047</th><th class="num">10</th></tr>
 </tbody>
 </table>
 </div>
-<p class="cap">Python and documentation only. No C++ file changed.</p>
+<p class="cap">Python and documentation only. No C++ file changed. The PR's two commits were merged as one.</p>
 
 <h2>Worked example</h2>
 <p>The input is the new test <code>member_outside</code> without its unused third set.
-All outputs come from real runs made for this report.</p>
+All outputs come from real runs on the merged code, made for this report.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(declare-fun a () (Array Int Bool))
@@ -123,7 +123,7 @@ All outputs come from real runs made for this report.</p>
 <pre><code>proof_certificate.py: error: unsupported propositional operator: subset</code></pre>
 
 <h3>(c) After</h3>
-<p>The current code produced a Lean file, and <strong>the Lean check accepted it</strong>.
+<p>The merged code produced a Lean file, and <strong>the Lean check accepted it</strong>.
 The pieces below are quoted from it, with <code>...</code> for cut lines.</p>
 
 <pre><code>def _subset {I : Type} (a b : I -&gt; Prop) : Prop := forall _i : I, a _i -&gt; b _i
@@ -177,18 +177,17 @@ def formula_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) (_m : Interpret
 <p>About 1,100 random puzzles with a subset were checked in Lean, and all but one passed.
 The one failure, seed 1089, is an older gap that fails the same way at the base commit.
 Certificates for inputs without a subset did not change by a single byte.
-The full test suites passed on the final commit, as the PR description reports.</p>
+The full test suites passed on the PR's final commit.</p>
 
 <div class="tablewrap">
 <table>
-<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<thead><tr><th>Check reported in the PR</th><th>Result</th></tr></thead>
 <tbody>
 <tr><td>Lean reconstruction tests, all modules</td><td><span class="ok">OK</span>, 586 tests, 9 skipped</td></tr>
 <tr><td>New subset test module alone</td><td><span class="ok">OK</span>, 12 tests</td></tr>
 <tr><td>Exporter tests</td><td><span class="ok">OK</span>, 124 tests</td></tr>
 <tr><td>Lean project build and checks</td><td><span class="ok">passed</span></td></tr>
 <tr><td>Proof tests of the benchmark repository</td><td><span class="ok">OK</span>, 48 tests</td></tr>
-<tr><td>Regression matrix cells of the CI job, Boolean and linear real inputs</td><td><span class="ok">6 of 6</span> and <span class="ok">8 of 8</span> verified in Lean</td></tr>
 <tr><td>Random subset inputs, seeds 1 to 3000</td><td>661 unsatisfiable, 660 verify, seed 1089 fails</td></tr>
 <tr><td>Random subset inputs, seeds 3001 to 5000, not seen before the fixes</td><td>444 unsatisfiable, <span class="ok">444 verify</span></td></tr>
 <tr><td>Random subset inputs logged as written, seeds 1 to 400</td><td>400 unsatisfiable, <span class="ok">400 verify</span></td></tr>
@@ -198,15 +197,36 @@ The full test suites passed on the final commit, as the PR description reports.<
 </tbody>
 </table>
 </div>
-<p>The C++ tests were not run, because no C++ changed.
-The loop's local gate had not recorded a result when this page was written.
-No CI check was reported on the PR when this page was written, and there were no CI fix rounds.</p>
+<p>The C++ tests were not run, because no C++ changed.</p>
+
+<h3>Local gate</h3>
+<p>The loop merged this PR on its local gate, because only Python examples and documentation changed.
+The gate repeats, on the loop's macOS machine, the steps of the one CI job that exercise this work.
+All five steps passed.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests, certificate exporter. 124 tests.</td><td><span class="ok">pass</span></td><td class="num">20 s</td></tr>
+<tr><td>Python example tests, Lean reconstruction. 586 tests, 9 skipped.</td><td><span class="ok">pass</span></td><td class="num">949 s</td></tr>
+<tr><td>Proof script tests of the benchmark repository. 48 tests.</td><td><span class="ok">pass</span></td><td class="num">18 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object. 6 of 6 verified.</td><td><span class="ok">pass</span></td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified linear real arithmetic matrix, clause log. 8 of 8 verified.</td><td><span class="ok">pass</span></td><td class="num">7 s</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>GitHub CI</h3>
+<p>No CI check ran on the PR itself, and there were no CI fix rounds.
+GitHub CI runs on <code>master</code> after the merge.
+No run was listed for the merge commit when this page was written, so that result is unknown here.</p>
 
 <div class="tablewrap">
 <table>
 <thead><tr><th>Workflow</th><th>Check</th><th>Result</th><th>Link</th></tr></thead>
 <tbody>
-<tr><td>CI</td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean". The PR description names it as the only job that runs the new tests.</td><td><span class="warn">not reported yet</span></td><td><a href="https://github.com/levnach/z3/pull/130/checks">PR checks</a></td></tr>
+<tr><td>CI</td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean". The PR description names it as the only job that runs the new tests.</td><td><span class="warn">not run on the PR, result on <code>master</code> not known yet</span></td><td><a href="https://github.com/levnach/z3/pull/130/checks">PR checks</a>, <a href="https://github.com/levnach/z3/commit/1192f9bcffe74115709aee3cd222739e957ee133">merge commit</a></td></tr>
 </tbody>
 </table>
 </div>
@@ -214,15 +234,15 @@ No CI check was reported on the PR when this page was written, and there were no
 <h2>Review</h2>
 <p>The reviewer approved the change with no blockers and no major findings.
 Every tampered certificate the reviewer built was rejected.
-All six findings were fixed in the second commit.
+All six findings were fixed in the PR's second commit.
 The minor ones mattered because Lean rejected a correct certificate. None let a wrong one through.</p>
 <ol>
-<li><strong>Minor.</strong> Two fresh random seeds failed in Lean. The subset failed at an index written by a <a href="#g-store">store</a>, yet the rewriter kept its equality. The code stated only one of two needed facts. Now it states both.</li>
-<li><strong>Minor.</strong> A third seed put the full set below a one-element set. No fact named a witness. The fix picks an index other than the stored one.</li>
+<li><strong>Minor.</strong> The reviewer ran fresh random seeds, and two failed in Lean. In both, the subset fails at an index written by a <a href="#g-store">store</a>, yet the rewriter keeps its equality. The code stated only one of two needed facts. Now it states both, and both seeds are pinned.</li>
+<li><strong>Minor.</strong> A third seed put the full set below a one-element set. The rewriter answers false, but Lean got no fact naming a counterexample. The fix picks an index different from every stored one.</li>
 <li><strong>Minor.</strong> The reviewer compared <a href="#g-constant-array">constant arrays</a> holding <code>p</code> and <code>(not p)</code>, and Lean failed. The fix states the subset as the <a href="#g-implication">implication</a> between the two values.</li>
-<li><strong>Minor.</strong> Over an uninterpreted index sort, a subset decided false failed in Lean. Nothing said the sort has an element. The fix uses an element the certificate already names.</li>
+<li><strong>Minor.</strong> Over an uninterpreted index sort, a subset decided false failed in Lean. The proof needs one element of the sort, and nothing supplied it. The fix uses an element the certificate already names.</li>
 <li><strong>Nit.</strong> One test matched exact node numbers, so a harmless reordering would break it. It now matches by pattern.</li>
-<li><strong>Nit.</strong> Sets indexed by a <a href="#g-bit-vector">bit-vector</a> or an <a href="#g-enumeration">enumeration</a> got a rejection message about subset. They now report "unsupported sort".</li>
+<li><strong>Nit.</strong> Sets indexed by a <a href="#g-bit-vector">bit-vector</a> or an <a href="#g-enumeration">enumeration</a> got a rejection message that blamed the subset. They now report "unsupported sort".</li>
 </ol>
 
 <h2>Risks and open questions</h2>
@@ -232,6 +252,7 @@ The minor ones mattered because Lean rejected a correct certificate. None let a 
 <li><strong>Other index sorts.</strong> Over an uninterpreted or Bool index sort, a subset verifies only when the rewriter decides it outright.</li>
 <li><strong>Facts chosen by tables.</strong> A wrongly computed table yields a failed certificate, never a wrong one.</li>
 <li><strong>An older faithfulness question.</strong> All uninterpreted sorts share one Lean type, so some hypotheses can be stronger than the input. This predates the PR.</li>
+<li><strong>CI on <code>master</code>.</strong> Its result for the merge commit was not known when this page was written.</li>
 </ul>
 
 <h2>What comes next</h2>
@@ -239,12 +260,13 @@ The minor ones mattered because Lean rejected a correct certificate. None let a 
 <li>Constant arrays over uninterpreted and Bool index sorts.</li>
 <li>A fact that reads a subset by cases of a Boolean stored value.</li>
 <li>The rewrite behind seed 1089.</li>
-<li>The shared-type question, first in the backlog.</li>
+<li>The shared-type question, which stays first in the backlog.</li>
 </ul>
 
 <h2>Glossary</h2>
 <dl>
 <dt id="g-array">array</dt><dd>A value that maps every index to an element, like a table with one entry per index. <code>(Array Int Bool)</code> maps integers to Booleans.</dd>
+<dt id="g-assertion">assertion</dt><dd>A formula the input requires to be true, written <code>(assert ...)</code> in SMT-LIB.</dd>
 <dt id="g-axiom">axiom</dt><dd>A statement accepted without proof. Adding one enlarges what must be trusted.</dd>
 <dt id="g-bit-vector">bit-vector</dt><dd>A fixed-width string of bits, used to model machine integers. <code>(_ BitVec 2)</code> has four values.</dd>
 <dt id="g-boolean">Boolean</dt><dd>The sort with the two values true and false.</dd>
@@ -264,6 +286,7 @@ The minor ones mattered because Lean rejected a correct certificate. None let a 
 <dt id="g-rewriter">rewriter</dt><dd>The part of a solver that replaces a term by a simpler equivalent one. Example: <code>(subset a b)</code> becomes <code>(= (setminus a b) empty)</code>.</dd>
 <dt id="g-select">select</dt><dd>Reading an array at an index. For a set, <code>(select a 1)</code> says 1 is a member.</dd>
 <dt id="g-set">set</dt><dd>Here, an array with Boolean elements. An index is a member when its element is true.</dd>
+<dt id="g-set-difference">set difference</dt><dd>The members of one set that are not in another, written <code>(setminus a b)</code>.</dd>
 <dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
 <dt id="g-store">store</dt><dd>An array equal to another except at one index. <code>(store a 1 true)</code> adds 1 to the set <code>a</code>.</dd>
 <dt id="g-subset">subset</dt><dd>A set whose every member is also a member of another set.</dd>
