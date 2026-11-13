@@ -9,13 +9,13 @@
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c1e21; --muted: #5b6370; --line: #d6dae0;
   --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700;
-  --open: #1a7f37; --open-bg: #e3f5e8;
+  --open: #6f42c1; --open-bg: #efe7fb;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171a; --fg: #e4e7eb; --muted: #9aa4b1; --line: #343a42;
     --panel: #1d2227; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341;
-    --open: #56d364; --open-bg: #17301f;
+    --open: #c4a5ff; --open-bg: #2a2140;
   }
 }
 * { box-sizing: border-box; }
@@ -53,10 +53,10 @@ footer { margin-top: 2.5rem; padding-top: 0.8rem; border-top: 1px solid var(--li
 <header>
 <h1>Prove the <a href="#g-rewriter">rewriter</a>'s <a href="#g-sign-split">sign split</a> of Int <a href="#g-product">products</a> in Lean</h1>
 <p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/135">levnach/z3#135</a> into <code>master</code>
-&middot; State: <span class="state">OPEN</span>
-&middot; Date: 2026-11-13T21:44:25Z &middot; Loop iteration 134</p>
-<p class="meta">This pull request is not merged. Change commit:
-<a href="https://github.com/levnach/z3/commit/7c2b96c95fef1ab6bf3e6247cac910d36e2f2e35"><code>7c2b96c95</code></a></p>
+&middot; State: <span class="state">MERGED</span>
+&middot; Date: 2026-11-13T22:02:06Z &middot; Loop iteration 134</p>
+<p class="meta">Merged on 2026-11-13T22:02:06Z as commit
+<a href="https://github.com/levnach/z3/commit/5584c71758bd98480a2564933e3ccf3e665481a9"><code>5584c7175</code></a></p>
 </header>
 
 <h2>In one paragraph</h2>
@@ -103,13 +103,13 @@ Like a truth table, it walks through every combination of signs.</p>
 <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">354</td><td class="num">16</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_nonlinear.py</code></td><td class="num">7</td><td class="num">6</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_sign_split.py</code> (new)</td><td class="num">606</td><td class="num">0</td></tr>
-<tr><th>Total: 5 files, two commits</th><th class="num">1091</th><th class="num">29</th></tr>
+<tr><th>Total: 5 files, merged as one commit</th><th class="num">1091</th><th class="num">29</th></tr>
 </tbody>
 </table>
 
 <h2>Worked example</h2>
 <p>The input is the PR's test <code>nonpositive_product</code> without its unused third constant.
-All output is from real runs, with local paths shortened.</p>
+All output is from real runs at the merge commit and at its parent, with local paths shortened.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(declare-const m Int)
@@ -122,8 +122,8 @@ All output is from real runs, with local paths shortened.</p>
 
 <h3>(b) Before</h3>
 <p>The base exporter wrote the same certificate. Lean rejected the file the base reconstructor wrote from it:</p>
-<pre><code>Checking .../z3_proof_y1vkbxm9.lean
-.../z3_proof_y1vkbxm9.lean:141:18: error: `grind` failed
+<pre><code>Checking .../z3_proof_30_ah0ic.lean
+.../z3_proof_30_ah0ic.lean:141:18: error: `grind` failed
 case grind.1.1
 _atoms : Nat → Prop
 _vars : Nat → Int
@@ -206,23 +206,24 @@ private theorem rewrite_35 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
 <p>The three assertions together give False, and the new lemma carries the first assertion to its split form.</p>
 
 <h2>How it was verified</h2>
-<p>The full reconstruction test suite passed on the final commit.
-About 600 unsat random inputs over products went through Lean, and none that verified before now fails.
-The reviewer falsified the split in three pinned logs, and Lean rejected all three.
-These results come from the PR description and the review.</p>
+<p>The loop merged this PR on its local gate, and every step of the gate passed.
+The gate repeats the steps of the one CI job that exercises this work.
+Before that, about 600 unsat random inputs over products went through Lean.
+None that verified before now fails.
+The reviewer falsified the split in three pinned logs, and Lean rejected all three.</p>
 
 <table>
-<thead><tr><th>Local check, final commit</th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td><span class="ok">OK</span>: 652 tests, 9 skipped</td></tr>
-<tr><td>New sign split module alone</td><td><span class="ok">OK</span>: 19 tests</td></tr>
-<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td><span class="ok">OK</span>: 125 tests</td></tr>
-<tr><td>Lean project, <code>scripts/check_lean.sh</code></td><td><span class="ok">Lean checks passed</span></td></tr>
-<tr><td>Proof tests of the z3test repository</td><td><span class="ok">OK</span>: 48 tests</td></tr>
-<tr><td>Proof matrix, <a href="#g-proof-object">legacy proof object</a>, Boolean inputs</td><td><span class="ok">6 of 6</span> verified in Lean</td></tr>
-<tr><td>Proof matrix, clause log, linear real arithmetic inputs</td><td><span class="ok">8 of 8</span> verified in Lean</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td><span class="ok">pass</span>: 125 tests</td><td class="num">20 s</td></tr>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code>, with the 19 new tests</td><td><span class="ok">pass</span>: 652 tests, 9 skipped</td><td class="num">1005 s</td></tr>
+<tr><td>Proof tests of the z3test repository</td><td><span class="ok">pass</span>: 48 tests</td><td class="num">18 s</td></tr>
+<tr><td>Proof matrix, <a href="#g-proof-object">legacy proof object</a>, Boolean inputs</td><td><span class="ok">pass</span>: 6 of 6 verified in Lean</td><td class="num">5 s</td></tr>
+<tr><td>Proof matrix, clause log, linear real arithmetic inputs</td><td><span class="ok">pass</span>: 8 of 8 verified in Lean</td><td class="num">7 s</td></tr>
 </tbody>
 </table>
+<p>The gate ran on the loop machine, a Mac, not on the Ubuntu machine of the CI job.
+The sweeps below are from the PR description and the review.</p>
 
 <table>
 <thead><tr><th>Random product inputs, seeds</th><th class="num">Unsat</th><th class="num">Verify now</th><th class="num">Verified before</th><th class="num">Newly failing</th></tr></thead>
@@ -236,21 +237,20 @@ These results come from the PR description and the review.</p>
 </table>
 <p>The C++ tests were not run, because no C++ code changed.</p>
 
-<p><strong>Local gate.</strong> The driver runs its local gate next to this report instead of waiting for GitHub CI.
-Its result was not yet recorded when this report was written.</p>
-
-<p><strong>CI.</strong> GitHub reported no checks on the PR branch when this report was written, so the CI result is unknown.
-There were no CI fix rounds.</p>
+<p><strong>CI.</strong> The change touches only documentation and Python examples, so the loop did not wait for GitHub CI.
+GitHub reported no checks on the PR itself.
+CI still runs on <code>master</code> after the merge, and its result was not recorded when this report was written.
+There were no CI fix rounds and no failures judged unrelated.</p>
 <table>
 <thead><tr><th>Workflow</th><th>Check</th><th>Result</th><th>Link</th></tr></thead>
 <tbody>
-<tr><td><code>ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step &ldquo;Check native proofs in Lean&rdquo;. Per the PR description, this is the only job that runs the new tests.</td><td><span class="warn">No result reported</span></td><td><a href="https://github.com/levnach/z3/pull/135/checks">PR checks</a></td></tr>
+<tr><td><code>ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step &ldquo;Check native proofs in Lean&rdquo;. Per the PR description, this is the only job that runs the new tests.</td><td><span class="warn">No result recorded</span></td><td><a href="https://github.com/levnach/z3/pull/135/checks">PR checks</a>, <a href="https://github.com/levnach/z3/commit/5584c71758bd98480a2564933e3ccf3e665481a9/checks">merge commit checks</a></td></tr>
 </tbody>
 </table>
 
 <h2>Review</h2>
-<p>The reviewer approved the first commit with no blocker and no major finding.
-The second commit fixes all four findings.</p>
+<p>The reviewer approved the first version with no blocker and no major finding.
+All four findings were fixed before the merge.</p>
 <ul>
 <li><strong>Minor, fixed.</strong>
 The reviewer asserted <code>(or (&lt;= (* m n) 0) (&gt;= (* m n) 7))</code> with positive factors.
@@ -277,7 +277,7 @@ The other two appear as the first and third risks below.</p>
 <li><strong>Size.</strong> One product of five factors takes 63 cases, and several such products could take 243.</li>
 <li><strong>Layout.</strong> One generated block relies on fixed indentation, and an error there would break the whole file.</li>
 <li><strong>Stability.</strong> The tests on documented inputs and seeds depend on how Z3 rewrites and searches. The pinned logs do not.</li>
-<li><strong>Unknown.</strong> The CI result and the local gate result. Also, 22 of the 603 random inputs still do not verify.</li>
+<li><strong>Unknown.</strong> The result of CI on <code>master</code> after the merge. Also, 22 of the 603 random inputs still do not verify.</li>
 </ul>
 
 <h2>What comes next</h2>

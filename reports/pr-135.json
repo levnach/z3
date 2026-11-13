@@ -1,14 +1,1 @@
-{
-  "number": 135,
-  "title": "Prove the rewriter's sign split of Int products in Lean",
-  "pr_url": "https://github.com/levnach/z3/pull/135",
-  "page": "https://levnach.github.io/z3/reports/pr-135.html",
-  "merge_sha": "",
-  "date": "2026-11-13T21:44:25Z",
-  "iteration": 134,
-  "summary": "The Lean reconstructor now proves the rewriter's sign split of Int products by a case split on the signs of the factors, with nothing new trusted. Of 603 unsat random product inputs, 581 verify in Lean, up from 483.",
-  "state": "OPEN",
-  "head_sha": "7c2b96c95fef1ab6bf3e6247cac910d36e2f2e35",
-  "base_sha": "83e70ba42746792d44b48c3ee4f21b52edf54b36",
-  "repository": "levnach/z3"
-}
+{"number": 135, "title": "Prove the rewriter's sign split of Int products in Lean", "pr_url": "https://github.com/levnach/z3/pull/135", "page": "https://levnach.github.io/z3/reports/pr-135.html", "merge_sha": "5584c71758bd98480a2564933e3ccf3e665481a9", "date": "2026-11-13T22:02:06Z", "iteration": 134, "summary": "The Lean reconstructor now proves the rewriter's sign split of Int products by a case split on the signs of the factors, with nothing new trusted. Of 603 unsat random product inputs, 581 verify in Lean, up from 483.", "state": "MERGED", "head_sha": "5584c71758bd98480a2564933e3ccf3e665481a9", "base_sha": "83e70ba42746792d44b48c3ee4f21b52edf54b36", "repository": "levnach/z3"}
