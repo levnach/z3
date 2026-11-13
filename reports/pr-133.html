@@ -15,6 +15,7 @@
   --accent: #0b5cad;
   --ok: #1a7f37;
   --warn: #9a6700;
+  --merged: #6f42c1;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -26,6 +27,7 @@
     --accent: #6cb0f5;
     --ok: #56c271;
     --warn: #d9a93a;
+    --merged: #b392f0;
   }
 }
 * { box-sizing: border-box; }
@@ -69,8 +71,8 @@ pre code { background: none; padding: 0; }
 .badge {
   display: inline-block;
   padding: 0.05rem 0.55rem;
-  border: 1px solid var(--ok);
-  color: var(--ok);
+  border: 1px solid var(--merged);
+  color: var(--merged);
   border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 600;
@@ -99,11 +101,11 @@ footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line
   <dt>Pull request</dt>
   <dd><a href="https://github.com/levnach/z3/pull/133">levnach/z3 #133</a></dd>
   <dt>State</dt>
-  <dd><span class="badge">OPEN</span> Not merged.</dd>
-  <dt>Change commit</dt>
-  <dd><a href="https://github.com/levnach/z3/commit/4544081d3c2759e9002e9cd4de983fc6866a5c8a"><code>4544081d3</code></a>, the second of two commits on the branch</dd>
+  <dd><span class="badge">MERGED</span> into <code>master</code></dd>
+  <dt>Merge commit</dt>
+  <dd><a href="https://github.com/levnach/z3/commit/095459661a21deb31ed11ec97225bfcf7dc6b3ce"><code>095459661</code></a>, merged on 2026-11-13T16:45:42Z</dd>
   <dt>Date</dt>
-  <dd>2026-11-13T16:28:37Z</dd>
+  <dd>2026-11-13T16:45:42Z</dd>
   <dt>Loop iteration</dt>
   <dd>132</dd>
 </dl>
@@ -121,7 +123,7 @@ Products of Real terms stay rejected, because the <a href="#g-certificate">certi
 <a href="#g-rational">rational numbers</a>.
 <a href="#g-theory-lemma">Theory lemmas</a> of Z3's <a href="#g-nonlinear-solver">nonlinear solver</a> are not certified either.
 A <a href="#g-refutation">refutation</a> that uses one is rejected by name.
-No axiom was added and no check was skipped.
+No <a href="#g-axiom">axiom</a> was added and no check was skipped.
 </p>
 </section>
 
@@ -143,7 +145,8 @@ The PR is a first slice of milestone 4 of the plan, which lists <a href="#g-nonl
   <li><strong>Linear forms.</strong> A product of nonconstant factors counts as one atom, so Farkas lemmas and cuts over products are checked as before.</li>
   <li><strong>Lean tactic.</strong> For a certificate with an Int product, the theory <a href="#g-tactic">tactic</a> also receives <code>Int.mul_eq_zero</code>: a zero product has a zero factor.</li>
   <li><strong>Real products.</strong> A product of Real terms is still rejected, and the message now states the reason.</li>
-  <li><strong>Nonlinear solver lemmas.</strong> An unused lemma of the nonlinear solver no longer rejects the log, and a used one is rejected by name.</li></ul>
+  <li><strong>Nonlinear solver lemmas.</strong> An unused lemma of the nonlinear solver no longer rejects the log, and a used one is rejected by name.</li>
+</ul>
 <p class="analogy">
 An analogy: a product is a sealed box with a label.
 Linear arithmetic only weighs the box.
@@ -171,14 +174,15 @@ A theorem about rational numbers would not show that such an input is unsatisfia
   </tbody>
 </table>
 </div>
-<p class="note">No C++ file changed.</p>
+<p class="note">
+No C++ file changed.
+</p>
 </section>
 
 <section>
 <h2>Worked example</h2>
 <p>
-This input is the <code>zero_product</code> case of the new tests.
-It was run for this report on the base commit and on the change commit.
+This input is the <code>zero_product</code> case of the new tests, run on the base commit and on the merge commit.
 </p>
 
 <h3>(a) The input</h3>
@@ -240,28 +244,37 @@ The theorem: its <a href="#g-hypothesis">hypotheses</a> are the three <a href="#
 <section>
 <h2>How it was verified</h2>
 <p>
-On the change commit, every local test suite passed, including the new module.
-The table lists the runs that the PR description reports.
+The loop's local gate passed every step, and the PR was merged on that result.
+The gate repeats, on a Mac, the steps of the CI job <code>Ubuntu build - cmake - releaseClang</code> that exercise this work.
 </p>
 <div class="tablewrap">
 <table>
   <thead>
-    <tr><th>Local run</th><th>Result</th></tr>
+    <tr><th>Local gate step</th><th>Result</th><th>Detail</th><th class="num">Time</th></tr>
   </thead>
   <tbody>
-    <tr><td>Lean reconstruction tests, all modules</td><td><span class="ok">Pass</span>: 618 tests, 9 skipped, no warning</td></tr>
+    <tr><td>Exporter tests</td><td><span class="ok">Pass</span></td><td>125 tests</td><td class="num">20s</td></tr>
+    <tr><td>Lean reconstruction tests, all modules</td><td><span class="ok">Pass</span></td><td>618 tests, 9 skipped</td><td class="num">965s</td></tr>
+    <tr><td>z3test proof script tests</td><td><span class="ok">Pass</span></td><td>48 tests</td><td class="num">18s</td></tr>
+    <tr><td>Regression matrix, <a href="#g-boolean">Boolean</a> inputs</td><td><span class="ok">Pass</span></td><td>6 of 6 verified in Lean</td><td class="num">5s</td></tr>
+    <tr><td>Regression matrix, linear real inputs</td><td><span class="ok">Pass</span></td><td>8 of 8 verified in Lean</td><td class="num">7s</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>Further local run, from the PR description</th><th>Result</th></tr>
+  </thead>
+  <tbody>
     <tr><td>New nonlinear test module alone</td><td><span class="ok">Pass</span>: 12 tests</td></tr>
-    <tr><td>Exporter tests</td><td><span class="ok">Pass</span>: 125 tests</td></tr>
     <tr><td><code>scripts/check_lean.sh</code></td><td><span class="ok">Pass</span>: build completed, Lean checks passed</td></tr>
-    <tr><td>z3test proof script tests</td><td><span class="ok">Pass</span>: 48 tests</td></tr>
-    <tr><td>Regression matrix, <a href="#g-boolean">Boolean</a> inputs</td><td><span class="ok">Pass</span>: 6 of 6 verified in Lean</td></tr>
-    <tr><td>Regression matrix, linear real inputs</td><td><span class="ok">Pass</span>: 8 of 8 verified in Lean</td></tr>
   </tbody>
 </table>
 </div>
 <p>
-The implementer also measured two larger sets on the first commit. These runs were not repeated.
-Most random instances that Z3 refutes now verify. The rest are rejected or fail in Lean, and none is accepted on trust.
+The implementer also measured two larger sets on the first commit, and these runs were not repeated.
+Most random instances that Z3 refutes now verify.
 </p>
 <div class="tablewrap">
 <table>
@@ -287,11 +300,9 @@ Most random instances that Z3 refutes now verify. The rest are rejected or fail 
 </table>
 </div>
 <p>
-<strong>Local gate.</strong> Its result had not been recorded when this report was written.
-</p>
-<p>
-<strong>CI.</strong> No CI status and no CI fix round was recorded for this PR.
-So the table reports no check as passed or failed, and only names the jobs that run the changed tests.
+<strong>CI.</strong> The PR carried no GitHub check, because the loop merged it on the local gate without waiting for CI.
+No CI run for the merge commit was listed when this report was written.
+So the table only names the jobs that run the changed tests. There was no CI fix round.
 </p>
 <div class="tablewrap">
 <table>
@@ -299,8 +310,8 @@ So the table reports no check as passed or failed, and only names the jobs that 
     <tr><th>CI job</th><th>Step that runs the changed tests</th><th>Status</th></tr>
   </thead>
   <tbody>
-    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean</td><td><span class="warn">Not recorded</span>, see the <a href="https://github.com/levnach/z3/pull/133/checks">PR checks</a></td></tr>
-    <tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel</td><td><span class="warn">Not recorded</span>, see the <a href="https://github.com/levnach/z3/pull/133/checks">PR checks</a></td></tr>
+    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean</td><td><span class="warn">No run recorded</span>, see the <a href="https://github.com/levnach/z3/commit/095459661a21deb31ed11ec97225bfcf7dc6b3ce">merge commit</a></td></tr>
+    <tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel</td><td><span class="warn">No run recorded</span>, see the <a href="https://github.com/levnach/z3/commit/095459661a21deb31ed11ec97225bfcf7dc6b3ce">merge commit</a></td></tr>
   </tbody>
 </table>
 </div>
@@ -310,35 +321,28 @@ So the table reports no check as passed or failed, and only names the jobs that 
 <h2>Review</h2>
 <p>
 The reviewer approved the change with no blocker and no major finding.
-Tampered certificates were rejected, and Lean failed once the new fact was removed from a zero-product certificate.
-The second commit answers the four findings.
+Attacks on its <a href="#g-soundness">soundness</a> found no gap: tampered certificates were rejected.
+A second commit on the branch answers the four findings.
 </p>
 <h3>Minor: one documented test input leaned on luck</h3>
 <p>
 The reviewer counted the hints in the raw clause log of each documented input.
 One log held lemmas of the nonlinear solver, and the input verified only because <a href="#g-trimming">trimming</a> dropped them.
-On another platform the test could fail and take its whole test class down.
+On another platform that test could fail.
 The input was replaced by one with a linear refutation, and the old one now accepts either outcome.
 </p>
 <h3>Minor: a rejection in the older export path looked untested</h3>
 <p>
-The reviewer found no test for how the older proof-object path rejects steps of the nonlinear solver.
-The claim was partly wrong: one of the two step labels was already tested.
-The other label and a new test were added.
-This was a coverage gap, not a soundness gap, because Lean must still prove such a step.
+The reviewer found no test of how the older proof-object path rejects steps of the nonlinear solver.
+In fact one of the two step labels was already tested. The other label and a new test were added.
+This was a coverage gap only, because Lean must still prove such a step.
 </p>
-<h3>Nit: a warning in the test output</h3>
+<h3>Nits: a test warning and a sum</h3>
 <p>
 One rejected input made the tests print a warning, and such noise can hide a real problem.
-The warning is now expected for that input only, and it is an error for the others.
-</p>
-<h3>Nit: numbers that did not add up</h3>
-<p>
-The plan listed kinds of failing lemmas that summed to more than the failing instances.
+It is now expected for that input only, and an error for the others.
+The plan also listed kinds of failing lemmas that summed to more than the failing instances.
 The kinds overlap, and the text now says so.
-</p>
-<p class="note">
-Two further suggestions were not taken. The PR description gives the reasons.
 </p>
 </section>
 
@@ -347,7 +351,7 @@ Two further suggestions were not taken. The PR description gives the reasons.
 <ul>
   <li><strong>Tests depend on Z3's search.</strong> An input verifies only while Z3 refutes it without its nonlinear solver.</li>
   <li><strong>Late failures.</strong> Some refutations pass the exporter and then fail in Lean. Nothing is trusted, but the user sees a Lean error instead of a clear rejection.</li>
-  <li><strong>Unknown.</strong> CI results and the local gate result were not available. Nothing was run on Linux or Windows locally.</li>
+  <li><strong>Unknown.</strong> The tests ran on a Mac only. Their result on the Linux CI runner is not known yet.</li>
 </ul>
 </section>
 
@@ -372,6 +376,9 @@ Two further suggestions were not taken. The PR description gives the reasons.
 
   <dt id="g-atom">atom</dt>
   <dd>A term that a theory treats as a single indivisible unit. In <code>2*x + 3*(m*n)</code>, linear arithmetic sees two atoms: <code>x</code> and <code>m*n</code>.</dd>
+
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. A certificate that adds one asks the checker to trust it.</dd>
 
   <dt id="g-boolean">Boolean</dt>
   <dd>Having the sort Bool, with the two values true and false.</dd>
@@ -425,10 +432,13 @@ Two further suggestions were not taken. The PR description gives the reasons.
   <dd>A proof that a set of assertions leads to a contradiction.</dd>
 
   <dt id="g-rewriter">rewriter</dt>
-  <dd>The part of a solver that simplifies terms before solving, for example by putting the factors of a product in a fixed order.</dd>
+  <dd>The part of a solver that simplifies formulas before solving. Here it replaces <code>(= (* m n) 0)</code> by <code>(or (= m 0) (= n 0))</code>.</dd>
 
   <dt id="g-sort">sort</dt>
   <dd>The type of a value, such as Int, Real, or Bool.</dd>
+
+  <dt id="g-soundness">soundness</dt>
+  <dd>The property that a checker accepts only correct proofs. A soundness gap would let a wrong refutation pass.</dd>
 
   <dt id="g-tactic">tactic</dt>
   <dd>A Lean command that searches for a proof of a goal. Examples are <code>omega</code> for linear integer arithmetic and <code>grind</code> for general reasoning.</dd>
