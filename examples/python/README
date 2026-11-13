@@ -903,8 +903,11 @@ degree of the literals, sum with nonnegative multipliers (any, for a
 product with an equality) to a negative constant. Z3's nonlinear solver
 looks for one as the evidence of an nla lemma (nla_lemma.cpp); the hint's
 is not read (it is over the solver's columns, which the log does not
-name). proof_certificate.polynomial_refutation makes the same search, z3
-solving for the multipliers, and checks the sum in exact arithmetic; the
+name). proof_certificate.polynomial_refutation searches again, z3 solving
+for the multipliers, and checks the sum in exact arithmetic (the search
+follows Z3's in the facts listed above but is narrower: Z3 also weakens a
+fact with a negative constant and takes disequalities, so a lemma Z3 has
+evidence for may have no refutation here); the
 exporter runs it to decide what is certified, the reconstructor runs it
 again over the certificate's clause, and Lean proves the clause from it
 (proof_to_lean._product_combination): each fact by a core lemma from the
@@ -917,8 +920,10 @@ nla-unsupported) is an nla th-lemma when the logged clause, or the clause
 of the hint's literals, has a refutation; the logged clause may have lost
 the literals false at the base level, and is then derived from the lemma
 by unit propagation (Z3's trimmer takes the logged clause for an axiom and
-drops those unit clauses, so the exporter replays the untrimmed log when
-the trimmed one lacks them). A clause the log assumes on nlsat's word
+drops those unit clauses, so proof_clause_log.trim_clause_log returns the
+trimmed text together with the log it was cut from, and build_certificate
+replays that one, with a warning and within the same time limit, when the
+trimmed one lacks them). A clause the log assumes on nlsat's word
 ("; assumed", hint nlsat-assumed) is an nla th-lemma too when its literals
 have a refutation, and otherwise tied to the assertions by a cnf lemma
 like any other assumed clause, which gets the same proof when its literals
@@ -935,7 +940,9 @@ refutation uses. Outside the search: a lemma that concludes an equality
 square of a sum, what holds over the integers only (no square is 2), and
 the rewriter's split of a factored product by the signs of its factors;
 Lean has to prove those unaided, and where it does not the input is not
-certified. Z3's rewriter distributes to_real over a product, so (to_real
+certified (an input whose nla lemmas all have refutations is exported
+whatever its other steps need, so such an input fails in Lean rather than
+in the exporter). Z3's rewriter distributes to_real over a product, so (to_real
 (* m n)) is the Real product of (to_real m) and (to_real n) in the log, a
 second variable of the simplex solver next to (* m n), which the nonlinear
 solver alone relates to it: an input whose refutation needs the two to

@@ -5732,8 +5732,8 @@ def _polynomial_certificate(graph, node):
 
             try:
                 facts = [(bound[4], expand_polynomial(bound[5][0], bound[5][1], factors)) for bound in lemma[1]]
-            except ProofExportError:
-                facts = []
+            except (ProofExportError, ReconstructionError):
+                facts = []  # too many monomials, or a factor the linear forms do not read
             refutation = polynomial_refutation(facts)
             if refutation is not None:
                 graph.polynomial_certificates[node] = lemma + (refutation,)

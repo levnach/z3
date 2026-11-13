@@ -24,7 +24,10 @@ from fractions import Fraction
 import functools
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest import mock
+import warnings
 
 import z3
 
@@ -100,13 +103,17 @@ NLA_INPUTS = {
 NLA_INPUTS = {name: (fragment, source + _CHECK) for name, (fragment, source) in NLA_INPUTS.items()}
 
 # Inputs Z3 refutes with its nonlinear solver that stay outside, each with
-# what happens. A square of a sum is no product of two facts of the lemma
-# nor the square of an atom; the lemma that no square is 2 needs the
-# integers (the clause the log assumes, (* m m) = 2 implies m <= -2, lost
-# the literals nlsat split on).
+# what happens: the th-lemma hints of its certificate and the number of
+# lemmas with a polynomial proof. Both are exported, and Lean rejects both.
+# A square of a sum is no product of two facts of the lemma nor the square
+# of an atom: Z3's rewriter settles the input, in a rewrite Lean does not
+# prove. That no square is 2 needs the integers: the nonlinear solver's own
+# lemma has a refutation, and the clause the log assumes ((* m m) = 2
+# implies m <= -2, which lost the literals nlsat split on) is tied to the
+# assertion by a cnf lemma that has none.
 NOT_CERTIFIED = {
-    "square_of_a_sum": _INTS + "(assert (< (+ (* m m) (* 2 m n) (* n n)) 0))\n" + _CHECK,
-    "square_is_two": SQUARE_IS_TWO,
+    "square_of_a_sum": (_INTS + "(assert (< (+ (* m m) (* 2 m n) (* n n)) 0))\n" + _CHECK, set(), 0),
+    "square_is_two": (SQUARE_IS_TWO, {"cnf", "nla"}, 1),
 }
 
 # Seeds of test_proof_to_lean_nonlinear.random_product_instance that failed
@@ -220,7 +227,22 @@ _ASSUMED_LOG = """\
 @functools.lru_cache(maxsize=None)
 def _certificate(name):
     """The clause-log certificate of a documented input, exported once for the module."""
-    return _export(NLA_INPUTS[name][1])
+    with warnings.catch_warnings():
+        # Expected where the trimmed log lacks the unit clauses under a lemma (factor_equal_to_one);
+        # test_a_lemma_the_logged_clause_lost_literals_of pins the fallback and its warning.
+        warnings.filterwarnings("ignore", "replaying the untrimmed log", RuntimeWarning)
+        return _export(NLA_INPUTS[name][1])
+
+
+def _not_certified(name):
+    """The certificate of an input that stays outside, as the exporter writes it: none is rejected there."""
+    source, _, _ = NOT_CERTIFIED[name]
+    with warnings.catch_warnings():
+        # The nonlinear solver's last lemma on square_is_two is the empty clause, a theory axiom
+        # without premises, which Z3's trimmer refuses: the replay then reads the untrimmed log,
+        # with a warning. Nowhere else is a fallback expected.
+        warnings.simplefilter("ignore" if name == "square_is_two" else "error", RuntimeWarning)
+        return _export(source)
 
 
 def _product_proofs(text):
@@ -397,11 +419,46 @@ class TestNonlinearLemmaValidation(unittest.TestCase):
         text = proof_to_lean.reconstruct(source, certificate)
         self.assertEqual(_product_proofs(text), 1)
         self.assertIn("Int.mul_eq_zero.mpr", text)  # the equality times a factor
-        # Z3's trimmer drops the unit clauses the lemma rests on: the replay asks for the
-        # untrimmed log, and the exporter replays it.
-        with self.assertRaises(proof_clause_log.TrimmedAwayError):
+        # Z3's trimmer drops the unit clauses the lemma rests on: the replay of the trimmed log
+        # alone asks for the untrimmed one, by an error that says so.
+        with self.assertRaisesRegex(proof_clause_log.TrimmedAwayError,
+                                    "^the trimmed log lacks the unit clauses under a lemma of the nonlinear "
+                                    r"solver \(the untrimmed log has them\): inferred clause is not derivable"):
             self.replay(source, _TRIMMED_FACTOR_LOG)
+        # trim_clause_log returns the trimmed text with the log it was cut from, which
+        # build_certificate then replays, with a warning: every caller that trims and replays
+        # gets the certificate of the untrimmed log.
+        trimmed = proof_clause_log.TrimmedLog(_TRIMMED_FACTOR_LOG, _FACTOR_LOG)
+        self.assertEqual(trimmed, _TRIMMED_FACTOR_LOG)
+        with self.assertWarnsRegex(RuntimeWarning, "^replaying the untrimmed log: the trimmed log lacks"):
+            self.assertEqual(self.replay(source, trimmed), certificate)
+        # Both replays share one time limit: the second does not start a new one.
+        with warnings.catch_warnings(), mock.patch.object(
+                proof_clause_log._Replay, "run", autospec=True, side_effect=self.deadlines(trimmed)):
+            warnings.simplefilter("ignore", RuntimeWarning)
+            self.replay(source, trimmed)
+        self.assertEqual(len(self.seen_deadlines), 2)
+        self.assertEqual(self.seen_deadlines[0], self.seen_deadlines[1])
+        # An untrimmed log without the unit clauses either leaves the lemma uncertified.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            with self.assertRaisesRegex(proof_certificate.ProofExportError, _NONLINEAR_LEMMA % "nla"):
+                self.replay(source, proof_clause_log.TrimmedLog(
+                    _TRIMMED_FACTOR_LOG, _FACTOR_LOG.replace("(assume $15)\n", "")))
+        # The documented input takes this path through the exporter, or needs no fallback.
         self.assertEqual({hint[0] for hint in _hints(_certificate("factor_equal_to_one"))} & {"nla"}, {"nla"})
+
+    def deadlines(self, trimmed):
+        """A stand-in for _Replay.run that records each replay's deadline and fails the trimmed one."""
+        self.seen_deadlines = []
+
+        def run(replay, text):
+            self.seen_deadlines.append(replay.deadline)
+            if text is trimmed:
+                raise proof_clause_log.TrimmedAwayError("trimmed away")
+            return {}
+
+        return run
 
     def test_a_clause_assumed_by_nlsat_with_a_polynomial_refutation_is_a_lemma(self):
         certificate = self.replay(_ASSUMED_SQUARE, _ASSUMED_LOG)
@@ -413,18 +470,21 @@ class TestNonlinearLemmaValidation(unittest.TestCase):
         # An assumed clause that is an assertion stays one.
         self.assertEqual(certificate["rule_counts"]["asserted"], 2)
 
-    def test_a_lemma_without_a_polynomial_refutation_stays_rejected(self):
-        for name, source in NOT_CERTIFIED.items():
+    def test_inputs_outside_the_search_get_no_proof_of_the_step_that_is(self):
+        # Exported: the refutation holds no lemma of the nonlinear solver without a polynomial
+        # refutation. The step outside the search (a rewrite, a cnf lemma) gets no polynomial
+        # proof and no sorry: it is Lean's to prove, and Lean does not
+        # (test_inputs_outside_the_search_fail_in_lean).
+        for name, (source, hints, proofs) in NOT_CERTIFIED.items():
             with self.subTest(name=name):
-                try:
-                    certificate = _export(source)
-                except proof_certificate.ProofExportError as error:
-                    self.assertRegex(str(error), _NONLINEAR_LEMMA % "nla(-unsupported)?")
-                    continue
-                # Exported, the refutation holds no lemma of the nonlinear solver without a
-                # polynomial refutation; what else it rests on is Lean's to prove.
-                self.assertFalse({hint[0] for hint in _hints(certificate)} & (_UNCERTIFIED_HINTS - {"nla"}))
-                self.assertNotIn("sorry", proof_to_lean.reconstruct(source, certificate))
+                certificate = _not_certified(name)
+                self.assertEqual({hint[0] for hint in _hints(certificate)}, hints)
+                text = proof_to_lean.reconstruct(source, certificate)
+                self.assertEqual(_product_proofs(text), proofs)
+                self.assertNotIn("sorry", text)
+        # A lemma of the nonlinear solver without a refutation, used, is rejected by the exporter:
+        # test_proof_to_lean_nonlinear (equality_as_two_bounds, and the pinned logs over the
+        # square of a sum).
 
     def test_tampered_lemmas_are_rejected(self):
         source = NLA_INPUTS["square_below_its_root"][1]
@@ -491,6 +551,22 @@ class TestNonlinearLemmaLeanIntegration(unittest.TestCase):
             with self.subTest(log=position):
                 _, report = lean_test_support.check(self, source, certificate)
                 self.assertTrue(_STANDARD_AXIOMS in report or "does not depend on any axioms" in report, report)
+
+    def test_inputs_outside_the_search_fail_in_lean(self):
+        # Not certified means Lean rejects the file: the step outside the search has no proof,
+        # and the proofs of the other steps do not make up for it.
+        for name, (source, _, _) in NOT_CERTIFIED.items():
+            text = proof_to_lean.reconstruct(source, _not_certified(name))
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "outside.lean"
+                output.write_text(text)
+                result = lean_test_support.run_check_lean(output)
+                report = result.stdout + result.stderr
+                self.assertNotEqual(result.returncode, 0, report)
+                errors = [line for line in report.split("\n") if "error:" in line]
+                self.assertTrue(errors, report)
+                for error in errors:
+                    self.assertIn("`grind` failed", error)
 
     def test_pinned_random_instances_verify(self):
         sources = []

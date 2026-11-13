@@ -3897,19 +3897,26 @@ to Lean without the fact about the products they rest on and failed there.
   tightened, or `p = 0`, products multiplied out over the other atoms), the
   square of every atom, an equality times an atom, and products of two of
   these, as many rounds deep as the degree of the literals, sum with
-  nonnegative multipliers to a negative constant. This is the evidence Z3
-  itself looks for (`nla_lemma.cpp`, `prove`), with the same derived facts
-  and limits (384 facts, 512 monomials). The hint's own refutation is not
-  read: it is over the solver's columns, which the log does not tie to
-  terms. `proof_certificate.polynomial_refutation` searches again, z3
-  solving for the multipliers, and checks the sum in exact arithmetic.
+  nonnegative multipliers to a negative constant. This is the kind of
+  evidence Z3 itself looks for (`nla_lemma.cpp`, `prove`); the search here
+  takes its main derived facts and two of its limits (384 facts, 512
+  monomials) but is not the same one: Z3 also weakens a fact with a
+  negative constant, takes disequalities, and gives up above 64 given
+  facts, so a lemma Z3 has evidence for may have no refutation here. The
+  hint's own refutation is not read: it is over the solver's columns,
+  which the log does not tie to terms.
+  `proof_certificate.polynomial_refutation` searches again, z3 solving for
+  the multipliers, and checks the sum in exact arithmetic.
 - **Exporter.** An `nla` or `nla-unsupported` lemma is an `nla` th-lemma
   when the logged clause or the clause of the hint's literals has a
   refutation (`_Replay._nonlinear_lemma`); the logged clause may have lost
   the literals false at the base level and is then derived by unit
   propagation. Z3's trimmer takes the logged clause for an axiom and drops
-  those unit clauses, so `export_clause_log_certificate` replays the
-  untrimmed log when the trimmed one lacks them (`TrimmedAwayError`). An
+  those unit clauses, so `trim_clause_log` returns the trimmed text with
+  the log it was cut from (`TrimmedLog`), and `build_certificate` replays
+  that one, with a warning and within the same time limit, when the
+  trimmed one lacks them (`TrimmedAwayError`); any caller that trims and
+  replays, z3test's `proof_lean.py` included, gets the fallback. An
   assumed clause with a refutation is an `nla` th-lemma instead of a cnf
   bridge to the assertions. A lemma without one is rejected when used, as
   before. Certificates from logs with such lemmas are compact.
@@ -3932,7 +3939,13 @@ Measured on the 78 nonlinear unsat queries of z3test's `regressions/smt2`:
 rejected for a product of Real terms, 4 use a lemma without a refutation
 (nl13, nl19), 6 fail in Lean (nl17 and nl18 q2 on an implied equality over
 a square, nl37 q2 and q5 on "no square is 2", nl38 on the rewriter's sign
-split), 3 are outside for other reasons. Of the 235 unsatisfiable seeds
+split), 3 are outside for other reasons. Four of the six (nl17, nl18 q2,
+nl37 q2 and q5), and the input `(= (* m m) 2)`, were rejected by the
+exporter before, at their first `nla` lemma; those lemmas now have
+refutations, so the inputs are exported and fail in Lean on another step,
+which the exporter does not foresee. Nothing unsound is accepted, but a
+harness that counts rejections and Lean failures sees five rejections
+turn into failures. Of the 235 unsatisfiable seeds
 1-600 of `random_product_instance`, 194 verify (182 before), 2 use a lemma
 without a refutation, 39 fail in Lean (31 on a sign-split rewrite, 4 on a
 `cut`, 5 on a cnf lemma, one seed on two of these). Tests:

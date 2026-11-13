@@ -1759,7 +1759,7 @@ def bound_combination_refutes(constraints):
     return False
 
 
-# The bounds of Z3's own search for a polynomial refutation (nla_lemma.cpp,
+# Two bounds of Z3's own search for a polynomial refutation (nla_lemma.cpp,
 # prove): the facts it derives and the monomials of one. The resource limit
 # of the solver call that looks for the linear combination is deterministic,
 # unlike a timeout.
@@ -1805,12 +1805,15 @@ def polynomial_refutation(facts):
 
     facts are (equality, polynomial) pairs stating 0 <= polynomial, or
     polynomial = 0 for an equality, over atoms that take integer (or any
-    ordered ring's) values. This is the search of Z3's nonlinear solver for
-    the evidence of an nla lemma (nla_lemma.cpp, prove), over the same
+    ordered ring's) values. The search follows that of Z3's nonlinear solver
+    for the evidence of an nla lemma (nla_lemma.cpp, prove) in its main
     derived facts: the given ones, the square of every atom, an equality
     times an atom, and, in as many rounds as the degree of the facts, the
     product of a fact derived in the last round with one of the first, as
-    long as its degree is at most theirs. A product is nonnegative when both
+    long as its degree is at most theirs. It is not the same search: Z3
+    also weakens a fact with a negative constant, takes disequalities, and
+    gives up above 64 given facts, so a lemma Z3 has evidence for may have
+    no refutation here. A product is nonnegative when both
     factors are, and zero when one is. z3 looks for multipliers,
     nonnegative but for an equality's, that sum the derived facts to the
     constant -1 with every monomial cancelled; nothing it returns is trusted:
@@ -2004,14 +2007,11 @@ def export_clause_log_certificate(source, z3_executable=None, timeout=None, quer
     commands, index, _ = query_snapshot(source, query)
     executable = z3_executable or default_z3_executable()
     try:
-        log = proof_clause_log.run_clause_log(executable, commands, timeout, memory)
-        text = proof_clause_log.trim_clause_log(executable, log, timeout, memory)
-        try:
-            certificate = proof_clause_log.build_certificate(source, fragment, assertions, text, context, timeout)
-        except proof_clause_log.TrimmedAwayError:
-            # The trimmed log dropped unit clauses that a lemma of the
-            # nonlinear solver rests on (_Replay.infer): the whole log has them.
-            certificate = proof_clause_log.build_certificate(source, fragment, assertions, log, context, timeout)
+        text = proof_clause_log.run_clause_log(executable, commands, timeout, memory)
+        text = proof_clause_log.trim_clause_log(executable, text, timeout, memory)
+        # A trimmed log that dropped the unit clauses a lemma of the
+        # nonlinear solver rests on is replayed untrimmed (build_certificate).
+        certificate = proof_clause_log.build_certificate(source, fragment, assertions, text, context, timeout)
         certificate["query"] = index
         return certificate
     except subprocess.TimeoutExpired as error:

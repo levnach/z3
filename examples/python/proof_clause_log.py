@@ -36,9 +36,24 @@ from proof_certificate import (
 )
 
 
-
 class TrimmedAwayError(ProofExportError):
     """A trimmed log lacks clauses the replay needs; the untrimmed log may have them (_Replay._nonlinear_lemma)."""
+
+
+class TrimmedLog(str):
+    """The text of a trimmed clause log (trim_clause_log), with the log it was cut from as `untrimmed`.
+
+    Z3's trimmer keeps what the empty clause depends on and takes a lemma
+    of the nonlinear solver for an axiom, while the replay derives the
+    logged clause from the lemma and the unit clauses that make the
+    lemma's other literals false: the trimmed log need not have those, and
+    build_certificate then replays the untrimmed one.
+    """
+
+    def __new__(cls, text, untrimmed):
+        log = super().__new__(cls, text)
+        log.untrimmed = untrimmed
+        return log
 
 
 _NUMERAL = re.compile(r"^[0-9]+(\.[0-9]+)?$")
@@ -61,9 +76,12 @@ _SET_HEADS = {name: (constructor, arity) for (name, arity), constructor in (
     (SET_OPERATORS[z3.Z3_OP_SET_DIFFERENCE], z3.SetDifference),
     (SET_OPERATORS[z3.Z3_OP_SET_COMPLEMENT], z3.SetComplement))}
 # The hints of Z3's nonlinear solver: nla carries the literals of a lemma and
-# a polynomial refutation, nla-unsupported nothing. Neither is read: the
-# logged clause is certified when a polynomial refutation of its literals is
-# found again (polynomial_facts), and not otherwise.
+# a polynomial refutation over the solver's columns, nla-unsupported the
+# literals alone or nothing. The literals are read (_Terms.hint): the lemma
+# they deny is the logged clause before it lost the literals false at the
+# base level. The refutation is not: the lemma, or the logged clause, is
+# certified when a polynomial refutation of its literals is found again
+# (_Replay._nonlinear_lemma, polynomial_facts), and not otherwise.
 _NONLINEAR_HINTS = ("nla", "nla-unsupported")
 # The th-lemma of a clause whose literals have a polynomial refutation.
 _POLYNOMIAL_HINT = "nla"
@@ -269,7 +287,10 @@ def trim_clause_log(z3_executable, text, timeout=None, memory=None):
     Trimming only shortens the replay. When the trimmer reports an error (it
     rejects an inference it cannot derive by unit propagation) or writes a
     dependency graph the replay cannot use, the untrimmed log is returned
-    with a warning, and the replay checks every step of it instead. timeout
+    with a warning, and the replay checks every step of it instead. A
+    trimmed log is returned as a TrimmedLog, which keeps the untrimmed text
+    for the replay that needs a clause the trimmer dropped
+    (build_certificate). timeout
     (seconds) and memory (megabytes) bound the trimmer, by default
     _TIME_LIMIT and _MEMORY_LIMIT; it stopping at the time limit raises
     subprocess.TimeoutExpired, at the memory limit ProofExportError.
@@ -289,7 +310,7 @@ def trim_clause_log(z3_executable, text, timeout=None, memory=None):
         if run.stderr.strip():
             warnings.warn("native proof trimming diagnostics:\n" + run.stderr[-2000:], RuntimeWarning)
         try:
-            return _dependency_core(run.stdout)
+            return TrimmedLog(_dependency_core(run.stdout), text)
         except ProofExportError as error:
             warnings.warn("native proof trimming wrote an unusable log, replaying the untrimmed log: %s"
                           % error, RuntimeWarning)
@@ -1943,9 +1964,11 @@ class _Replay:
                 # Z3's trimmer takes the logged clause for an axiom, so a
                 # trimmed log need not keep the unit clauses that make the
                 # other literals false; the untrimmed log has them
-                # (export_clause_log_certificate replays it).
+                # (build_certificate replays it).
                 if self.trimmed:
-                    raise TrimmedAwayError(str(error)) from None
+                    raise TrimmedAwayError(
+                        "the trimmed log lacks the unit clauses under a lemma of the nonlinear solver "
+                        "(the untrimmed log has them): %s" % error) from None
             finally:
                 self.delete_clause(self.clauses[entry][1]) if entry in self.clauses else None
         declaration = self.dag.rule(z3.Z3_OP_PR_TH_LEMMA, "th-lemma", 0, [name])
@@ -2215,6 +2238,20 @@ def build_certificate(source, fragment, assertions, text, context, timeout=None)
     """Rebuild a clause log as an unverified z3-native-proof-dag bundle.
 
     timeout (seconds, default _TIME_LIMIT) bounds the replay's wall-clock
-    time; exceeding it raises ProofExportError.
+    time; exceeding it raises ProofExportError. When text is a TrimmedLog
+    without the unit clauses a lemma of the nonlinear solver rests on
+    (TrimmedAwayError), the log it was cut from is replayed instead, with a
+    warning and within the same time; a trimmed log given as a plain string
+    raises the error.
     """
-    return _Replay(source, fragment, assertions, context, timeout).run(text)
+    replay = _Replay(source, fragment, assertions, context, timeout)
+    try:
+        return replay.run(text)
+    except TrimmedAwayError as error:
+        untrimmed = getattr(text, "untrimmed", None)
+        if untrimmed is None:
+            raise
+        warnings.warn("replaying the untrimmed log: %s" % error, RuntimeWarning)
+        second = _Replay(source, fragment, assertions, context, timeout)
+        second.deadline = replay.deadline
+        return second.run(untrimmed)
