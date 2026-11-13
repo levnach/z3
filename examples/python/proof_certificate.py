@@ -864,9 +864,10 @@ def require_subset(expr):
     those a set operator takes (map_parameters).
     """
     sort = expr.arg(0).sort() if expr.num_args() == 2 else None
-    if (sort is None or expr.decl().params() or not is_array_sort(sort) or not expr.arg(1).sort().eq(sort)
+    if (sort is None or expr.decl().params() or sort.kind() != z3.Z3_ARRAY_SORT or not expr.arg(1).sort().eq(sort)
             or sort.range().kind() != z3.Z3_BOOL_SORT):
         raise ProofExportError("unsupported subset (two sets of one sort are supported): %s" % expr.sexpr())
+    array_sort_name(sort)  # Sets over another index sort (a bit-vector, an enumeration) are an unsupported sort.
     if sort.domain().kind() == z3.Z3_ARRAY_SORT:
         raise ProofExportError("maps and set operators over arrays indexed by arrays are not supported: %s" % sort)
 

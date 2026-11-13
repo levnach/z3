@@ -1388,14 +1388,20 @@ makes (= (setminus a b) empty) of it, which the theorem _subset_eq relates
 to the subset (_subset a b = (_map2 And a (_map1 Not b) = _const_array I
 False), by function extensionality); each step reaching a subset gets that
 fact, and, since the rewriter simplifies the difference member by member,
-one of: the subset itself where the difference is empty at every member,
-its negation where it is full at every member or at a stored index, or the
+the facts that apply of: the subset itself where the difference is empty at
+every member; its negation where it is full at every member, at a stored
+index, or at every index off the stored ones (one exists over Int and
+Real); the implication between the values of two constant arrays; and the
 equality of the difference with the set the rewriter leaves. Written out
 after a false assertion, the subset comes with the array solver's axiom
 relating it to that equality, two array lemmas proved the same way. A
 subset over an uninterpreted or Bool index sort verifies only when the
-rewriter decides it: its equality needs a constant array over that sort,
-which the reconstructor rejects.
+rewriter decides it, true or false: otherwise (and when Z3 logs it as
+written) its equality needs a constant array over that sort, which the
+reconstructor rejects. A subset over a
+store of a Boolean value other than true and false that the rewriter folds
+to a formula over that value ((subset (store empty 0 p) empty)) is accepted
+and fails in Lean.
 
 Z3 logs a map of a built-in with its signature, ((_ map (<= (Int Int) Bool))
 a b), and declares a mapped function before the map, so the trimmer reads

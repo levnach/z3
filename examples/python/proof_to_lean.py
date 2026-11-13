@@ -4723,10 +4723,12 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
 
     A (subset a b) the step reaches is compared the same way: the rewriter
     makes (= (setminus a b) empty) of it and simplifies that difference
-    member by member, so the function of the difference chooses a fact
-    that the subset holds, that it fails (at any index, or at a stored
-    one), or that the difference as _subset_eq writes it is the set the
-    rewriter's equality is left with (see the loop over subsets).
+    member by member, so the function of the difference chooses the facts:
+    that the subset holds, that it fails (at any index, at a stored one,
+    or at one off the stored ones), that it is the implication between the
+    values of constant arrays, and that the difference as _subset_eq writes
+    it is the set the rewriter's equality is left with (see the loop over
+    subsets).
 
     With members_read (a cnf lemma, whose clause the solver assumed about
     members while the assertion it is tied to equates sets), each such
@@ -4884,47 +4886,80 @@ def _pointwise_map_facts(graph, reachable, name, atom_indices, variable_indices,
         # index sort inhabited as for _pwn); full in every row of a stored
         # index (a store pulled out of the map is compared with the empty
         # set there: (subset full (store s 1 false)) is false), it fails at
-        # that index; else the difference as _subset_eq writes it
-        # (_array_helpers states that fact) equals the first set of the
-        # step with its function, which the rewriter's equality compares
-        # with the empty set.
+        # that index. Whenever it is neither empty nor full, the difference
+        # as _subset_eq writes it (_array_helpers states that fact) equals
+        # the first set of the step with its function, which the rewriter's
+        # equality compares with the empty set.
         left, right = graph.arguments(node)
         sort = graph.decl(left).range
         leaves = tuple(sorted(set(tables[left][0]) | set(tables[right][0])))
         if len(leaves) > _POINTWISE_LEAVES:
             continue  # (each set is over at most that many; the two together may be over more)
-        full = (1 << (1 << len(leaves))) - 1
+        rows = range(1 << len(leaves))
+        full = (1 << len(rows)) - 1
         difference = (_expanded_table(tables[left][1], tables[left][0], leaves)
                       & ~_expanded_table(tables[right][1], tables[right][0], leaves) & full)
         index = _array_components(sort)[0]
+        # An inhabitant of the index sort. Over a carrier the interpretation
+        # states one only next to an extensionality witness
+        # (_carrier_inhabited); it always has the constants' values (elems).
+        inhabited = ("(Nonempty.intro (_m.elems 0))" if index in graph.carriers and not _carrier_inhabited(graph)
+                     else _nonempty(index))
         if difference == 0:
             proof = auxiliary(left, right, "(%s -> %s)")
             facts.append("have _pws%d : _subset %s %s := fun _i => %s" % (
                 node, inline(left), inline(right), "fun _h => _h" if proof is None else proof))
             continue
         if difference == full:
-            if _inhabitant_sort(index) not in graph.carriers or _carrier_inhabited(graph):
-                # (grind does not prove the negated implication as one statement.)
-                proof = auxiliary(left, right, "(And %s (Not %s))")
-                facts.append("have _pwsn%d : _subset %s %s -> False := fun _h => Nonempty.elim %s "
-                             "(fun _i => %s.2 (_h _i %s.1))" % (node, inline(left), inline(right),
-                                                                 _nonempty(index), proof, proof))
+            # (grind does not prove the negated implication as one statement.)
+            proof = auxiliary(left, right, "(And %s (Not %s))")
+            facts.append("have _pwsn%d : _subset %s %s -> False := fun _h => Nonempty.elim %s "
+                         "(fun _i => %s.2 (_h _i %s.1))" % (node, inline(left), inline(right), inhabited, proof, proof))
             continue
-        stored = next((position for position, leaf in enumerate(leaves) if leaf[0] == "index" and all(
-            (difference >> row) & 1 for row in range(1 << len(leaves)) if (row >> position) & 1)), None)
+        positions = [position for position, leaf in enumerate(leaves) if leaf[0] == "index"]
+        stored = next((position for position in positions if all(
+            (difference >> row) & 1 for row in rows if (row >> position) & 1)), None)
         if stored is not None:
             proof = "(%s rfl)" % auxiliary(left, right, "(_p%d -> (And %%s (Not %%s)))" % stored,
                                            at=inline(leaves[stored][1]))
             facts.append("have _pwsn%d : _subset %s %s -> False := fun _h => %s.2 (_h %s %s.1)" % (
                 node, inline(left), inline(right), proof, inline(leaves[stored][1]), proof))
-        else:
-            key = (sort,) + _essential_table(leaves, difference)
-            same = next((candidate for candidate in sets if keys[candidate] == key), None)
-            if same is not None and graph.subset_rewrite:
-                proof = auxiliary(left, right, "(Iff (And %s (Not %s)) %s)", same)
-                facts.append("have _pws%d : _map2 And %s (_map1 Not %s) = %s := funext (fun _i => %s)" % (
-                    node, inline(left), inline(right), inline(same),
-                    "rfl" if proof is None else "propext %s" % proof))
+        elif (positions and graph.subset_rewrite and index in _UNBOUNDED and all(
+                (difference >> row) & 1 for row in rows if not any((row >> position) & 1 for position in positions))):
+            # Full off the stored indices, whatever the other leaves are
+            # ((subset full (store empty 0 true)), which the rewriter decides
+            # by the default values): it fails at an index that is none of
+            # them, which exists over Int and Real (_UNBOUNDED_THEOREMS,
+            # stated next to a constant array).
+            proof = "(%s %s)" % (
+                auxiliary(left, right, "(%s(And %%s (Not %%s)))" % "".join(
+                    "(Not _p%d) -> " % position for position in positions)),
+                " ".join("(fun _e => _f (_e ▸ %sList.Mem.head _%s))" % ("List.Mem.tail _ (" * count, ")" * count)
+                         for count in range(len(positions))))
+            facts.append("have _pwsn%d : _subset %s %s -> False := fun _h => Exists.elim (%s ([%s] : List %s)) "
+                         "(fun _i _f => %s.2 (_h _i %s.1))" % (
+                             node, inline(left), inline(right), _UNBOUNDED[index],
+                             ", ".join(inline(leaves[position][1]) for position in positions),
+                             _component_type(index), proof, proof))
+        elif leaves and all(leaf[0] == "value" for leaf in leaves):
+            # Maps of constant arrays alone, of Boolean values other than
+            # true and false: the rewriter folds the subset to a formula
+            # over the values ((subset (const p) (const (not p))) to (not
+            # p)), which the subset is at any index.
+            names = {leaf: leaf_member(leaf, "_i") for leaf in leaves}
+            facts.append("have _pwsv%d : _subset %s %s = (%s -> %s) := propext (Iff.intro "
+                         "(fun _h => Nonempty.elim %s (fun _i => _h _i)) (fun _h _ => _h))" % (
+                             node, inline(left), inline(right), member(left, names), member(right, names), inhabited))
+        # The difference as _subset_eq writes it is the set the rewriter's
+        # equality is left with (next to a failure at a stored index too: the
+        # rewriter does not pull a store out from under a union).
+        key = (sort,) + _essential_table(leaves, difference)
+        same = next((candidate for candidate in sets if keys[candidate] == key), None)
+        if same is not None and graph.subset_rewrite:
+            proof = auxiliary(left, right, "(Iff (And %s (Not %s)) %s)", same)
+            facts.append("have _pws%d : _map2 And %s (_map1 Not %s) = %s := funext (fun _i => %s)" % (
+                node, inline(left), inline(right), inline(same),
+                "rfl" if proof is None else "propext %s" % proof))
     if not members_read:
         return theorems, facts
     # The sides of each equality at the indices the lemma reads from sets of its sort.

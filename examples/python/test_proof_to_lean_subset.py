@@ -106,8 +106,40 @@ SUBSET_INPUTS = {
     # Decided false at a stored index: the rewriter pulls the store out of
     # the map and compares it with the empty set there (_pwsn at 1).
     "full_below_a_removal": _SETS + "(assert (subset %s (store a 1 false)))\n(check-sat)\n" % _FULL,
+    "an_insert_below_its_removal": _SETS + "(assert (subset (store a 1 true) (store a 1 false)))\n(check-sat)\n",
     "an_insert_below_empty": _SETS + """(declare-fun i () Int)
 (assert (subset (store a i true) (setminus b b)))
+(check-sat)
+""",
+    # False at a stored index, but the rewriter does not pull a store out
+    # from under a union and keeps its equality: the failure at the index
+    # (_pwsn) next to the difference stated equal to the union (_pws).
+    "inserts_under_a_union_below_empty": _SETS + """(assert (subset (union (store a 0 true) (store b 1 true)) %s))
+(check-sat)
+""" % _EMPTY,
+    # Decided false by the default values: the difference is full off the
+    # stored indices, so the subset fails at an index that is none of them
+    # (_pwsn at an index outside the list of the stored ones).
+    "full_below_a_singleton": "(assert (subset %s (store %s 0 true)))\n(check-sat)\n" % (_FULL, _EMPTY),
+    "full_below_a_pair": """(declare-fun i () Int)
+(assert (subset %s (store (store %s 0 true) i true)))
+(check-sat)
+""" % (_FULL, _EMPTY),
+    "full_below_a_singleton_of_reals": """(assert (subset ((as const (Array Real Bool)) true)
+                (store ((as const (Array Real Bool)) false) 0.5 true)))
+(check-sat)
+""",
+    # Constant arrays of Boolean values other than true and false: the
+    # rewriter folds the subset to a formula over the values, which the
+    # subset is at any index (_pwsv).
+    "between_constant_arrays": """(declare-fun p () Bool)
+(assert (subset ((as const (Array Int Bool)) p) ((as const (Array Int Bool)) (not p))))
+(assert p)
+(check-sat)
+""",
+    "between_constant_arrays_of_two_values": """(declare-fun p () Bool)
+(declare-fun q () Bool)
+(assert (not (subset ((as const (Array Int Bool)) (and p q)) ((as const (Array Int Bool)) p))))
 (check-sat)
 """,
     # The rewriter simplifies the difference to another set than the map
@@ -179,10 +211,17 @@ SUBSET_INPUTS = {
 (check-sat)
 """,
     # Over an uninterpreted index sort a subset the rewriter decides
-    # verifies (no constant array is left in the certificate).
+    # verifies (no constant array is left in the certificate). Decided
+    # false, it fails at the value of the interpretation's first constant
+    # (_m.elems 0: the carrier is not stated nonempty otherwise).
     "decided_over_a_sort": """(declare-sort U 0)
 (declare-fun a () (Array U Bool))
 (assert (not (subset a a)))
+(check-sat)
+""",
+    "decided_false_over_a_sort": """(declare-sort U 0)
+(declare-fun a () (Array U Bool))
+(assert (subset (union a (complement a)) (setminus a a)))
 (check-sat)
 """,
     # After an assertion that simplifies to false Z3 logs the others as
@@ -200,10 +239,13 @@ SUBSET_INPUTS = {
 """,
 }
 # Sets of integers are qf_uflia (the index sort is Int).
-_FRAGMENTS = {"real_indices": "qf_uflra", "decided_over_a_sort": "qf_uf"}
+_FRAGMENTS = {"real_indices": "qf_uflra", "full_below_a_singleton_of_reals": "qf_uflra",
+              "decided_over_a_sort": "qf_uf", "decided_false_over_a_sort": "qf_uf"}
+_SET_SORTS = {"qf_uflia": "(Array Int Bool)", "qf_uflra": "(Array Real Bool)", "qf_uf": "(Array U Bool)"}
 
-# Inputs with subset that stay rejected, with the error. The first two by
-# the exporter (a pseudo-Boolean constraint counts Boolean variables only);
+# Inputs with subset that stay rejected, with the error. The first four by
+# the exporter (a pseudo-Boolean constraint counts Boolean variables only;
+# sets indexed by bit-vectors or an enumeration are no supported sort);
 # the others by the reconstructor, whose certificate cannot
 # carry the constant array of the rewriter's (= (setminus a b) empty) over
 # an index sort that may be finite (constant arrays are Int- or
@@ -218,6 +260,15 @@ REJECTED_SUBSET_INPUTS = {
 (assert (subset a b))
 (check-sat)
 """, proof_certificate.ProofExportError, "pseudo-Boolean arguments must be Boolean variables or their negations"),
+    "over_bit_vectors": ("""(declare-fun a () (Array (_ BitVec 2) Bool))
+(assert (not (subset a a)))
+(check-sat)
+""", proof_certificate.ProofExportError, r"^unsupported sort: Array\(BitVec\(2\), Bool\) "),
+    "over_an_enumeration": ("""(declare-datatypes ((C 0)) (((red) (green))))
+(declare-fun a () (Array C Bool))
+(assert (not (subset a a)))
+(check-sat)
+""", proof_certificate.ProofExportError, r"^unsupported sort: Array\(C, Bool\) "),
     "over_a_sort": ("""(declare-sort U 0)
 (declare-fun a () (Array U Bool))
 (declare-fun b () (Array U Bool))
@@ -305,15 +356,18 @@ def random_subset_instance(seed, unsimplified=False):
 # false at every index. 103: one decided true. 105: a difference the
 # rewriter simplifies to another map. 628 and 1472: a subset decided false
 # at a stored index, the two Lean failures of the first sweep of seeds
-# 1-1500 (iteration 129's macOS build) before that fact was stated. Of the
-# 309 unsatisfiable seeds of 1-1500, 308 verify; seed 1089 does not: the
-# replay ties the clause of its subset to another assertion equivalent to it
-# (a set equated with the full set), a rewrite between two set equalities
-# that fails without subset too.
-SUBSET_SEEDS = (17, 103, 105, 628, 1472)
+# 1-1500 (iteration 129's macOS build) before that fact was stated. 1791
+# and 2233: a subset that fails at a stored index while the rewriter keeps
+# its equality (a store under a union), and 2769: one decided false by the
+# default values, the three Lean failures of seeds 1501-3000 before those
+# facts were stated. Of the 1105 unsatisfiable seeds of 1-5000, 1104
+# verify; seed 1089 does not: the replay ties the clause of its subset to
+# another assertion equivalent to it (a set equated with the full set), a
+# rewrite between two set equalities that fails without subset too.
+SUBSET_SEEDS = (17, 103, 105, 628, 1472, 1791, 2233, 2769)
 # Seeds of random_subset_instance(seed, unsimplified=True), which are all
 # unsatisfiable: subsets logged as written with the array solver's axioms.
-# Seeds 1-200 all verify.
+# Seeds 1-400 all verify.
 UNSIMPLIFIED_SUBSET_SEEDS = (2, 5, 11)
 
 
@@ -321,6 +375,18 @@ def _lines(text, pattern):
     """The tactic lines of a Lean text that match pattern at their start."""
     compiled = re.compile(pattern)
     return [line.lstrip(" |(") for line in text.split("\n") if compiled.match(line.lstrip(" |("))]
+
+
+def _steps(text):
+    """The tactic lines of each private theorem of a Lean text, by the theorem's name."""
+    steps, name = {}, None
+    for line in text.split("\n"):
+        match = re.match(r"private theorem (\S+)", line)
+        if match:
+            name = match.group(1)
+        elif name is not None and line.strip():
+            steps.setdefault(name, []).append(line.lstrip(" |("))
+    return steps
 
 
 class TestSubsetValidation(unittest.TestCase):
@@ -340,8 +406,7 @@ class TestSubsetValidation(unittest.TestCase):
                 self.assertEqual(certificate["fragment"], _FRAGMENTS.get(name, "qf_uflia"))
                 subsets = _declarations(certificate, z3.Z3_OP_SET_SUBSET)
                 self.assertEqual(len(subsets), 1)
-                sort = "(Array U Bool)" if name == "decided_over_a_sort" else (
-                    "(Array Real Bool)" if name == "real_indices" else "(Array Int Bool)")
+                sort = _SET_SORTS[_FRAGMENTS.get(name, "qf_uflia")]
                 self.assertEqual(subsets[0], {"kind": z3.Z3_OP_SET_SUBSET, "name": "subset",
                                               "domain": [sort, sort], "range": "Bool", "parameters": []})
 
@@ -415,7 +480,8 @@ class TestSubsetValidation(unittest.TestCase):
                 self.assertEqual(bool(_lines(text, r"have _sb\d+ := _subset_eq ")), constants)
                 self.assertNotIn("sorry", text)
                 self.assertNotIn("axiom ", text)
-        for name in ("reflexive", "intersection_below_its_set", "difference_below_its_set", "decided_over_a_sort"):
+        for name in ("reflexive", "intersection_below_its_set", "difference_below_its_set", "decided_over_a_sort",
+                     "decided_false_over_a_sort"):
             self.assertNotIn("_const_array", self.texts[name])
         # Without subset the prelude has neither.
         source = SUBSET_INPUTS["member_outside"].replace("(subset a b)", "(= (setminus a b) %s)" % _EMPTY)
@@ -427,22 +493,25 @@ class TestSubsetValidation(unittest.TestCase):
         term = r"\(\(term_\d+ _atoms _vars _m\)\)"
         # Tied to the rewriter's equality by _subset_eq alone.
         text = self.texts["member_outside"]
-        self.assertEqual(set(_lines(text, r"have _sb\d+ ")),
-                         {"have _sb2 := _subset_eq ((term_0 _atoms _vars _m)) ((term_1 _atoms _vars _m))"})
+        # (Node numbers follow the order Z3 logs the clauses in: not pinned.)
+        def all_match(lines, pattern):
+            self.assertTrue(lines)
+            for line in lines:
+                self.assertRegex(line, pattern)
+
+        all_match(_lines(text, r"have _sb\d+ "), r"^have _sb\d+ := _subset_eq %s %s$" % (term, term))
         # The map of that equality is the difference as _subset_eq writes it.
-        self.assertEqual(set(_lines(text, r"have _pws")),
-                         {"have _pws2 : _map2 And ((term_0 _atoms _vars _m)) (_map1 Not ((term_1 _atoms _vars _m))) = "
-                          "((term_10 _atoms _vars _m)) := funext (fun _i => rfl)"})
+        all_match(_lines(text, r"have _pws"), r"^have _pws\d+ : _map2 And %s \(_map1 Not %s\) = %s := "
+                                              r"funext \(fun _i => rfl\)$" % (term, term, term))
         # Decided true: the subset itself, the same set twice by the identity.
-        self.assertEqual(set(_lines(self.texts["reflexive"], r"have _pws")),
-                         {"have _pws1 : _subset ((term_0 _atoms _vars _m)) ((term_0 _atoms _vars _m)) := "
-                          "fun _i => fun _h => _h"})
+        all_match(_lines(self.texts["reflexive"], r"have _pws"),
+                  r"^have _pws\d+ : _subset (%s) \1 := fun _i => fun _h => _h$" % term)
         text = self.texts["intersection_below_its_set"]
-        self.assertIn("\nprivate theorem rewrite_10_pw0 (_p0 _p1 : Prop) :\n    ((And _p0 _p1) -> _p0) := by grind\n",
-                      text)
-        self.assertEqual(set(_lines(text, r"have _pws")), {
-            "have _pws3 : _subset ((term_2 _atoms _vars _m)) ((term_0 _atoms _vars _m)) := fun _i => "
-            "(rewrite_10_pw0 (_select ((term_0 _atoms _vars _m)) _i) (_select ((term_1 _atoms _vars _m)) _i))"})
+        self.assertRegex(text, r"\nprivate theorem rewrite_\d+_pw0 \(_p0 _p1 : Prop\) :\n"
+                               r"    \(\(And _p0 _p1\) -> _p0\) := by grind\n")
+        all_match(_lines(text, r"have _pws"),
+                  r"^have _pws\d+ : _subset %s %s := fun _i => \(rewrite_\d+_pw0 \(_select %s _i\) "
+                  r"\(_select %s _i\)\)$" % (term, term, term, term))
         self.assertRegex(self.texts["below_its_union"], r"have _pws\d+ : _subset %s %s := fun _i => "
                                                         r"\(rewrite_\d+_pw\d+ " % (term, term))
         # Decided false at any index, and at a stored one.
@@ -473,6 +542,39 @@ class TestSubsetValidation(unittest.TestCase):
                 self.assertRegex(fact, r"^have _pws\d+ : _map2 And %s \(_map1 Not %s\) = %s := funext \(fun _i => "
                                        r"propext \(rewrite_\d+_pw\d+ .*\)\)$" % (term, term, term))
         self.assertIn(" (_p0 : Prop) :\n    (Iff (And _p0 (Not False)) _p0) := by grind\n", self.texts["below_empty"])
+        # False at a stored index under a union, where the rewriter keeps its
+        # equality: the failure at the index and the difference's equality.
+        text = self.texts["inserts_under_a_union_below_empty"]
+        all_match(_lines(text, r"have _pwsn"), r"^have _pwsn\d+ : _subset %s %s -> False := fun _h => "
+                                               r"\(\(rewrite_\d+_pw\d+ .*\) rfl\)\.2 " % (term, term))
+        all_match(_lines(text, r"have _pws\d+ : _map2"),
+                  r"^have _pws\d+ : _map2 And %s \(_map1 Not %s\) = %s := funext \(fun _i => "
+                  r"propext \(rewrite_\d+_pw\d+ .*\)\)$" % (term, term, term))
+        # Decided false by the default values: at an index off the stored ones.
+        text = self.texts["full_below_a_pair"]
+        self.assertIn(" (_p0 _p1 : Prop) :\n    ((Not _p0) -> (Not _p1) -> (And True (Not ", text)
+        all_match(_lines(text, r"have _pwsn"),
+                  r"^have _pwsn\d+ : _subset %s %s -> False := fun _h => Exists.elim \(_int_unbounded "
+                  r"\(\[\(\(\(0 : Int\)\)\), \(_vars 0\)\] : List Int\)\) \(fun _i _f => "
+                  r"\(\(rewrite_\d+_pw\d+ \(_i = \(\(\(0 : Int\)\)\)\) \(_i = \(_vars 0\)\)\) "
+                  r"\(fun _e => _f \(_e ▸ List.Mem.head _\)\) "
+                  r"\(fun _e => _f \(_e ▸ List.Mem.tail _ \(List.Mem.head _\)\)\)\)\.2 \(_h _i .*\.1\)\)$"
+                  % (term, term))
+        all_match(_lines(self.texts["full_below_a_singleton_of_reals"], r"have _pwsn"),
+                  r"^have _pwsn\d+ : .* Exists.elim \(_rat_unbounded \(\[.*\] : List Rat\)\) ")
+        # Constant arrays of values: the subset is the implication between them.
+        all_match(_lines(self.texts["between_constant_arrays"], r"have _pwsv"),
+                  r"^have _pwsv\d+ : _subset %s %s = \(\(_atoms 0\) -> \(\(Not \(_atoms 0\)\)\)\) := "
+                  r"propext \(Iff.intro \(fun _h => Nonempty.elim \(Nonempty.intro \(0 : Int\)\) "
+                  r"\(fun _i => _h _i\)\) \(fun _h _ => _h\)\)$" % (term, term))
+        # Over an uninterpreted index sort the carrier's inhabitant is a
+        # constant's value: the interpretation has no nonempty field here.
+        text = self.texts["decided_false_over_a_sort"]
+        self.assertNotIn("nonempty : Nonempty U", text)
+        sort_term = r"\(\(term_\d+ _atoms _m\)\)"
+        all_match(_lines(text, r"have _pwsn"),
+                  r"^have _pwsn\d+ : _subset %s %s -> False := fun _h => Nonempty.elim "
+                  r"\(Nonempty.intro \(_m.elems 0\)\) \(fun _i => " % (sort_term, sort_term))
         # An euf lemma is a congruence: relabelled as one, the array solver's
         # subset axiom gets no subset fact.
         self.assertEqual(len(_lines(self.texts["after_false"], r"have _sb\d+ ")), 2)
@@ -560,6 +662,18 @@ class TestSubsetValidation(unittest.TestCase):
             source = random_subset_instance(seed)
             text = proof_to_lean.reconstruct(source, _export(source))
             self.assertTrue(_lines(text, r"have _pwsn\d+ : _subset .* rfl\)\.1\)$"), seed)
+        # 1791 and 2233: that failure next to the equality the rewriter keeps.
+        for seed in (1791, 2233):
+            source = random_subset_instance(seed)
+            text = proof_to_lean.reconstruct(source, _export(source))
+            both = [name for name, lines in _steps(text).items()
+                    if any(re.match(r"have _pwsn\d+ : _subset .* rfl\)\.1\)$", line) for line in lines)
+                    and any(re.match(r"have _pws\d+ : _map2 ", line) for line in lines)]
+            self.assertTrue(both, seed)
+        # 2769: a subset decided false by the default values.
+        source = random_subset_instance(2769)
+        text = proof_to_lean.reconstruct(source, _export(source))
+        self.assertTrue(_lines(text, r"have _pwsn\d+ : _subset .* Exists.elim \(_int_unbounded "))
 
 
 class TestSubsetLeanIntegration(unittest.TestCase):
@@ -606,9 +720,15 @@ class TestSubsetLeanIntegration(unittest.TestCase):
 
         for name, fact in (("member_outside", r"have _sb\d+ := "), ("reflexive", r"have _pws\d+ : _subset "),
                            ("intersection_below_its_set", r"have _pws\d+ : _subset "),
-                           ("full_below_empty", r"have _pwsn\d+ : "), ("full_below_a_removal", r"have _pwsn\d+ : "),
+                           ("full_below_empty", r"have _pwsn\d+ : "),
+                           # (full_below_a_removal is proved from the difference's equality too.)
+                           ("an_insert_below_its_removal", r"have _pwsn\d+ : "),
                            ("below_empty", r"have _pws\d+ : _map2 "),
                            ("complement_below_its_set", r"have _pws\d+ : _map2 "),
+                           ("inserts_under_a_union_below_empty", r"have _pws\d+ : _map2 "),
+                           ("full_below_a_singleton", r"have _pwsn\d+ : "),
+                           ("between_constant_arrays", r"have _pwsv\d+ : "),
+                           ("decided_false_over_a_sort", r"have _pwsn\d+ : "),
                            ("after_false", r"have _sb\d+ := ")):
             with self.subTest(name=name):
                 source = SUBSET_INPUTS[name]
