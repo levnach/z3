@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #133: Certify products of Int terms as atoms of linear arithmetic</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1c2024;
+  --muted: #5b6470;
+  --line: #d9dee4;
+  --soft: #f4f6f8;
+  --accent: #0b5cad;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171a;
+    --fg: #e4e7eb;
+    --muted: #9aa4b0;
+    --line: #2f363d;
+    --soft: #1d2226;
+    --accent: #6cb0f5;
+    --ok: #56c271;
+    --warn: #d9a93a;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 0.75rem; }
+h2 { font-size: 1.2rem; margin: 2.25rem 0 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 1.4rem 0 0.4rem; }
+p { margin: 0.6rem 0; }
+a { color: var(--accent); }
+ul { padding-left: 1.3rem; margin: 0.6rem 0; }
+li { margin: 0.35rem 0; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86rem; }
+code { background: var(--soft); padding: 0.08rem 0.3rem; border-radius: 4px; }
+pre {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+  line-height: 1.45;
+  margin: 0.6rem 0;
+}
+pre code { background: none; padding: 0; }
+.meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.93rem;
+}
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; overflow-wrap: anywhere; }
+.badge {
+  display: inline-block;
+  padding: 0.05rem 0.55rem;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.tablewrap { overflow-x: auto; margin: 0.8rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.note { color: var(--muted); font-size: 0.92rem; }
+.analogy { border-left: 3px solid var(--accent); padding: 0.1rem 0 0.1rem 0.9rem; margin: 0.9rem 0; }
+dl.glossary dt { font-weight: 600; margin-top: 0.7rem; }
+dl.glossary dd { margin: 0.1rem 0 0 1.1rem; }
+footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+<h1>Certify products of Int terms as atoms of linear arithmetic</h1>
+<dl class="meta">
+  <dt>Pull request</dt>
+  <dd><a href="https://github.com/levnach/z3/pull/133">levnach/z3 #133</a></dd>
+  <dt>State</dt>
+  <dd><span class="badge">OPEN</span> Not merged.</dd>
+  <dt>Change commit</dt>
+  <dd><a href="https://github.com/levnach/z3/commit/4544081d3c2759e9002e9cd4de983fc6866a5c8a"><code>4544081d3</code></a>, the second of two commits on the branch</dd>
+  <dt>Date</dt>
+  <dd>2026-11-13T16:28:37Z</dd>
+  <dt>Loop iteration</dt>
+  <dd>132</dd>
+</dl>
+</header>
+
+<section>
+<h2>In one paragraph</h2>
+<p>
+This PR lets the pipeline certify inputs that multiply nonconstant terms of
+<a href="#g-sort">sort</a> Int, such as <code>(* m n)</code>.
+Each product is treated as one more <a href="#g-atom">atom</a> of the
+<a href="#g-linear-form">linear forms</a> of <a href="#g-linear-arithmetic">linear arithmetic</a>.
+So the existing checks for <a href="#g-farkas">Farkas lemmas</a> and <a href="#g-cut">cuts</a> now work over products too.
+Products of Real terms stay rejected, because the <a href="#g-certificate">certificate</a> models Real by
+<a href="#g-rational">rational numbers</a>.
+<a href="#g-theory-lemma">Theory lemmas</a> of Z3's <a href="#g-nonlinear-solver">nonlinear solver</a> are not certified either.
+A <a href="#g-refutation">refutation</a> that uses one is rejected by name.
+No axiom was added and no check was skipped.
+</p>
+</section>
+
+<section>
+<h2>Background</h2>
+<p>
+Before this PR, the exporter rejected every input with a product of two nonconstant terms.
+In the z3test regression corpus that was the largest class of rejected inputs after strings and bit-vectors: 78 queries.
+One <a href="#g-hint">hint</a> of the nonlinear solver also rejected a whole
+<a href="#g-clause-log">clause log</a>, even when the refutation never used that lemma.
+The PR is a first slice of milestone 4 of the plan, which lists <a href="#g-nonlinear-arithmetic">nonlinear arithmetic</a> as a separate extension.
+</p>
+</section>
+
+<section>
+<h2>What changed</h2>
+<ul>
+  <li><strong>Exporter.</strong> Inputs with products of Int terms are accepted in every integer <a href="#g-fragment">fragment</a>, also with <a href="#g-uf">uninterpreted functions</a> and <a href="#g-array">arrays</a>.</li>
+  <li><strong>Linear forms.</strong> A product of nonconstant factors counts as one atom, so Farkas lemmas and cuts over products are checked as before.</li>
+  <li><strong>Lean tactic.</strong> For a certificate with an Int product, the theory <a href="#g-tactic">tactic</a> also receives <code>Int.mul_eq_zero</code>: a zero product has a zero factor.</li>
+  <li><strong>Real products.</strong> A product of Real terms is still rejected, and the message now states the reason.</li>
+  <li><strong>Nonlinear solver lemmas.</strong> An unused lemma of the nonlinear solver no longer rejects the log, and a used one is rejected by name.</li></ul>
+<p class="analogy">
+An analogy: a product is a sealed box with a label.
+Linear arithmetic only weighs the box.
+Opening it to look at the factors is the nonlinear solver's job, and that part is not certified yet.
+</p>
+<p>
+Why Real is different: the equation <code>x * x = 2</code> has a real solution but no rational one.
+A theorem about rational numbers would not show that such an input is unsatisfiable.
+</p>
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>File</th><th class="num">Added</th><th class="num">Removed</th><th>Role</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">24</td><td class="num">3</td><td>Exporter: accepts Int products, rejects Real ones</td></tr>
+    <tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">31</td><td class="num">3</td><td>Clause-log replay: product atoms, nonlinear hints</td></tr>
+    <tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">35</td><td class="num">5</td><td>Reconstructor: product atoms, tactic text</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_nonlinear.py</code></td><td class="num">574</td><td class="num">0</td><td>New test module</td></tr>
+    <tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">40</td><td class="num">10</td><td>Updated exporter tests</td></tr>
+    <tr><td><code>examples/python/test_proof_to_lean_deep.py</code></td><td class="num">8</td><td class="num">8</td><td>Updated error example</td></tr>
+    <tr><td><code>examples/python/README</code></td><td class="num">47</td><td class="num">7</td><td>Documentation</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">66</td><td class="num">0</td><td>Plan: dated section</td></tr>
+    <tr><th>Total, 8 files</th><th class="num">825</th><th class="num">36</th><th></th></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">No C++ file changed.</p>
+</section>
+
+<section>
+<h2>Worked example</h2>
+<p>
+This input is the <code>zero_product</code> case of the new tests.
+It was run for this report on the base commit and on the change commit.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const m Int)
+(declare-const n Int)
+(assert (= (* m n) 0))
+(assert (not (= m 0)))
+(assert (not (= n 0)))
+(check-sat)</code></pre>
+<p>The product is zero, yet neither factor is zero.</p>
+
+<h3>(b) Before</h3>
+<p>The exporter of the base commit stopped with exit status 2 and this message.</p>
+<pre><code>proof_certificate.py: error: nonlinear multiplication is not supported</code></pre>
+
+<h3>(c) After</h3>
+<p>
+The reconstructor now generates a Lean file of 77 lines.
+The Lean check accepted it and printed <code>Lean checks passed.</code>
+</p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) * (term_1 _atoms _vars))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((0 : Int))
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_2 _atoms _vars) = (term_3 _atoms _vars))
+...
+def formula_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_3 _atoms _vars) = (term_0 _atoms _vars))
+def formula_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_3 _atoms _vars) = (term_1 _atoms _vars))
+def formula_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_10 _atoms _vars) (formula_11 _atoms _vars))
+def formula_13 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Iff (formula_4 _atoms _vars) (formula_12 _atoms _vars))
+...</code></pre>
+<p>
+The declarations: <code>term_2</code> is the product, written with Lean's integer multiplication.
+The last line states a step of Z3's <a href="#g-rewriter">rewriter</a>: the product is zero exactly when a factor is zero.
+</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_14 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_13 _atoms _vars) := by
+  unfold formula_13 formula_12 formula_11 formula_10 formula_4 term_3 term_2 term_1 term_0
+  first | omega | grind (splits := 64) [Int.mul_eq_zero]</code></pre>
+<p>
+The new feature: Lean proves the rewriter's step as a <a href="#g-lemma">lemma</a>, and the tactic line ends with the new fact.
+</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_4 _atoms _vars))
+    (_h1 : (formula_6 _atoms _vars))
+    (_h2 : (formula_8 _atoms _vars))
+    : False :=
+  let _step_9 : (formula_4 _atoms _vars) :=
+    _h0
+  let _step_14 : (formula_13 _atoms _vars) :=
+    (rewrite_14 _atoms _vars)
+  ...</code></pre>
+<p>
+The theorem: its <a href="#g-hypothesis">hypotheses</a> are the three <a href="#g-assertion">assertions</a> of the input, and its conclusion is <code>False</code>.
+</p>
+</section>
+
+<section>
+<h2>How it was verified</h2>
+<p>
+On the change commit, every local test suite passed, including the new module.
+The table lists the runs that the PR description reports.
+</p>
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>Local run</th><th>Result</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Lean reconstruction tests, all modules</td><td><span class="ok">Pass</span>: 618 tests, 9 skipped, no warning</td></tr>
+    <tr><td>New nonlinear test module alone</td><td><span class="ok">Pass</span>: 12 tests</td></tr>
+    <tr><td>Exporter tests</td><td><span class="ok">Pass</span>: 125 tests</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td><span class="ok">Pass</span>: build completed, Lean checks passed</td></tr>
+    <tr><td>z3test proof script tests</td><td><span class="ok">Pass</span>: 48 tests</td></tr>
+    <tr><td>Regression matrix, <a href="#g-boolean">Boolean</a> inputs</td><td><span class="ok">Pass</span>: 6 of 6 verified in Lean</td></tr>
+    <tr><td>Regression matrix, linear real inputs</td><td><span class="ok">Pass</span>: 8 of 8 verified in Lean</td></tr>
+  </tbody>
+</table>
+</div>
+<p>
+The implementer also measured two larger sets on the first commit. These runs were not repeated.
+Most random instances that Z3 refutes now verify. The rest are rejected or fail in Lean, and none is accepted on trust.
+</p>
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>Measured set</th><th class="num">Unsat</th><th class="num">Verified in Lean</th><th class="num">Rejected by the exporter</th><th class="num">Failed in Lean</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Corpus queries formerly rejected as nonlinear</td><td class="num">78</td><td class="num">14</td><td class="num">62</td><td class="num">2</td></tr>
+    <tr><td>Random product instances, seeds 1 to 600</td><td class="num">235</td><td class="num">182</td><td class="num">2</td><td class="num">51</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>Why a corpus query is still rejected</th><th class="num">Queries</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Product of Real terms</td><td class="num">41</td></tr>
+    <tr><td>Lemma of the nonlinear solver</td><td class="num">18</td></tr>
+    <tr><td>Other reasons</td><td class="num">3</td></tr>
+  </tbody>
+</table>
+</div>
+<p>
+<strong>Local gate.</strong> Its result had not been recorded when this report was written.
+</p>
+<p>
+<strong>CI.</strong> No CI status and no CI fix round was recorded for this PR.
+So the table reports no check as passed or failed, and only names the jobs that run the changed tests.
+</p>
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>CI job</th><th>Step that runs the changed tests</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean</td><td><span class="warn">Not recorded</span>, see the <a href="https://github.com/levnach/z3/pull/133/checks">PR checks</a></td></tr>
+    <tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel</td><td><span class="warn">Not recorded</span>, see the <a href="https://github.com/levnach/z3/pull/133/checks">PR checks</a></td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<section>
+<h2>Review</h2>
+<p>
+The reviewer approved the change with no blocker and no major finding.
+Tampered certificates were rejected, and Lean failed once the new fact was removed from a zero-product certificate.
+The second commit answers the four findings.
+</p>
+<h3>Minor: one documented test input leaned on luck</h3>
+<p>
+The reviewer counted the hints in the raw clause log of each documented input.
+One log held lemmas of the nonlinear solver, and the input verified only because <a href="#g-trimming">trimming</a> dropped them.
+On another platform the test could fail and take its whole test class down.
+The input was replaced by one with a linear refutation, and the old one now accepts either outcome.
+</p>
+<h3>Minor: a rejection in the older export path looked untested</h3>
+<p>
+The reviewer found no test for how the older proof-object path rejects steps of the nonlinear solver.
+The claim was partly wrong: one of the two step labels was already tested.
+The other label and a new test were added.
+This was a coverage gap, not a soundness gap, because Lean must still prove such a step.
+</p>
+<h3>Nit: a warning in the test output</h3>
+<p>
+One rejected input made the tests print a warning, and such noise can hide a real problem.
+The warning is now expected for that input only, and it is an error for the others.
+</p>
+<h3>Nit: numbers that did not add up</h3>
+<p>
+The plan listed kinds of failing lemmas that summed to more than the failing instances.
+The kinds overlap, and the text now says so.
+</p>
+<p class="note">
+Two further suggestions were not taken. The PR description gives the reasons.
+</p>
+</section>
+
+<section>
+<h2>Risks and open questions</h2>
+<ul>
+  <li><strong>Tests depend on Z3's search.</strong> An input verifies only while Z3 refutes it without its nonlinear solver.</li>
+  <li><strong>Late failures.</strong> Some refutations pass the exporter and then fail in Lean. Nothing is trusted, but the user sees a Lean error instead of a clear rejection.</li>
+  <li><strong>Unknown.</strong> CI results and the local gate result were not available. Nothing was run on Linux or Windows locally.</li>
+</ul>
+</section>
+
+<section>
+<h2>What comes next</h2>
+<ul>
+  <li>Replay the nonlinear solver's own lemmas in Lean.</li>
+  <li>Prove the rewriter's case split on the signs of the factors of a product.</li>
+  <li>Reject clauses assumed by the nonlinear solver by name, instead of sending them to Lean.</li>
+  <li>Certify products of Real terms, which needs a theorem over the real numbers.</li>
+</ul>
+</section>
+
+<section>
+<h2>Glossary</h2>
+<dl class="glossary">
+  <dt id="g-array">array</dt>
+  <dd>A term that maps indices to values, read with <code>select</code> and updated with <code>store</code>.</dd>
+
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula the input states to be true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+
+  <dt id="g-atom">atom</dt>
+  <dd>A term that a theory treats as a single indivisible unit. In <code>2*x + 3*(m*n)</code>, linear arithmetic sees two atoms: <code>x</code> and <code>m*n</code>.</dd>
+
+  <dt id="g-boolean">Boolean</dt>
+  <dd>Having the sort Bool, with the two values true and false.</dd>
+
+  <dt id="g-certificate">certificate</dt>
+  <dd>A file that records a refutation in enough detail for an independent checker to confirm it.</dd>
+
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of <a href="#g-literal">literals</a>, such as <code>p or not q</code>.</dd>
+
+  <dt id="g-clause-log">clause log</dt>
+  <dd>The list of <a href="#g-clause">clauses</a> a solver assumed and derived, each derived one with a hint for how to check it.</dd>
+
+  <dt id="g-cut">cut</dt>
+  <dd>A lemma of integer arithmetic that removes non-integer solutions. From <code>2*x &gt;= 1</code> over Int it concludes <code>x &gt;= 1</code>.</dd>
+
+  <dt id="g-farkas">Farkas lemma</dt>
+  <dd>A proof that linear inequalities contradict each other: multiply each by a non-negative number and add them to get something false, such as <code>0 &lt; 0</code>.</dd>
+
+  <dt id="g-fragment">fragment</dt>
+  <dd>A restricted class of formulas, such as linear integer arithmetic without quantifiers.</dd>
+
+  <dt id="g-hint">hint</dt>
+  <dd>A note attached to a derived clause that names the rule behind it, and sometimes its coefficients.</dd>
+
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>An assumption of a theorem. Here each assertion of the input becomes one hypothesis.</dd>
+
+  <dt id="g-lemma">lemma</dt>
+  <dd>A small proved statement that a larger proof uses as a step.</dd>
+
+  <dt id="g-linear-arithmetic">linear arithmetic</dt>
+  <dd>Arithmetic where variables are only added and multiplied by constants, as in <code>2*x + 3*y &lt;= 5</code>.</dd>
+
+  <dt id="g-linear-form">linear form</dt>
+  <dd>A sum of atoms, each multiplied by a constant, plus a constant.</dd>
+
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>x &lt;= 2</code> or <code>not p</code>.</dd>
+
+  <dt id="g-nonlinear-arithmetic">nonlinear arithmetic</dt>
+  <dd>Arithmetic that multiplies variables with each other, as in <code>x*y &gt; 2</code>.</dd>
+
+  <dt id="g-nonlinear-solver">nonlinear solver</dt>
+  <dd>The part of an SMT solver that reasons about a product from its factors, for example that a square is never negative.</dd>
+
+  <dt id="g-rational">rational number</dt>
+  <dd>A fraction of two integers. The square root of 2 is real but not rational.</dd>
+
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions leads to a contradiction.</dd>
+
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>The part of a solver that simplifies terms before solving, for example by putting the factors of a product in a fixed order.</dd>
+
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that searches for a proof of a goal. Examples are <code>omega</code> for linear integer arithmetic and <code>grind</code> for general reasoning.</dd>
+
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that is true because of a theory, such as arithmetic, and not because of the input's assertions.</dd>
+
+  <dt id="g-trimming">trimming</dt>
+  <dd>Removing from a clause log the steps that the final refutation does not use.</dd>
+
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. The only rule is that equal arguments give equal results.</dd>
+</dl>
+</section>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-13.
+</footer>
+
+</main>
+</body>
+</html>
