@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c2024; --muted: #5b6570; --line: #d9dee3;
-  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --badge: #e7eef7;
+  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --badge: #e3f3e6;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171a; --fg: #e3e7eb; --muted: #9aa5b1; --line: #2e353c;
-    --panel: #1d2226; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --badge: #22303f;
+    --panel: #1d2226; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --badge: #1d3324;
   }
 }
 * { box-sizing: border-box; }
@@ -43,7 +43,7 @@ pre code { background: none; padding: 0; font-size: .82rem; white-space: pre; }
 table { border-collapse: collapse; width: 100%; margin: .7rem 0; font-size: .92rem; }
 th, td { border: 1px solid var(--line); padding: .4rem .55rem; text-align: left; vertical-align: top; }
 th { background: var(--panel); }
-td.num { text-align: right; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
 .ok { color: var(--ok); font-weight: 600; }
 .warn { color: var(--warn); font-weight: 600; }
 .note { color: var(--muted); font-size: .92rem; }
@@ -59,15 +59,15 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <h1>Replace Real abs of constants by their values in Lean certificates</h1>
 <ul class="meta">
 <li>Pull request: <a href="https://github.com/levnach/z3/pull/129">levnach/z3 #129</a></li>
-<li>State: <span class="badge">OPEN</span> This pull request is not merged.</li>
-<li>Change commit: <a href="https://github.com/levnach/z3/commit/b5922d870fb8078d077cc11c5a2d36331ed6126a"><code>b5922d870</code></a></li>
-<li>Date: 2026-11-13T03:15:48Z</li>
+<li>State: <span class="badge">MERGED</span></li>
+<li>Merge commit: <a href="https://github.com/levnach/z3/commit/8a1c210b204a1fb1ee9efcd0fc78e73c2a0617b9"><code>8a1c210b2</code></a>, merged 2026-11-13T03:32:17Z</li>
+<li>Date: 2026-11-13T03:32:17Z</li>
 <li>Loop iteration: 128</li>
 </ul>
 </header>
 
 <h2>In one paragraph</h2>
-<p>This PR teaches the Lean reconstruction to handle the <a href="#g-abs">absolute value</a> of a <a href="#g-constant">constant</a> of <a href="#g-sort">sort</a> Real, such as <code>(abs (- 2.5))</code>. Z3's <a href="#g-rewriter">rewriter</a> replaces such a term by its <a href="#g-numeral">numeral</a>, here 2.5. A <a href="#g-rewrite-step">rewrite step</a> of the <a href="#g-certificate">certificate</a> then rests on a <a href="#g-congruence">congruence</a> over that numeral. In Lean the same abs is an <a href="#g-ite">if-then-else term</a>. The <a href="#g-tactic">tactic</a> <code>grind</code> could not match it with the numeral inside the argument of an <a href="#g-uf">uninterpreted function</a>. The reconstruction now proves each such abs equal to its value and substitutes the value. <a href="#g-clause-log">Clause-log</a> certificates with these terms now yield a <a href="#g-refutation">refutation</a> that Lean accepts. No definition, theorem statement, or <a href="#g-axiom">axiom</a> changes.</p>
+<p>This PR teaches the Lean reconstruction to handle the <a href="#g-abs">absolute value</a> of a <a href="#g-constant">constant</a> of <a href="#g-sort">sort</a> Real, such as <code>(abs (- 2.5))</code>. Z3's <a href="#g-rewriter">rewriter</a> replaces such a <a href="#g-term">term</a> by its <a href="#g-numeral">numeral</a>, here 2.5. A <a href="#g-rewrite-step">rewrite step</a> of the <a href="#g-certificate">certificate</a> then rests on a <a href="#g-congruence">congruence</a> over that numeral. In Lean the same abs is an <a href="#g-ite">if-then-else term</a>. The <a href="#g-tactic">tactic</a> <code>grind</code> could not match it with the numeral inside the argument of an <a href="#g-uf">uninterpreted function</a>. The reconstruction now proves each such abs equal to its value and substitutes the value. <a href="#g-clause-log">Clause-log</a> certificates with these terms now yield a <a href="#g-refutation">refutation</a> that Lean accepts. No definition, theorem statement, or <a href="#g-axiom">axiom</a> changes.</p>
 
 <h2>Background</h2>
 <p>Before this PR the pipeline already wrote a Real abs as its if-then-else term. Lean rejected clause-log certificates where the abs of a constant sat under an uninterpreted function, a <a href="#g-predicate">predicate</a>, an <a href="#g-array">array</a> read, a <a href="#g-floor">floor</a>, or <code>is_int</code>. Certificates from the <a href="#g-legacy">legacy core</a> were not affected, because that proof evaluates the abs itself. The work serves milestone 3 of the plan, equality and <a href="#g-linear">linear arithmetic</a>. Arrays themselves belong to milestone 4, broader theories.</p>
@@ -80,24 +80,24 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <li>When two function arguments are compared, an abs of a constant counts by its value, so <code>(+ (+ 2.0 (- 3.25)) (abs (- 0.25)))</code> is matched with &minus;1.0.</li>
 <li>Constant indices of array reads are matched the same way, which also fixes one input without any abs.</li>
 </ul>
-<p>An analogy: a teacher first shows that |&minus;2.5| is 2.5, then writes 2.5 over every |&minus;2.5| on the board. After that, two lines compare at a glance.</p>
+<p>An analogy: a teacher first shows that |&minus;2.5| is 2.5, then writes 2.5 over every |&minus;2.5| on the board.</p>
 <h3>Tests and documents</h3>
 <ul>
-<li>New tests pin hand-written inputs and random <a href="#g-seed">seeds</a>, and require Lean to reject a certificate that lacks a part of the new proof text. The plan and the README describe the technique.</li>
+<li>New tests pin hand-written inputs and random <a href="#g-seed">seeds</a>, and require Lean to reject a certificate that lacks a part of the new proof text.</li>
 </ul>
 <div class="scroll">
 <table>
-<thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<thead><tr><th>File</th><th>Role</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
 <tbody>
 <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean reconstruction</td><td class="num">156</td><td class="num">21</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td>Tests</td><td class="num">552</td><td class="num">0</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">54</td><td class="num">0</td></tr>
 <tr><td><code>examples/python/README</code></td><td>Documentation</td><td class="num">10</td><td class="num">2</td></tr>
-<tr><th colspan="2">Total, two commits</th><th class="num">772</th><th class="num">23</th></tr>
+<tr><th colspan="2">Total</th><th class="num">772</th><th class="num">23</th></tr>
 </tbody>
 </table>
 </div>
-<p class="note">There is no C++ change.</p>
+<p class="note">The branch's two commits are one commit on <code>master</code>. There is no C++ change.</p>
 
 <h2>Worked example</h2>
 <p>The input is <code>abs_of_a_negative_fraction</code> from the new tests, with a <code>(check-sat)</code> line added. Both runs are real runs on the clause log.</p>
@@ -107,8 +107,8 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 (check-sat)</code></pre>
 <p>It claims that <code>g</code> differs at |&minus;2.5| and at 2.5, which is impossible.</p>
 <h3>(b) Before</h3>
-<p>The base exporter accepted the input. The base reconstruction then failed in Lean. The temporary file's directory is cut from the first line.</p>
-<pre><code>z3_proof_p2cot7n8.lean:50:7: error: `grind` failed
+<p>The base exporter accepted the input. The base reconstruction then failed in Lean.</p>
+<pre><code>z3_proof_foz81zn8.lean:50:7: error: `grind` failed
 case grind.2
 _atoms : Nat → Prop
 _vars : Nat → Rat
@@ -120,7 +120,7 @@ h_1 : ¬0 ≤ -(5 * 2⁻¹)
 Lean checking failed; no proof was published.</code></pre>
 <p>After splitting the if-then-else term, <code>grind</code> held <code>- -(5 * 2⁻¹)</code> inside the argument and did not match it with <code>5 * 2⁻¹</code>.</p>
 <h3>(c) After</h3>
-<p>The current code generated a Lean file of 77 lines, and the Lean check accepted it.</p>
+<p>The merged code generated a Lean file of 77 lines, and the Lean check accepted it.</p>
 <pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := ((5 : Rat) / (2 : Rat))
 def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := (-(term_0 _atoms _vars _m))
 noncomputable def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation) : Rat := (@ite Rat ((term_1 _atoms _vars _m) &gt;= ((0 : Rat))) (Classical.propDecidable _) (term_1 _atoms _vars _m) (-(term_1 _atoms _vars _m)))
@@ -136,7 +136,7 @@ def formula_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpret
     (_h0 : (formula_6 _atoms _vars _m))
     : False :=
   ...</code></pre>
-<p>The theorem says that the one <a href="#g-assertion">assertion</a> leads to <code>False</code>, for every interpretation of <code>g</code>.</p>
+<p>The theorem says that the one <a href="#g-assertion">assertion</a> leads to <code>False</code>, for every <a href="#g-interpretation">interpretation</a> of <code>g</code>.</p>
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem rewrite_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m : Interpretation)
     : (formula_11 _atoms _vars _m) := by
@@ -151,16 +151,25 @@ private theorem rewrite_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m
 <p>The line <code>have _av2</code> proves that the if-then-else term equals 5/2. The next line puts 5/2 in its place, and the final <code>grind</code> sees <code>g</code> applied to one numeral twice.</p>
 
 <h2>How it was verified</h2>
-<p>On the integrator's machine every Lean reconstruction test passed. Several hundred random inputs were rebuilt, and Lean accepted every certificate whose text changed. Seven deliberately broken versions of the reconstruction, called <a href="#g-mutant">mutants</a>, were all caught by the new tests.</p>
+<p>The loop's local gate passed all five steps, and the PR was merged on that result. The gate repeats, on the loop machine, the CI steps that exercise this work.</p>
 <div class="scroll">
 <table>
-<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction tests, all modules</td><td><span class="ok">OK</span>: 574 run, 9 skipped</td></tr>
-<tr><td>The changed test module, rerun on the final tree</td><td><span class="ok">OK</span>: 30 run</td></tr>
-<tr><td>Certificate exporter tests</td><td><span class="ok">OK</span>: 124 run</td></tr>
+<tr><td>Certificate exporter tests</td><td><span class="ok">pass</span>: 124 run</td><td class="num">19 s</td></tr>
+<tr><td>Lean reconstruction tests, all modules</td><td><span class="ok">pass</span>: 574 run, 9 skipped</td><td class="num">934 s</td></tr>
+<tr><td>Proof script tests of the z3test repository</td><td><span class="ok">pass</span>: 48 run</td><td class="num">18 s</td></tr>
+<tr><td>Lean-certified <a href="#g-boolean">Boolean</a> inputs, legacy core</td><td><span class="ok">pass</span>: 6 of 6 verified in Lean</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified linear real arithmetic inputs, clause log</td><td><span class="ok">pass</span>: 8 of 8 verified in Lean</td><td class="num">7 s</td></tr>
+</tbody>
+</table>
+</div>
+<p>Before the merge, Lean accepted every changed certificate of several hundred random inputs. The new tests caught all seven <a href="#g-mutant">mutants</a> of the reconstruction.</p>
+<div class="scroll">
+<table>
+<thead><tr><th>Check before the merge</th><th>Result</th></tr></thead>
+<tbody>
 <tr><td>Lean project build and checks</td><td><span class="ok">passed</span></td></tr>
-<tr><td>Proof tests of the z3test repository</td><td><span class="ok">OK</span>: 48 run</td></tr>
 <tr><td>New documented inputs</td><td>17 of 21 rejected by Lean before, all 21 verify now</td></tr>
 <tr><td>New pinned random seeds</td><td>8 of 9 rejected by Lean before, all 9 verify now</td></tr>
 <tr><td>Random inputs at the base, clause log</td><td>rejected: 70 of 151 plain, 69 of 132 with floors, 53 of 116 with arrays</td></tr>
@@ -170,24 +179,24 @@ private theorem rewrite_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m
 </tbody>
 </table>
 </div>
-<p class="note">The full suite ran before a last comment-only edit of the test module, which was then rerun. The C++ tests and the CI proof matrix were not run locally.</p>
-<p>The driver's local gate, a rerun of the test suites, had not recorded a result when this report was written. Its log showed the certificate exporter tests passing, 124 run, and the Lean reconstruction tests still running.</p>
-<p>GitHub reported no checks on the PR branch when this report was written. There were no CI fix rounds and no failures judged unrelated. CI success must not be inferred from the local tests.</p>
+<p class="note">The C++ tests and the full CI proof matrix were not run locally.</p>
+<p>GitHub reported no checks on the PR branch. CI still runs on <code>master</code> after the merge. No workflow run was listed for the merge commit when this report was written, so its result is unknown. There were no CI fix rounds and no failures judged unrelated.</p>
 <div class="scroll">
 <table>
 <thead><tr><th>Workflow</th><th>Check</th><th>Result</th><th>Link</th></tr></thead>
 <tbody>
-<tr><td><code>ci.yml</code></td><td>Job <code>ubuntu-cmake</code>, entry releaseClang, step "Check native proofs in Lean". This step runs the changed test module.</td><td><span class="warn">not reported</span></td><td><a href="https://github.com/levnach/z3/pull/129/checks">PR checks</a></td></tr>
+<tr><td>Any, on the PR branch</td><td>No check was reported.</td><td><span class="warn">none reported</span></td><td><a href="https://github.com/levnach/z3/pull/129/checks">PR checks</a></td></tr>
+<tr><td><code>ci.yml</code>, on <code>master</code> after the merge</td><td>Job <code>ubuntu-cmake</code>, entry releaseClang, step "Check native proofs in Lean". This step runs the changed test module.</td><td><span class="warn">not reported yet</span></td><td><a href="https://github.com/levnach/z3/commit/8a1c210b204a1fb1ee9efcd0fc78e73c2a0617b9">merge commit</a></td></tr>
 </tbody>
 </table>
 </div>
 
 <h2>Review</h2>
-<p>The reviewer approved the first commit with no blockers and no major findings. In 75 certificate pairs from before and after, definitions and theorem statements were identical. The second commit answers the findings.</p>
+<p>The reviewer approved with no blockers and no major findings. In 75 certificate pairs from before and after, definitions and theorem statements were identical.</p>
 <ul>
-<li><strong>Minor, fixed: a test that could not fail.</strong> The reviewer made three replacements name a term the goal does not contain, and Lean still accepted them. The replacement always finds its term in the fact stated just before it. The new test removes only the replacements and requires Lean to reject four inputs.</li>
-<li><strong>Minor, fixed: a wrong reason for <code>try</code>.</strong> The replacement sat under <code>try</code>, which lets a failing tactic pass silently. The reviewer made it mandatory and Lean still accepted everything, so the wrapper could only hide failures. It is removed.</li>
-<li><strong>Minor, fixed in part: two untested code paths.</strong> The reviewer deleted each path, and every test still passed. A new array input now needs the first path in Lean. No input was found that needs the second, so a test pins only its text.</li>
+<li><strong>Minor, fixed: a test that could not fail.</strong> The reviewer made three replacements name a term the <a href="#g-goal">goal</a> does not contain, and Lean still accepted them. So the test would stay green on a broken replacement. The new test removes only the replacements and requires Lean to reject four inputs.</li>
+<li><strong>Minor, fixed: a wrong reason for <code>try</code>.</strong> The replacement sat under <code>try</code>, which lets a failing tactic pass silently. The reviewer made it mandatory and Lean still accepted everything. The wrapper could only hide failures, so it is removed.</li>
+<li><strong>Minor, fixed in part: two untested code paths.</strong> The reviewer deleted each path, and every test still passed. A new array input now needs the first path in Lean. No input needs the second, so a test pins only its text.</li>
 <li><strong>Two nits, fixed.</strong> The new Lean tests now check that the theorem has one <a href="#g-hypothesis">hypothesis</a> per assertion. One more seed is pinned, which Lean rejects when one group of the new facts is missing.</li>
 </ul>
 
@@ -197,7 +206,7 @@ private theorem rewrite_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m
 <li>Many certificates change text, and an extra equation could change what <code>grind</code> does on an uncovered input.</li>
 <li>The older replacement of floor values is still under <code>try</code>, for the reason the review disproved.</li>
 <li>An abs over the floor of a constant still fails.</li>
-<li>Two probe inputs exceeded the solver's 60 second limit at export, which was not investigated.</li>
+<li>Two probe inputs exceeded the solver's 60 second limit at export. This was not investigated.</li>
 </ul>
 
 <h2>What comes next</h2>
@@ -205,7 +214,6 @@ private theorem rewrite_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m
 <li>Give a value to an abs over the floor of a constant, as in <code>(g (abs (- (to_real (to_int 2.5)) 4.5)))</code>.</li>
 <li>Match read indices that are not constants, store indices, and stored values. No failing input is known.</li>
 <li>Weigh two reviewer suggestions: state the abs facts only where a floor or an array term is reached, and count an abs by its value in if-then-else conditions too.</li>
-<li>The other candidates of the loop's backlog are unchanged.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
@@ -214,24 +222,29 @@ private theorem rewrite_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_m
 <dt id="g-array">array</dt><dd>A value that maps indices to elements. A read is written <code>(select a i)</code>, and a store is written <code>(store a i v)</code>.</dd>
 <dt id="g-assertion">assertion</dt><dd>A formula the input states as true, written <code>(assert ...)</code>.</dd>
 <dt id="g-axiom">axiom</dt><dd>A statement accepted without proof. The generated Lean files add none.</dd>
+<dt id="g-boolean">Boolean</dt><dd>The sort with the two values true and false, written <code>Bool</code>.</dd>
 <dt id="g-certificate">certificate</dt><dd>A file of proof steps that an independent checker can replay.</dd>
-<dt id="g-clause-log">clause log</dt><dd>The list of clauses the solver records while it works, used here as a source of proof steps. A clause is a disjunction of literals.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as "p or not q". A literal is an atomic formula or its negation.</dd>
+<dt id="g-clause-log">clause log</dt><dd>The list of <a href="#g-clause">clauses</a> the solver records while it works, used here as a source of proof steps.</dd>
 <dt id="g-congruence">congruence</dt><dd>The rule that equal arguments give equal results. From <code>x = y</code> it follows that <code>(g x) = (g y)</code>.</dd>
 <dt id="g-constant">constant</dt><dd>Here, a term with a fixed numeric value and no variable left in it, such as <code>(+ 1.5 (- 4.0))</code>.</dd>
 <dt id="g-floor">floor</dt><dd>The largest integer not above a number, written <code>to_int</code> in SMT-LIB. The floor of 2.5 is 2. The test <code>is_int</code> asks whether a number equals its floor.</dd>
+<dt id="g-goal">goal</dt><dd>The statement a Lean proof still has to prove at a given point.</dd>
 <dt id="g-hypothesis">hypothesis</dt><dd>An assumption of a theorem. The generated theorem has one per assertion.</dd>
 <dt id="g-ite">if-then-else term</dt><dd>A term that picks one of two values by a condition, written <code>ite</code> in SMT-LIB. Lean states |t| as "if t &ge; 0 then t else &minus;t".</dd>
+<dt id="g-interpretation">interpretation</dt><dd>A choice of meaning for every uninterpreted symbol, for example a concrete function for <code>g</code>.</dd>
 <dt id="g-legacy">legacy core</dt><dd>Z3's older solver core, which builds a proof object directly. It is the second source of certificates, next to the clause log.</dd>
-<dt id="g-linear">linear arithmetic</dt><dd>Arithmetic where variables are only added and multiplied by numerals.</dd>
+<dt id="g-linear">linear arithmetic</dt><dd>Arithmetic where variables are only added and multiplied by numerals. Over the reals its SMT-LIB name is QF_LRA.</dd>
 <dt id="g-mutant">mutant</dt><dd>A copy of a program with one deliberate defect. Good tests fail on it.</dd>
 <dt id="g-numeral">numeral</dt><dd>A number written out, such as <code>2.5</code>.</dd>
-<dt id="g-predicate">predicate</dt><dd>An uninterpreted function whose result is Boolean, that is, true or false.</dd>
+<dt id="g-predicate">predicate</dt><dd>An uninterpreted function whose result is Boolean.</dd>
 <dt id="g-refutation">refutation</dt><dd>A proof that the assertions together lead to a contradiction.</dd>
 <dt id="g-rewrite-step">rewrite step</dt><dd>A proof step that says a formula is equivalent to its simplified form.</dd>
 <dt id="g-rewriter">rewriter</dt><dd>The part of the solver that simplifies terms before solving, for example by evaluating constants.</dd>
 <dt id="g-seed">seed</dt><dd>The number that fixes what a random generator produces, so a random test can be repeated.</dd>
 <dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
 <dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof. <code>grind</code> searches for a proof by itself. <code>generalize</code> and <code>subst</code> replace a term using a proved equation.</dd>
+<dt id="g-term">term</dt><dd>An expression that denotes a value, such as <code>(g 2.5)</code> or <code>(+ x 1.0)</code>.</dd>
 <dt id="g-uf">uninterpreted function</dt><dd>A function symbol with no fixed meaning, such as <code>g</code>. Only congruence is known about it.</dd>
 </dl>
 
