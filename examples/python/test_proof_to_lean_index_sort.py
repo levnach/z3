@@ -20,6 +20,7 @@ import random
 import re
 import sys
 import unittest
+from unittest import mock
 
 import z3
 
@@ -155,6 +156,31 @@ INDEX_SORT_INPUTS = {
 (assert (q e))
 (check-sat)
 """,
+    # A subset and no map or set operator: the subset alone gives the sort its type.
+    "subset_alone_next_to_a_sort": _SORTS + """(declare-fun q (E) Bool)
+(assert (q e))
+(assert (not (subset a a)))
+(check-sat)
+""",
+    # No second sort, and a predicate over Bool that is mapped but never applied.
+    "mapped_only_predicate_over_bool": """(declare-sort I 0)
+(declare-fun r (Bool) Bool)
+(declare-fun a () (Array I Bool))
+(declare-fun b () (Array I Bool))
+(assert (= a b))
+(assert (not (= ((_ map r) a) ((_ map r) b))))
+(check-sat)
+""",
+    # No second uninterpreted sort, but an enumeration, whose constructors inhabit the carrier.
+    "enumeration_next_to_sets": """(declare-sort I 0)
+(declare-datatypes ((Color 0)) (((red) (green))))
+(declare-fun a () (Array I Bool))
+(declare-fun c () (Array I Color))
+(declare-fun i () I)
+(assert (select (complement a) i))
+(assert (or (select a i) (and (not (= (select c i) red)) (not (= (select c i) green)))))
+(check-sat)
+""",
 }
 _FRAGMENTS = {"int_arithmetic_next_to_sets": "qf_uflia", "int_indices_next_to_sorts": "qf_uflia"}
 
@@ -195,6 +221,14 @@ ONE_ELEMENT_INDEX_SORT = """(declare-sort I 0)
 (assert (and p (not p)))
 (assert (= (store a i true) (complement (store a i false))))
 (assert (not (= e1 e2)))
+(check-sat)
+"""
+
+# Sets indexed by an enumeration, which the exporter rejects.
+ENUMERATION_INDEX = """(declare-datatypes ((Color 0)) (((red) (green))))
+(declare-fun a () (Array Color Bool))
+(assert (select (complement a) red))
+(assert (select a red))
 (check-sat)
 """
 
@@ -408,6 +442,22 @@ class TestIndexSortValidation(unittest.TestCase):
         self.assertEqual(graph.index_sorts, ())  # I alone, were this the input's signature
         with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "does not match the original input"):
             proof_to_lean.reconstruct(source, certificate)
+
+    def test_an_enumeration_as_index_sort_is_rejected(self):
+        """An enumeration cannot be a type of its own: its constructors and case fields are over _m.U.
+
+        The exporter's parser rejects arrays indexed by an enumeration, so no
+        input reaches the reconstructor's guard; it is run here with the
+        input's sort I classified as an enumeration.
+        """
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, r"unsupported sort: Array\(Color, Bool\)"):
+            _export(ENUMERATION_INDEX)
+        source = INDEX_SORT_INPUTS["sets_next_to_a_sort"]
+        with mock.patch.object(proof_to_lean, "is_enumeration_sort", lambda sort: sort.name() == "I"), \
+                mock.patch.object(proof_to_lean, "enumeration_constructors", lambda sort: []):
+            with self.assertRaisesRegex(proof_to_lean.ReconstructionError,
+                                        "indexed by an enumeration are not supported: I$"):
+                proof_to_lean.reconstruct(source, self.certificates["sets_next_to_a_sort"])
 
     def test_pinned_seeds_are_unsatisfiable(self):
         for seed in INDEX_SORT_SEEDS:

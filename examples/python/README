@@ -1003,8 +1003,10 @@ Uninterpreted functions in Lean
 -------------------------------
 
 For qf_uf certificates every definition takes, instead of the Rat valuation,
-an interpretation of the uninterpreted sorts, all rendered as one type: a
-structure the file declares, quantified as the one argument _m.
+an interpretation of the uninterpreted sorts, all rendered as one type (but
+for the index sorts of maps and set operators, which can get a type of their
+own, _m.S0; see the arrays section below): a structure the file declares,
+quantified as the one argument _m.
 
     structure Interpretation where
       U : Type
@@ -1424,10 +1426,17 @@ named by the code s0 (arrs_s0b : Nat -> S0 -> Prop). A model is an instance
 with its carrier of the sort as S0, a copy of it in the disjoint union U,
 and the inclusion as s0_inj. An index sort that is all of the carrier (the
 only sort, every function over it alone) stays _m.U, where nothing is outside
-it. Z3 itself reasons about such sets through default values, as if every
-index sort were infinite: it answers unsat on the set equality above. The
-certificate of such an answer is rejected (the default values of arrays over
-an uninterpreted sort have no Lean reading) or fails in Lean.
+it. The choice is made from the certificate's declarations, which include
+those of the proof steps: the sorts and the uninterpreted symbols are the
+input's (the reconstructor checks both), but a pointwise operator that only a
+proof step named would give its index sort a type of its own as well, so the
+signature of the theorem is that of the certificate, not of the input alone.
+A statement with the sort as its own type is faithful to the input in every
+case; the one over _m.U is kept only where it is faithful too. Z3 itself
+reasons about such sets through default values, as if every index sort were
+infinite: it answers unsat on the set equality above. The certificate of such
+an answer is rejected (the default values of arrays over an uninterpreted
+sort have no Lean reading) or fails in Lean.
 
 Z3 logs a map of a built-in with its signature, ((_ map (<= (Int Int) Bool))
 a b), and declares a mapped function before the map, so the trimmer reads

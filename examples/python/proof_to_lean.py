@@ -1804,7 +1804,6 @@ def _index_sort_fields(graph):
     return tuple(fields)
 
 
-
 def _validate_graph(source, certificate):
     _fields(certificate, (
         "format", "format_version", "z3_version", "fragment", "result",
@@ -1968,7 +1967,8 @@ def _bind_input(source, graph, fragment=None, query=0):
     (Z3 accepts overloading by sort; the frontend rejects it and this check is
     repeated here) and the certificate's declaration must carry that symbol's
     full signature. Interned terms also carry their sort, so terms of different
-    sorts never compare equal even though Lean renders every sort as _m.U.
+    sorts never compare equal even though Lean renders the sorts as _m.U
+    (all but those with a type of their own, _index_sorts).
     """
     context = z3.Context(proof=False)
     original, original_fragment = parse_assertions(source, context, integer=True, query=query)

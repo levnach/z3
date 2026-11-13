@@ -674,8 +674,11 @@ keeps every sort name, so the reconstructor checks the proof graph is
 well-sorted (functions and predicates take uninterpreted-sort arguments
 only, equality and `distinct` compare one sort, every application matches
 its declaration) and `_bind_input` checks the sort set against the input.
-Lean renders all sorts as the one type `_U`: a many-sorted model is an
-instance of the theorem over the disjoint union of its carriers, every
+Lean renders all sorts as the one type `_U` (since 2026-11-12 the index
+sort of a map, a set operator, or a subset can be a type of its own; see
+"Index sorts of maps and set operators as Lean types of their own"): a
+many-sorted model is an instance of the theorem over the disjoint union of
+its carriers, every
 ground term keeps its value, and well-sorted inputs only compare terms of
 one sort, so the collapsed theorem implies unsatisfiability of the
 many-sorted input. The two documented two-sort inputs and 19 random
@@ -2792,7 +2795,12 @@ theorem says.
 
 Tests (`test_proof_to_lean_index_sort.py`): `INDEX_SORT_INPUTS`,
 `ALONE_INPUTS`, `INDEX_SORT_SEEDS` of `random_index_sort_instance` (Lean),
-the encoding and the sorts chosen (no Lean), and
+the encoding and the sorts chosen (no Lean; each clause of the condition
+that keeps `_m.U` has an input that only it decides: a subset without a set
+operator, a predicate over Bool that is mapped and never applied, an
+enumeration next to the sets), the enumeration guard run with the sort
+classified as an enumeration (`test_an_enumeration_as_index_sort_is_rejected`),
+and
 `test_a_one_element_index_sort_is_an_instance`: Lean checks a model of the
 set equality and the disequality above (`S0` is `Unit`, `U` is `Bool`)
 against the reconstructed definitions, and the proof that the same two
