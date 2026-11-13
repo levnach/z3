@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c2024; --muted: #5b6470; --line: #d5dae0;
-  --soft: #f4f6f8; --link: #0b5cad; --accent: #8a5a00; --ok: #1a7f37; --badge: #fff4d6;
+  --soft: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --merged: #6f42c1; --badge: #f1eafc;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171a; --fg: #e4e7ea; --muted: #9aa4af; --line: #343b43;
-    --soft: #1d2126; --link: #7ab7ff; --accent: #f0c060; --ok: #5fd07f; --badge: #3a2f10;
+    --soft: #1d2126; --link: #7ab7ff; --ok: #5fd07f; --merged: #c3a6ff; --badge: #2a2140;
   }
 }
 * { box-sizing: border-box; }
@@ -34,7 +34,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; margin: .6rem 0; }
 pre code { background: none; padding: 0; font-size: .82rem; white-space: pre; }
 .meta { color: var(--muted); font-size: .93rem; margin: .2rem 0; }
-.badge { display: inline-block; background: var(--badge); color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 .65rem; font-weight: 600; font-size: .85rem; }
+.badge { display: inline-block; background: var(--badge); color: var(--merged); border: 1px solid var(--merged); border-radius: 999px; padding: 0 .65rem; font-weight: 600; font-size: .85rem; }
 .note { color: var(--muted); font-size: .93rem; }
 .tablewrap { overflow-x: auto; margin: .7rem 0; }
 table { border-collapse: collapse; width: 100%; font-size: .92rem; }
@@ -53,27 +53,27 @@ footer { margin-top: 2.5rem; padding-top: .9rem; border-top: 1px solid var(--lin
 
 <header>
 <h1>Give index sorts of maps and set operators their own Lean type</h1>
-<p class="meta"><a href="https://github.com/levnach/z3/pull/131">Pull request #131</a> in levnach/z3, targeting <code>master</code> · loop iteration 130 · 2026-11-13T07:43:17Z</p>
-<p><span class="badge">OPEN</span> This pull request is not merged. The change commit is <a href="https://github.com/levnach/z3/commit/f78b602284efdb76b55ed60f6e19dfa51e0f5cd3"><code>f78b60228</code></a>.</p>
+<p class="meta"><a href="https://github.com/levnach/z3/pull/131">Pull request #131</a> in levnach/z3, targeting <code>master</code> · loop iteration 130 · 2026-11-13T08:00:06Z</p>
+<p><span class="badge">MERGED</span> Merged on 2026-11-13T08:00:06Z as commit <a href="https://github.com/levnach/z3/commit/21a6895158eee8c54617749ea2f74fd43d90dec2"><code>21a689515</code></a>.</p>
 </header>
 
 <h2>In one paragraph</h2>
-<p>Some inputs apply a <a href="#g-map">map</a>, a <a href="#g-set-operator">set operator</a>, or <a href="#g-subset">subset</a> to an <a href="#g-array">array</a> whose <a href="#g-index-sort">index sort</a> is an <a href="#g-uninterpreted-sort">uninterpreted sort</a>. The reconstructor now gives that index sort a Lean type of its own.Before, all uninterpreted sorts shared one Lean type. With these <a href="#g-pointwise">pointwise operations</a>, a <a href="#g-hypothesis">hypothesis</a> of the generated <a href="#g-theorem">theorem</a> could then be stronger than the <a href="#g-assertion">assertion</a> it stands for. Lean could derive <code>False</code> from hypotheses that have a <a href="#g-model">model</a>. A <a href="#g-refutation">refutation</a> resting on them would say nothing about the input. No wrong <a href="#g-certificate">certificate</a> is known. The hypotheses now hold in every model of the input. No <a href="#g-axiom">axiom</a> was added and no check was removed.</p>
+<p>Some inputs apply a <a href="#g-map">map</a>, a <a href="#g-set-operator">set operator</a>, or <a href="#g-subset">subset</a> to an <a href="#g-array">array</a> whose <a href="#g-index-sort">index sort</a> is an <a href="#g-uninterpreted-sort">uninterpreted sort</a>. The reconstructor now gives that index sort a Lean type of its own. With one shared type and these <a href="#g-pointwise">pointwise operations</a>, a <a href="#g-hypothesis">hypothesis</a> of the generated <a href="#g-theorem">theorem</a> could be stronger than the <a href="#g-assertion">assertion</a> it stands for. Lean could derive <code>False</code> from hypotheses that have a <a href="#g-model">model</a>, so a <a href="#g-refutation">refutation</a> resting on them would say nothing about the input. No wrong <a href="#g-certificate">certificate</a> is known. The hypotheses now hold in every model of the input. No <a href="#g-axiom">axiom</a> was added and no check was removed.</p>
 
 <h2>Background</h2>
-<p>Arrays over uninterpreted sorts, maps, set operators, and subset were already supported. Every uninterpreted sort was the single <a href="#g-carrier">carrier</a> type of the <a href="#g-interpretation">interpretation</a>. That is faithful while arrays are only read with <a href="#g-select">select</a>, updated with <a href="#g-store">store</a>, and compared. It fails for pointwise operations such as <a href="#g-complement">complement</a>. The gap was the first backlog item. The work serves milestone 4 of the plan, which lists arrays among the broader theories. It is a <a href="#g-soundness">soundness</a> repair of the theorem statement and accepts no new input.</p>
+<p>Arrays over uninterpreted sorts, maps, set operators, and subset were already certified. Every uninterpreted sort was the single <a href="#g-carrier">carrier</a> type of the <a href="#g-interpretation">interpretation</a>. That is faithful while arrays are only read with <a href="#g-select">select</a>, updated with <a href="#g-store">store</a>, and compared, but not for pointwise operations such as <a href="#g-complement">complement</a>. The work serves milestone 4 of the plan, broader theories, which include arrays. It certifies no new input.</p>
 
 <h2>What changed</h2>
 <h3>Reconstructor</h3>
 <ul>
 <li>The index sort of a map, set operator, or subset is now its own Lean type, <code>_m.S0</code>, whenever the carrier holds anything else.</li>
-<li>An <a href="#g-injection">injection</a> carries terms of that type into the carrier where an <a href="#g-uninterpreted-function">uninterpreted function</a> or <a href="#g-predicate">predicate</a> takes them.</li>
-<li>When the index sort is all the carrier holds, the certificate text is identical to before.</li>
+<li>An <a href="#g-injection">injection</a> carries terms of that sort into the carrier where an <a href="#g-uninterpreted-function">uninterpreted function</a> or <a href="#g-predicate">predicate</a> takes them.</li>
+<li>When the index sort is all the carrier holds, the generated certificate is the same text as before.</li>
 <li>An <a href="#g-enumeration">enumeration</a> used as such an index sort is rejected with its own message.</li>
 </ul>
 <h3>Tests and documentation</h3>
 <ul>
-<li>A new test module checks documented inputs and random seeds in Lean, including a model of hypotheses that used to be contradictory.</li>
+<li>A new test module checks documented inputs, random seeds, and a model of once contradictory hypotheses in Lean.</li>
 <li>The plan and the README describe the new encoding.</li>
 </ul>
 <div class="tablewrap">
@@ -85,16 +85,16 @@ footer { margin-top: 2.5rem; padding-top: .9rem; border-top: 1px solid var(--lin
 <tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="num">4</td><td class="num">1</td></tr>
 <tr><td><code>examples/python/README</code></td><td class="num">37</td><td class="num">2</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">49</td><td class="num">2</td></tr>
-<tr><th>Total, two commits</th><th class="num">838</th><th class="num">69</th></tr>
+<tr><th>Total, two branch commits merged as one</th><th class="num">838</th><th class="num">69</th></tr>
 </tbody>
 </table>
 </div>
 
 <h2>Worked example</h2>
-<p>No input goes from rejected to accepted in this PR. Both pipelines accept this one. What differs is the statement Lean checks.</p>
+<p>This PR certifies no new input. The base reconstructor, rerun for this report, rejects none of the 20 inputs of the new test module. So the example is an input both versions accept, and what differs is the statement Lean checks. All output below comes from runs on the base and merged commits.</p>
 
 <h3>(a) The input</h3>
-<p>It is taken from the new test module.</p>
+<p>It comes from the new test module.</p>
 <pre><code>(declare-sort I 0)
 (declare-sort E 0)
 (declare-fun a () (Array I Bool))
@@ -106,12 +106,12 @@ footer { margin-top: 2.5rem; padding-top: .9rem; border-top: 1px solid var(--lin
 (assert (= (store a i true) (complement (store a i false))))
 (assert (not (= e1 e2)))
 (check-sat)</code></pre>
-<p>The first assertion is false, which gives an easy refutation. The second holds exactly when <code>I</code> has one element, and the third when <code>E</code> has at least two. The last two are <a href="#g-satisfiable">satisfiable</a> together.</p>
+<p>The first assertion is false, which gives an easy refutation. The second holds exactly when <code>I</code> has one element, the third when <code>E</code> has at least two. The last two are <a href="#g-satisfiable">satisfiable</a> together.</p>
 
 <h3>(b) Before</h3>
-<p>The base scripts gave no error. The reconstructor printed this line.</p>
-<pre><code>Lean checked the refutation; wrote old_example.lean</code></pre>
-<p>Both <a href="#g-sort">sorts</a> are one type, so the set <code>a</code> is a function on all of it.</p>
+<p>The base pipeline gave no rejection. Its reconstructor printed this line.</p>
+<pre><code>Lean checked the refutation; wrote .../old_example.lean</code></pre>
+<p>Both <a href="#g-sort">sorts</a> are one type there, so the set <code>a</code> is a function on all of it.</p>
 <pre><code>-- Uninterpreted sorts "E", "I" are the one type _m.U; functions and predicates take argument lists.
 -- Array sorts "(Array I Bool)" are functions _m.U -&gt; Prop (_m.arrs_ub); ...
 ...
@@ -128,7 +128,7 @@ def term_4 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 0
 ...
 def term_11 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 1
 def term_12 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 2</code></pre>
-<p>Think of two guest lists copied into one register. A claim about every guest on list I now also covers list E. The PR's own check, appended to this output by hand, proves <code>False</code> from the second and third hypotheses alone.</p>
+<p>Think of two guest lists copied into one register. A claim about every guest on list I now also covers list E. The PR's own check, appended to this file, proves <code>False</code> from the second and third hypotheses alone.</p>
 <pre><code>theorem _satisfiable_hypotheses_refuted (_atoms : Nat -&gt; Prop) (_m : Interpretation)
     (_h1 : formula_10 _atoms _m) (_h2 : formula_14 _atoms _m) : False :=
   _one_carrier_contradiction _m.U (_m.arrs_ub 0) (_m.elems 0) (_m.elems 1) (_m.elems 2) _h1 _h2</code></pre>
@@ -140,7 +140,7 @@ def term_12 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 2
 Lean checks passed.</code></pre>
 
 <h3>(c) After</h3>
-<p>The new reconstructor produced the file below, and the Lean check accepted it.</p>
+<p>The merged reconstructor produced the file below, and the Lean check accepted it.</p>
 <pre><code>-- Uninterpreted sort "I" is the type _m.S0 of its own, the index type of the pointwise maps: constants _m.s0_elems, functions _m.s0_funs, arguments of functions and predicates injected into _m.U by _m.s0_inj.
 -- Uninterpreted sort "E" is the type _m.U; functions and predicates take argument lists.
 -- Array sorts "(Array I Bool)" are functions _m.S0 -&gt; Prop (_m.arrs_s0b); ...
@@ -157,7 +157,7 @@ structure Interpretation where
   s0_funs : Nat -&gt; List U -&gt; S0
   s0_inj : S0 -&gt; U
   arrs_s0b : Nat -&gt; S0 -&gt; Prop</code></pre>
-<p>The interpretation has a second type <code>S0</code> for the sort <code>I</code>, with its own constants and injection.</p>
+<p>The interpretation has a second type <code>S0</code> for the sort <code>I</code>.</p>
 <pre><code>def term_3 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : (_m.S0 -&gt; Prop) := _m.arrs_s0b 0
 def term_4 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.S0 := _m.s0_elems 0
 ...
@@ -175,10 +175,14 @@ def term_12 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 2
     (_h2 : (formula_14 _atoms _m))
     : False :=
   ...</code></pre>
-<p>The theorem keeps its shape. The feature adds no lemma and lives in the declarations.</p>
+<p>The theorem keeps its shape. The feature lives in the declarations and adds no lemma.</p>
+<pre><code>Build completed successfully (4 jobs).
+Checking .../example.lean
+Lean checks passed.</code></pre>
 <p>The model from the PR's test, with one index and two elements of <code>E</code>, was then appended.</p>
 <pre><code>def _one_index : Interpretation where
   U := Bool
+  elems := fun n =&gt; decide (n = 1)
   ...
   S0 := Unit
   ...
@@ -191,10 +195,10 @@ theorem _one_index_disequality (_atoms : Nat -&gt; Prop) : formula_14 _atoms _on
 <p>Lean accepted both theorems, so the two hypotheses now have a model.</p>
 
 <h2>How it was verified</h2>
-<p>The whole Lean reconstruction test suite passed on the committed tree. Two random sweeps compared the new reconstructor with the base one, and no input changed outcome. The C++ tests were not run, because no C++ file changed.</p>
+<p>The whole Lean reconstruction test suite passed, about 600 tests. Two random sweeps compared the new reconstructor with the base one, and no input changed outcome. No C++ file changed, so the C++ tests were not run. The tested tree is identical to the merged commit.</p>
 <div class="tablewrap">
 <table>
-<thead><tr><th>Local check, at <code>f78b60228</code></th><th>Result</th></tr></thead>
+<thead><tr><th>Local check by the loop's agents</th><th>Result</th></tr></thead>
 <tbody>
 <tr><td>Lean reconstruction tests, all modules</td><td><span class="ok">OK</span>: 595 tests, 9 skipped</td></tr>
 <tr><td>New index-sort test module alone</td><td><span class="ok">OK</span>: 9 tests</td></tr>
@@ -202,51 +206,60 @@ theorem _one_index_disequality (_atoms : Nat -&gt; Prop) : formula_14 _atoms _on
 <tr><td>Lean project check script</td><td><span class="ok">Lean checks passed</span></td></tr>
 <tr><td>Proof tests of the z3test repository</td><td><span class="ok">OK</span>: 48 tests</td></tr>
 <tr><td>Tests of the Lean scripts</td><td><span class="ok">OK</span>: 8 and 11 tests</td></tr>
-<tr><td>Proof matrix cells, Boolean and linear real inputs</td><td><span class="ok">lean-verified</span>: 6 of 6 and 8 of 8</td></tr>
-<tr><td>Sweep, new random generator, seeds 1 to 1500</td><td>248 unsat. 198 get a type of their own, and 188 of them verify, the same 188 as at the base. 13 keep the old text. 37 are rejected as at the base. 10 fail in Lean in the same step as at the base.</td></tr>
+<tr><td>Sweep, new random generator, seeds 1 to 1500</td><td>248 unsat. 198 get a type of their own. 188 of those verify, the same 188 as at the base. 10 fail in Lean in the same step as at the base. 13 keep the old text. 37 are rejected as at the base.</td></tr>
 <tr><td>Sweep, mixed generator, seeds 1 to 500</td><td>150 unsat. 132 get a type of their own, and all 132 verify, as at the base. 18 keep the old text.</td></tr>
 <tr><td>Seven existing generators against the base</td><td>Identical text for all 517 unsat certificates</td></tr>
 <tr><td>Reviewer's comparison of 445 documented inputs</td><td>420 identical. 18 differ, each with a sort of its own. 7 cannot be exported. Run before the review fixes and not repeated after.</td></tr>
-<tr><td>Worked example of this report</td><td><span class="ok">Lean checks passed</span> for the new file, the base file, and both appended checks</td></tr>
+<tr><td>Worked example of this report, on the merged commit</td><td><span class="ok">Lean checks passed</span> for the merged file, the base file, and both appended checks</td></tr>
 </tbody>
 </table>
 </div>
-<p>GitHub reported no checks on the PR branch when this report was written. No CI status file or CI fix round was recorded. The loop's local gate was still running, so its result is not recorded here either.</p>
+<p>The change touches only documentation and Python examples, so the loop merged it on its local gate instead of waiting for GitHub CI. The gate repeats the relevant steps of the CI job "Ubuntu build - cmake - releaseClang". All five steps passed.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span>, 124 tests</td><td class="num">20s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span>, 595 tests, 9 skipped</td><td class="num">955s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span>, 48 tests</td><td class="num">18s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td><span class="ok">pass</span>, 6 of 6 lean-verified</td><td class="num">4s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td><span class="ok">pass</span>, 8 of 8 lean-verified</td><td class="num">7s</td></tr>
+</tbody>
+</table>
+</div>
+<p>GitHub reported no checks on the PR. CI runs on <code>master</code> after the merge, but no run was listed for the merge commit when this report was written. Its result is unknown. No CI fix round was recorded.</p>
 <div class="tablewrap">
 <table>
 <thead><tr><th>CI workflow or check</th><th>Status</th><th>Link</th></tr></thead>
 <tbody>
-<tr><td>Any workflow on the PR branch</td><td>None reported yet</td><td><a href="https://github.com/levnach/z3/pull/131/checks">PR checks page</a></td></tr>
-<tr><td>Local gate of the loop</td><td>Not recorded yet</td><td>none</td></tr>
+<tr><td>Any workflow on the PR branch</td><td>None reported</td><td><a href="https://github.com/levnach/z3/pull/131/checks">PR checks page</a></td></tr>
+<tr><td>Workflows on <code>master</code> for the merge commit</td><td>None listed yet, result unknown</td><td><a href="https://github.com/levnach/z3/commit/21a6895158eee8c54617749ea2f74fd43d90dec2">merge commit</a></td></tr>
 </tbody>
 </table>
 </div>
-<p class="note">The PR description says the new module runs in the job "Ubuntu build - cmake - releaseClang", step "Check native proofs in Lean".</p>
 
 <h2>Review</h2>
-<p>The reviewer approved with no blocker or major finding. The second commit addresses all six findings.</p>
+<p>The reviewer approved with no blocker or major finding. All six findings were addressed before the merge.</p>
 <ul>
-<li><strong>Minor: the subset case was untested.</strong> The reviewer disabled the subset branch, and every test still passed. A later edit could have silently restored the over-strong hypotheses. A new subset-only input now makes that <a href="#g-mutant">mutant</a> fail.</li>
+<li><strong>Minor: the subset case was untested.</strong> The reviewer disabled the subset branch, and every test still passed. A later edit could thus have silently restored the over-strong hypotheses. A new subset-only input now makes that <a href="#g-mutant">mutant</a> fail.</li>
 <li><strong>Minor: a mapped-only function was untested.</strong> Removing the clause for a predicate that is mapped but never applied also left every test passing. A new input isolates it.</li>
-<li><strong>Nit: no enumeration next to the index sort.</strong> The condition counts enumerations as inhabitants of the carrier. A new input covers this.</li>
-<li><strong>Nit, partly fixed: an unreachable guard.</strong> The exporter rejects arrays indexed by an enumeration first, so no real input reaches the guard. A new test reaches it by patching the sort classification.</li>
-<li><strong>Nit: stale documentation.</strong> Three passages still said every sort is one type. Corrected.</li>
-<li><strong>Nit: a stray blank line.</strong> Removed.</li>
+<li><strong>Nit: no enumeration next to the index sort.</strong> The condition counts enumeration values as inhabitants of the carrier, and nothing tested that. A new input does.</li>
+<li><strong>Nit, partly fixed: an unreachable guard.</strong> The exporter rejects arrays indexed by an enumeration first, so no input reaches the guard. A new test reaches it by patching the sort classification.</li>
+<li><strong>Nit: stale documentation.</strong> Three passages still said every sort is one type. They were corrected.</li>
+<li><strong>Nit: a stray blank line.</strong> It was removed.</li>
 </ul>
 
 <h2>Risks and open questions</h2>
 <ul>
 <li>Every affected certificate changes text. The <a href="#g-tactic">tactic</a> <code>grind</code> sees different terms, so an unseen input could verify before and fail now. It would fail, not verify wrongly.</li>
-<li>The condition for keeping the shared type carries the soundness argument. Any future feature that puts values into the carrier must extend it.</li>
-<li>Several helper functions changed signature. The z3test scripts do not call them.</li>
-<li>The model test breaks if the generated layout changes.</li>
-<li>Open question: Z3 answers unsat on the example's set equality alone, which has a model with one index. Whether that is intended is a question for upstream. The pipeline does not certify such answers.</li>
+<li>The condition for keeping the shared type carries the <a href="#g-soundness">soundness</a> argument. Any future feature that puts values into the carrier must extend it.</li>
+<li>Open question: Z3 answers unsat on the example's set equality alone, although it has a model with one index. Whether that is intended is a question for upstream.</li>
 </ul>
 
 <h2>What comes next</h2>
 <ul>
 <li>Accept a <a href="#g-constant-array">constant array</a> over a sort with its own type. In the first sweep, 32 unsat seeds are rejected only for that.</li>
-<li>Give an explicit message for Z3's reasoning with default values.</li>
+<li>Give an explicit message when Z3 reasons with <a href="#g-default-value">default values</a> over such a sort.</li>
 <li>Analyse the ten Lean failures of the new generator, which also fail at the base.</li>
 <li>Consider always giving such sorts their own type, which would remove the condition above.</li>
 </ul>
@@ -261,6 +274,7 @@ theorem _one_index_disequality (_atoms : Nat -&gt; Prop) : formula_14 _atoms _on
 <dt id="g-certificate">certificate</dt><dd>A record of a proof that an independent checker can verify without trusting the solver.</dd>
 <dt id="g-complement">complement</dt><dd>The set operator that flips membership at every index. An index is in the complement exactly when it is not in the set.</dd>
 <dt id="g-constant-array">constant array</dt><dd>An array that holds the same element at every index.</dd>
+<dt id="g-default-value">default value</dt><dd>The element a solver assumes an array holds at every index it has not set explicitly.</dd>
 <dt id="g-enumeration">enumeration</dt><dd>A sort defined by listing its values, such as a sort <code>Color</code> with the values <code>red</code> and <code>green</code>.</dd>
 <dt id="g-hypothesis">hypothesis</dt><dd>An assumption of a theorem. The generated theorem has one hypothesis per assertion and concludes <code>False</code>.</dd>
 <dt id="g-index-sort">index sort</dt><dd>The sort of the positions of an array. In <code>(Array I Bool)</code> the index sort is <code>I</code>.</dd>
@@ -285,7 +299,7 @@ theorem _one_index_disequality (_atoms : Nat -&gt; Prop) : formula_14 _atoms _on
 <dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A sort with no fixed meaning, declared with <code>declare-sort</code>. A model may choose any nonempty collection of values for it.</dd>
 </dl>
 
-<footer>Generated by the Lean certificate improvement loop on 2026-11-13 (UTC).</footer>
+<footer>Generated by the Lean certificate improvement loop on 2026-11-13.</footer>
 </main>
 </body>
 </html>
