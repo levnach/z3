@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #132: Certify constant arrays over uninterpreted and Bool index sorts</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --open-bg: #dafbe1;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+    --soft: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --open-bg: #12261e;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 16px; line-height: 1.6;
+}
+main { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .75rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .3rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 1.4rem 0 .4rem; }
+p { margin: .6rem 0; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul { padding-left: 1.3rem; margin: .5rem 0; }
+li { margin: .4rem 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+  background: var(--soft); padding: .1em .35em; border-radius: 4px; }
+pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px;
+  padding: .8rem 1rem; overflow-x: auto; margin: .6rem 0; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: .82rem; white-space: pre; }
+.meta { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; color: var(--muted); font-size: .92rem; margin: 0; padding: 0; list-style: none; }
+.meta li { margin: 0; }
+.badge { display: inline-block; padding: .05rem .6rem; border-radius: 999px; font-weight: 600;
+  font-size: .85rem; color: var(--ok); background: var(--open-bg); border: 1px solid var(--ok); }
+.tablewrap { overflow-x: auto; margin: .7rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--soft); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.note { border-left: 3px solid var(--line); padding: .1rem .9rem; margin: .8rem 0; color: var(--muted); }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.caption { color: var(--muted); font-size: .9rem; margin-top: .2rem; }
+dl { margin: .5rem 0; }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin: .1rem 0 0 1.2rem; }
+footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+<h1>Certify constant arrays over uninterpreted and Bool index sorts</h1>
+<ul class="meta">
+  <li><a href="https://github.com/levnach/z3/pull/132">Pull request #132</a> in levnach/z3</li>
+  <li><span class="badge">OPEN</span> not merged</li>
+  <li>Change commit <a href="https://github.com/levnach/z3/commit/b8df4639611e6dffddd36dfb4bf910b40d8f7c91"><code>b8df463</code></a></li>
+  <li>Date 2026-11-13T09:58:39Z</li>
+  <li>Loop iteration 131</li>
+</ul>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+This PR lets the pipeline certify a <a href="#g-refutation">refutation</a> that uses a
+<a href="#g-constant-array">constant array</a> whose <a href="#g-index-sort">index sort</a> is an
+<a href="#g-uninterpreted-sort">uninterpreted sort</a> or <a href="#g-boolean">Boolean</a>.
+Until now such <a href="#g-array">arrays</a> were accepted over Int and Real indices only.
+The change also covers constant arrays that the <a href="#g-rewriter">rewriter</a> creates on its own,
+for example when it turns a <a href="#g-subset">subset</a> test into an
+<a href="#g-equality">equality</a> with the empty <a href="#g-set">set</a>.
+In the Lean <a href="#g-theorem">theorem</a>, the index sort becomes a type of its own.
+Each <a href="#g-hypothesis">hypothesis</a> then means exactly what its
+<a href="#g-assertion">assertion</a> means.
+Sets over a declared <a href="#g-sort">sort</a> are common, so ordinary inputs were lost before.
+No <a href="#g-axiom">axiom</a> is added and no check is removed.
+</p>
+
+<h2>Background</h2>
+<p>
+Before this PR, the <a href="#g-exporter">exporter</a> refused every constant array over these index sorts.
+The <a href="#g-reconstructor">reconstructor</a> refused the ones that the rewriter introduced.
+The stated reason was the <a href="#g-default-value">default value</a> of an array, which needs an infinite index sort.
+PR #131 had already moved the index sorts of <a href="#g-pointwise-map">pointwise maps</a> and <a href="#g-set-operator">set operators</a>
+out of the shared <a href="#g-carrier">carrier</a>, and this PR reuses that mechanism.
+It serves milestone 4 of the plan, "Broader theories and integration", which lists arrays as a
+<a href="#g-theory">theory</a> to add.
+</p>
+
+<h2>What changed</h2>
+<ul>
+  <li><strong>Exporter.</strong> An input with a constant array over an uninterpreted or Boolean index sort can now be exported as a <a href="#g-certificate">certificate</a>.</li>
+  <li><strong>Exporter.</strong> A <a href="#g-quantifier">quantifier</a> made by the rewriter is now refused by name.</li>
+  <li><strong>Reconstructor.</strong> A constant array now gives its uninterpreted index sort a Lean type of its own, unless that sort is all the carrier holds.</li>
+  <li><strong>Reconstructor.</strong> Lean can now prove that two equal constant arrays hold equal values, by reading both at one <a href="#g-witness">witness</a> index.</li>
+  <li><strong>Reconstructor.</strong> Inputs with <code>subset</code> or a set difference over a declared sort or Bool now go through.</li>
+  <li><strong>Tests and documentation.</strong> A new test module pins the newly certified inputs, the inputs that stay rejected, and tampered certificates.</li>
+</ul>
+
+<p>
+<strong>Why one index is enough.</strong>
+A constant array is like a rule that puts the same card on every seat of a room.
+If two such rules agree, one seat shows that the cards are equal.
+A sort always has at least one value, so a seat exists.
+</p>
+<p>
+<strong>Why the sort needs its own type.</strong>
+Before, all uninterpreted sorts shared one Lean type.
+An equality of arrays then also spoke about values that are not indices.
+The hypotheses could then contradict each other although the input is <a href="#g-satisfiable">satisfiable</a>.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>File</th><th>Role</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor</td><td class="num">122</td><td class="num">40</td></tr>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td>Exporter</td><td class="num">15</td><td class="num">9</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td>Exporter, log reader</td><td class="num">6</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_const_sort.py</code></td><td>New test module</td><td class="num">707</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td>Updated tests</td><td class="num">14</td><td class="num">19</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_subset.py</code></td><td>Updated tests</td><td class="num">6</td><td class="num">23</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_enum.py</code></td><td>Updated tests</td><td class="num">3</td><td class="num">5</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, new dated section</td><td class="num">81</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">39</td><td class="num">15</td></tr>
+<tr><th colspan="2">Total, 9 files in 2 commits</th><th class="num">993</th><th class="num">114</th></tr>
+</tbody>
+</table>
+</div>
+<p class="caption">No C++ file changed.</p>
+
+<h2>Worked example</h2>
+<p>
+The input is the new test <code>constant_arrays_of_distinct_values</code> without its unused declarations.
+It says that two constant arrays are equal although their values differ.
+All output is from real runs.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-sort I 0)
+(declare-sort E 0)
+(declare-fun v () E)
+(declare-fun w () E)
+(assert (= ((as const (Array I E)) v) ((as const (Array I E)) w)))
+(assert (not (= v w)))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The exporter of the base commit stopped with this error, so no Lean file was produced.</p>
+<pre><code>proof_certificate.py: error: constant arrays are supported over Int and Real indices only: Array(I, E)</code></pre>
+
+<h3>(c) After</h3>
+<p>
+The reconstructor now writes a Lean file.
+Lean accepted it: the check script printed <code>Lean checks passed.</code>
+</p>
+
+<pre><code>-- Uninterpreted sort "I" is the type _m.S0 of its own, the index type of the constant arrays: constants _m.s0_elems, ...
+-- Uninterpreted sort "E" is the type _m.U; functions and predicates take argument lists.
+...
+structure Interpretation where
+  U : Type
+  elems : Nat -&gt; U
+  ...
+  S0 : Type
+  s0_nonempty : Nonempty S0
+  s0_elems : Nat -&gt; S0
+  ...</code></pre>
+<p class="caption">The index sort gets the type <code>S0</code> of its own. The other sort stays in the shared carrier.</p>
+
+<pre><code>def _const_array (I : Type) {E : Type} (v : E) : I -&gt; E := fun _ =&gt; v
+
+private theorem _select_const {I E : Type} (v : E) (i : I) : _select (_const_array I v) i = v := rfl
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 0
+def term_1 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : (_m.S0 -&gt; _m.U) := (@_const_array _m.S0 _m.U (term_0 _atoms _m))
+def term_2 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 1
+def term_3 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : (_m.S0 -&gt; _m.U) := (@_const_array _m.S0 _m.U (term_2 _atoms _m))
+def formula_4 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_1 _atoms _m) = (term_3 _atoms _m))
+def formula_5 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_0 _atoms _m) = (term_2 _atoms _m))
+def formula_6 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Not (formula_5 _atoms _m))
+def formula_8 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Iff (formula_4 _atoms _m) (formula_5 _atoms _m))
+...</code></pre>
+<p class="caption">A constant array is a function that ignores its index. The two assertions become the formulas numbered 4 and 6.</p>
+
+<pre><code>private theorem rewrite_9 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_8 _atoms _m) := by
+  unfold formula_8 formula_5 formula_4 term_2 term_0
+  have _t1 : (term_1 _atoms _m) = (@_const_array _m.S0 _m.U (_m.elems 0)) := rfl
+  have _t3 : (term_3 _atoms _m) = (@_const_array _m.S0 _m.U (_m.elems 1)) := rfl
+  have _e4 : ((term_1 _atoms _m)) = ((term_3 _atoms _m)) -&gt; _select ((term_1 _atoms _m)) (_m.s0_elems 0) = _select ((term_3 _atoms _m)) (_m.s0_elems 0) := congrArg (fun _x =&gt; _select _x (_m.s0_elems 0))
+  have _dc1 := _select_const (I := _m.S0) (_m.elems 0) (_m.s0_elems 0)
+  have _dc3 := _select_const (I := _m.S0) (_m.elems 1) (_m.s0_elems 0)
+  grind (splits := 64)</code></pre>
+<p class="caption">
+This lemma proves the rewriter's step: the arrays are equal exactly when their values are.
+The last three facts are new and read both arrays at the witness index <code>_m.s0_elems 0</code>.
+The first is a <a href="#g-congruence">congruence</a> step, and the <a href="#g-tactic">tactic</a> <code>grind</code> finishes the proof.
+</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    (_h0 : (formula_4 _atoms _m))
+    (_h1 : (formula_6 _atoms _m))
+    : False :=
+  let _step_7 : (formula_4 _atoms _m) :=
+    _h0
+  let _step_9 : (formula_8 _atoms _m) :=
+    (rewrite_9 _atoms _m)
+  let _step_10 : (formula_5 _atoms _m) :=
+    (Iff.mp _step_9 _step_7)
+  ...</code></pre>
+<p class="caption">The theorem says that the two assertions together give <code>False</code> in every <a href="#g-interpretation">interpretation</a>.</p>
+
+<h2>How it was verified</h2>
+<p>
+The whole Lean reconstruction test suite passed on the final commit.
+Random inputs from the new generator were all rejected before, and about nine in ten of the unsat ones now check in Lean.
+The others fail in the safe direction: they are rejected, or Lean finds no proof.
+Every certificate that was reconstructed at the base still gives the same Lean text.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Local check</th><th>Run on</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, all modules</td><td>final commit</td><td><span class="ok">pass</span>, 606 tests, 9 skipped</td></tr>
+<tr><td>New test module alone</td><td>final commit</td><td><span class="ok">pass</span>, 11 tests</td></tr>
+<tr><td>Exporter tests</td><td>final commit</td><td><span class="ok">pass</span>, 124 tests</td></tr>
+<tr><td>Lean project check script</td><td>final commit</td><td><span class="ok">pass</span></td></tr>
+<tr><td>Proof tests of the benchmark repository</td><td>final commit</td><td><span class="ok">pass</span>, 48 tests</td></tr>
+<tr><td>Lean text compared with the reviewed commit</td><td>final commit</td><td>481 certificates: 350 identical, 131 differ in one comment line</td></tr>
+<tr><td>Lean text compared with the base, existing generators</td><td>first commit</td><td>613 certificates, all identical</td></tr>
+<tr><td>Reviewer's fresh random seeds</td><td>first commit</td><td>319 of 334 reconstructed inputs check in Lean</td></tr>
+<tr><td>Reviewer's tampered certificates</td><td>first commit</td><td>4 certificates, up to 9 changes each, all rejected</td></tr>
+<tr><td>Regression matrix cells with Lean, Boolean and linear real inputs</td><td>first commit</td><td>6 of 6 and 8 of 8 verified</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Sweep of the new generator</th><th class="num">Unsat</th><th class="num">Check in Lean</th><th class="num">Lean finds no proof</th><th class="num">Default value rejected</th><th class="num">Exporter rejects</th></tr></thead>
+<tbody>
+<tr><td>Sort <code>I</code> with a second sort declared, seeds 1 to 1500</td><td class="num">565</td><td class="num">511</td><td class="num">24</td><td class="num">22</td><td class="num">8</td></tr>
+<tr><td>The only sort, seeds 1 to 600</td><td class="num">227</td><td class="num">203</td><td class="num">12</td><td class="num">6</td><td class="num">6</td></tr>
+<tr><td>Bool indices, seeds 1 to 600</td><td class="num">218</td><td class="num">200</td><td class="num">10</td><td class="num">7</td><td class="num">1</td></tr>
+</tbody>
+</table>
+</div>
+<p class="caption">
+The sweeps ran on the first commit. The review fixes changed comments, documentation, and tests only.
+The solver's own tests were not run, because no C++ file changed.
+</p>
+
+<p>
+<strong>Local gate.</strong>
+Its result had not been recorded when this report was written.
+The gate was still running, and its exporter tests had passed.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>CI workflow</th><th>Check</th><th>Result</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td colspan="2">No check had been reported for this PR when the report was written.</td><td><span class="warn">unknown</span></td><td><a href="https://github.com/levnach/z3/pull/132/checks">checks page</a></td></tr>
+</tbody>
+</table>
+</div>
+<p class="caption">
+The PR description expects the job "Ubuntu build - cmake - releaseClang" to run the new test module.
+There were no CI fix rounds and no failures to judge.
+</p>
+
+<h2>Review</h2>
+<p>
+The reviewer approved the change with no blocker, major, or minor finding.
+Attempts to make Lean accept a tampered certificate all failed.
+Removing the new rule for index sorts made the new tests fail, so they guard it.
+</p>
+<p>Four nits were found, and all were fixed in the second commit.</p>
+<ul>
+  <li><strong>Stale README sentence.</strong> One paragraph still said that constant arrays work over Int and Real indices only. A reader would think the new inputs are rejected. It now excludes array indices only.</li>
+  <li><strong>Stale code comment.</strong> One helper's comment still spoke of infinite index sorts only. That could mislead the next person who reasons about <a href="#g-soundness">soundness</a>. It was corrected.</li>
+  <li><strong>Incomplete header comment.</strong> For an input with a union, the generated comment gave constant arrays as the only reason for the sort's own type. It now names both reasons.</li>
+  <li><strong>Miscounted measurement.</strong> The reviewer's fresh seeds showed inputs that never mention the second sort. Their index sort stays the carrier, yet the plan counted them as the own-type case. The plan now gives the split below.</li>
+</ul>
+<div class="tablewrap">
+<table>
+<thead><tr><th>First sweep row, reconstructed inputs</th><th class="num">Count</th><th class="num">Check in Lean</th></tr></thead>
+<tbody>
+<tr><td>Index sort is a type of its own</td><td class="num">501</td><td class="num">479</td></tr>
+<tr><td>Index sort stays the carrier</td><td class="num">34</td><td class="num">32</td></tr>
+</tbody>
+</table>
+</div>
+<p>
+Three of four suggestions were done: boundary tests for the carrier exception, an axiom check in one Lean test, and a comment on two fragile test inputs.
+Dropping an unused part of the generated file was left for later.
+</p>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li>Soundness rests on the choice of the index type. The condition is that of PR #131, and it now decides more inputs.</li>
+  <li>Theorem statements change only for inputs that were rejected before, so nothing that verified can fail now.</li>
+  <li>Default values over these sorts, and quantified equalities between stores, stay rejected by design.</li>
+  <li>Some inputs are reconstructed but <code>grind</code> finds no proof. Most fail the same way with Int indices.</li>
+  <li>Two rejected test inputs depend on Z3's behaviour and need replacing if it changes.</li>
+  <li>The CI result and the local gate result are unknown at the time of writing.</li>
+</ul>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Remaining gap in the three sweeps, 1010 unsat inputs</th><th class="num">Inputs</th></tr></thead>
+<tbody>
+<tr><td>Rejected for the solver's default value of a constant array</td><td class="num">35</td></tr>
+<tr><td>Rejected by the exporter for a quantifier</td><td class="num">11</td></tr>
+<tr><td>Rejected by the exporter for a fresh symbol of the log</td><td class="num">4</td></tr>
+<tr><td>Reconstructed, but Lean finds no proof</td><td class="num">46</td></tr>
+<tr><td>Of those 46, failing the same way with Int indices</td><td class="num">38</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Certify the solver's default value of a constant array over these sorts, the largest remaining rejection.</li>
+  <li>Handle equalities between stores over constant arrays, which the rewriter expands into a quantifier.</li>
+  <li>Close the Lean failures that are specific to Bool indices.</li>
+  <li>Stop emitting the default-value definitions when a certificate does not use them.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+  <dt id="g-array">array</dt>
+  <dd>A value that maps each index to an element, like a function. <code>(select a i)</code> reads it and <code>(store a i v)</code> gives a copy with one entry changed.</dd>
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula that the input requires to be true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement that a proof checker accepts without proof. Fewer axioms mean less to trust.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort Bool with the two values true and false.</dd>
+  <dt id="g-carrier">carrier</dt>
+  <dd>The collection of values that a sort stands for in an interpretation. Here it is also the single Lean type that holds the values of all uninterpreted sorts without a type of their own.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>A file that records the solver's proof steps so that another program can check them.</dd>
+  <dt id="g-congruence">congruence</dt>
+  <dd>The rule that equal inputs give equal outputs. Example: if <code>a = b</code> then <code>(select a i) = (select b i)</code>.</dd>
+  <dt id="g-constant-array">constant array</dt>
+  <dd>An array that holds the same element at every index, written <code>((as const (Array I E)) v)</code>.</dd>
+  <dt id="g-default-value">default value</dt>
+  <dd>The element that an array holds at all but finitely many indices, written <code>(default a)</code>. It is well defined only when the index sort is infinite.</dd>
+  <dt id="g-equality">equality</dt>
+  <dd>The statement that two terms have the same value, written <code>(= s t)</code>.</dd>
+  <dt id="g-exporter">exporter</dt>
+  <dd>The part of the pipeline that turns Z3's proof output into a certificate.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>An assumption of a theorem. Here each assertion of the input becomes one hypothesis.</dd>
+  <dt id="g-index-sort">index sort</dt>
+  <dd>The sort of the positions of an array. In <code>(Array I E)</code> it is <code>I</code>, and <code>E</code> is the element sort.</dd>
+  <dt id="g-interpretation">interpretation</dt>
+  <dd>A choice of concrete values for every sort, constant, and function of the input. One that makes all assertions true is called a model.</dd>
+  <dt id="g-pointwise-map">pointwise map</dt>
+  <dd>An array built by applying a function at every index of other arrays. Set union is the pointwise map of "or".</dd>
+  <dt id="g-quantifier">quantifier</dt>
+  <dd>The operators "for all" and "exists", written <code>forall</code> and <code>exists</code>.</dd>
+  <dt id="g-reconstructor">reconstructor</dt>
+  <dd>The part of the pipeline that turns a certificate into a Lean theorem with its proof.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of assertions cannot all be true together.</dd>
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>The solver component that replaces a term by a simpler equal one before and during solving.</dd>
+  <dt id="g-satisfiable">satisfiable</dt>
+  <dd>Having at least one interpretation that makes all assertions true. Z3 then answers <code>sat</code>.</dd>
+  <dt id="g-set">set</dt>
+  <dd>An array with Boolean elements. An index is a member when the array holds true there.</dd>
+  <dt id="g-set-operator">set operator</dt>
+  <dd>An operator that combines sets: union, intersection, difference (<code>setminus</code>), and complement.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-soundness">soundness</dt>
+  <dd>The property that everything the checker accepts is really true.</dd>
+  <dt id="g-subset">subset</dt>
+  <dd>The relation "every member of the first set is a member of the second", written <code>(subset a b)</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that searches for a proof automatically. <code>grind</code> is one.</dd>
+  <dt id="g-theorem">theorem</dt>
+  <dd>A statement together with a proof that the checker has accepted.</dd>
+  <dt id="g-theory">theory</dt>
+  <dd>A fixed meaning for some sorts and operators, such as arrays or linear arithmetic.</dd>
+  <dt id="g-uninterpreted-sort">uninterpreted sort</dt>
+  <dd>A sort declared by the input with no fixed meaning, written <code>(declare-sort I 0)</code>. It can have any number of values, but at least one.</dd>
+  <dt id="g-witness">witness</dt>
+  <dd>One concrete value that is picked to show something. Here it is the index at which two arrays are read.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-13.
+</footer>
+
+</main>
+</body>
+</html>
