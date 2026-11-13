@@ -3931,11 +3931,20 @@ nl46, nl48, nl49, two queries each), 41 are rejected for a product of Real
 terms, 18 use a lemma of the nonlinear solver, 2 fail in Lean on the
 rewriter's sign split (nl38), 3 are outside for other reasons. Of the 235 unsatisfiable seeds 1-600 of
 `random_product_instance` (linear over three products with their factors
-in random orders), 182 verify, 2 use an `nla` lemma, and 51 fail in Lean
-(34 on a sign-split rewrite, 12 on a `cut`, 8 on a cnf lemma of an assumed
-clause, 3 on a `bound`). Tests: `test_proof_to_lean_nonlinear.py` (26
-documented inputs, 10 of them through the legacy core too, 10 rejected
-inputs, 7 pinned seeds).
+in random orders), 182 verify, 2 use an `nla` lemma, and 51 fail in Lean.
+The failing lemmas, a seed counted once for each kind it fails on (some
+fail on two): a sign-split rewrite in 34 seeds, a `cut` in 12, a cnf lemma
+of an assumed clause in 8, a `bound` in 3. Tests:
+`test_proof_to_lean_nonlinear.py` (26 documented inputs, 11 of them through
+the legacy core too, 10 rejected inputs, 7 pinned seeds).
+
+The rewriter distributes `to_real` over a product, so `(to_real (* m n))`
+is the Real product `(* (to_real m) (to_real n))` in the log, a second
+variable of the simplex solver next to `(* m n)` that only the nonlinear
+solver relates to it. An input with both is refuted with `nla` lemmas and
+assumed nlsat clauses on the way, and is certified only when the trimmed
+refutation avoids them (the test accepts both outcomes); with the product
+under `to_real` everywhere the refutation is linear and stable.
 
 Next: replay the `nla` hint's polynomial refutation in Lean (products of
 premises, then a linear combination `grind` closes), sign facts for the

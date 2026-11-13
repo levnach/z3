@@ -904,9 +904,15 @@ like any other assumed clause, a simplex conflict resting on a bound the
 nonlinear solver propagated is logged as a coefficient-free cut or bound,
 and the rewriter splits a factored product by the signs of its factors;
 Lean has to prove each of those, and where it does not the input is not
-certified. Through the legacy core such steps are (_ th-lemma arith assumed
-nlsat) or unsupported nla, which the exporter rejects. Division, div, and
-mod by a product, and powers, stay rejected.
+certified. Z3's rewriter distributes to_real over a product, so (to_real
+(* m n)) is the Real product of (to_real m) and (to_real n) in the log, a
+second variable of the simplex solver next to (* m n), which the nonlinear
+solver alone relates to it: an input whose refutation needs the two to
+agree is certified only when the trimmed log holds no lemma of that solver
+(and Lean proves what is left), while one with the product under to_real
+throughout has a linear refutation. Through the legacy core such steps are
+(_ th-lemma arith assumed nlsat) or unsupported nla, which the exporter
+rejects. Division, div, and mod by a product, and powers, stay rejected.
 An Int th-lemma with hint farkas, bound, or cut whose literals contain div,
 mod, abs, ite, or application atoms gets a first attempt over the atoms
 generalized to integers: the definitions outside the atoms are unfolded,

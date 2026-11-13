@@ -2331,8 +2331,12 @@ class TestFragmentClassification(unittest.TestCase):
             with self.subTest(premises=premises, conclusion=conclusion, integer=integer):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
                     parameters(unsupported, premises, conclusion, integer=integer)
+        # (arith assumed nlsat labels a clause nlsat decided; with arith
+        # unsupported nla it is what the legacy core's proof holds of a
+        # refutation that rests on the nonlinear solver, see
+        # test_proof_to_lean_nonlinear.py.)
         for raw in (["arith", "unsupported", "nla"], ["arith", "unsupported", "1"], ["unsupported"],
-                    ["unsupported", "arith"]):
+                    ["unsupported", "arith"], ["arith", "assumed", "nlsat"], ["arith", "assumed"]):
             with self.subTest(parameters=raw):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, "without a replayable theory hint"):
                     parameters(_FakeDecl(raw), 4, false, integer=True)

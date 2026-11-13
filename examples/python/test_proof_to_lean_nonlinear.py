@@ -19,10 +19,12 @@
 ############################################
 import copy
 from fractions import Fraction
+import functools
 from pathlib import Path
 import random
 import sys
 import unittest
+import warnings
 
 import z3
 
@@ -32,7 +34,7 @@ import proof_certificate
 import proof_clause_log
 import lean_test_support
 import proof_to_lean
-from test_proof_to_lean_array import _check_in_lean, _export
+from test_proof_to_lean_array import _export
 from test_proof_to_lean_lia import _STANDARD_AXIOMS, _z3_available
 
 _INTS = "(declare-const m Int)\n(declare-const n Int)\n(declare-const k Int)\n"
@@ -96,9 +98,12 @@ PRODUCT_INPUTS = {
 """),
     "mod_of_a_product": ("qf_lia", _INTS + "(assert (= (mod (* m n) 2) 1))\n(assert (= (* n m) (* 2 k)))\n"),
     "div_of_a_product": ("qf_lia", _INTS + "(assert (> (div (* m n) 3) 4))\n(assert (< (* n m) 15))\n"),
+    # Z3's rewriter distributes to_real over a product, so the solver's variable is the Real
+    # product of (to_real m) and (to_real n), bounded here on both sides (with the Int product
+    # next to it the input is PRODUCT_AND_ITS_REAL_IMAGE).
     "to_real_of_a_product": ("qf_lira", "(declare-const x Real)\n" + _INTS + """(assert (> (to_real (* m n)) x))
 (assert (> x 2.5))
-(assert (< (* n m) 3))
+(assert (< (to_real (* n m)) 2.0))
 """),
     "floor_factor": ("qf_lira", "(declare-const x Real)\n" + _INTS + """(assert (> (* m (to_int x)) 2))
 (assert (< (* (to_int x) m) 1))
@@ -134,10 +139,15 @@ PRODUCT_INPUTS = {name: (fragment, source + _CHECK) for name, (fragment, source)
 
 # Inputs of PRODUCT_INPUTS that also verify through the legacy core's proof
 # object. (On others the legacy core's refutation rests on its nonlinear
-# solver, th-lemma arith assumed nlsat or unsupported nla, and is rejected.)
+# solver, th-lemma arith assumed nlsat or unsupported nla, and is rejected:
+# LEGACY_NONLINEAR_INPUTS.)
 LEGACY_INPUTS = ("bounds_on_a_product", "commuted_factors", "scaled_products", "three_factors", "abs_factor",
                  "tightened_bounds_on_a_product", "zero_product", "parity_of_a_product", "mod_of_a_product",
-                 "product_under_a_function")
+                 "to_real_of_a_product", "product_under_a_function")
+# Inputs of PRODUCT_INPUTS that the legacy core settles with its nonlinear
+# solver today, although the simplex solver and congruence would do.
+LEGACY_NONLINEAR_INPUTS = ("function_factor", "product_over_a_sort")
+_LEGACY_NONLINEAR = "^th-lemma without a replayable theory hint: arith (unsupported nla|assumed nlsat)$"
 
 _REAL_PRODUCT = "^nonlinear multiplication is supported over Int only: a product of Real terms is not certified$"
 _NONLINEAR_LEMMA = "^the refutation uses a lemma of the nonlinear solver, which is not certified: %s$"
@@ -165,6 +175,16 @@ REJECTED_INPUTS = {
     "power": (_INTS + "(assert (< (^ m 2) 0))\n", r"^unsupported arithmetic operator: \*\*$"),
 }
 REJECTED_INPUTS = {name: (source + _CHECK, message) for name, (source, message) in REJECTED_INPUTS.items()}
+
+# A product next to its image in Real. Z3's rewriter distributes to_real, so
+# (* (to_real m) (to_real n)) and (* m n) are two variables of the simplex
+# solver, which only the nonlinear solver relates, and Z3 refutes the input
+# with lemmas of that solver on the way. Whether it is certified depends on
+# the refutation the trimmer keeps: one without such a lemma (today a
+# coefficient-free cut over both products, which Lean proves) or one with,
+# which is rejected by name. Not a documented input for that reason.
+PRODUCT_AND_ITS_REAL_IMAGE = ("(declare-const x Real)\n" + _INTS + "(assert (> (to_real (* m n)) x))\n"
+                              "(assert (> x 2.5))\n(assert (< (* n m) 3))\n" + _CHECK)
 
 # Positive factors with a negative product: Z3's nlsat refutes it and the
 # log assumes its clause without a hint the replay could check. The replay
@@ -212,6 +232,35 @@ _USED_NLA_LOG = """\
 (declare-fun rup () Proof)
 (infer rup)
 """
+# The same lemma weakened (0 <= m m or 5 <= m m, hint %s), which the empty
+# clause depends on through a farkas step and unit propagation only.
+_CHAINED_NLA_LOG = """\
+(declare-fun m () Int)
+(define-const $6 Int (* m m))
+(define-const $9 Bool (<= 0 $6))
+(assume (not $9))
+(define-const $10 Bool (not $9))
+(define-const $14 Proof %s)
+(define-const $20 Bool (<= 5 $6))
+(infer $9 $20 $14)
+(declare-fun farkas (Int Bool Int Bool) Proof)
+(define-const $21 Proof (farkas 1 $20 1 $10))
+(infer (not $20) $9 $21)
+(declare-fun rup () Proof)
+(infer $9 rup)
+(infer rup)
+"""
+
+
+@functools.lru_cache(maxsize=None)
+def _certificate(name):
+    """The clause-log certificate of a documented input, exported once for the module.
+
+    Exported where a test asks for it, in the subtest of the input, so that
+    an input Z3 comes to refute through its nonlinear solver fails its own
+    subtests and not the tests of the others.
+    """
+    return _export(PRODUCT_INPUTS[name][1])
 
 
 def random_product_instance(seed, constraints=8):
@@ -281,6 +330,11 @@ def random_product_instance(seed, constraints=8):
 PRODUCT_SEEDS = (3, 11, 20, 33, 44, 62, 164)
 
 
+# The hint names of the nonlinear solver, in the clause log and in the
+# legacy proof object: no certificate holds one.
+_UNCERTIFIED_HINTS = set(proof_clause_log._NONLINEAR_HINTS) | {"nlsat-assumed", "nlsat", "unsupported", "assumed"}
+
+
 def _hints(certificate):
     return {tuple(d["parameters"]) for d in certificate["declarations"] if d["name"] == "th-lemma"}
 
@@ -296,7 +350,6 @@ class TestProductValidation(unittest.TestCase):
     def setUpClass(cls):
         if not _z3_available():
             raise unittest.SkipTest("the z3 executable is required for the clause log")
-        cls.certificates = {name: _export(source) for name, (_, source) in PRODUCT_INPUTS.items()}
 
     def replay(self, source, log):
         context = z3.Context()
@@ -306,8 +359,9 @@ class TestProductValidation(unittest.TestCase):
     def test_fragments_and_products(self):
         for name, (fragment, source) in PRODUCT_INPUTS.items():
             with self.subTest(name=name):
-                certificate = self.certificates[name]
+                certificate = _certificate(name)
                 self.assertEqual(certificate["fragment"], fragment)
+                self.assertFalse({hint[0] for hint in _hints(certificate)} & _UNCERTIFIED_HINTS)
                 graph = proof_to_lean._validate_graph(source, certificate)
                 self.assertTrue(_products(graph))
                 self.assertTrue(graph.integer_products)
@@ -344,7 +398,7 @@ class TestProductValidation(unittest.TestCase):
             proof_clause_log._linear(k / (m * n))
 
     def test_linear_lemmas_over_products_keep_their_coefficients(self):
-        certificate = self.certificates["scaled_products"]
+        certificate = _certificate("scaled_products")
         source = PRODUCT_INPUTS["scaled_products"][1]
         farkas = [hint for hint in _hints(certificate) if hint[0] == "farkas"]
         self.assertTrue(farkas and all(len(hint) > 1 for hint in farkas), farkas)
@@ -362,7 +416,11 @@ class TestProductValidation(unittest.TestCase):
 
     def test_rejected_inputs(self):
         for name, (source, message) in REJECTED_INPUTS.items():
-            with self.subTest(name=name):
+            with self.subTest(name=name), warnings.catch_warnings():
+                # The nonlinear solver's last lemma on square_is_two is the empty clause, a theory
+                # axiom without premises, which Z3's trimmer refuses: the replay then reads the
+                # untrimmed log, with a warning. Nowhere else is that fallback expected.
+                warnings.simplefilter("ignore" if name == "square_is_two" else "error", RuntimeWarning)
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, message):
                     _export(source)
         # The reconstructor reads the input itself: no certificate makes a
@@ -377,6 +435,43 @@ class TestProductValidation(unittest.TestCase):
             with self.subTest(core="legacy", name=name):
                 with self.assertRaisesRegex(proof_certificate.ProofExportError, REJECTED_INPUTS[name][1]):
                     proof_certificate.export_certificate(REJECTED_INPUTS[name][0])
+
+    def test_the_legacy_core_rejects_steps_of_the_nonlinear_solver(self):
+        # The legacy proof object labels what the nonlinear solver derived (_ th-lemma arith
+        # unsupported nla) and what nlsat decided (_ th-lemma arith assumed nlsat); neither is a
+        # replayable hint (the labels alone: test_proof_certificate.py,
+        # test_legacy_unsupported_conflicts_are_left_to_lean_over_int). No square is 2 and no
+        # linear fact says so: every refutation of this input has such a step.
+        with self.assertRaisesRegex(proof_certificate.ProofExportError, _LEGACY_NONLINEAR):
+            proof_certificate.export_certificate(REJECTED_INPUTS["square_is_two"][0])
+        # These the legacy core settles with its nonlinear solver today, although it need not: a
+        # refutation with such a step is rejected by its label, one without is exported (and
+        # checked by Lean like any other), and nothing else may happen.
+        sources = {name: PRODUCT_INPUTS[name][1] for name in LEGACY_NONLINEAR_INPUTS}
+        sources["product_and_its_real_image"] = PRODUCT_AND_ITS_REAL_IMAGE
+        for name, source in sources.items():
+            with self.subTest(name=name):
+                try:
+                    certificate = proof_certificate.export_certificate(source)
+                except proof_certificate.ProofExportError as error:
+                    self.assertRegex(str(error), _LEGACY_NONLINEAR)
+                else:
+                    self.assertFalse({hint[0] for hint in _hints(certificate)} & _UNCERTIFIED_HINTS)
+
+    def test_a_product_and_its_real_image_are_related_by_the_nonlinear_solver_alone(self):
+        source = PRODUCT_AND_ITS_REAL_IMAGE
+        try:
+            certificate = _export(source)
+        except proof_certificate.ProofExportError as error:
+            self.assertRegex(str(error), _NONLINEAR_LEMMA % "nla(-unsupported)?")
+            return
+        # Exported, it holds no lemma of the nonlinear solver, and Lean has to prove what
+        # relates the two products, nodes of two sorts.
+        self.assertEqual(certificate["fragment"], "qf_lira")
+        self.assertFalse({hint[0] for hint in _hints(certificate)} & _UNCERTIFIED_HINTS)
+        graph = proof_to_lean._validate_graph(source, certificate)
+        self.assertEqual({graph.decl(node).range for node in _products(graph)}, {"Int", "Real"})
+        self.assertNotIn("sorry", proof_to_lean.reconstruct(source, certificate))
 
     def test_a_lemma_of_the_nonlinear_solver_is_rejected_when_used(self):
         # Unused, the lemma is left out of the certificate.
@@ -393,6 +488,15 @@ class TestProductValidation(unittest.TestCase):
         with self.assertRaisesRegex(proof_certificate.ProofExportError, _NONLINEAR_LEMMA % "nla-unsupported"):
             self.replay(_NEGATIVE_SQUARE, (_USED_NLA_LOG % "nla-unsupported").replace(
                 "(infer $9 $14)", "(infer $9 nla-unsupported)"))
+        # So does a lemma that is the empty clause itself (the log of square_is_two ends with
+        # one), and one the empty clause depends on through other steps only.
+        for name in proof_clause_log._NONLINEAR_HINTS:
+            for use, log in [("empty clause", (_USED_NLA_LOG % ("(%s 1 $10)" % name)).replace(
+                                 "(infer $9 $14)", "(infer $14)")),
+                             ("chain", _CHAINED_NLA_LOG % ("(%s 1 $10)" % name))]:
+                with self.subTest(name=name, use=use):
+                    with self.assertRaisesRegex(proof_certificate.ProofExportError, _NONLINEAR_LEMMA % name):
+                        self.replay(_NEGATIVE_SQUARE, log)
         # Any other hint name is still unknown.
         with self.assertRaisesRegex(proof_certificate.ProofExportError, "^unsupported clause-log hint: nlsat$"):
             self.replay(_NEGATIVE_SQUARE, _USED_NLA_LOG % "(nlsat 1 $10)")
@@ -428,13 +532,23 @@ class TestProductLeanIntegration(unittest.TestCase):
             raise unittest.SkipTest("the z3 executable is required for the clause log")
 
     def test_documented_inputs_verify(self):
-        lean_test_support.prefetch((source, _export(source)) for _, source in PRODUCT_INPUTS.values())
-        for name, (fragment, source) in PRODUCT_INPUTS.items():
+        certificates = {}
+        for name, (fragment, _) in PRODUCT_INPUTS.items():
             with self.subTest(name=name):
-                _check_in_lean(self, source, fragment)
+                certificates[name] = _certificate(name)
+                self.assertEqual(certificates[name]["fragment"], fragment)
+        lean_test_support.prefetch((PRODUCT_INPUTS[name][1], certificate)
+                                   for name, certificate in certificates.items())
+        for name, certificate in certificates.items():
+            with self.subTest(name=name):
+                _, report = lean_test_support.check(self, PRODUCT_INPUTS[name][1], certificate)
+                self.assertTrue(_STANDARD_AXIOMS in report or "does not depend on any axioms" in report, report)
 
     def test_documented_inputs_verify_through_the_legacy_core(self):
-        certificates = {name: proof_certificate.export_certificate(PRODUCT_INPUTS[name][1]) for name in LEGACY_INPUTS}
+        certificates = {}
+        for name in LEGACY_INPUTS:
+            with self.subTest(name=name):
+                certificates[name] = proof_certificate.export_certificate(PRODUCT_INPUTS[name][1])
         lean_test_support.prefetch((PRODUCT_INPUTS[name][1], certificate)
                                    for name, certificate in certificates.items())
         for name, certificate in certificates.items():
