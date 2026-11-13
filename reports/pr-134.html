@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #134: Certify Int lemmas of the nonlinear solver by polynomial refutations</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1c1e21; --muted: #5b6370; --line: #d6dae0;
+  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --open-bg: #e3f1e6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171a; --fg: #e4e7eb; --muted: #9aa4b1; --line: #343a42;
+    --panel: #1d2227; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341; --open-bg: #1c3324;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.55; max-width: 52rem; margin: 2rem auto; padding: 0 1rem;
+}
+h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: 0.4rem; }
+h2 { font-size: 1.2rem; margin-top: 2.2rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1rem; margin-top: 1.4rem; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+p code, li code, td code, dd code { background: var(--panel); padding: 0.05em 0.3em; border-radius: 3px; }
+pre {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; line-height: 1.45;
+}
+table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+th, td { border: 1px solid var(--line); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+td.num { text-align: right; white-space: nowrap; }
+.meta { color: var(--muted); font-size: 0.93rem; margin: 0.2rem 0; }
+.state { display: inline-block; background: var(--open-bg); color: var(--ok); font-weight: 600; padding: 0.05rem 0.5rem; border-radius: 999px; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.note { color: var(--muted); font-size: 0.9rem; }
+dl dt { font-weight: 600; margin-top: 0.7rem; }
+dl dd { margin: 0.1rem 0 0 1.2rem; }
+footer { margin-top: 2.5rem; padding-top: 0.8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Certify Int lemmas of the nonlinear solver by polynomial refutations</h1>
+<p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/134">levnach/z3#134</a> into <code>master</code>
+&middot; State: <span class="state">OPEN</span> (not merged)</p>
+<p class="meta">Change commit: <a href="https://github.com/levnach/z3/commit/55a163ae6a46f2071ae712a7dc35fa7b5124290a"><code>55a163ae6</code></a>
+&middot; Date: 2026-11-13T18:54:13Z &middot; Loop iteration 133</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>This PR certifies <a href="#g-clause">clauses</a> that are true because of what a
+<a href="#g-product">product</a> of <a href="#g-term">terms</a> of <a href="#g-sort">sort</a> Int means.
+One such clause says that <code>m &ge; 2</code> and <code>n &ge; 3</code> give <code>m&middot;n &ge; 6</code>.
+Z3's solver for <a href="#g-nonlinear-arithmetic">nonlinear arithmetic</a> uses such clauses as
+<a href="#g-theory-lemma">theory lemmas</a>.
+Until now a <a href="#g-refutation">refutation</a> that needed one was rejected, or it failed in Lean.
+The pipeline now searches for a <a href="#g-polynomial-refutation">polynomial refutation</a> of the lemma's
+<a href="#g-literal">literals</a>, and Lean proves the lemma from it.
+Nothing new is trusted: no <a href="#g-axiom">axiom</a> is added, and Lean checks the <a href="#g-polynomial">polynomial</a> identity itself.
+On the nonlinear test corpus, 24 of 78 unsat <a href="#g-query">queries</a> now verify in Lean, up from 14.</p>
+
+<h2>Background</h2>
+<p>Since #133 a product of Int terms is an <a href="#g-atom">atom</a> of
+<a href="#g-linear-arithmetic">linear arithmetic</a>, so refutations that use only a product's
+<a href="#g-bound">bounds</a> were already certified.
+A refutation that used a lemma of the nonlinear solver was still rejected by name.
+The same reasoning also reached the <a href="#g-clause-log">clause log</a> under other
+<a href="#g-hint">hints</a>, such as <a href="#g-cnf">cnf</a> and <a href="#g-cut">cut</a>,
+and Lean's <a href="#g-tactic">tactics</a> could not prove those clauses.
+The work serves milestone 4 of the plan, &ldquo;Broader theories and integration&rdquo;, which names nonlinear arithmetic.</p>
+
+<h2>What changed</h2>
+<p>A polynomial refutation works like a receipt: anyone can add up the lines and see that the total is impossible.</p>
+<ul>
+<li><strong>Search.</strong> A new function, <code>polynomial_refutation</code>, finds <a href="#g-multiplier">multipliers</a> for the facts a clause denies, their pairwise products, and squares, so that the sum is &minus;1.</li>
+<li><strong>Exporter.</strong> A lemma of the nonlinear solver with such a refutation now enters the <a href="#g-certificate">certificate</a> under the hint <code>nla</code>, and so does a clause the log merely assumes on that solver's word.</li>
+<li><strong>Exporter.</strong> When <a href="#g-trimming">trimming</a> removed <a href="#g-unit-propagation">unit clauses</a> that a lemma needs, the untrimmed log is replayed, with a warning.</li>
+<li><strong>Reconstructor.</strong> The Lean proof is written from the refutation, like a <a href="#g-farkas">Farkas lemma</a> proof with products among the summands.</li>
+<li><strong>Tests and docs.</strong> A new test module covers the search, 18 documented inputs, pinned logs, and tampered certificates.</li>
+</ul>
+<p>The same proof is tried for cut, bound, and cnf lemmas over Int products. A solver lemma without a refutation is still rejected. No C++ file changed.</p>
+
+<table>
+<thead><tr><th>File</th><th>Added</th><th>Removed</th></tr></thead>
+<tbody>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">76</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/README</code></td><td class="num">51</td><td class="num">12</td></tr>
+<tr><td><code>examples/python/proof_certificate.py</code></td><td class="num">143</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/proof_clause_log.py</code></td><td class="num">206</td><td class="num">22</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">142</td><td class="num">4</td></tr>
+<tr><td><code>examples/python/test_proof_certificate.py</code></td><td class="num">5</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">4</td><td class="num">1</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_nla.py</code> (new)</td><td class="num">585</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_nonlinear.py</code></td><td class="num">51</td><td class="num">31</td></tr>
+<tr><th>Total: 9 files, 2 commits</th><th class="num">1263</th><th class="num">73</th></tr>
+</tbody>
+</table>
+
+<h2>Worked example</h2>
+<p>The input is the PR's test <code>bounded_factors</code> without its unused third constant.
+All output is from real runs, with directory names cut.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const m Int)
+(declare-const n Int)
+(assert (&gt;= m 2))
+(assert (&gt;= n 3))
+(assert (&lt; (* m n) 6))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The base commit's exporter wrote the same certificate as the new one, with one theory lemma under the hint cnf.
+The base reconstructor wrote a Lean file, and Lean rejected it:</p>
+<pre><code>Checking .../z3_proof_zcl9woou.lean
+.../z3_proof_zcl9woou.lean:55:18: error: `grind` failed
+case grind.2.2
+_atoms : Nat → Prop
+_vars : Nat → Int
+left : -1 * _vars 0 + 2 ≤ 0
+left_1 : -1 * _vars 1 + 3 ≤ 0
+right_1 : _vars 0 * _vars 1 + -5 ≤ 0
+...
+⊢ False
+...
+Lean checking failed; no proof was published.</code></pre>
+<p>The tactic held the facts 2 &le; m, 3 &le; n, and m&middot;n &le; 5, but nothing that connects the product to its factors.</p>
+
+<h3>(c) After</h3>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((2 : Int))
+def formula_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars) &gt;= (term_1 _atoms _vars))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((3 : Int))
+def formula_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_3 _atoms _vars) &gt;= (term_4 _atoms _vars))
+def term_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) * (term_3 _atoms _vars))
+def term_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((6 : Int))
+def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_6 _atoms _vars) &lt; (term_7 _atoms _vars))
+...
+def formula_25 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_2 _atoms _vars))
+def formula_26 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_5 _atoms _vars))
+def formula_27 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_8 _atoms _vars))
+def formula_28 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_25 _atoms _vars) (Or (formula_26 _atoms _vars) (formula_27 _atoms _vars)))</code></pre>
+<p>Each term and formula gets a name, and the last one is the lemma &ldquo;not m &ge; 2, or not n &ge; 3, or not m&middot;n &lt; 6&rdquo;.</p>
+
+<pre><code>private theorem th_lemma_29 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_28 _atoms _vars) := by
+  first
+    | (have _sum : ((((3 : Int)) * ((term_0 _atoms _vars) - (term_1 _atoms _vars)) + ((2 : Int)) * ((term_3 _atoms _vars) - (term_4 _atoms _vars))) + (((1 : Int)) * ((term_7 _atoms _vars) - ((term_6 _atoms _vars) + 1)) + ((1 : Int)) * (((term_0 _atoms _vars) - (term_1 _atoms _vars)) * ((term_3 _atoms _vars) - (term_4 _atoms _vars))))) = ((-1 : Int)) := by delta term_7 term_6 term_4 term_1; grind
+       exact Classical.byContradiction fun _hn =&gt; absurd (Int.le_trans ((Int.add_nonneg (Int.add_nonneg (Int.mul_nonneg (by decide) (Int.sub_nonneg_of_le (Classical.byContradiction (fun _h =&gt; _hn (Or.inl _h))))) ... (Int.mul_nonneg (by decide) (Int.mul_nonneg (Int.sub_nonneg_of_le ...) (Int.sub_nonneg_of_le ...))))) : ((0 : Int)) &lt;= ...) (Int.le_of_eq _sum)) (by decide))
+    | (unfold formula_28 formula_27 formula_26 formula_25 formula_8 term_7 term_6 formula_5 term_4 term_3 formula_2 term_1 term_0
+       first | omega | grind (splits := 64) [Int.mul_eq_zero])</code></pre>
+<p>This is the new part: <code>_sum</code> states that 3(m&minus;2) + 2(n&minus;3) + (6 &minus; (m&middot;n + 1)) + (m&minus;2)(n&minus;3) equals &minus;1, yet every summand is nonnegative if all three literals are false.</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_2 _atoms _vars))
+    (_h1 : (formula_5 _atoms _vars))
+    (_h2 : (formula_8 _atoms _vars))
+    : False :=
+  ...
+  let _step_29 : (formula_28 _atoms _vars) :=
+    (th_lemma_29 _atoms _vars)
+  let _step_31 : (formula_30 _atoms _vars) :=
+    (False.elim (((_step_29.neg_resolve_left _step_9).neg_resolve_left _step_14) _step_19))
+  ...</code></pre>
+<p>The final theorem says that the three <a href="#g-assertion">assertions</a> together imply <code>False</code> for all integers m and n.</p>
+
+<p><strong>Lean accepted the file</strong> (<code>Lean checks passed.</code>).
+A copy without the lemma's fallback alternative was accepted too, so the polynomial proof itself was checked.</p>
+
+<h2>How it was verified</h2>
+<p>All local test suites passed on the final commit, including more than 600 reconstruction tests.
+Both measured collections improved, and no input that verified before stopped verifying.</p>
+<table>
+<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td><span class="ok">OK</span>: 633 run, 9 skipped</td></tr>
+<tr><td>New module alone, <code>test_proof_to_lean_nla.py</code></td><td><span class="ok">OK</span>: 15 run</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td><span class="ok">OK</span>: 125 run</td></tr>
+<tr><td><code>./scripts/check_lean.sh</code></td><td><span class="ok">Lean checks passed</span></td></tr>
+<tr><td>z3test script tests</td><td><span class="ok">OK</span>: 48 run</td></tr>
+<tr><td>Gated matrix cells: Boolean inputs, QF_LRA inputs</td><td><span class="ok">6 of 6</span> and <span class="ok">8 of 8</span> verified in Lean</td></tr>
+<tr><td>z3test nonlinear corpus, 78 unsat queries</td><td>24 verify (14 before). 48 rejected by the exporter, 41 of them for products of Real terms. 6 fail in Lean.</td></tr>
+<tr><td>Random product inputs, seeds 1 to 600, 235 unsat</td><td>194 verify (182 before). 2 rejected. 39 fail in Lean.</td></tr>
+<tr><td><code>test-z3</code>, SMT2 regressions, <code>scripts/tests</code></td><td>Not run: no C++ change and nothing under <code>scripts/</code> changed</td></tr>
+</tbody>
+</table>
+<p>The reviewer deleted every fallback tactic from the Lean files of the 18 documented inputs, and all still verified.
+Copies with the sum's constant changed, or with <a href="#g-sorry"><code>sorry</code></a>, were rejected.
+On the base commit all 18 were rejected or failed in Lean.</p>
+
+<p><strong>Local gate and CI.</strong> The loop started its local gate alongside this report.
+Neither its result nor any CI status was recorded when the report was written, so the rows below are unknown.
+They are not inferred from the local tests. There were no CI fix rounds.</p>
+<table>
+<thead><tr><th>CI job that covers the change</th><th>Step</th><th>Result</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>Ubuntu build - cmake - releaseClang</td><td>Check native proofs in Lean (runs the new test module)</td><td><span class="warn">not recorded</span></td><td><a href="https://github.com/levnach/z3/pull/134/checks">PR checks</a></td></tr>
+<tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Test Python wheel (runs the exporter tests)</td><td><span class="warn">not recorded</span></td><td><a href="https://github.com/levnach/z3/pull/134/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+
+<h2>Review</h2>
+<p>The reviewer approved, with no blocker and no major finding.</p>
+<ul>
+<li><strong>Minor, fixed: the gain was invisible to another harness.</strong>
+The reviewer ran the new inputs through z3test's harness, which trims the log and builds the certificate in two calls.
+Four of the ten newly certified corpus queries were not certified there.
+The fallback to the untrimmed log moved into <code>build_certificate</code>, which that harness calls too.</li>
+<li><strong>Minor, documented, not changed: five rejections became Lean failures.</strong>
+Five inputs used to be rejected by the exporter with a clear message.
+Their solver lemmas now have refutations, so they are exported and fail in Lean on another step.
+Nothing unsound is accepted, but the gap shows up later.
+No rule was found that rejects them early without also rejecting inputs that verify, so the docs now name them.</li>
+<li><strong>Minor, fixed: a test that could not fail.</strong>
+A test named &ldquo;stays rejected&rdquo; never reached its rejection branch.
+It now pins each input's hints and number of polynomial proofs, and a new test asserts that Lean rejects both inputs.</li>
+<li><strong>Four nits and one suggestion, all applied.</strong>
+A comment and the docs were corrected, and a blank line was removed.
+The second replay now shares the first one's deadline and warns.
+A cut or cnf lemma keeps its older proofs when the search raises an error.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li>A harness that counts rejections and Lean failures separately will see the five inputs above move.</li>
+<li>The search runs in both the exporter and the reconstructor, which could disagree at the size limit. This was not observed.</li>
+<li>A search that hits its resource limit reads as &ldquo;no refutation&rdquo;. Its cost on large nonlinear logs was not measured.</li>
+<li>Three random seeds seem to verify because certificates became more compact, not through a polynomial proof. This was not analysed further.</li>
+<li>The final full test run took almost twice as long as earlier runs. The cause was not measured.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+<li>Lemmas that conclude an equality, equalities stated as two bounds, and squares of sums.</li>
+<li>The rewriter's sign split, behind most random seeds that still fail in Lean.</li>
+<li>Products of Real terms, the largest rejected group.</li>
+<li>Reading Z3's own refutation from the hint, which needs a C++ change.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-assertion">assertion</dt><dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+<dt id="g-atom">atom</dt><dd>A piece that a theory treats as one indivisible unit. In linear arithmetic over <code>3x + y</code>, the atoms are <code>x</code> and <code>y</code>.</dd>
+<dt id="g-axiom">axiom</dt><dd>A statement accepted without proof. A certificate that adds one is only as reliable as that statement.</dd>
+<dt id="g-bound">bound</dt><dd>A comparison of a term with a constant, such as <code>m &ge; 2</code>. Also the name of a hint for a lemma that derives one.</dd>
+<dt id="g-certificate">certificate</dt><dd>A file recording the steps of a refutation so that another program can check them.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as &ldquo;not A, or B, or not C&rdquo;.</dd>
+<dt id="g-clause-log">clause log</dt><dd>The list of clauses a solver wrote while it searched, each with a note on where it came from.</dd>
+<dt id="g-cnf">cnf</dt><dd>Conjunctive normal form: a formula written as a conjunction of clauses. As a hint, it marks a clause that ties an assertion to that form.</dd>
+<dt id="g-cut">cut</dt><dd>A lemma of integer arithmetic that removes non-integer solutions. From <code>2x &ge; 1</code> over the integers it follows that <code>x &ge; 1</code>.</dd>
+<dt id="g-farkas">Farkas lemma</dt><dd>The fact that inconsistent linear inequalities can be added up, with nonnegative multipliers, to an obvious falsehood such as <code>0 &le; -1</code>.</dd>
+<dt id="g-hint">hint</dt><dd>A label on a logged clause naming the kind of reasoning that produced it, for example <code>nla</code> or <code>cut</code>.</dd>
+<dt id="g-linear-arithmetic">linear arithmetic</dt><dd>Arithmetic where variables are only added and multiplied by constants, as in <code>2x + 3y &le; 7</code>.</dd>
+<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as <code>m &ge; 2</code> or <code>not (m &ge; 2)</code>.</dd>
+<dt id="g-multiplier">multiplier</dt><dd>The constant by which a fact is scaled before facts are added together.</dd>
+<dt id="g-nonlinear-arithmetic">nonlinear arithmetic</dt><dd>Arithmetic where variables are multiplied with each other, as in <code>m * n &lt; 6</code>.</dd>
+<dt id="g-polynomial">polynomial</dt><dd>A sum of products of variables and constants, such as <code>m*n - 3m + 6</code>.</dd>
+<dt id="g-polynomial-refutation">polynomial refutation</dt><dd>Evidence that some facts cannot all hold. Nonnegative multiples of the facts, of products of two facts, and of squares add up to a negative constant.</dd>
+<dt id="g-product">product</dt><dd>The result of multiplying terms, called its factors. In <code>(* m n)</code> the factors are <code>m</code> and <code>n</code>.</dd>
+<dt id="g-query">query</dt><dd>One <code>(check-sat)</code> call in an SMT-LIB file, together with the assertions in force at that point.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to a contradiction.</dd>
+<dt id="g-sorry">sorry</dt><dd>Lean's placeholder for a missing proof. A file that uses it is not a complete proof.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that tries to build a proof automatically. <code>omega</code> and <code>grind</code> are tactics.</dd>
+<dt id="g-term">term</dt><dd>An expression that denotes a value, such as <code>m</code>, <code>(+ m 1)</code>, or <code>(* m n)</code>.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that is true by the rules of a theory alone, such as arithmetic, whatever the input says.</dd>
+<dt id="g-trimming">trimming</dt><dd>Removing from a clause log the clauses the refutation does not use.</dd>
+<dt id="g-unit-propagation">unit propagation</dt><dd>When all literals of a clause but one are known false, the last one must be true. A unit clause has a single literal.</dd>
+</dl>
+
+<footer>Generated by the Lean certificate improvement loop on 2026-11-13.</footer>
+
+</body>
+</html>
