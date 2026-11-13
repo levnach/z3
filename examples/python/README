@@ -1278,8 +1278,9 @@ image too, so the same generic facts prove the array lemmas. A pointwise
 connective does not commute off the image (the complement of the fixed
 value is another value), so maps and set operators over sets indexed by
 arrays are rejected by the exporter and by the reconstructor; constant
-arrays are admitted over Int and Real indices only, where the embedding
-is onto. A read of a row is an array term, and so is the
+arrays are not admitted over array indices, where the embedding is not
+onto (a model's is constant on the embedded indices only). A read of a
+row is an array term, and so is the
 extensionality witness of two arrays over array indices, chosen with a
 constant function from the element type's inhabitant ((Nonempty.elim
 (Nonempty.intro (0 : Int)) (fun _e => Nonempty.intro (fun (_ : Int) =>

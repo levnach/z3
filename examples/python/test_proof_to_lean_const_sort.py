@@ -153,6 +153,24 @@ CONSTANT_SORT_INPUTS = {
 (check-sat)
 """,
 }
+# The boundary of the carrier's exception: I is the only sort, but a function
+# takes an argument of another kind (a Bool, an Int, an array), which is
+# injected into the carrier, so the carrier holds more than I and I is a
+# type of its own all the same.
+_ONLY_SORT = """(declare-sort I 0)
+(declare-fun v () I)
+(declare-fun w () I)
+(declare-fun f (%s) I)
+(assert (= ((as const (Array I I)) v) ((as const (Array I I)) w)))
+(assert (not (= v w)))
+(assert (= (f %s) v))
+(check-sat)
+"""
+CONSTANT_SORT_INPUTS.update({
+    "the_only_sort_next_to_a_bool_argument": _ONLY_SORT % ("Bool", "true"),
+    "the_only_sort_next_to_an_int_argument": _ONLY_SORT % ("Int", "0"),
+    "the_only_sort_next_to_an_array_argument": _ONLY_SORT % ("(Array I I)", "((as const (Array I I)) v)"),
+})
 _INDEX_SORTS = {name: ("I",) for name in CONSTANT_SORT_INPUTS}
 _INDEX_SORTS["two_index_sorts"] = ("I", "J")
 
@@ -214,10 +232,14 @@ CARRIER_INPUTS = {
 (check-sat)
 """,
 }
-_FRAGMENTS = {"array_over_bool_indices_equal_to_a_constant_array": "qf_uflia",
+_FRAGMENTS = {"the_only_sort_next_to_an_int_argument": "qf_uflia",
+              "array_over_bool_indices_equal_to_a_constant_array": "qf_uflia",
               "constant_arrays_over_bool_indices_of_distinct_values": "qf_uflia"}
 
-# Inputs that stay rejected, with the error and its message.
+# Inputs that stay rejected, with the error and its message. The last two
+# depend on what Z3 does with the input (the rewriter's quantifier, the array
+# solver's default term): if Z3 changes there, the input is no longer
+# rejected for that reason and needs replacing, not the pipeline.
 REJECTED_INPUTS = {
     # A model's constant array over array indices is constant on the
     # embedded indices only, not Lean's constant function.
@@ -441,6 +463,10 @@ class TestConstantSortValidation(unittest.TestCase):
         for name in ("equal_to_a_difference_with_itself", "subset_next_to_a_sort"):
             self.assertRegex(self.texts[name], r" : \(_m\.S0 -> Prop\) := \(@_const_array _m\.S0 Prop \(formula_")
         self.assertIn("_subset_eq", self.texts["subset_next_to_a_sort"])
+        # The header names both reasons where the input's operators are over the sort too.
+        for name in ("equal_to_a_union_with_the_complement", "subset_next_to_a_sort"):
+            self.assertIn('-- Uninterpreted sort "I" is the type _m.S0 of its own, the index type of the pointwise '
+                          "maps and constant arrays: constants _m.s0_elems,", self.texts[name])
         # Nested, and two sorts indexing constant arrays into each other.
         text = self.texts["constant_array_of_constant_arrays"]
         self.assertRegex(text, r":= \(@_const_array _m\.S0 \(_m\.S0 -> _m\.U\) \(term_\d+ _atoms _m\)\)\n")
@@ -668,9 +694,13 @@ class TestConstantSortLeanIntegration(unittest.TestCase):
         model = _ONE_INDEX_MODEL % {"namespace": namespace, "equality": equality, "disequality": disequality,
                                     "v": elements["v"], "w": elements["w"]}
         _, report = lean_test_support.check(self, source, text=text + model, theorems=("unsat",) + theorems)
-        for theorem in theorems:
-            self.assertIn("'%s.%s'" % (namespace, theorem), report)
         self.assertNotIn("sorryAx", report)
+        for theorem in ("unsat",) + theorems:
+            axioms = re.search(r"'%s\.%s' (?:depends on axioms: \[([^\]]*)\]|does not depend on any axioms)"
+                               % (re.escape(namespace), theorem), report)
+            self.assertIsNotNone(axioms, report)
+            self.assertLessEqual(set(filter(None, re.split(r",\s*", axioms.group(1) or ""))),
+                                 set(re.split(r",\s*", _STANDARD_AXIOMS.strip("[]"))), report)
 
 
 if __name__ == "__main__":

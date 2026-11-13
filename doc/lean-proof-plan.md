@@ -2815,9 +2815,13 @@ What it needs is an index type that is exactly the model's.
 
 Measured on this iteration's macOS build with
 `random_constant_sort_instance` (`test_proof_to_lean_const_sort.py`; every
-input was rejected before): over a sort next to another, 511 of the 565
-unsatisfiable seeds of 1-1500 verify in Lean; over the only sort, 203 of
-227 (1-600); over Bool indices, 200 of 218 (1-600). Of the others, 35 are
+input was rejected before): with a second sort declared (`index='I'`), 511
+of the 565 unsatisfiable seeds of 1-1500 verify in Lean; over the only
+sort, 203 of 227 (1-600); over Bool indices, 200 of 218 (1-600). Of the 535
+of the first row that reconstruct, 501 state `I` as a type of its own (479
+verify); in the other 34 no assertion mentions the second sort, so `I` is
+the only sort of the certificate and stays the carrier (32 verify). Of the
+others, 35 are
 rejected for the solver's default values, 15 by the exporter (11 for a
 quantifier, 4 for a fresh symbol of the log), and 46 fail in Lean, 38 of
 them in the same way with Int for the index sort. The 30 seeds of
@@ -2827,7 +2831,9 @@ existing set, constant-array, subset, enumeration-array, sorted, and
 Bool-argument generators reconstruct to the same text as before (613
 certificates), and so do the other 211 of `random_index_sort_instance`.
 
-Tests (`test_proof_to_lean_const_sort.py`): `CONSTANT_SORT_INPUTS` (19),
+Tests (`test_proof_to_lean_const_sort.py`): `CONSTANT_SORT_INPUTS` (22,
+three of them the only sort next to a function with a Bool, an Int, or an
+array argument, where it is a type of its own all the same),
 `CARRIER_INPUTS` (8: the only sort, Bool indices), the pinned seeds
 `CONSTANT_SORT_SEEDS` (Lean); the sorts chosen, the encoding, the facts at
 the index and the absence of default-value facts, `REJECTED_INPUTS`, and

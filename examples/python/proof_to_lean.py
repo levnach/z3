@@ -1763,6 +1763,17 @@ def _declaration(raw, sorts):
     return _Declaration(kind, name, domain, raw["range"], parameters)
 
 
+def _pointwise_indices(graph):
+    """The index sorts of the arrays that the maps, set operators, and subsets of the certificate are over."""
+    indices = set()
+    for decl in graph.declarations:
+        if decl.kind == z3.Z3_OP_ARRAY_MAP or decl.kind in _SET_OPERATOR_NAMES:
+            indices.add(_array_components(decl.range)[0])
+        elif decl.kind == z3.Z3_OP_SET_SUBSET:
+            indices.add(_array_components(decl.domain[0])[0])
+    return indices
+
+
 def _index_sorts(graph):
     """The uninterpreted index sorts of pointwise functions and constant arrays that get a Lean type of their own.
 
@@ -1801,14 +1812,8 @@ def _index_sorts(graph):
     and constant arrays over arrays indexed by arrays are rejected
     (_declaration).
     """
-    indices = set()
-    for decl in graph.declarations:
-        if decl.kind == z3.Z3_OP_ARRAY_MAP or decl.kind in _SET_OPERATOR_NAMES:
-            indices.add(_array_components(decl.range)[0])
-        elif decl.kind == z3.Z3_OP_SET_SUBSET:
-            indices.add(_array_components(decl.domain[0])[0])
-        elif decl.kind == z3.Z3_OP_CONST_ARRAY:
-            indices.add(_array_components(decl.range)[0])
+    indices = _pointwise_indices(graph) | {_array_components(decl.range)[0] for decl in graph.declarations
+                                           if decl.kind == z3.Z3_OP_CONST_ARRAY}
     indices = tuple(sorted(indices & set(graph.carriers)))
     if graph.carriers == indices and len(indices) == 1 and all(
             sort == indices[0] for position, decl in enumerate(graph.declarations)
@@ -5371,6 +5376,13 @@ def _constant_chain_extensionality(graph, equality, inline):
     i, _select S i = _select T i, and proves it by funext, a case split on
     whether the index read is a stored one, and off them _store_off down to
     the constant arrays. Only equalities with at least one store get one.
+
+    The fact is a theorem over any index type, and is stated for the
+    equalities over an uninterpreted or Bool index sort of constant arrays
+    too (_Graph.constant_indices). There it mirrors no rewrite: over a sort
+    that may be finite the rewriter does not decide such an equality this
+    way (it expands it into a quantified formula, which the exporter
+    rejects).
     """
     sides = [_constant_chain(graph, argument) for argument in graph.arguments(equality)]
     if None in sides or not (sides[0][1] or sides[1][1]):
@@ -9817,13 +9829,15 @@ def reconstruct(source, certificate):
                          " functions with %s result are the family %s." % (
                              sort, _INJECTIONS[sort], {"Real": "a Real", "Int": "an Int"}[sort],
                              _NUMERIC_FUNCTIONS[sort]))
+    pointwise = _pointwise_indices(graph)
     for sort in graph.index_sorts:
         # Maps, set operators, subsets, or constant arrays are over arrays
         # indexed by it, so their index type is exactly the sort (_index_sorts).
+        reasons = [reason for reason, indices in (("pointwise maps", pointwise),
+                                                  ("constant arrays", graph.constant_indices)) if sort in indices]
         lines.append("-- Uninterpreted sort %s is the type %s of its own, the index type of the %s: "
                      "constants %s, functions %s, arguments of functions and predicates injected into _m.U by %s." % (
-                         json.dumps(sort, ensure_ascii=True), _component_type(graph, sort),
-                         "constant arrays" if sort in graph.constant_indices else "pointwise maps",
+                         json.dumps(sort, ensure_ascii=True), _component_type(graph, sort), " and ".join(reasons),
                          _sort_family(graph, sort, "elems"), _sort_family(graph, sort, "funs"),
                          _sort_family(graph, sort, "inj")))
     plain = [sort for sort in graph.carriers if sort not in graph.enumerations and sort not in graph.index_sorts]
