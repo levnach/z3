@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #128: State floor values as Int equations for floors under applications</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --soft: #f6f8fa; --link: #0969da; --open-bg: #dafbe1; --open-fg: #116329;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+    --soft: #161b22; --link: #4493f8; --open-bg: #12361f; --open-fg: #56d364;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; padding: 1.5rem 1rem 3rem; max-width: 52rem;
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 1rem; line-height: 1.6;
+}
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 0.6rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 0.6rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.02rem; margin: 1.4rem 0 0.4rem; }
+a { color: var(--link); }
+p, ul, dl { margin: 0.6rem 0; }
+li { margin: 0.3rem 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+  background: var(--soft); padding: 0.08em 0.3em; border-radius: 4px; }
+pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.75rem 0.9rem; overflow-x: auto; line-height: 1.45; margin: 0.6rem 0 0.3rem; }
+pre code { background: none; padding: 0; font-size: 0.82rem; white-space: pre; }
+.wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; margin: 0.7rem 0; }
+th, td { border: 1px solid var(--line); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+th { background: var(--soft); }
+td.n, th.n { text-align: right; white-space: nowrap; }
+.meta { color: var(--muted); font-size: 0.93rem; margin: 0.2rem 0; }
+.pill { display: inline-block; padding: 0.05rem 0.6rem; border-radius: 999px; font-weight: 600;
+  font-size: 0.85rem; background: var(--open-bg); color: var(--open-fg); }
+.note { color: var(--muted); font-size: 0.92rem; margin: 0.2rem 0 1rem; }
+dt { font-weight: 600; margin-top: 0.7rem; }
+dd { margin: 0.1rem 0 0 1.2rem; }
+footer { margin-top: 2.5rem; padding-top: 0.8rem; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>State floor values as Int equations for floors under applications</h1>
+<p class="meta"><span class="pill">OPEN</span>
+Pull request <a href="https://github.com/levnach/z3/pull/128">levnach/z3#128</a>, targeting <code>master</code>.
+This pull request is open and has not been merged.</p>
+<p class="meta">Change commit:
+<a href="https://github.com/levnach/z3/commit/977df84d2107996b59294d2ac570965fe6a1e74c"><code>977df84d2</code></a>
+&middot; Date: 2026-11-13T00:05:20Z &middot; Loop iteration 127</p>
+</header>
+
+<section id="summary">
+<h2>In one paragraph</h2>
+<p>This PR lets the Lean <a href="#g-reconstructor">reconstructor</a> handle a
+<a href="#g-floor">floor</a> that sits inside an <a href="#g-application">application</a>.
+SMT-LIB writes the floor as <code>to_int</code>.
+When a floor is the argument of an <a href="#g-uninterpreted-function">uninterpreted function</a>,
+a <a href="#g-predicate">predicate</a>, or an <a href="#g-array">array</a> read,
+Z3's <a href="#g-rewriter">rewriter</a> often computes it.
+For example, <code>(f (to_int 0.5))</code> becomes <code>(f 0)</code>.
+Lean must then accept that both applications are equal, a
+<a href="#g-congruence">congruence</a> step.
+The old <a href="#g-certificate">certificate</a> stated the floor's value only after a
+<a href="#g-cast">cast</a> into the rationals, which Lean's <code>grind</code>
+<a href="#g-tactic">tactic</a> could not use.
+The new certificate states the value as an equation between <a href="#g-term">terms</a>
+of <a href="#g-sort">sort</a> Int.
+In one random family of such inputs, about three quarters of the
+<a href="#g-refutation">refutations</a> failed in Lean before, and all pass now.
+No <a href="#g-axiom">axiom</a> is added, so the <a href="#g-trust-boundary">trust boundary</a> does not move.</p>
+</section>
+
+<section id="background">
+<h2>Background</h2>
+<p>Before this PR the pipeline already certified <code>to_int</code> and
+<a href="#g-is-int"><code>is_int</code></a> inside <a href="#g-linear-arithmetic">linear arithmetic</a>.
+It stated bounds for each floor, and its value only as a rational.
+That was enough for arithmetic but not for congruence.
+So rewrite steps that simplified a floor under an application failed in Lean on the
+<a href="#g-clause-log">clause log</a>.
+The <a href="#g-legacy">legacy proof object</a> failed only on <code>is_int</code> of a
+<a href="#g-constant">constant</a>.
+The lone <a href="#g-assertion">assertion</a> <code>(assert (is_int 0.5))</code> was rejected by the
+<a href="#g-fragment">fragment</a> check.
+The work serves milestone 3 of the plan, &ldquo;Equality and linear arithmetic&rdquo;.</p>
+</section>
+
+<section id="changes">
+<h2>What changed</h2>
+<h3>Lean reconstructor</h3>
+<ul>
+<li>A floor under an uninterpreted function, a predicate, or an array read now verifies, because its value is stated between Int terms.</li>
+<li>A floored integer expression plus any constant, such as x + 0.5, now gets a value through the new <a href="#g-lemma">lemma</a> <code>_floor_value</code>.</li>
+<li>The floor of a constant is replaced by its value in a proof step, which removes a timeout on one kind of input.</li>
+<li>The input <code>(assert (is_int 0.5))</code> is now accepted, because <code>is_int</code> counts as Int arithmetic in the fragment check.</li>
+<li>A proof step whose <a href="#g-goal">goal</a> is already closed by simplifying casts no longer stops with a &ldquo;No goals&rdquo; error.</li>
+</ul>
+<h3>Tests and documentation</h3>
+<ul>
+<li>New documented inputs, pinned random <a href="#g-seed">seeds</a>, and text checks cover both proof sources.</li>
+</ul>
+<p>The function <code>f</code> takes the integer itself, not its rational copy.
+The old proof compared the copies, like matching photocopies of two keys when the lock needs the key.</p>
+<div class="wrap">
+<table>
+<thead><tr><th>File</th><th class="n">Lines added</th><th class="n">Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="n">87</td><td class="n">25</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflira.py</code></td><td class="n">337</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lira.py</code></td><td class="n">51</td><td class="n">9</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_array.py</code></td><td class="n">29</td><td class="n">1</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="n">68</td><td class="n">2</td></tr>
+<tr><td><code>examples/python/README</code></td><td class="n">7</td><td class="n">3</td></tr>
+<tr><th>Total: 6 files, 2 commits</th><th class="n">579</th><th class="n">40</th></tr>
+</tbody>
+</table>
+</div>
+<p class="note">No C++ code and no Lean library file changes.</p>
+</section>
+
+<section id="example">
+<h2>Worked example</h2>
+<p>All three parts come from real runs.
+The input is the first documented input of the new tests, plus a <code>(check-sat)</code> line.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-fun f (Int) Int)
+(assert (not (= (f (to_int 0.5)) (f 0))))
+(check-sat)</code></pre>
+<p class="note">The floor of 0.5 is 0, so both applications have the same argument and the assertion cannot hold.</p>
+
+<h3>(b) Before</h3>
+<p>The base <a href="#g-exporter">exporter</a> accepted the input.
+The base reconstructor wrote a Lean file, and Lean rejected it.
+The output is trimmed.</p>
+<pre><code>Build completed successfully (4 jobs).
+Checking z3_proof_vx8peazj.lean
+z3_proof_vx8peazj.lean:78:23: error: `grind` failed
+case grind.1
+...
+_f0 : ↑(1 / 2).floor ≤ 1 / 2
+...
+_u0 : 1 / 2 &lt; ↑(1 / 2).floor + 1
+h : ¬_m.ifuns 0 [_m.int 2⁻¹.floor] = _m.ifuns 0 [_m.int 0]
+h_1 : IntCast.intCast (_m.ifuns 0 [_m.int 2⁻¹.floor]) + 1 ≤ IntCast.intCast (_m.ifuns 0 [_m.int 0])
+⊢ False
+...
+Lean checking failed; no proof was published.</code></pre>
+<p class="note">Line <code>h</code> supposes that the two applications differ. Lean knew only bounds for the floor of 1/2 and could not refute it.</p>
+
+<h3>(c) After</h3>
+<p>The Lean check accepted the new file with the message <code>Lean checks passed.</code></p>
+<pre><code>...
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Rat := ((1 : Rat) / (2 : Rat))
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Int := (Rat.floor (term_0 _atoms _vars _ivars _m))
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Int := _m.ifuns 0 [(_m.int (term_1 _atoms _vars _ivars _m))]
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Int := ((0 : Int))
+def term_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Int := _m.ifuns 0 [(_m.int (term_3 _atoms _vars _ivars _m))]
+def formula_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Prop := ((term_2 _atoms _vars _ivars _m) = (term_4 _atoms _vars _ivars _m))
+def formula_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation) : Prop := (Not (formula_5 _atoms _vars _ivars _m))
+...</code></pre>
+<p class="note">The floor of 1/2 is <code>term_1</code>, of sort Int, and <code>formula_6</code> is the assertion.</p>
+<pre><code>private theorem _floor_value (a : Rat) (k : Int) (_lower : (k : Rat) &lt;= a) (_upper : a &lt; (k : Rat) + 1) :
+    Rat.floor a = k :=
+  Int.le_antisymm
+    (Int.lt_add_one_iff.mp (Rat.floor_lt_iff.mpr (by push_cast; exact _upper)))
+    (Rat.le_floor_iff.mpr _lower)</code></pre>
+<p class="note">The new lemma: a rational between an integer k and k + 1 has floor k.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_12 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation)
+    : (formula_11 _atoms _vars _ivars _m) := by
+  unfold formula_11 formula_7 formula_6 formula_5
+  first
+    | (generalize (term_4 _atoms _vars _ivars _m) = _o0
+       generalize (term_2 _atoms _vars _ivars _m) = _o1
+       first | omega | grind (splits := 64))
+    | (have _f0 := Rat.floor_le (term_0 _atoms _vars _ivars _m)
+       have _u0 := Rat.lt_floor_add_one (term_0 _atoms _vars _ivars _m)
+       have _c5 := _int_cast_eq (term_2 _atoms _vars _ivars _m) (term_4 _atoms _vars _ivars _m)
+       revert _f0 _u0 _c5
+       unfold term_4 term_3 term_2 term_1 term_0
+       intro _f0 _u0 _c5
+       have _zi0 : Rat.floor (((1 : Rat) / (2 : Rat))) = (((0 : Int))) := _floor_value _ _ (by push_cast; grind) (by push_cast; grind)
+       have _z0 := congrArg (fun (_t : Int) =&gt; ((_t : Int) : Rat)) _zi0
+       try (generalize Rat.floor (((1 : Rat) / (2 : Rat))) = _fv0 at *; subst _zi0)
+       push_cast at *
+       all_goals (first | omega | grind (splits := 64)))</code></pre>
+<p class="note">Line <code>_zi0</code> states that the floor of 1/2 equals the Int 0. The <code>generalize</code> line then replaces the floor by 0.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) (_ivars : Nat -&gt; Int) (_m : Interpretation)
+    (_h0 : (formula_6 _atoms _vars _ivars _m))
+    : False :=
+  ...</code></pre>
+<p class="note">The <a href="#g-theorem">theorem</a> says that under every <a href="#g-interpretation">interpretation</a> the assertion implies False, as before the PR.</p>
+</section>
+
+<section id="verification">
+<h2>How it was verified</h2>
+<p>Every test suite passed locally on the head commit, and so did the loop's local gate.
+Random inputs were checked in Lean before and after the change.
+Most inputs of the new kind failed before and pass now, and no <a href="#g-regression">regression</a> was found.</p>
+<p>The loop's integrator ran the first table on the head commit.</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Local check on the head commit</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td>562 tests, OK, 9 skipped</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td>124 tests, OK</td></tr>
+<tr><td>Lean project check, <code>scripts/check_lean.sh</code></td><td>Lean checks passed</td></tr>
+<tr><td>Proof tests of the z3test repository</td><td>48 tests, OK</td></tr>
+<tr><td>Regression matrix, legacy proof object, Boolean inputs</td><td>6 of 6 verified in Lean</td></tr>
+<tr><td>Regression matrix, clause log, linear real arithmetic inputs</td><td>8 of 8 verified in Lean</td></tr>
+<tr><td>Certificate text, first commit against head</td><td>1,226 compared, 1 differs, and that one verifies</td></tr>
+<tr><td>C++ unit tests and SMT2 regressions</td><td>Not run, since no C++ changed</td></tr>
+</tbody>
+</table>
+</div>
+<p>The implementer and the reviewer ran the second table, which compares the base with the PR's first commit.</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Random inputs</th><th>Run by</th><th class="n">Unsat inputs</th><th class="n">Failed in Lean before</th><th class="n">Verify now</th><th class="n">Regressions</th></tr></thead>
+<tbody>
+<tr><td>New generator, seeds 1&ndash;600, clause log</td><td>Implementer</td><td class="n">148</td><td class="n">109</td><td class="n">148</td><td class="n">0</td></tr>
+<tr><td>New generator, seeds 1&ndash;300, legacy proof object</td><td>Implementer</td><td class="n">74</td><td class="n">4</td><td class="n">74</td><td class="n">0</td></tr>
+<tr><td>New generator, seeds 601&ndash;900, clause log</td><td>Reviewer</td><td class="n">74</td><td class="n">56</td><td class="n">73</td><td class="n">0</td></tr>
+<tr><td>New generator, seeds 601&ndash;900, legacy proof object</td><td>Reviewer</td><td class="n">74</td><td class="n">7</td><td class="n">74</td><td class="n">0</td></tr>
+<tr><td>New generator with larger settings, seeds 1&ndash;200, clause log</td><td>Reviewer</td><td class="n">56</td><td class="n">31</td><td class="n">56</td><td class="n">0</td></tr>
+<tr><td>Arrays read and stored at floors, seeds 1&ndash;300, clause log</td><td>Reviewer</td><td class="n">79</td><td class="n">50</td><td class="n">78</td><td class="n">0</td></tr>
+<tr><td>Five older generators, both proof sources</td><td>Implementer</td><td class="n">951</td><td class="n">0 of the 668 with changed text</td><td class="n">668 changed texts verify, 283 texts are identical</td><td class="n">0</td></tr>
+</tbody>
+</table>
+</div>
+<p>The loop's local gate then passed.
+It repeats, on the loop machine, the steps of the CI job that exercise this work.</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="n">Time</th></tr></thead>
+<tbody>
+<tr><td>Python example tests: certificate exporter</td><td>pass</td><td class="n">19 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td>pass</td><td class="n">906 s</td></tr>
+<tr><td>z3test proof script tests</td><td>pass</td><td class="n">18 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td>pass</td><td class="n">4 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td>pass</td><td class="n">7 s</td></tr>
+<tr><th>Overall</th><th>pass</th><th class="n"></th></tr>
+</tbody>
+</table>
+</div>
+<p>No GitHub CI status was recorded for this iteration, so the last table only shows where the changed tests run.
+There were no CI fix rounds and no failures judged unrelated.</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Workflow</th><th>Job and check</th><th>Result</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td>CI</td><td>&ldquo;Ubuntu build - cmake - releaseClang&rdquo;, step &ldquo;Check native proofs in Lean&rdquo;. It runs the three changed test files.</td><td>Not recorded</td><td><a href="https://github.com/levnach/z3/pull/128/checks">PR checks</a></td></tr>
+<tr><td>CI</td><td>Python wheel job, step &ldquo;Test Python wheel&rdquo;. It runs only test files this PR did not change.</td><td>Not recorded</td><td><a href="https://github.com/levnach/z3/pull/128/checks">PR checks</a></td></tr>
+<tr><td>Lean proofs, on demand</td><td>The same script as the first row.</td><td>Not recorded</td><td><a href="https://github.com/levnach/z3/pull/128/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="review">
+<h2>Review</h2>
+<p>The reviewer approved the change, with no blocker and no major finding.
+All fixes are in the second commit.</p>
+<h3>Minor findings</h3>
+<ul>
+<li>The reviewer read an array through two stores, with index <code>(to_int 2.5)</code> in one.
+Lean still rejected it, as before the PR.
+The plan had promised that such floors verify.
+The claim was narrowed, and the array repair is a follow-up.</li>
+<li>The reviewer tried new seeds.
+Seed 685 still fails on the clause log, as before the PR.
+The documents said &ldquo;all verify&rdquo;, true only for the earlier seeds.
+The plan now names this seed.</li>
+</ul>
+<h3>Nits</h3>
+<ul>
+<li>A dated note in the plan split a paragraph from an older note that refers to it. It was moved.</li>
+<li>One generated tactic read <code>all_goals all_goals</code>. The harmless duplicate is gone.</li>
+<li>One test compared a length with itself. It now checks the generated facts.</li>
+</ul>
+<h3>Suggestion</h3>
+<ul>
+<li>The reviewer proposed replacing constant floors after all other facts, so no later fact mentions a vanished floor.
+Nobody could build such an input.
+The reorder was taken and changed no certificate text.</li>
+</ul>
+</section>
+
+<section id="risks">
+<h2>Risks and open questions</h2>
+<ul>
+<li>No soundness risk was identified. Lean's <a href="#g-kernel">kernel</a> checks every new fact.</li>
+<li>Every proof step with cast facts has new text, so <code>grind</code> could behave differently on untested inputs.</li>
+<li>The replacement of a constant floor runs under <code>try</code>, so an unexpected failure there would stay silent.</li>
+<li>The two inputs from the minor findings still fail in Lean.</li>
+<li>GitHub CI results were not recorded when this report was written.</li>
+</ul>
+<h2>What comes next</h2>
+<p>The loop's backlog records these follow-ups.</p>
+<ul>
+<li>Reads past a store at the floor of a constant, under another store.</li>
+<li>Argument equalities when two terms floor the same constant, as in seed 685.</li>
+<li>The absolute value of a Real constant under an application, which fails the same way.</li>
+<li>Wider random sweeps, such as sets indexed by floors.</li>
+</ul>
+</section>
+
+<section id="glossary">
+<h2>Glossary</h2>
+<dl>
+<dt id="g-application">application</dt><dd>A function or predicate applied to arguments, such as <code>(f 0)</code>.</dd>
+<dt id="g-array">array</dt><dd>A map from indices to values. <code>select</code> reads one index, and <code>store</code> writes one index.</dd>
+<dt id="g-assertion">assertion</dt><dd>A formula that the input states to be true, written <code>(assert ...)</code>.</dd>
+<dt id="g-axiom">axiom</dt><dd>A statement accepted without proof.</dd>
+<dt id="g-boolean">Boolean</dt><dd>The sort with the two values true and false.</dd>
+<dt id="g-cast">cast</dt><dd>A conversion of a value from one sort to another. Example: <code>to_real</code> turns the Int 2 into the Real 2.0.</dd>
+<dt id="g-certificate">certificate</dt><dd>A record of a proof that a separate checker can replay.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of <a href="#g-literal">literals</a>, such as &ldquo;p or not q&rdquo;.</dd>
+<dt id="g-clause-log">clause log</dt><dd>One of the two proof sources: the list of <a href="#g-clause">clauses</a> the solver derived, in order.</dd>
+<dt id="g-congruence">congruence</dt><dd>Equal arguments give equal results. Example: from a = b conclude f(a) = f(b).</dd>
+<dt id="g-constant">constant</dt><dd>Here, a fixed number such as 0.5 or &minus;2, also called a numeral.</dd>
+<dt id="g-exporter">exporter</dt><dd>The script that saves Z3's proof as a certificate file.</dd>
+<dt id="g-floor">floor</dt><dd>The largest integer not above a number, written <code>to_int</code> in SMT-LIB. The floor of 0.5 is 0, and the floor of &minus;0.5 is &minus;1.</dd>
+<dt id="g-fragment">fragment</dt><dd>The part of the logic an input uses. Example: QF_UFLIRA has no quantifiers, and has uninterpreted functions with linear Int and Real arithmetic.</dd>
+<dt id="g-goal">goal</dt><dd>The statement that a Lean proof still has to prove at a given moment.</dd>
+<dt id="g-interpretation">interpretation</dt><dd>A choice of meaning for every uninterpreted symbol and variable.</dd>
+<dt id="g-is-int">is_int</dt><dd>The SMT-LIB predicate that holds when a Real number is a whole number, that is, equal to its floor.</dd>
+<dt id="g-kernel">kernel</dt><dd>The small core of Lean that checks every proof. It is the part one has to trust.</dd>
+<dt id="g-legacy">legacy proof object</dt><dd>The other proof source: the proof term built by Z3's older solver core.</dd>
+<dt id="g-lemma">lemma</dt><dd>A small proved statement used as a step in a larger proof.</dd>
+<dt id="g-linear-arithmetic">linear arithmetic</dt><dd>Arithmetic with sums and multiplication by constants only, such as 2x + y &le; 3.</dd>
+<dt id="g-literal">literal</dt><dd>An atomic formula or its negation, such as p or &ldquo;not p&rdquo;.</dd>
+<dt id="g-predicate">predicate</dt><dd>A function whose result is <a href="#g-boolean">Boolean</a>.</dd>
+<dt id="g-reconstructor">reconstructor</dt><dd>The script that turns a certificate into a Lean proof file.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that the assertions lead to a contradiction.</dd>
+<dt id="g-regression">regression</dt><dd>Something that worked before a change and fails after it.</dd>
+<dt id="g-rewriter">rewriter</dt><dd>The part of the solver that simplifies terms. Example: it evaluates <code>(to_int 0.5)</code> to 0. A rewrite step is one such simplification recorded in the proof.</dd>
+<dt id="g-seed">seed</dt><dd>A number that fixes the choices of a random generator, so the same input can be produced again.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof. <code>grind</code> and <code>omega</code> are automatic ones.</dd>
+<dt id="g-term">term</dt><dd>An expression that denotes a value, such as <code>(+ x 1)</code>.</dd>
+<dt id="g-theorem">theorem</dt><dd>A named statement together with its proof.</dd>
+<dt id="g-trust-boundary">trust boundary</dt><dd>The line between what is checked and what is simply believed.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning. Only congruence is known about it.</dd>
+</dl>
+</section>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-12 (2026-11-13 UTC).
+</footer>
+
+</body>
+</html>
