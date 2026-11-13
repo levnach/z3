@@ -1,1 +1,14 @@
-{"number": 132, "title": "Certify constant arrays over uninterpreted and Bool index sorts", "pr_url": "https://github.com/levnach/z3/pull/132", "page": "https://levnach.github.io/z3/reports/pr-132.html", "merge_sha": "", "date": "2026-11-13T09:58:39Z", "iteration": 131, "summary": "Constant arrays over an uninterpreted or Bool index sort are now certified in Lean, including the ones Z3's rewriter makes for subsets and set differences. The uninterpreted index sort becomes a Lean type of its own, and no axiom is added.", "state": "OPEN", "head_sha": "b8df4639611e6dffddd36dfb4bf910b40d8f7c91", "base_sha": "21a6895158eee8c54617749ea2f74fd43d90dec2", "repository": "levnach/z3"}
+{
+  "number": 132,
+  "title": "Certify constant arrays over uninterpreted and Bool index sorts",
+  "pr_url": "https://github.com/levnach/z3/pull/132",
+  "page": "https://levnach.github.io/z3/reports/pr-132.html",
+  "merge_sha": "25e8261d4188a80f7aed45761c7cc6e175c2956a",
+  "date": "2026-11-13T10:15:37Z",
+  "iteration": 131,
+  "summary": "HTML description of the pull request.",
+  "state": "MERGED",
+  "head_sha": "25e8261d4188a80f7aed45761c7cc6e175c2956a",
+  "base_sha": "21a6895158eee8c54617749ea2f74fd43d90dec2",
+  "repository": "levnach/z3"
+}
