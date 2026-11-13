@@ -4086,6 +4086,22 @@ class TestArrayValidation(unittest.TestCase):
                 found = {match.groups() for match in map(fact.match, text.split("\n")) if match}
                 self.assertEqual(found, set(facts), text)
 
+    def test_a_store_at_a_floor_states_its_final_tactic_once(self):
+        # The store-identity alternative ends in the step's final tactic
+        # under all_goals, for the goals its simp leaves; with cast facts
+        # that tactic is under all_goals already (proof_to_lean._grind_lemma).
+        simp = r"\n +try \(set_option linter\.unusedSimpArgs false in simp only \[.*\] at \*\)\n +all_goals "
+        name = "store_at_the_floor_of_a_fraction"
+        text = proof_to_lean.reconstruct(ARRAY_INPUTS[name], self.certificates[name])
+        self.assertIn("try (generalize Rat.floor", text)
+        self.assertRegex(text, simp + r"\(first \| omega \| grind")
+        self.assertNotIn("all_goals all_goals", text)
+        # Without cast facts the alternative adds it.
+        name = "int_index_arithmetic"
+        text = proof_to_lean.reconstruct(ARRAY_INPUTS[name], self.certificates[name])
+        self.assertNotIn("push_cast at *", text)
+        self.assertRegex(text, simp + r"first \| omega \| grind")
+
     def test_the_replay_reads_constant_arrays(self):
         context = z3.Context()
         assertions, _ = proof_certificate.parse_assertions(ARRAY_INPUTS["read_constant"], context, integer=True)

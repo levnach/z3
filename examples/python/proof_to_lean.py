@@ -3488,9 +3488,11 @@ def _grind_lemma(graph, node, prefix, atom_indices, variable_indices, opaque_tac
             # Numeral expressions evaluated first, as the rewriter compares
             # indices and values by value ((/ 2 2) is 1.0).
             values, value_names = _numeral_facts(graph, reachable, atom_indices, variable_indices)
+            # The final tactic for the goals simp leaves; with cast facts it
+            # is under all_goals already.
+            final = store_body[-1] if cast_facts else "all_goals " + store_body[-1]
             bodies.append(store_body[:-1] + values
-                          + [_ARRAY_REWRITE_TACTIC % "".join(name + ", " for name in value_names + names),
-                             "all_goals " + store_body[-1]])
+                          + [_ARRAY_REWRITE_TACTIC % "".join(name + ", " for name in value_names + names), final])
         return bodies, taken
 
     # The facts of reads through stores the rewriter does not skip, into
@@ -3713,9 +3715,13 @@ def _cast_facts(graph, reachable, atom_indices, variable_indices, node=None, fol
         instances.append("have _c%d := %s %s %s" % (formula, lemma, sides[0], sides[1]))
         names.append("_c%d" % formula)
         nodes.update(arguments)
-    facts.extend(_floor_shift_facts(graph, floors, atom_indices, variable_indices))
+    shifts, substitutions = _floor_shift_facts(graph, floors, atom_indices, variable_indices)
+    facts.extend(shifts)
     if node is not None:
         facts.extend(_projection_facts(graph, node, atom_indices, variable_indices))
+    # The floors of constants are replaced by their values after every fact
+    # that may mention one is stated.
+    facts.extend(substitutions)
     facts.append("push_cast at *")
     return (stated, names, nodes, facts) if folded else ([], [], set(), facts)
 
@@ -3860,6 +3866,10 @@ private theorem _floor_value (a : Rat) (k : Int) (_lower : (k : Rat) <= a) (_upp
 def _floor_shift_facts(graph, floors, atom_indices, variable_indices):
     """Relate the floors of Real terms a and b whose difference D is an integer: floor a = floor b + D.
 
+    Returns the facts and, apart, the substitutions of the floors of
+    constants by their values, tactic lines for after every fact of the
+    step (_cast_facts).
+
     Z3's rewriter moves integer summands out of a floor, (to_int (+ x 1.0))
     to (+ (to_int x) 1) and (is_int (+ x 1.0)) to (is_int x), which the
     floor bounds alone do not show (they bound each floor within 1 of its
@@ -3881,7 +3891,7 @@ def _floor_shift_facts(graph, floors, atom_indices, variable_indices):
     the Real atoms over the floors.
 
     The floor of a constant (D empty) is then replaced by its value in the
-    goal and in every fact, the last lines returned: grind ran out of
+    goal and in every fact, by the substitutions: grind ran out of
     heartbeats on a rewrite of (= (to_int x) (to_int (- 2.0))) into bounds
     of x with (Rat.floor (-2)) in its context, value fact or not, and
     proves it at once over -2. The floor is generalized and the variable
@@ -3917,7 +3927,7 @@ def _floor_shift_facts(graph, floors, atom_indices, variable_indices):
                          "(by push_cast; grind)" % (argument, side, value))
         facts.append("have _z%d := %s _zi%d" % (argument, cast, argument))
     if len(floors) > _FLOOR_SHIFT_LIMIT:
-        return facts + values
+        return facts, values
     for first, second in itertools.combinations(sorted(forms), 2):
         (first_terms, first_constant), (second_terms, second_constant) = forms[first], forms[second]
         difference = {atom: first_terms.get(atom, 0) - second_terms.get(atom, 0)
@@ -3932,7 +3942,7 @@ def _floor_shift_facts(graph, floors, atom_indices, variable_indices):
         facts.append("have _di%d_%d := (congrArg Rat.floor (show %s = %s + (((%s) : Int) : Rat) by push_cast; grind))"
                      ".trans Rat.floor_add_intCast" % (first, second, sides[0], sides[1], offset))
         facts.append("have _d%d_%d := %s _di%d_%d" % (first, second, cast, first, second))
-    return facts + values
+    return facts, values
 
 
 # The conversions between the sorts of a qf_lira certificate: the injection

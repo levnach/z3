@@ -534,7 +534,11 @@ class TestFloorArgumentValidation(unittest.TestCase):
                          if graph.kind(node) in (z3.Z3_OP_TO_INT, z3.Z3_OP_IS_INT)})
         self.assertTrue(floors)
         indices = collections.defaultdict(int)  # every variable rendered with index 0
-        return proof_to_lean._floor_shift_facts(graph, floors, indices, indices)
+        facts, substitutions = proof_to_lean._floor_shift_facts(graph, floors, indices, indices)
+        # The substitutions are tactics over the facts, none of them a fact.
+        self.assertTrue(all(line.startswith("try (generalize Rat.floor (") for line in substitutions), substitutions)
+        self.assertFalse([fact for fact in facts if not fact.startswith("have _")])
+        return facts + substitutions
 
     def test_floor_of_a_constant_is_its_value_and_replaces_it(self):
         # floor c through _floor_value for a fraction, through
@@ -573,7 +577,19 @@ class TestFloorArgumentValidation(unittest.TestCase):
                                                    r"\(\(1 : Int\)\)")):
             with self.subTest(name=name):
                 facts = self._floors(FLOOR_ARGUMENT_INPUTS[name])
-                self.assertEqual(len(facts), 2 if name != "floor_of_two_casts" else len(facts), facts)
+                if name == "floor_of_two_casts":
+                    # How many intermediate terms are floored is the
+                    # rewriter's business; their floors differ by x.
+                    self.assertGreater(len(facts), 2, facts)
+                    self.assertTrue([fact for fact in facts if fact.startswith("have _di")], facts)
+                else:
+                    self.assertEqual(len(facts), 2, facts)
+                # Each equation between Int terms is followed by its cast.
+                self.assertEqual(len(facts) % 2, 0, facts)
+                for stated, cast in zip(facts[::2], facts[1::2]):
+                    label = re.match(r"have (_zi\d+|_di\d+_\d+) ", stated).group(1)
+                    self.assertEqual(cast, "have %s := congrArg (fun (_t : Int) => ((_t : Int) : Rat)) %s"
+                                           % (label.replace("i", "", 1), label))
                 self.assertFalse([fact for fact in facts if "generalize" in fact])
                 self.assertRegex(facts[0], r"^have _zi\d+ (: Rat\.floor \(.*\) = \(%s\) := _floor_value _ _ |"
                                            r":= \(congrArg Rat\.floor \(show \(.*\) = \(\(\(%s\) : Int\) : Rat\) )"

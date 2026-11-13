@@ -1030,7 +1030,8 @@ class TestFloorValidation(unittest.TestCase):
                          if graph.kind(node) == z3.Z3_OP_TO_INT})
         self.assertGreaterEqual(len(floors), 3)
         indices = collections.defaultdict(int)  # every variable rendered as _vars 0
-        facts = proof_to_lean._floor_shift_facts(graph, floors, indices, indices)
+        facts, substitutions = proof_to_lean._floor_shift_facts(graph, floors, indices, indices)
+        self.assertEqual(substitutions, [])  # No floor of a constant.
         self.assertTrue(any("(((((2 : Int))) : Int) : Rat)" in fact for fact in facts), facts)
         for fact in facts:
             with self.subTest(fact=fact):
@@ -1085,10 +1086,10 @@ class TestFloorValidation(unittest.TestCase):
                          if graph.kind(node) == z3.Z3_OP_TO_INT})
         self.assertGreater(len(floors), proof_to_lean._FLOOR_SHIFT_LIMIT)
         indices = collections.defaultdict(int)
-        capped = proof_to_lean._floor_shift_facts(graph, floors, indices, indices)
+        capped, _ = proof_to_lean._floor_shift_facts(graph, floors, indices, indices)
         self.assertFalse([fact for fact in capped if fact.startswith("have _d")], capped)
         self.assertTrue([fact for fact in capped if fact.startswith("have _z")], capped)
-        below = proof_to_lean._floor_shift_facts(graph, floors[:proof_to_lean._FLOOR_SHIFT_LIMIT], indices, indices)
+        below, _ = proof_to_lean._floor_shift_facts(graph, floors[:proof_to_lean._FLOOR_SHIFT_LIMIT], indices, indices)
         self.assertTrue([fact for fact in below if fact.startswith("have _d")], below)
 
     def test_is_int_definition_axioms_are_arith_hints(self):
