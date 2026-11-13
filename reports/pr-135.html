@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #135: Prove the rewriter's sign split of Int products in Lean</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1c1e21; --muted: #5b6370; --line: #d6dae0;
+  --panel: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700;
+  --open: #1a7f37; --open-bg: #e3f5e8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171a; --fg: #e4e7eb; --muted: #9aa4b1; --line: #343a42;
+    --panel: #1d2227; --link: #7ab7ff; --ok: #56d364; --warn: #e3b341;
+    --open: #56d364; --open-bg: #17301f;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.55; max-width: 52rem; margin: 2rem auto; padding: 0 1rem;
+}
+h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: 0.4rem; }
+h1 a { color: inherit; text-decoration: underline dotted; text-underline-offset: 0.18em; }
+h2 { font-size: 1.2rem; margin-top: 2.2rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1rem; margin-top: 1.4rem; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+p code, li code, td code, dd code { background: var(--panel); padding: 0.05em 0.3em; border-radius: 3px; }
+pre {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; line-height: 1.45;
+}
+table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; font-size: 0.93rem; }
+th, td { border: 1px solid var(--line); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+td.num, th.num { text-align: right; white-space: nowrap; }
+.meta { color: var(--muted); font-size: 0.93rem; margin: 0.2rem 0; }
+.state { display: inline-block; background: var(--open-bg); color: var(--open); font-weight: 600; padding: 0.05rem 0.5rem; border-radius: 999px; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+dl dt { font-weight: 600; margin-top: 0.7rem; }
+dl dd { margin: 0.1rem 0 0 1.2rem; }
+footer { margin-top: 2.5rem; padding-top: 0.8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove the <a href="#g-rewriter">rewriter</a>'s <a href="#g-sign-split">sign split</a> of Int <a href="#g-product">products</a> in Lean</h1>
+<p class="meta">Pull request <a href="https://github.com/levnach/z3/pull/135">levnach/z3#135</a> into <code>master</code>
+&middot; State: <span class="state">OPEN</span>
+&middot; Date: 2026-11-13T21:44:25Z &middot; Loop iteration 134</p>
+<p class="meta">This pull request is not merged. Change commit:
+<a href="https://github.com/levnach/z3/commit/7c2b96c95fef1ab6bf3e6247cac910d36e2f2e35"><code>7c2b96c95</code></a></p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>Z3's rewriter can replace a <a href="#g-comparison">comparison</a> of a product with zero by a
+<a href="#g-formula">formula</a> about the signs of the <a href="#g-factor">factors</a>.
+This sign split appears in the <a href="#g-certificate">certificate</a> as a
+<a href="#g-rewrite-step">rewrite step</a>, and until now Lean could not prove it.
+The reconstructor now writes the proof.
+It factors the <a href="#g-polynomial">polynomial</a> again and makes a
+<a href="#g-case-split">case split</a> on the sign of each factor.
+The <a href="#g-linear-arithmetic">linear arithmetic</a> <a href="#g-tactic">tactic</a> closes every case.
+No <a href="#g-axiom">axiom</a> is added, and Lean checks every case.
+Of 603 unsat random inputs over Int products, 581 now verify in Lean, up from 483.</p>
+
+<h2>Background</h2>
+<p>Since #133 a product of <a href="#g-term">terms</a> of <a href="#g-sort">sort</a> Int is an
+<a href="#g-atom">atom</a> of linear arithmetic.
+Since #134 <a href="#g-theory-lemma">lemmas</a> of the
+<a href="#g-nonlinear-arithmetic">nonlinear</a> solver are proved by
+<a href="#g-polynomial-refutation">polynomial refutations</a>.
+A <a href="#g-refutation">refutation</a> that passed through the sign split was still exported, and then failed in Lean.
+The split reached the certificate as a rewrite step of an <a href="#g-assertion">assertion</a>,
+as a <a href="#g-cnf-lemma">cnf lemma</a>, or as a <a href="#g-theory-clause">theory clause</a> inside one.
+It was the largest class of Lean failures over Int products.
+The work serves milestone 4 of the plan, &ldquo;Broader theories and integration&rdquo;.</p>
+
+<h2>What changed</h2>
+<p>The proof uses the sign rule from school: minus times minus gives plus.
+Like a truth table, it walks through every combination of signs.</p>
+<ul>
+<li><strong>Rewrite steps.</strong> A rewrite step that splits a product comparison by the factors' signs now gets a Lean proof.</li>
+<li><strong>Cnf lemmas.</strong> The same proof covers a cnf lemma that is one theory fact, and a theory clause inside a cnf lemma.</li>
+<li><strong>Selection.</strong> Only comparisons the rewriter really split are factored, and other formulas, such as a <a href="#g-predicate">predicate</a> application, stay opaque atoms.</li>
+<li><strong>Fallbacks.</strong> The new proof goes first and the earlier proofs stay behind it, so certificates without Int products keep their text.</li>
+<li><strong>Tests.</strong> A new module checks documented inputs, pinned <a href="#g-clause-log">clause logs</a>, random seeds, and one input Lean must still reject.</li>
+</ul>
+<p>The change is Python only.</p>
+
+<table>
+<thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">95</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/README</code></td><td class="num">29</td><td class="num">5</td></tr>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">354</td><td class="num">16</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_nonlinear.py</code></td><td class="num">7</td><td class="num">6</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_sign_split.py</code> (new)</td><td class="num">606</td><td class="num">0</td></tr>
+<tr><th>Total: 5 files, two commits</th><th class="num">1091</th><th class="num">29</th></tr>
+</tbody>
+</table>
+
+<h2>Worked example</h2>
+<p>The input is the PR's test <code>nonpositive_product</code> without its unused third constant.
+All output is from real runs, with local paths shortened.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const m Int)
+(declare-const n Int)
+(assert (&lt;= (* m n) 0))
+(assert (&gt;= m 1))
+(assert (&gt;= n 1))
+(check-sat)</code></pre>
+<p>In this <a href="#g-smt-lib">SMT-LIB</a> file, two integers that are at least 1 have a product of at most 0.</p>
+
+<h3>(b) Before</h3>
+<p>The base exporter wrote the same certificate. Lean rejected the file the base reconstructor wrote from it:</p>
+<pre><code>Checking .../z3_proof_y1vkbxm9.lean
+.../z3_proof_y1vkbxm9.lean:141:18: error: `grind` failed
+case grind.1.1
+_atoms : Nat → Prop
+_vars : Nat → Int
+h : (_vars 0 * _vars 1 ≤ 0) = ((-1 * _vars 0 ≤ 0) = (-1 * _vars 1 ≤ 0) ∧ ¬0 = _vars 0 ∧ ¬0 = _vars 1)
+left : _vars 0 * _vars 1 ≤ 0
+left_1 : (-1 * _vars 0 ≤ 0) = (-1 * _vars 1 ≤ 0)
+left_2 : ¬0 = _vars 0
+right_2 : ¬0 = _vars 1
+left_3 : -1 * _vars 0 ≤ 0
+right_3 : -1 * _vars 1 ≤ 0
+⊢ False
+...
+  [cutsat] Assignment satisfying linear constraints
+    [assign] _vars 0 := 1
+    [assign] _vars 1 := 1
+...
+Lean checking failed; no proof was published.</code></pre>
+<p>The tactic took <code>m&middot;n</code> for an unrelated atom, so <code>m = 1</code>, <code>n = 1</code> looked consistent.
+The base scripts ran against the current Lean project, which this PR does not change.</p>
+
+<h3>(c) After</h3>
+<p>Lean accepted the new file. The check printed <code>Lean checks passed.</code></p>
+<pre><code>def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((term_0 _atoms _vars) * (term_1 _atoms _vars))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((0 : Int))
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_2 _atoms _vars) &lt;= (term_3 _atoms _vars))
+def term_5 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := ((1 : Int))
+def formula_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars) &gt;= (term_5 _atoms _vars))
+def formula_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_1 _atoms _vars) &gt;= (term_5 _atoms _vars))
+def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_3 _atoms _vars) &lt;= (term_0 _atoms _vars))
+def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_3 _atoms _vars) &lt;= (term_1 _atoms _vars))
+def formula_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Iff (formula_8 _atoms _vars) (formula_9 _atoms _vars))
+def formula_11 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_10 _atoms _vars))
+...
+def formula_31 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_3 _atoms _vars) = (term_0 _atoms _vars))
+def formula_32 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_3 _atoms _vars) = (term_1 _atoms _vars))
+def formula_33 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_11 _atoms _vars) (Or (formula_31 _atoms _vars) (formula_32 _atoms _vars)))
+def formula_34 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Iff (formula_4 _atoms _vars) (formula_33 _atoms _vars))
+...</code></pre>
+<p>Here <code>term_2</code> is the product, and the last line says the first assertion is
+<a href="#g-equivalence">equivalent</a> to its split form.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_35 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    : (formula_34 _atoms _vars) := by
+  first
+    | (show (formula_34 _atoms _vars)
+       have _i0 : (term_2 _atoms _vars) - (term_3 _atoms _vars) = ((1 : Int)) * ((term_0 _atoms _vars) * (term_1 _atoms _vars)) + ((0 : Int)) := by delta term_3 term_2; grind
+       revert _i0
+       unfold formula_34 formula_33 formula_32 formula_31 formula_11 formula_10 formula_9 formula_8 formula_4 term_3 term_2
+       intro _i0
+       rcases Int.lt_trichotomy (term_0 _atoms _vars) ((0 : Int)) with _s0 | _s0 | _s0
+       · rcases Int.lt_trichotomy (term_1 _atoms _vars) ((0 : Int)) with _s1 | _s1 | _s1
+         · have _e0 : ((0 : Int)) &lt; ((term_0 _atoms _vars) * (term_1 _atoms _vars)) := (Int.mul_pos_of_neg_of_neg _s0 _s1)
+           (first | omega | grind (splits := 64) [Int.mul_eq_zero])
+         · have _e0 : ((term_0 _atoms _vars) * (term_1 _atoms _vars)) = ((0 : Int)) := (Int.mul_eq_zero.mpr (Or.inr _s1))
+           (first | omega | grind (splits := 64) [Int.mul_eq_zero])
+...
+         · have _e0 : ((0 : Int)) &lt; ((term_0 _atoms _vars) * (term_1 _atoms _vars)) := (Int.mul_pos _s0 _s1)
+           (first | omega | grind (splits := 64) [Int.mul_eq_zero]))
+    | (unfold formula_34 formula_33 formula_32 formula_31 formula_11 formula_10 formula_9 formula_8 formula_4 term_3 term_2 term_1 term_0
+       first | omega | grind (splits := 64) [Int.mul_eq_zero])</code></pre>
+<p>After the factoring <a href="#g-identity">identity</a>, each <code>rcases</code> line splits one factor into negative, zero, or positive
+(<a href="#g-trichotomy">trichotomy</a>). The next line states the product's sign, and the last alternative is the earlier proof.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_4 _atoms _vars))
+    (_h1 : (formula_6 _atoms _vars))
+    (_h2 : (formula_7 _atoms _vars))
+    : False :=
+  refute_with_decidable (formula_8 _atoms _vars) fun _df8 =&gt;
+...
+  let _step_30 : (formula_4 _atoms _vars) :=
+    _h0
+  let _step_35 : (formula_34 _atoms _vars) :=
+    (rewrite_35 _atoms _vars)
+  let _step_36 : (formula_33 _atoms _vars) :=
+    (Iff.mp _step_35 _step_30)
+...
+  _step_81</code></pre>
+<p>The three assertions together give False, and the new lemma carries the first assertion to its split form.</p>
+
+<h2>How it was verified</h2>
+<p>The full reconstruction test suite passed on the final commit.
+About 600 unsat random inputs over products went through Lean, and none that verified before now fails.
+The reviewer falsified the split in three pinned logs, and Lean rejected all three.
+These results come from the PR description and the review.</p>
+
+<table>
+<thead><tr><th>Local check, final commit</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, <code>test_proof_to_lean*.py</code></td><td><span class="ok">OK</span>: 652 tests, 9 skipped</td></tr>
+<tr><td>New sign split module alone</td><td><span class="ok">OK</span>: 19 tests</td></tr>
+<tr><td>Exporter tests, <code>test_proof_certificate.py</code></td><td><span class="ok">OK</span>: 125 tests</td></tr>
+<tr><td>Lean project, <code>scripts/check_lean.sh</code></td><td><span class="ok">Lean checks passed</span></td></tr>
+<tr><td>Proof tests of the z3test repository</td><td><span class="ok">OK</span>: 48 tests</td></tr>
+<tr><td>Proof matrix, <a href="#g-proof-object">legacy proof object</a>, Boolean inputs</td><td><span class="ok">6 of 6</span> verified in Lean</td></tr>
+<tr><td>Proof matrix, clause log, linear real arithmetic inputs</td><td><span class="ok">8 of 8</span> verified in Lean</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Random product inputs, seeds</th><th class="num">Unsat</th><th class="num">Verify now</th><th class="num">Verified before</th><th class="num">Newly failing</th></tr></thead>
+<tbody>
+<tr><td>1 to 600</td><td class="num">235</td><td class="num">222</td><td class="num">194</td><td class="num">0</td></tr>
+<tr><td>601 to 1200</td><td class="num">225</td><td class="num">219</td><td class="num">181</td><td class="num">0</td></tr>
+<tr><td>1201 to 1600</td><td class="num">143</td><td class="num">140</td><td class="num">108</td><td class="num">0</td></tr>
+<tr><th>Total</th><th class="num">603</th><th class="num">581</th><th class="num">483</th><th class="num">0</th></tr>
+<tr><td>Nonlinear unsat <a href="#g-query">queries</a> of z3test, 78 in all</td><td class="num">78</td><td class="num">26</td><td class="num">24</td><td class="num">not stated</td></tr>
+</tbody>
+</table>
+<p>The C++ tests were not run, because no C++ code changed.</p>
+
+<p><strong>Local gate.</strong> The driver runs its local gate next to this report instead of waiting for GitHub CI.
+Its result was not yet recorded when this report was written.</p>
+
+<p><strong>CI.</strong> GitHub reported no checks on the PR branch when this report was written, so the CI result is unknown.
+There were no CI fix rounds.</p>
+<table>
+<thead><tr><th>Workflow</th><th>Check</th><th>Result</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td><code>ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step &ldquo;Check native proofs in Lean&rdquo;. Per the PR description, this is the only job that runs the new tests.</td><td><span class="warn">No result reported</span></td><td><a href="https://github.com/levnach/z3/pull/135/checks">PR checks</a></td></tr>
+</tbody>
+</table>
+
+<h2>Review</h2>
+<p>The reviewer approved the first commit with no blocker and no major finding.
+The second commit fixes all four findings.</p>
+<ul>
+<li><strong>Minor, fixed.</strong>
+The reviewer asserted <code>(or (&lt;= (* m n) 0) (&gt;= (* m n) 7))</code> with positive factors.
+The rewriter split the first comparison and kept the second.
+The kept one hid the split, so no proof was attempted and a valid input failed in Lean.
+The filter now also checks whether a comparison is with zero.</li>
+<li><strong>Minor, fixed.</strong>
+A predicate application <code>(q m)</code> next to a product comparison made the reconstructor give up on the whole step.
+Such a formula now stays an opaque atom, and the input verifies.</li>
+<li><strong>Minor, fixed.</strong>
+A step that equates products with zero already had a one-line proof.
+The new split went first and made the reviewer's file about seven times longer.
+Such steps now get no split.</li>
+<li><strong>Nit, fixed.</strong>
+No test covered a split that fails while the earlier proof succeeds.
+A pinned log now does.</li>
+</ul>
+<p>Of three suggestions, a test through the legacy proof object was added.
+The other two appear as the first and third risks below.</p>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li><strong>Time.</strong> A failing attempt costs Lean time, and one that exhausts Lean's work budget would also block the fallback. This was not observed.</li>
+<li><strong>Size.</strong> One product of five factors takes 63 cases, and several such products could take 243.</li>
+<li><strong>Layout.</strong> One generated block relies on fixed indentation, and an error there would break the whole file.</li>
+<li><strong>Stability.</strong> The tests on documented inputs and seeds depend on how Z3 rewrites and searches. The pinned logs do not.</li>
+<li><strong>Unknown.</strong> The CI result and the local gate result. Also, 22 of the 603 random inputs still do not verify.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+<li>A factor that is an <a href="#g-ite">if-then-else term</a>.</li>
+<li>Equations without an integer root, such as <code>(= (* m m) 3)</code>.</li>
+<li><a href="#g-cut">Cut</a>, <a href="#g-bound">bound</a>, and implied-equality steps over products.</li>
+<li>More than five factors, and the two documented inputs that still fail through the legacy proof object.</li>
+<li>Open items from #134, such as squares of sums and products of Real terms.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-assertion">assertion</dt><dd>A formula the input declares to hold, written <code>(assert ...)</code> in SMT-LIB.</dd>
+<dt id="g-atom">atom</dt><dd>A piece that a reasoning method does not look inside. Linear arithmetic treats the product <code>m&middot;n</code> as one opaque atom, like a fresh variable.</dd>
+<dt id="g-axiom">axiom</dt><dd>A statement accepted without proof. This project adds none.</dd>
+<dt id="g-bound">bound</dt><dd>A comparison of a term with a constant, such as <code>m &ge; 1</code>.</dd>
+<dt id="g-case-split">case split</dt><dd>A proof that divides into cases covering every possibility and proves the goal in each. Example: a number is negative, zero, or positive.</dd>
+<dt id="g-certificate">certificate</dt><dd>A file of proof steps that an independent checker can replay to confirm a result.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>p or not q</code>.</dd>
+<dt id="g-clause-log">clause log</dt><dd>The list of clauses the solver assumed and inferred, each with a hint saying why it holds.</dd>
+<dt id="g-cnf-lemma">cnf lemma</dt><dd>A step that ties a clause to the assertion it was derived from when the assertion was converted to clauses.</dd>
+<dt id="g-comparison">comparison</dt><dd>A formula that relates two terms by <code>&le;</code>, <code>&lt;</code>, <code>&ge;</code>, <code>&gt;</code>, or <code>=</code>.</dd>
+<dt id="g-cut">cut</dt><dd>An integer step that tightens a bound by rounding. From <code>2&middot;m &ge; 1</code> it gives <code>m &ge; 1</code>.</dd>
+<dt id="g-equivalence">equivalence</dt><dd>Two formulas are equivalent when each holds exactly if the other does.</dd>
+<dt id="g-factor">factor</dt><dd>One of the terms multiplied in a product. In <code>m&middot;n</code> the factors are <code>m</code> and <code>n</code>.</dd>
+<dt id="g-formula">formula</dt><dd>A term of sort Bool: something that is true or false.</dd>
+<dt id="g-identity">identity</dt><dd>An equation that holds for all values of its variables, such as <code>2&middot;m + 3&middot;m&middot;n = m&middot;(2 + 3&middot;n)</code>.</dd>
+<dt id="g-ite">if-then-else term</dt><dd>A term that picks one of two values by a condition, written <code>(ite c a b)</code> in SMT-LIB.</dd>
+<dt id="g-linear-arithmetic">linear arithmetic</dt><dd>Reasoning about sums of variables multiplied by constants. Variables are never multiplied with each other.</dd>
+<dt id="g-nonlinear-arithmetic">nonlinear arithmetic</dt><dd>Arithmetic in which variables are multiplied with each other, as in <code>m&middot;n</code>.</dd>
+<dt id="g-polynomial">polynomial</dt><dd>A sum of products of variables with constant coefficients, such as <code>3&middot;m&middot;n &minus; 2&middot;m</code>.</dd>
+<dt id="g-polynomial-refutation">polynomial refutation</dt><dd>A proof that some facts contradict each other: multiplied and added together they give an impossible total.</dd>
+<dt id="g-predicate">predicate</dt><dd>A function whose result is of sort Bool. An uninterpreted predicate has a name and argument sorts but no fixed meaning.</dd>
+<dt id="g-product">product</dt><dd>The result of multiplying terms, written <code>(* m n)</code> in SMT-LIB.</dd>
+<dt id="g-proof-object">proof object</dt><dd>The proof tree that Z3's older proof interface returns. It is an alternative source of certificates to the clause log.</dd>
+<dt id="g-query">query</dt><dd>One <code>(check-sat)</code> call in an input file, with the assertions in force at that point.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that the assertions cannot all hold: it derives False from them.</dd>
+<dt id="g-rewrite-step">rewrite step</dt><dd>A proof step saying that a formula and its simplified form are equivalent.</dd>
+<dt id="g-rewriter">rewriter</dt><dd>The solver component that simplifies terms and formulas into equivalent ones before and during solving.</dd>
+<dt id="g-sign-split">sign split</dt><dd>Deciding the sign of a product from the signs of its factors. Example: <code>m&middot;n &le; 0</code> holds exactly if the signs of <code>m</code> and <code>n</code> differ or one of them is zero.</dd>
+<dt id="g-smt-lib">SMT-LIB</dt><dd>The standard text format for inputs to SMT solvers.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof automatically. The tactic <code>omega</code> proves facts of linear integer arithmetic.</dd>
+<dt id="g-term">term</dt><dd>An expression that denotes a value, such as <code>m</code>, <code>m + 1</code>, or <code>m&middot;n</code>.</dd>
+<dt id="g-theory-clause">theory clause</dt><dd>A clause that is true because of what the arithmetic symbols mean. Example: <code>m &lt; 1 or m &ge; 0</code>.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A theory clause that a theory solver hands to the rest of the solver during the search.</dd>
+<dt id="g-trichotomy">trichotomy</dt><dd>The fact that every integer is less than zero, equal to zero, or greater than zero.</dd>
+</dl>
+
+<footer>Generated by the Lean certificate improvement loop on 2026-11-13.</footer>
+
+</body>
+</html>
