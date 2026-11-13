@@ -4154,14 +4154,19 @@ def _abs_value_facts(graph, reachable, atom_indices, variable_indices):
     whose arguments grind compares as it does any numeral expression's.
 
     In node order, an abs nested in another first; the outer one is stated
-    over the inner one's value, as the goal then has it. Under try: two
-    abs nodes may be one Lean term ((abs 0.5) and (abs (/ 1.0 2.0))), and
-    the first one's replacement leaves the second no occurrence; an abs
-    that occurs only inside a folded array term is not found either, and
-    keeps its fact. An Int abs of a constant gets none: the simplifier
-    evaluates it. The second result maps each replaced node to its rendered
-    value, for the facts stated after the replacement (_inline's
-    generalized).
+    over the inner one's value, as the goal then has it. The replacement
+    is not under try: the generalize always has an occurrence to abstract,
+    the one in the fact just stated, also when two abs nodes are one Lean
+    term ((abs 0.5) and (abs (/ 1.0 2.0)), where the first one's
+    replacement leaves the goal none for the second) or the abs occurs
+    only inside a folded array term; so a failure of either tactic is an
+    error of the step and not a replacement silently left out. That it
+    succeeds does not show that the goal had the term as it is rendered
+    here: the tests check that on inputs Lean rejects with the facts
+    stated and the replacements left out. An Int abs of a constant gets
+    none: the simplifier evaluates it. The second result maps each
+    replaced node to its rendered value, for the facts stated after the
+    replacement (_inline's generalized).
     """
     lines, values = [], {}
     for node in sorted(reachable):
@@ -4169,7 +4174,7 @@ def _abs_value_facts(graph, reachable, atom_indices, variable_indices):
             side = _inline(graph, node, atom_indices, variable_indices, values)
             value = _numeral("Real", _abs_free_value(graph, node))
             lines.append("have _av%d : %s = %s := by grind" % (node, side, value))
-            lines.append("try (generalize %s = _at%d at *; subst _av%d)" % (side, node, node))
+            lines.append("generalize %s = _at%d at *; subst _av%d" % (side, node, node))
             values[node] = value
     return lines, values
 

@@ -4346,15 +4346,21 @@ and verified them). Now:
   is a constant, with an `abs` of a constant under it counted by its value:
   `_abs_free_value`) is stated equal to its value, `have _avN : (if t >= 0
   then t else -t) = v := by grind`, and replaced by it in the goal and the
-  facts stated so far (`generalize`, then `subst`, as the floor of a
-  constant is), inner ones first (`_abs_value_facts`); the step is then the
-  one of the input with the numeral written out;
+  facts stated so far (`generalize`, then `subst`), inner ones first
+  (`_abs_value_facts`); the step is then the one of the input with the
+  numeral written out. The replacement is not under `try`: the
+  `generalize` always has the occurrence in the fact just stated, also for
+  the second of two `abs` nodes that are one Lean term, so a failure is an
+  error of the step. Its success does not show that the goal had the term;
+  the tests show that on inputs Lean rejects with the facts stated and the
+  replacements left out;
 - the facts of floors come after the replacement and are stated over the
   values (`_floor_shift_facts`): `(to_int (abs (- 2.5)))` is `2`;
 - an `abs` of a constant counts by its value in the normal form of an
   argument (`_real_argument_key`), so `(+ (+ 2.0 (- 3.25)) (abs (- 0.25)))`
   is related to `(- 1.0)` by an argument helper, which makes the same
-  replacement in its own goal before its tactic;
+  replacement in its own goal before its tactic (stated folded, or written
+  out in a certificate with arrays);
 - the constant indices of reads are related as arguments are
   (`_real_argument_pairs`): after the replacement a read at an `abs` is a
   read at a numeral expression, and `grind` did not identify `(select a (+
@@ -4371,9 +4377,14 @@ all 399 verify now, and the 150 legacy runs (seeds 1-250, plain and with
 floors) verify as before. Still failing: an `abs` over the floor of a
 constant, `(g (abs (- (to_real (to_int 2.5)) 4.5)))`, which gets no value
 (the floor's is stated after the replacements). Tests:
-`TestAbsValueValidation` and `TestAbsValueLeanIntegration` (19 documented
-inputs, 16 of them rejected before, and 8 random seeds, on both cores; the
-replacements made mandatory; the floors' rewrites rejected without them).
+`TestAbsValueValidation` and `TestAbsValueLeanIntegration` (21 documented
+inputs, 17 of them rejected before, and 9 random seeds, 8 of them rejected
+before, on both cores; Lean rejects the certificates without the values,
+with the values but without the replacements, without the helpers'
+replacements, and without the steps'). The facts that relate the floors of
+two terms differing by an integer are stated over the values too; no input
+found needs that in Lean (the argument helpers relate each floored term to
+the rewriter's normal form), so only their text is tested.
 
 ### Integer numerals in Real terms (2026-10-30)
 
