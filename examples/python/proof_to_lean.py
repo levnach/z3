@@ -7379,8 +7379,20 @@ class _PropositionalProver:
         self.constants = [(structure, structure[0] == "true", "True.intro" if structure[0] == "true"
                            else "(fun _absurd => _absurd)")
                           for structure in (("true",), ("false",)) if structure in self.parents]
-        self.tautologies = self._excluded_middles() if classical else []
+        self._tautologies = None  # see tautologies
         self.stated = frozenset()  # those of them that are facts of the proof under way
+
+    @property
+    def tautologies(self):
+        """The excluded-middle facts (_excluded_middles), found when the first implication asks for them.
+
+        A prover that only refutes (the cnf lemmas, a dozen provers over a
+        400-operand assertion each in QF_UF NEQ004) never states them, so it
+        does not render them either.
+        """
+        if self._tautologies is None:
+            self._tautologies = self._excluded_middles() if self.classical else []
+        return self._tautologies
 
     def _excluded_middles(self):
         """The disjunctions holding a disjunct and its negation, each true by excluded middle, with the proof.

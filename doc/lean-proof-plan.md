@@ -1791,12 +1791,25 @@ linearly: 5 by 40, 5 by 80, 8 by 80, 8 by 160 are 0.15, 0.26, 0.41, 0.74
 MB and verify in 0.9, 1.2, 1.7, 3.3 s. Tests: `test_proof_to_lean_uf.py`
 (`test_regrouping_rewrites_are_proved_by_their_structure`,
 `test_tautological_disjunctions_are_facts_of_the_prover`, the two Lean
-tests with the grind fallback dropped, and the slow `gensys_icl1228`).
+tests with the grind fallback dropped, and the slow `gensys_icl1228`) and
+`test_proof_to_lean_arith.py`
+(`test_normalized_regrouping_rewrite_verifies_by_its_tautology_facts`: the
+same gates over bounds on sums of Reals, `regrouped_gates_instance(...,
+logic="QF_LRA")`, where the tautology facts reach the propositional lemma
+of a normalized rewrite, checked in Lean without its grind fallback).
 
 Still open in the family: the other `gensys_*` files are 31 to 195 MB of
 Lean (80,000 to 440,000 proof nodes), beyond the memory cap whatever their
 rewrites cost: the smallest, `gensys_icl1079` (31.7 MB), now gets through
 its rewrites and runs out of kernel memory at the 8 GB cap after 93 s.
+
+Still open for the rewrite: leaves are shared by node, so a regrouping
+whose equalities Z3 also reorients gets no structural proof. The same
+gates over `(= (f xi xj) k)` in QF_UFLIA (5 by 15) are logged with the
+numeral first: 77 leaves on the assertion's side, 149 over both, no proof
+found, and Lean rejects the certificate after 36 s on the heartbeats of
+that rewrite, as before this change. The `eq_comm` bridges of the cnf
+lemmas (`_leaf_bridges`) are the natural next step.
 
 ### Int negations rendered as differences (2026-11-11, every negation and negative quotients 2026-11-12)
 
