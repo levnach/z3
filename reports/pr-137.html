@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c2024; --muted: #5b6570; --line: #d7dce1;
-  --panel: #f4f6f8; --accent: #0b5cad; --ok: #1a7f37; --warn: #9a6700;
+  --panel: #f4f6f8; --accent: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --merged: #6f42c1;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171a; --fg: #e3e7eb; --muted: #9aa5b1; --line: #343b43;
-    --panel: #1d2227; --accent: #6cb0f5; --ok: #56c271; --warn: #e0b341;
+    --panel: #1d2227; --accent: #6cb0f5; --ok: #56c271; --warn: #e0b341; --merged: #b392f0;
   }
 }
 * { box-sizing: border-box; }
@@ -39,10 +39,10 @@ pre code { background: none; padding: 0; font-size: 1em; }
 table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .6rem 0; }
 th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
 th { background: var(--panel); }
-td.n { text-align: right; white-space: nowrap; }
+td.n, th.n { text-align: right; white-space: nowrap; }
 .meta { color: var(--muted); font-size: .93rem; }
 .meta span { display: inline-block; margin-right: 1.1rem; }
-.state { display: inline-block; padding: .05rem .55rem; border: 1px solid var(--ok); color: var(--ok); border-radius: 999px; font-weight: 600; font-size: .85rem; }
+.state { display: inline-block; padding: .05rem .55rem; border: 1px solid var(--merged); color: var(--merged); border-radius: 999px; font-weight: 600; font-size: .85rem; }
 .ok { color: var(--ok); font-weight: 600; }
 .unk { color: var(--warn); font-weight: 600; }
 .note { color: var(--muted); font-size: .92rem; }
@@ -57,13 +57,12 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <h1>Sweep a cnf lemma the search gives up on, gate by gate, in Lean</h1>
 <p class="meta">
 <span><a href="https://github.com/levnach/z3/pull/137">Pull request #137</a></span>
-<span><span class="state">OPEN</span></span>
-<span>2026-11-14T11:18:46Z</span>
+<span><span class="state">MERGED</span></span>
+<span>2026-11-14T11:37:03Z</span>
 <span>Loop iteration 136</span>
 </p>
-<p>This pull request is open. It is not merged. The change commit is
-<a href="https://github.com/levnach/z3/commit/62e88c4301f0fa4f4b32f33905b3213f524fb2a8"><code>62e88c430</code></a>,
-the second of two commits on the branch.</p>
+<p>Merged into <code>master</code> on 2026-11-14T11:37:03Z as merge commit
+<a href="https://github.com/levnach/z3/commit/6d451d3f299430df6e7ae06c7d3124e9dd2e49f5"><code>6d451d3f2</code></a>.</p>
 </header>
 
 <h2>In one paragraph</h2>
@@ -84,11 +83,10 @@ First came a search by <a href="#g-case-split">case splits</a> on shared <a href
 Next came the same search restricted to an <a href="#g-core">unsat core</a>.
 Last came a fallback that <a href="#g-unfold">unfolds</a> every definition and calls arithmetic
 <a href="#g-tactic">tactics</a>.
-Two benchmarks assert one circuit of <a href="#g-boolean">Boolean</a>
-<a href="#g-ite">if-then-else terms</a> each, <a href="#g-unrolling">unrolled</a> over 20 and 30 frames.
+Two benchmarks each assert one circuit of <a href="#g-boolean">Boolean</a>
+<a href="#g-ite">if-then-else terms</a>, <a href="#g-unrolling">unrolled</a> over 20 and 30 frames.
 There, both searches exhausted their budget and the fallback ran Lean out of
 <a href="#g-heartbeat">heartbeats</a>.
-The rest of each file already checked.
 The work serves milestone 3 of the plan, equality and linear arithmetic, at larger scale.</p>
 
 <h2>What changed</h2>
@@ -98,23 +96,22 @@ gate by gate, as an equivalence checker compares circuits.</li>
 <li><strong>Reconstructor, classes.</strong> The classes follow the rewriter, so a nested
 <a href="#g-conjunction">conjunction</a> meets its <a href="#g-flatten">flattened</a> form in one class.</li>
 <li><strong>Reconstructor, links.</strong> Each named gate is linked to its class's
-<a href="#g-representative">representative</a> or <a href="#g-canonical">canonical gate</a> by a small theorem
-of its own.</li>
-<li><strong>Reconstructor, bounds.</strong> A sweep gives up early beyond fixed size bounds, and the lemma then
-keeps its earlier proof text.</li>
-<li><strong>Reconstructor, search.</strong> The existing search visits only its relevant gates, which made
-reconstruction faster without changing other outputs.</li>
-<li><strong>Tests and documentation.</strong> New tests cover classes, links, bounds, and the 20-frame circuit,
-and the documents describe the sweep.</li>
+<a href="#g-representative">representative</a> or <a href="#g-canonical">canonical gate</a> by its own small
+theorem.</li>
+<li><strong>Reconstructor, bounds.</strong> A sweep beyond fixed size bounds gives up early, and the lemma keeps
+its earlier proof text.</li>
+<li><strong>Reconstructor, search.</strong> The existing search visits only its relevant gates, so reconstruction
+is faster with unchanged output.</li>
+<li><strong>Tests and documentation.</strong> New tests cover classes, links, bounds, and the 20-frame
+circuit.</li>
 </ul>
-<p>An analogy: two editions of one long book.
-The old search quizzed both books on every combination of facts.
-The sweep compares them paragraph by paragraph and reuses each earlier comparison.
+<p>An analogy: the sweep compares two editions of a long book paragraph by paragraph, reusing each earlier
+comparison.
 No C++ code and no Lean library file changed.</p>
 
 <div class="table">
 <table>
-<thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<thead><tr><th>File</th><th>Role</th><th class="n">Lines added</th><th class="n">Lines removed</th></tr></thead>
 <tbody>
 <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Reconstructor: sweep, bounds, search</td><td class="n">551</td><td class="n">20</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>Tests without Lean</td><td class="n">233</td><td class="n">0</td></tr>
@@ -130,8 +127,8 @@ No C++ code and no Lean library file changed.</p>
 
 <h2>Worked example</h2>
 <p>No ten-line input reaches the sweep by itself, because the search solves small lemmas.
-The smallest newly certified input in the PR's tests is the 20-frame circuit: 62 lines, 99 KB.
-The excerpts come from real runs of the old and new scripts on that file.</p>
+The smallest newly certified input in the PR's tests is the 20-frame circuit of 62 lines.
+The excerpts come from real runs on that file, repeated on the merge commit.</p>
 
 <h3>(a) The input, excerpt</h3>
 <pre><code>(set-logic QF_IDL)
@@ -147,14 +144,12 @@ The excerpts come from real runs of the old and new scripts on that file.</p>
 (assert (let ((?v_55 (ite mpx_19 false true)) (?v_50 (ite confirm_19 false true)) (?v_17 (ite rdy_19 false true)) (?v_3 (- S1_19 cvclZero))) (let ((?v_4 (= ?v_3 6))) (let ((?v_5 (ite ?v_4 false true)) (?v_7 (- conta_tmp_19 cvclZero))) ...
 (check-sat)
 (exit)</code></pre>
-<p class="note">One assertion holds the whole circuit, built from Boolean <code>ite</code> terms over integer
-differences.</p>
+<p class="note">One assertion holds the whole circuit.</p>
 
 <h3>(b) Before</h3>
-<p>The old scripts exported the certificate and generated a Lean file, which Lean rejected.
-Directory names are removed below.</p>
-<pre><code>Checking z3_proof_sf0f8_lz.lean
-z3_proof_sf0f8_lz.lean:9933:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+<p>The old scripts generated a Lean file, which Lean rejected. Directory names are removed below.</p>
+<pre><code>Checking z3_proof_f22j79cy.lean
+z3_proof_f22j79cy.lean:9933:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
 ...
 Lean checking failed; no proof was published.</code></pre>
 <p>Line 9933 of the old text is the cnf lemma, with only the fallback as its proof.</p>
@@ -163,13 +158,11 @@ private theorem th_lemma_7285 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_7284 _atoms _vars) := by
   unfold formula_7284 formula_7283 formula_7242 formula_7241 formula_7240 formula_7239 ...
   first | omega | grind (splits := 64)</code></pre>
-<p class="note">The <code>unfold</code> line has about 84,000 characters, and the tactics after it ran out of
-heartbeats.</p>
+<p class="note">The <code>unfold</code> line has about 84,000 characters.</p>
 
 <h3>(c) After</h3>
-<p>Lean accepted the new file.
-The reconstructor printed <code>Lean checked the refutation</code>, and a separate run of the check script
-agreed.</p>
+<p>Lean accepted the new file, both in the reconstructor's own check and in a separate run of the check
+script.</p>
 <pre><code>-- Atom 0: "bstate1_19"
 ...
 -- Variable 0: "cvclZero"
@@ -183,22 +176,22 @@ def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := True
 def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (And (formula_6 _atoms _vars) (formula_7 _atoms _vars)) (And (Not (formula_6 _atoms _vars)) (formula_8 _atoms _vars)))
 def formula_10 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (formula_0 _atoms _vars) (formula_9 _atoms _vars))
 ...</code></pre>
-<p class="note">Declarations: every gate of the input gets a name, and <code>formula_9</code> is an
-<code>ite</code> term with constant branches, written as an "or" of two "and" gates.</p>
+<p class="note">Declarations: every gate gets a name, and <code>formula_9</code> is an <code>ite</code> term
+with constant branches.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     (_h0 : (formula_4057 _atoms _vars))
     : False :=
   @proof_step_8622 _atoms _vars _h0</code></pre>
-<p class="note">The theorem statement: for every <a href="#g-assignment">assignment</a> of the atoms and integer
-variables, the assertion implies <code>False</code>.</p>
+<p class="note">The theorem statement: under every <a href="#g-assignment">assignment</a>, the assertion implies
+<code>False</code>.</p>
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem th_lemma_7285_b0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (Iff (formula_6 _atoms _vars) (formula_7203 _atoms _vars)) := by unfold formula_7203 term_7202 term_7201 term_560 term_34 formula_6 term_5 term_4 term_3 term_2 term_1; first | omega | grind (splits := 64)
 ...
 private def th_lemma_7285_k0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (And (_atoms 0) (Not (formula_6 _atoms _vars)))
 ...</code></pre>
-<p class="note">New: a <a href="#g-bridge">bridge</a> says an arithmetic atom equals Z3's normalized form of it,
-and <code>_k0</code> is a canonical gate that stands for one class.</p>
+<p class="note">New: a <a href="#g-bridge">bridge</a> ties an arithmetic atom to its normalized form, and
+<code>_k0</code> is a canonical gate.</p>
 <pre><code>private theorem th_lemma_7285_s0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (Iff (formula_9 _atoms _vars) (Not (formula_6 _atoms _vars))) := by
   refine Iff.intro (fun _f1 =&gt; ?_) (fun _f8 =&gt; ?_)
@@ -236,88 +229,92 @@ private theorem th_lemma_7285 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
        exact (False.elim (_f113310 (Classical.byContradiction (fun _g =&gt; _f113244 _g)))))
     | (unfold formula_7284 formula_7283 formula_7242 formula_7241 formula_7240 formula_7239 ...
        first | omega | grind (splits := 64))</code></pre>
-<p class="note">The lemma: its first alternative refutes the clause in about seventy steps through the links,
-and the old fallback stays second.</p>
+<p class="note">The lemma: its first alternative refutes the clause through the links, and the old fallback
+stays second.</p>
 
 <div class="table">
 <table>
-<thead><tr><th>Generated Lean text for this input</th><th>Before</th><th>After</th></tr></thead>
+<thead><tr><th>Generated Lean text for this input</th><th class="n">Before</th><th class="n">After</th></tr></thead>
 <tbody>
 <tr><td>Size in bytes</td><td class="n">2,224,803</td><td class="n">10,017,448</td></tr>
 <tr><td>Link theorems (<code>_sK</code>)</td><td class="n">0</td><td class="n">5,463</td></tr>
 <tr><td>Canonical gates (<code>_kK</code>)</td><td class="n">0</td><td class="n">1,469</td></tr>
 <tr><td>Bridge theorems (<code>_bK</code>)</td><td class="n">0</td><td class="n">77</td></tr>
-<tr><td>Lean result in this run</td><td>rejected, heartbeats</td><td>accepted</td></tr>
-<tr><td>Lean time and peak memory, as measured in the PR</td><td>30.5 s, 4.45 GB</td><td>29.1 s, 4.20 GB</td></tr>
+<tr><td>Lean result in this run</td><td class="n">rejected, heartbeats</td><td class="n">accepted</td></tr>
+<tr><td>Lean time and peak memory, as measured in the PR</td><td class="n">30.5 s, 4.45 GB</td><td class="n">29.1 s, 4.20 GB</td></tr>
 </tbody>
 </table>
 </div>
 
 <h2>How it was verified</h2>
-<p>All local checks at the change commit passed.
-The whole Lean reconstruction suite passed with the new tests in it.
-Both large circuits verified in Lean under the 8 GB memory cap.
+<p>Every step of the loop's local gate passed, and the PR was merged on that result.
+The gate repeats, on the loop machine, the CI steps that exercise this work.
+It applies because the change touches only documentation and the Python examples.</p>
+
+<div class="table">
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Detail</th><th class="n">Time</th></tr></thead>
+<tbody>
+<tr><td>Certificate exporter tests</td><td><span class="ok">pass</span></td><td>125 tests</td><td class="n">21 s</td></tr>
+<tr><td>Lean reconstruction tests, with the new ones</td><td><span class="ok">pass</span></td><td>668 tests, 11 skipped</td><td class="n">1,041 s</td></tr>
+<tr><td>Proof script tests of the z3test repository</td><td><span class="ok">pass</span></td><td>48 tests</td><td class="n">19 s</td></tr>
+<tr><td>Regression matrix, Boolean inputs</td><td><span class="ok">pass</span></td><td>6 of 6 verified in Lean</td><td class="n">5 s</td></tr>
+<tr><td>Regression matrix, linear real arithmetic inputs</td><td><span class="ok">pass</span></td><td>8 of 8 verified in Lean</td><td class="n">6 s</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Earlier checks in the PR showed both large circuits verifying in Lean under the 8 GB memory cap.
 With both searches forced off on 100 sample files, every reconstruction finished without an exception.</p>
 
 <div class="table">
 <table>
-<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<thead><tr><th>Other local check, as reported in the PR</th><th>Result</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction suite, <code>test_proof_to_lean*.py</code></td><td><span class="ok">pass</span>: 667 tests, 11 skipped, 1,037.9 s</td></tr>
-<tr><td>The two test files edited after that run started, run again as committed</td><td><span class="ok">pass</span>: 73 tests and 68 tests</td></tr>
 <tr><td>Slow tier: the 20-frame test with three fast swept tests</td><td><span class="ok">pass</span>: 4 tests, 40.6 s</td></tr>
-<tr><td>Certificate exporter tests, <code>test_proof_certificate.py</code></td><td><span class="ok">pass</span>: 125 tests</td></tr>
 <tr><td>Lean project build and checks, <code>scripts/check_lean.sh</code></td><td><span class="ok">pass</span></td></tr>
-<tr><td>Proof tests of the z3test repository</td><td><span class="ok">pass</span>: 48 tests</td></tr>
-<tr><td>Regression matrix, two cells with Lean</td><td><span class="ok">pass</span>: 6 of 6 and 8 of 8 verified in Lean</td></tr>
 <tr><td>30-frame circuit in Lean, 18.7 MB of text</td><td><span class="ok">verifies</span>: 55.8 s, peak 7.14 GB</td></tr>
 <tr><td>Texts before and after the review fixes, ten sample files</td><td><span class="ok">byte-identical</span></td></tr>
 <tr><td>Forced sweep, 100 sample files, no Lean</td><td><span class="ok">100 finish</span>: 541 cnf lemmas, 270 swept, slowest 21.5 s</td></tr>
-<tr><td>Local gate of the loop</td><td><span class="unk">not recorded</span> when this report was written</td></tr>
 <tr><td><code>test-z3</code>, SMT2 regressions, <code>scripts/tests</code></td><td>not run: no C++ and no script changed</td></tr>
 </tbody>
 </table>
 </div>
 
-<p>No CI status was recorded for this report, and GitHub listed no checks on the branch at that time.
-The local runs do not show that CI passes.
-There were no CI fix rounds.
-The PR description names the jobs that run the new tests.</p>
+<p>No CI check ran on the pull request, and there were no CI fix rounds.
+CI runs on <code>master</code> after the merge.
+No run for the merge commit was listed when this report was written, so its result is unknown.</p>
 
 <div class="table">
 <table>
-<thead><tr><th>CI job</th><th>What it runs for this PR</th><th>Result</th><th>Link</th></tr></thead>
+<thead><tr><th>CI job</th><th>What it runs for this change</th><th>Result</th><th>Link</th></tr></thead>
 <tbody>
-<tr><td>Ubuntu build - cmake - releaseClang</td><td>Step "Check native proofs in Lean": all new tests except the slow 20-frame one</td><td><span class="unk">unknown</span></td><td><a href="https://github.com/levnach/z3/pull/137/checks">PR checks</a></td></tr>
-<tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Step "Test Python wheel": the new tests that need no Lean</td><td><span class="unk">unknown</span></td><td><a href="https://github.com/levnach/z3/pull/137/checks">PR checks</a></td></tr>
+<tr><td>Ubuntu build - cmake - releaseClang</td><td>Step "Check native proofs in Lean": all new tests except the slow 20-frame one</td><td><span class="unk">unknown</span></td><td><a href="https://github.com/levnach/z3/commit/6d451d3f299430df6e7ae06c7d3124e9dd2e49f5">merge commit</a></td></tr>
+<tr><td>Python bindings (manylinux Centos AMD64) build</td><td>Step "Test Python wheel": the new tests that need no Lean</td><td><span class="unk">unknown</span></td><td><a href="https://github.com/levnach/z3/commit/6d451d3f299430df6e7ae06c7d3124e9dd2e49f5">merge commit</a></td></tr>
 </tbody>
 </table>
 </div>
 <p class="note">The slow 20-frame test and the 30-frame circuit are not in CI.</p>
 
 <h2>Review</h2>
-<p>The reviewer approved the change, with no blocker and no major finding.
-To stress the new code, the reviewer forced the sweep on 100 sample files.</p>
+<p>The reviewer approved the change, with no blocker and no major finding.</p>
 <ul>
 <li><strong>Minor, fixed: a malformed line.</strong>
 The reviewer crafted a small input whose clause the sweep refutes without any link.
 The reconstructor then wrote a <code>have</code> line that Lean rejects, and only the fallback saved the lemma.
-On large inputs the fallback is exactly the proof that fails.
+On large inputs that fallback is the proof that fails.
 The reconstructor now records that a refutation came from the sweep, and a new test guards it.</li>
 <li><strong>Minor, fixed: no bound on the sweep's own work.</strong>
 Forced on a file with a thousand nested conjunctions, the sweep had not finished after 1,700 seconds.
 Its size limit was checked only after all the work.
-The sweep now counts class members before searching and characters while running, with one budget per file.
-The same forced file now reconstructs in seconds.</li>
+The sweep now counts its work as it runs, and that file reconstructs in seconds.</li>
 <li><strong>Nit, fixed.</strong>
 The plan gave the number of structures where it meant gates.</li>
 <li><strong>Nit, partly fixed: thin test coverage.</strong>
 The reviewer disabled parts of the sweep, and the tests that need no Lean still passed.
-A new test now fails when on-demand tying of gates is disabled.
-The second retry round is still covered only by a test in the Lean job.</li>
+A new test now catches one such part. The second retry round is still covered only in the Lean job.</li>
 </ul>
-<p>One suggestion was not taken: a test holding the 30-frame circuit under the memory cap.
-The circuit was measured again instead.</p>
+<p>One suggestion was not taken: a test holding the 30-frame circuit under the memory cap.</p>
 
 <h2>Risks and open questions</h2>
 <ul>
@@ -326,16 +323,17 @@ The circuit was measured again instead.</p>
 <li>The bounds are fixed counts, not a time limit, and deep chains of conjunctions are given up on.</li>
 <li>The classes cover only the rewriter rules these circuits needed. A missed rule costs links, never
 <a href="#g-soundness">soundness</a>.</li>
-<li>Only two of 130 sample files reach the sweep by themselves. Other paths ran only with the searches forced off.</li>
+<li>Only two of 130 sample files reach the sweep by themselves.</li>
+<li>The CI result on <code>master</code> for the merge commit is not known here.</li>
 <li>Large circuits rely on the tuple hash caching of Python 3.14.</li>
 </ul>
 
 <h2>What comes next</h2>
 <ul>
-<li>Smaller sweep text, for example <a href="#g-congruence">congruence</a> terms for links between gates of one shape.</li>
+<li>Smaller sweep text, for example by <a href="#g-congruence">congruence</a> terms.</li>
 <li>Canonical gates nested like their class's first member, so that deep chains become linear.</li>
 <li>Combining a sweep with <a href="#g-theory-clause">theory clauses</a>.</li>
-<li>Sweeping before the search over the unsat core, to save reconstruction time.</li>
+<li>Sweeping before the search over the unsat core, to save time.</li>
 </ul>
 
 <h2>Glossary</h2>
