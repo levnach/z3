@@ -232,14 +232,25 @@ _LINK_CHARS = 5000
 # of the canonical gates a link's search meets are tied in turn, at first and
 # when that fails, and how many times the refutation of the clause may open
 # the structures it meets (the RTCL circuits take one). The characters of
-# all the declarations of a sweep: ckt_PROP3_tf_30 takes 12 million, in a
-# 19 MB file that Lean checks in 56 s at 7.1 GB, under the 8 GB of
-# check_lean.sh; a longer sweep is not written.
+# all the declarations of the sweeps of a file: ckt_PROP3_tf_30 takes 12
+# million, in a 19 MB file that Lean checks in 56 s at 7.1 GB, under the
+# 8 GB of check_lean.sh. A sweep stops when its canonical gates, the links
+# it has proved, and the searches that failed have written more than what
+# the earlier sweeps of the file left of that (ckt_PROP3_tf_30 counts 11.4
+# million), and a longer sweep is not written. The members of all the
+# and/or classes of a sweep: n nested conjunctions have classes of 2 to n
+# members and as many canonical gates of that many operands, each a parent
+# of its operands in every search (ckt_PROP3_tf_30 has 21 thousand members
+# and sweeps in 1.4 s; two forms of a 400-deep conjunction have 81
+# thousand, 1.4 s and 15 MB; the thousand nested ands of QF_IDL
+# FISCHER6-4-ninc have 2 million, and their sweep did not end in 1,700 s).
+# A wider formula is not swept.
 _SWEEP_LINK_STEPS = 1000
 _SWEEP_LINK_CHARS = 50000
 _SWEEP_ROUNDS = (1, 3)
 _SWEEP_OPENINGS = 4
 _SWEEP_CHARS = 16000000
+_SWEEP_MEMBERS = 200000
 # Resource limit of z3's unsat core over a cnf lemma's propositional
 # abstraction (_relevant_structures), which steers the prover when its own
 # search gives up: the 5,649 gates of the QF_IDL plan-21 cnf lemma take
@@ -1395,6 +1406,9 @@ class _Graph:
     # each unbounded index sort of the certificate's arrays -> the index
     # nodes of the stores over it, in order. Empty otherwise.
     generic: dict = field(default_factory=dict, compare=False, repr=False)
+    # The characters of the declarations each swept cnf lemma has written, by
+    # node (_cnf_refutation): the sweeps of a file share _SWEEP_CHARS.
+    swept: dict = field(default_factory=dict, compare=False, repr=False)
 
     def constructor_index(self, name, sort):
         """The index of a constructor in _m.ctors: the enumerations by sort name, each in declaration order."""
@@ -7300,6 +7314,10 @@ def _reject_disjunction(proofs):
     return result
 
 
+class _SweepLimit(Exception):
+    """A sweep is beyond its limits (_SWEEP_MEMBERS, _SWEEP_CHARS): _PropositionalProver.sweep gives up."""
+
+
 class _PropositionalProver:
     """Prove a propositional equivalence by a direct Lean proof, without a truth table.
 
@@ -7405,8 +7423,12 @@ class _PropositionalProver:
             if names is None or scope is None:
                 raise ValueError("a sweep states its links outside the proof, over the caller's names")
             self.gates, self.proved, self.failed, self.definitions = set(), {}, set(), []
-            self.links = self._swept_structures(joined)
-            for link in self.links:
+            self.spent, self.allowed = 0, None  # the characters written, and how many may be (sweep)
+            try:
+                self.links = self._swept_structures(joined)
+            except _SweepLimit:
+                self.links = None  # too wide: sweep gives up
+            for link in self.links or ():
                 self._index(link)
         self.constants = [(structure, structure[0] == "true", "True.intro" if structure[0] == "true"
                            else "(fun _absurd => _absurd)")
@@ -7726,6 +7748,7 @@ class _PropositionalProver:
                 self.group[other] = (root, sign ^ other_sign ^ negated)
         keys, interned, flattened = [], {}, set()
         self.classes, self.keys, self.representatives, self.canonical = {}, keys, {}, {}
+        self.members = 0  # of the and/or classes, within _SWEEP_MEMBERS
 
         def intern(key):
             if key not in interned:
@@ -7755,7 +7778,12 @@ class _PropositionalProver:
                 return zero
             if len(members) < 2:
                 return next(iter(members)) if members else unit
-            return intern((kind, frozenset(members)))
+            key = (kind, frozenset(members))
+            if key not in interned:
+                self.members += len(members)
+                if self.members > _SWEEP_MEMBERS:
+                    raise _SweepLimit()
+            return intern(key)
 
         def iff(left, right):
             sides = [keys[side][1] if keys[side][0] == "not" else side for side in (left, right)]
@@ -7843,6 +7871,7 @@ class _PropositionalProver:
                 # Named by a definition of its own, as the nodes' gates are:
                 # a step states it by that name however wide it is.
                 self.definitions.append(("%s_k%d" % (self.scope[0], len(self.definitions)), self._shallow(gate)))
+                self.spent += len(self.definitions[-1][1])
                 self.named[gate] = "(%s%s)" % (self.definitions[-1][0], self.scope[1])
         return ("not", self.canonical[base]) if negated else self.canonical[base]
 
@@ -7936,6 +7965,7 @@ class _PropositionalProver:
                 lines = self._prove(dict(), ("false",),
                                     below + [(source, True, hypothesis), (target, False, negation)])
                 if lines is None:
+                    self._spend(self.chars)  # what the search wrote before it gave up
                     break
                 directions.append([hypothesis, "refine Classical.byContradiction (fun %s => ?_)" % negation] + lines)
             if len(directions) == 2:
@@ -7945,10 +7975,17 @@ class _PropositionalProver:
         name = "%s_s%d" % (self.scope[0], len(blocks))
         lines = ["refine Iff.intro (fun %s => ?_) (fun %s => ?_)" % (directions[0][0], directions[1][0])]
         blocks.append((name, self._render(link), lines + _bullets([direction[1:] for direction in directions])))
+        self._spend(len(blocks[-1][1]) + sum(len(line) + 1 for line in blocks[-1][2]))
         fact = "(%s%s)" % (name, self.scope[1])
         self.names.add(fact)
         self.proved[left] = (link, True, fact)
         return None
+
+    def _spend(self, chars):
+        """Count characters a sweep wrote against what it may write (sweep); _SweepLimit beyond that."""
+        self.spent += chars
+        if self.spent > self.allowed:
+            raise _SweepLimit()
 
     def _open(self, untied, blocks):
         """Tie the untied structures of and/or classes to their canonical gates; whether any was."""
@@ -7968,7 +8005,7 @@ class _PropositionalProver:
                 self.failed.add(structure)
         return tied
 
-    def sweep(self, structure, facts):
+    def sweep(self, structure, facts, chars=None):
         """Tactic lines proving the goal Not structure under the named facts through the links, or None.
 
         The plain search (refutation) relates a clause Z3 logged over its
@@ -7995,8 +8032,24 @@ class _PropositionalProver:
         links in the order they were proved. A link is a theorem of its
         own and a fact by its name applied to the scope's arguments, where
         a `have` would count its proof against the heartbeats of the
-        lemma.
+        lemma. The sweep is bounded as a whole, where a link's search is
+        bounded by itself: it gives up when the and/or classes have more
+        than _SWEEP_MEMBERS members (_swept_structures), and as soon as the
+        canonical gates, the links proved, and the searches that failed
+        have written more than chars characters (_SWEEP_CHARS by default),
+        so that a formula it does not fit (a thousand nested conjunctions)
+        costs seconds and the lemma keeps its other proofs.
         """
+        if self.links is None:
+            return None
+        self.allowed = _SWEEP_CHARS if chars is None else chars
+        try:
+            return self._swept(structure, facts)
+        except _SweepLimit:
+            return None
+
+    def _swept(self, structure, facts):
+        """The declarations and the refutation of a sweep within its limits (sweep)."""
         self.joins = {}  # the joining facts by the leaf their leaves are tied to
         for fact, name in facts:
             self.joins.setdefault(self._find(fact[1])[0], []).append((fact, True, name))
@@ -8534,9 +8587,12 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
     structure = _boolean_structure(graph, conclusion, atom_indices, memo, leaves, synthetic)
     bridges = _leaf_bridges(graph, leaves, synthetic)
     refutation, names, order, declarations = _cnf_refutation(graph, memo, structure, bridges, sweep=node)
-    if declarations:
+    if declarations is not None:
         # Found by the sweep: the links are theorems of their own before
-        # this one, and so are the bridges they rest on.
+        # this one, and so are the bridges they rest on; the names are
+        # those theorems applied, not hypotheses to state (there may be no
+        # declaration at all: a clause refuted over the canonical gates it
+        # is written in, without a bridge).
         lemma, term = _grind_lemma(graph, node, "th_lemma", atom_indices, variable_indices,
                                    opaque_tactic=_opaque_tactic(graph, node),
                                    structural=["refine Classical.byContradiction ?_"] + refutation)
@@ -8605,6 +8661,12 @@ def _cnf_refutation(graph, memo, structure, bridges, budget=1, sweep=None):
     (_relevant_structures), each within budget times the prover's limits.
     The refutation is None when neither finds one; the structures (children
     before parents) are the first prover's.
+
+    With sweep, the node of the lemma, a clause neither search refutes is
+    swept (_PropositionalProver.sweep). The fourth result is None unless
+    the refutation is the sweep's: then it is the lines of the declarations
+    to write before the lemma (possibly none), and the names are the
+    bridges' theorems among them, applied.
     """
     facts = [("not", structure)] + [bridge for bridge, _ in bridges]
     relevant, order = None, None
@@ -8616,32 +8678,37 @@ def _cnf_refutation(graph, memo, structure, bridges, budget=1, sweep=None):
         refutation = prover.refutation(("not", structure),
                                        [(bridge, name) for (bridge, _), name in zip(bridges, names)])
         if refutation is not None:
-            return refutation, names, order, []
+            return refutation, names, order, None
         if relevant is not None:
             break
         relevant = _relevant_structures(prover.order, facts)
         if relevant is None:
-            return None, names, order, []
+            return None, names, order, None
     if sweep is None:
-        return None, names, order, []
+        return None, names, order, None
     # The clause follows propositionally and the search is lost in it: the
     # sweep relates the two forms of the assertion gate by gate
     # (_PropositionalProver.sweep). Its links, the canonical gates they
     # state, and the bridges are declarations of their own, th_lemma_N_sK,
     # _kK, and _bK: a tactic block is elaborated within the heartbeats of
-    # its declaration, and the links of a circuit take megabytes.
+    # its declaration, and the links of a circuit take megabytes. The sweeps
+    # of a file share _SWEEP_CHARS (graph.swept): Lean's memory grows with
+    # the file.
+    allowed = _SWEEP_CHARS - sum(chars for node, chars in graph.swept.items() if node != sweep)
     scope = ("th_lemma_%d" % sweep, " _atoms" + graph.valuation)
     binder = "(_atoms : Nat -> Prop)" + _valuation_binder(graph)
     prover = _PropositionalProver(*facts, classical=True, names=_structure_names(graph, memo), budget=budget,
                                   joined=[bridge for bridge, _ in bridges], scope=scope)
     stated = ["(%s_b%d%s)" % (scope[0], position, scope[1]) for position in range(len(bridges))]
-    found = prover.sweep(("not", structure), [(bridge, name) for (bridge, _), name in zip(bridges, stated)])
+    found = prover.sweep(("not", structure), [(bridge, name) for (bridge, _), name in zip(bridges, stated)],
+                         chars=allowed)
     if found is None:
-        return None, names, order, []
+        return None, names, order, None
     declarations, refutation = found
     text = "\n".join(refutation + [line for _, statement, lines in declarations for line in [statement or ""] + lines])
-    if len(text) > _SWEEP_CHARS:
-        return None, names, order, []
+    if len(text) > allowed:
+        return None, names, order, None
+    graph.swept[sweep] = len(text)
     lines = []
     for position, (bridge, definitions) in enumerate(bridges):
         if stated[position] in text:

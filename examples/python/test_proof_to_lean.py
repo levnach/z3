@@ -729,6 +729,45 @@ def swept_frames(count, extra=False):
     return clause, {structure: "(n%d _atoms)" % index for index, structure in enumerate(named)}
 
 
+def opened_frames(count):
+    """A clause tying two forms of one formula whose sweep ties a named gate on demand, and the gates' names.
+
+    The first form is the conjunction over the frames of (or (and c a)
+    (and (not c) e)), the second the conjunction, in the other order, of
+    (ite c (or a false) e). The named gate (and c a) of the first form comes
+    first, so it stands for its class, and the unnamed branch (and c (or a
+    false)) of the ite shares that class: the link between the two frames
+    reads through the branch and must read the named gate too (_open).
+    """
+    false = ("false",)
+    named, first, second = [], [], []
+    for frame in range(count):
+        c, a, e = (("atom", 3 * frame + offset) for offset in range(3))
+        conjunction, then = ("and", c, a), ("or", a, false)
+        rewritten = ("or", conjunction, ("and", ("not", c), e))
+        ite = ("or", ("and", c, then), ("and", ("not", c), e))
+        named += [conjunction, then, rewritten, ite]
+        first.append(rewritten)
+        second.insert(0, ite)
+    first, second = ("and",) + tuple(first), ("and",) + tuple(second)
+    clause = ("or", ("not", first), second)
+    named += [first, second, clause]
+    return clause, {structure: "(n%d _atoms)" % index for index, structure in enumerate(named)}
+
+
+def nested_conjunction(count):
+    """A clause tying a conjunction nested count deep to the flat one over its operands, and the gates' names."""
+    gates = [("or", ("atom", 2 * index), ("atom", 2 * index + 1)) for index in range(count)]
+    named, nested = list(gates), gates[-1]
+    for gate in reversed(gates[:-1]):
+        nested = ("and", gate, nested)
+        named.append(nested)
+    flat = ("and",) + tuple(reversed(gates))
+    clause = ("or", ("not", nested), flat)
+    named += [flat, clause]
+    return clause, {structure: "(n%d _atoms)" % index for index, structure in enumerate(named)}
+
+
 # x + 10 and x + 5 + 5 modulo 17, each step an ite, said to differ (depth 2
 # of test_proof_to_lean_lia.modular_chains_instance).
 MODULAR_CHAINS = """\
@@ -1458,6 +1497,71 @@ class TestProofToLean(unittest.TestCase):
         # A sweep states its links outside the proof: it needs the caller's names.
         with self.assertRaises(ValueError):
             proof_to_lean._PropositionalProver(("not", clause), classical=True, joined=[])
+
+    def test_sweep_ties_a_named_gate_a_link_reads_through(self):
+        # A named gate that stands for its class has no link, and a search
+        # takes it for an input, as it takes an atom. The link of a frame
+        # of opened_frames needs what is under it (the unnamed branch of
+        # the ite it is tied to is read through): when a link's search
+        # fails, the named gates it met without a fact are tied to their
+        # canonical gates (_open) and the search is repeated.
+        def sweep(count):
+            clause, names = opened_frames(count)
+            prover = proof_to_lean._PropositionalProver(("not", clause), classical=True, names=names, joined=[],
+                                                        scope=("lemma", " _atoms"))
+            return clause, prover, prover.sweep(("not", clause), [])
+
+        clause, prover, found = sweep(3)
+        self.assertIsNotNone(found)
+        self.assertEqual(prover.failed, set())
+        conjunctions = [frame[1] for frame in clause[1][1][1:]]
+        self.assertTrue(all(conjunction in prover.gates for conjunction in conjunctions))
+        self.assertIn("(lemma_s", "\n".join(found[1]))
+        with patch.object(proof_to_lean._PropositionalProver, "_open", lambda self, untied, blocks: False):
+            clause, prover, found = sweep(3)
+        self.assertIsNone(found)
+        self.assertNotEqual(prover.failed, set())
+        self.assertFalse(any(conjunction in prover.gates for conjunction in conjunctions))
+
+    def test_sweep_gives_up_beyond_its_limits(self):
+        # A link's search has its own limits; the sweep as a whole has two.
+        # n nested conjunctions have and classes of 2 to n members, and as
+        # many canonical gates of that many operands: beyond _SWEEP_MEMBERS
+        # members the formula is not swept (the thousand nested ands of
+        # QF_IDL FISCHER6-4-ninc have two million; their sweep took half an
+        # hour without an end, and now none of the time). And a sweep stops
+        # once its links and its failed searches have written more than it
+        # may (_SWEEP_CHARS for the sweeps of a file), not after the last
+        # link. The limits as they are, on a conjunction a thousand deep:
+        # test_proof_to_lean_integration (its structures are too deep for
+        # an interpreter that does not cache the hash of a tuple).
+        def sweep(count, **options):
+            clause, names = nested_conjunction(count)
+            prover = proof_to_lean._PropositionalProver(("not", clause), classical=True, names=names, joined=[],
+                                                        scope=("lemma", " _atoms"))
+            return prover, prover.sweep(("not", clause), [], **options)
+
+        prover, found = sweep(30)
+        self.assertIsNotNone(found)
+        members = sum(range(2, 31)) + 30 * 2  # the nested ands' classes and those of the thirty ors
+        self.assertEqual(prover.members, members)
+        links, written = len(prover.proved), prover.spent
+        declarations = sum(len(statement or "") + sum(map(len, lines)) for _, statement, lines in found[0])
+        self.assertTrue(declarations <= written < 2 * declarations, (declarations, written))
+        self.assertIsNotNone(sweep(30, chars=written)[1])
+        prover, found = sweep(30, chars=written // 2)
+        self.assertIsNone(found)
+        self.assertTrue(0 < len(prover.proved) < links, len(prover.proved))
+        self.assertLess(prover.spent, written // 2 + proof_to_lean._SWEEP_LINK_CHARS)
+        with patch.object(proof_to_lean, "_SWEEP_CHARS", written // 2):  # the default of chars
+            self.assertIsNone(sweep(30)[1])
+        with patch.object(proof_to_lean, "_SWEEP_MEMBERS", members - 1):
+            prover, found = sweep(30)
+            self.assertIsNone(found)
+            self.assertIsNone(prover.links)
+            self.assertEqual(prover.proved, {})
+        with patch.object(proof_to_lean, "_SWEEP_MEMBERS", members):
+            self.assertIsNotNone(sweep(30)[1])
 
     def test_sweep_classes_follow_the_rewriter(self):
         # The classes of _swept_structures on single rules: equal classes

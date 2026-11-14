@@ -1749,7 +1749,7 @@ atoms normalized. One clause, the property over all frames (19 or 29
 cases), is tied to the assertion by a cnf lemma whose two sides are two
 forms of the whole circuit, about 4,000 gates each way. The search of
 `_PropositionalProver` relates them only by case splits on the leaves they
-share: it ran out of its budget, over z3's unsat core too (3,123 of 13,143
+share: it ran out of its budget, over z3's unsat core too (3,123 of 12,943
 gates), and the unfolded fallback ran out of heartbeats (and, on `tf_30`,
 memory: 10.5 GB).
 
@@ -1781,6 +1781,26 @@ proof found for it, Lean checks every theorem, and the lemma keeps its
 unfolded fallback. No axiom is added and no limit is raised (a link over
 5,000 characters gets the `maxHeartbeats 1000000` every lemma has).
 
+The sweep is bounded as a whole, where a link's search is bounded by itself
+(1,000 steps, 50,000 characters). Two forms of a conjunction nested n deep
+have classes of 2 to n members and n canonical gates of as many operands,
+each a parent of its operands in every search. The and/or classes of one
+sweep may have 200,000 members in all (`_SWEEP_MEMBERS`: `tf_30` has 21
+thousand, a 400-deep conjunction 81 thousand and 1.4 s, the thousand nested
+ands of QF_IDL `FISCHER6-4-ninc` 2 million); a wider formula is not swept,
+and that is known before any link is searched. The canonical gates, the
+links proved, and the searches that failed count their characters while the
+sweep runs, and it stops at `_SWEEP_CHARS` (16 million; `tf_30` counts
+11.4), which the sweeps of one file share (`_Graph.swept`): Lean's memory
+grows with the file, not with the lemma. A lemma whose sweep gives up keeps
+the text it has without it. No file of the sample reaches either bound by
+itself; with both searches made to give up, `FISCHER6-4-ninc` reconstructs
+in 3.5 s where its sweep had not ended after 1,700 s, and the swept lemmas
+of QF_LRA `current_frame.base` stop at 16.7 MB of text where twelve wrote
+27 MB. A sweep that refutes the clause over the gates as they are writes no
+declaration at all, and its lemma then states no bridge either: the
+refutation names the bridges as theorems.
+
 Measured on 2026-11-14 (`lake env lean --trust=0 -DwarningAsError=true
 --memory=8192`, wall time and peak resident memory):
 
@@ -1799,18 +1819,26 @@ search as before, and by the sweep when the search's limit is lowered
 (2.1 MB, 3.2 s, 1.3 GB). Tests: `test_proof_to_lean.py`
 (`test_sweep_relates_two_forms_of_a_formula_gate_by_gate`: the generated
 family `swept_frames(count)`, linear in the frames;
+`test_sweep_ties_a_named_gate_a_link_reads_through`: `opened_frames(count)`,
+whose links need a named gate tied on demand;
+`test_sweep_gives_up_beyond_its_limits`: `nested_conjunction(count)`;
 `test_sweep_classes_follow_the_rewriter`),
 `test_proof_to_lean_integration.py`
-(`test_sweep_declarations_check_in_lean`), `test_proof_to_lean_lia.py`
+(`test_sweep_declarations_check_in_lean`, both families),
+`test_proof_to_lean_lia.py`
 (`test_circuit_cnf_lemma_is_swept_when_the_search_gives_up`: `tf_10` with
-the fallback removed; the slow
+the fallback removed;
+`test_cnf_lemma_swept_without_a_declaration_states_no_bridge` and
+`test_sweeps_of_a_file_share_their_characters`: small inputs whose searches
+are made to give up; the slow
 `test_twenty_frame_circuit_verifies_by_the_sweep`,
 `data/QF_IDL_ckt_PROP1_tf_20.smt2`).
 
 Still open: the sweep is linear in the gates but a chain of n nested
 conjunctions has n canonical gates of up to n operands, quadratic in all
-(the RTCL chains have at most 30); a sweep above 16 MB of declarations is
-not written (`_SWEEP_CHARS`), and `tf_30` is at 7.1 GB of the 8 GB cap.
+(the RTCL chains have at most 30), so a deep chain is given up on by the
+bounds above, not swept: canonical gates nested like the class's first
+structure would make it linear. `tf_30` is at 7.1 GB of the 8 GB cap.
 The rules read here are those these circuits needed; a rewriter step the
 classes miss costs links, never soundness. Theory clauses
 (`_theory_clauses`) are not combined with a sweep.

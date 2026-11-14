@@ -381,7 +381,11 @@ step:
     proved over the few gates between its two ends; the lemma then refutes
     the clause through the links. The classes are hints: a link is stated
     only with its proof. The twenty- and thirty-frame circuits of QF_IDL
-    RTCL (ckt_PROP1_tf_20, ckt_PROP3_tf_30) verify that way. When no search
+    RTCL (ckt_PROP1_tf_20, ckt_PROP3_tf_30) verify that way. A sweep is
+    bounded as a whole: a formula whose and/or classes have more than
+    200,000 members in all (a conjunction nested a thousand deep) is not
+    swept, and the sweeps of a file stop once they have written 16 million
+    characters; the lemma then keeps its other proofs. When no search
     refutes the clause,
     z3 finds theory clauses over its arithmetic and uninterpreted leaves
     (applications, constants of a sort; congruence included) that make the
