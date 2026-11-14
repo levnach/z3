@@ -1831,14 +1831,29 @@ file (the texts of the 2026-11-14 scan):
 
 Files that did not verify as one file:
 
-BIGTABLE
+| input | Lean text | one file | chain of 1 MB modules |
+| --- | --- | --- | --- |
+| QF_UF `gensys_icl1079` | 31.7 MB | kernel memory at the cap, 93.8 s, 8.04 GB | 32 modules, verifies, 121.9 s, 0.95 GB |
+| QF_UF `gensys_brn023` | 33.0 MB | kernel memory at the cap, 96.0 s, 8.05 GB | 33 modules, verifies, 127.8 s, 1.03 GB |
+| QF_AUFLIA `swap_t1_pp_sf_ai_00010_008` | 35.7 MB | kernel memory at the cap, 123.1 s, 8.26 GB | 36 modules, verifies, 348.7 s, 2.66 GB |
+| QF_UF `sokoban.3.prop1_ab_br_max` | 40.1 MB | no verdict in 30 minutes (5.19 GB) | 44 modules, fails in the sixth: a lemma out of heartbeats, 84.7 s, 1.57 GB |
+| QF_UF `gensys_icl388` | 44.5 MB | not tried | 45 modules, verifies, 175.5 s, 1.10 GB |
+| QF_UF `gensys_icl665` | 54.2 MB | not tried | 55 modules, verifies, 214.1 s, 1.10 GB |
+| QF_UF `gensys_brn1262` | 60.0 MB | not tried | 60 modules, verifies, 233.5 s, 1.18 GB |
+| QF_AUFLIA `swap_t3_pp_sf_ai_00009_006` | 76.5 MB | not tried | 77 modules, verifies, 676.3 s, 2.76 GB |
+| QF_AUFLIA `swap_t3_pp_sf_ai_00010_007` | 92.6 MB | not tried | 93 modules, verifies, 912.0 s, 2.99 GB |
+| QF_UF `gensys_icl588` | 194.8 MB | not tried | 195 modules, verifies, 745.4 s, 1.41 GB |
+
+The time is that of the whole chain; no module of the quasigroup files takes
+more than 16 s, none of the array files more than 34 s. QF_AUFLIA
+`dlx-regfile` (8.5 MB) is a chain too and fails on the cnf lemma it failed
+on as one file, after 55.4 s at 0.88 GB instead of 82.7 s at 3.45 GB.
 
 The module size was chosen on `swap_t1_pp_sf_ai_00010_008`: with 8 MB
 modules the module of its array lemmas still stops at the cap (8.39 GB);
 with 2 MB modules the file verifies in 346 s at 4.85 GB; with 1 MB modules
 in 348 s at 2.66 GB. `modules` itself takes 0.9 s on the 195 MB of
-`gensys_icl588` (97 modules at 2 MB), next to the 28 s of its
-reconstruction.
+`gensys_icl588`, next to the 27 s of its reconstruction.
 
 Tests: `test_proof_to_lean.py` (`TestCertificateModules`, no Lean: the
 split of a generated text `chained_text(count)`, its linear growth, what is
@@ -1860,7 +1875,23 @@ reconstruct all split),
 `test_a_certificate_above_the_memory_of_one_lean_process_verifies_as_modules`,
 `data/QF_UF_QG_gensys_icl1079.smt2`).
 
-Still open: STILLOPEN
+Still open:
+
+- QF_UF `sokoban.3.prop1_ab_br_max`: 71 of its 1,422 theory lemmas are 430
+  to 480 kB each and hold 32.8 of the 40 MB. Each reaches one conjunct of a
+  4.3 MB right-nested conjunction (a `distinct` as pairwise disequalities)
+  through one term of 21,735 nested `mt (@And.right _ _)`, and the first of
+  them runs out of 1,000,000 heartbeats at `whnf`. As a chain that is
+  reported after 85 s; the size of the text was never the obstacle.
+- Not measured as chains: QF_UF `gensys_icl565`, `icl551`, `brn805`,
+  `brn420`, `icl766` (125 to 177 MB; at the 3.8 s per MB of the six
+  measured `gensys_*` files, 8 to 11 minutes each), QF_AUFLIA
+  `swap_t3_pp_sf_ai_00010_003` (124 MB), QF_IDL `vlsat3_c27` (141 MB).
+- The modules of a chain are checked one after another, 4 to 10 s per MB.
+  A module imports the one before it; checking modules in parallel would
+  need each to import only what it uses.
+- The array lemmas of the swap files cost about 30 s and up to 3 GB per
+  MB of text even in 1 MB modules: the lemma text is the lever there.
 
 ### A cnf lemma the search gives up on is swept gate by gate (2026-11-14)
 
@@ -2035,6 +2066,9 @@ Still open in the family: the other `gensys_*` files are 31 to 195 MB of
 Lean (80,000 to 440,000 proof nodes), beyond the memory cap whatever their
 rewrites cost: the smallest, `gensys_icl1079` (31.7 MB), now gets through
 its rewrites and runs out of kernel memory at the 8 GB cap after 93 s.
+(2026-11-14: as chains of modules `gensys_icl1079`, `brn023`, `icl388`,
+`icl665`, and `brn1262`, 31.7 to 60 MB, verify at about 1 GB; see
+"Certificates above 8 MB of Lean are checked as a chain of modules".)
 
 Still open for the rewrite: leaves are shared by node, so a regrouping
 whose equalities Z3 also reorients gets no structural proof. The same
