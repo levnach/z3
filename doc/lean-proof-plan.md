@@ -1885,8 +1885,12 @@ Still open:
   reported after 85 s; the size of the text was never the obstacle.
 - Not measured as chains: QF_UF `gensys_icl565`, `icl551`, `brn805`,
   `brn420`, `icl766` (125 to 177 MB; at the 3.8 s per MB of the six
-  measured `gensys_*` files, 8 to 11 minutes each), QF_AUFLIA
-  `swap_t3_pp_sf_ai_00010_003` (124 MB), QF_IDL `vlsat3_c27` (141 MB).
+  measured `gensys_*` files, 8 to 11 minutes each) and QF_AUFLIA
+  `swap_t3_pp_sf_ai_00010_003` (124 MB).
+- QF_IDL `vlsat3_c27` (141 MB, 143 modules): no verdict in the 40 minutes
+  the measurement gave it. 92 modules were checked without an error at up
+  to 2.2 GB, 14 to 45 s each after the definitions (one 67 s), so the
+  whole chain would take about an hour: 26 s of Lean per MB of its text.
 - The modules of a chain are checked one after another, 4 to 10 s per MB.
   A module imports the one before it; checking modules in parallel would
   need each to import only what it uses.
