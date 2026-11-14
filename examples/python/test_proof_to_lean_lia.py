@@ -2027,6 +2027,65 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         _, report = lean_test_support.check(self, source, certificate, text=alone)
         self.assertIn(_STANDARD_AXIOMS, report)
 
+    def test_circuit_cnf_lemma_is_swept_when_the_search_gives_up(self):
+        # The same circuit, with the search's character limit lowered so
+        # that it gives up on the nine-case clause as it does, at its own
+        # limits, on the twenty and thirty frames of the family (tf_20 and
+        # tf_30: the search splits without end, over z3's unsat core too,
+        # and the unfolded fallback ran Lean out of heartbeats). The clause
+        # is over the rewriter's form of the assertion, so the lemma is
+        # swept (_PropositionalProver.sweep): the gates of the two forms are
+        # linked class by class, each link a theorem of its own before the
+        # lemma, th_lemma_N_sK, over the canonical gates th_lemma_N_kK and
+        # the leaf bridges th_lemma_N_bK, and the lemma refutes the clause
+        # through them in a few steps.
+        source = (_EXAMPLES / "data" / "QF_IDL_ckt_PROP1_tf_10.smt2").read_text()
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        self.assertNotIn("_s0 ", proof_to_lean.reconstruct(source, certificate))  # the search suffices
+        with patch.object(proof_to_lean, "_STRUCTURAL_REWRITE_CHARS", 100000):
+            text = proof_to_lean.reconstruct(source, certificate)
+        swept = sorted(set(re.findall(r"\nprivate theorem (th_lemma_\d+)_s0 ", text)))
+        self.assertEqual(len(swept), 1)
+        links = len(re.findall(r"\nprivate theorem %s_s\d+ " % swept[0], text))
+        gates = len(re.findall(r"\nprivate def %s_k\d+ " % swept[0], text))
+        bridges = len(re.findall(r"\nprivate theorem %s_b\d+ " % swept[0], text))
+        self.assertTrue(500 < links < 3000 and 100 < gates < links and 10 < bridges < 100, (links, gates, bridges))
+        proofs = [part for part in text.split("\n\n") if "private theorem %s_s" % swept[0] in part]
+        self.assertLess(max(map(len, proofs)), proof_to_lean._SWEEP_LINK_CHARS)
+        self.assertLess(sum(map(len, proofs)), 2000 * links)
+        lemma = text.split("private theorem %s " % swept[0], 1)[1].split("\n\n", 1)[0]
+        head, _, attempts = lemma.partition("\n  first\n")
+        structural, fallback = attempts.split("\n    | (")
+        self.assertTrue(structural.startswith("    | (refine Classical.byContradiction ?_\n"), structural[:80])
+        self.assertIn("(%s_s" % swept[0], structural)
+        self.assertNotIn("Classical.em", structural)
+        self.assertLess(len(structural), 20000)
+        self.assertTrue(fallback.startswith("unfold formula_"), fallback[:80])
+        # Lean checks the file with the fallback removed.
+        alone = text.replace(lemma, head + "\n  first\n" + structural, 1)
+        self.assertNotEqual(alone, text)
+        _, report = lean_test_support.check(self, source, certificate, text=alone)
+        self.assertIn(_STANDARD_AXIOMS, report)
+
+    @lean_test_support.slow("a 10 MB certificate: 30 s of Lean at 4.2 GB")
+    def test_twenty_frame_circuit_verifies_by_the_sweep(self):
+        # SMT-LIB QF_IDL RTCL/b13_tf_20/ckt_PROP1_tf_20: twenty frames, a
+        # 19-case clause over the rewriter's form of the one assertion
+        # (4,000 gates each way, 77 bridged leaves). At the limits the
+        # search gives up, with and without the unsat core, and the lemma
+        # is swept: about 5,500 links over 1,500 canonical gates. Before,
+        # the unfolded fallback ran out of heartbeats after 30 s.
+        source = (_EXAMPLES / "data" / "QF_IDL_ckt_PROP1_tf_20.smt2").read_text()
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        text = proof_to_lean.reconstruct(source, certificate)
+        swept = sorted(set(re.findall(r"\nprivate theorem (th_lemma_\d+)_s0 ", text)))
+        self.assertEqual(len(swept), 1)
+        links = len(re.findall(r"\nprivate theorem %s_s\d+ " % swept[0], text))
+        self.assertTrue(4000 < links < 8000, links)
+        self.assertLess(len(text), 12000000)
+        _, report = lean_test_support.check(self, source, certificate, text=text)
+        self.assertIn(_STANDARD_AXIOMS, report)
+
     def test_nested_conjunction_model_checking_input_exports_with_few_solver_checks(self):
         # SMT-LIB QF_IDL mathsat/fischer/FISCHER6-4-ninc: one assertion
         # nesting a thousand ands (a CVC Lite translation). Seven assumed

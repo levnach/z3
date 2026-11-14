@@ -225,6 +225,21 @@ _STRUCTURAL_REWRITE_CHARS = 1000000
 # verifies.
 _LINK_STEPS = 100
 _LINK_CHARS = 5000
+# The limits of a sweep (_PropositionalProver.sweep). The steps and characters
+# the search of one link may take: a link is proved over the few gates between
+# its ends and the links below them (the 16,400 links of the three RTCL
+# circuits take at most 15,000 characters each). How many times the operands
+# of the canonical gates a link's search meets are tied in turn, at first and
+# when that fails, and how many times the refutation of the clause may open
+# the structures it meets (the RTCL circuits take one). The characters of
+# all the declarations of a sweep: ckt_PROP3_tf_30 takes 12 million, in a
+# 19 MB file that Lean checks in 56 s at 7.1 GB, under the 8 GB of
+# check_lean.sh; a longer sweep is not written.
+_SWEEP_LINK_STEPS = 1000
+_SWEEP_LINK_CHARS = 50000
+_SWEEP_ROUNDS = (1, 3)
+_SWEEP_OPENINGS = 4
+_SWEEP_CHARS = 16000000
 # Resource limit of z3's unsat core over a cnf lemma's propositional
 # abstraction (_relevant_structures), which steers the prover when its own
 # search gives up: the 5,649 gates of the QF_IDL plan-21 cnf lemma take
@@ -7342,13 +7357,22 @@ class _PropositionalProver:
     reaching the one the clause is about, and exhausted its budget.
 
     budget scales the step and character limits (see _cnf_lemma).
+
+    With joined (a cnf lemma's leaf bridges, iff structures between a leaf
+    and a leaf or its negation) and scope (the name the declarations start
+    with and the arguments they are applied to), the prover relates the two
+    forms of the clause's formulas gate by gate instead of searching the
+    clause as a whole (sweep): classical mode, over the caller's names.
     """
 
-    def __init__(self, *roots, classical=False, names=None, links=False, relevant=None, budget=1):
-        if relevant is not None and not classical:
+    def __init__(self, *roots, classical=False, names=None, links=False, relevant=None, budget=1, joined=None,
+                 scope=None):
+        if (relevant is not None or joined is not None) and not classical:
             raise ValueError("a relevant set splits gates by Classical.em, so it needs classical mode")
         self.relevant = relevant
+        self.inputs = (None, None)  # a relevant set and the operands of its gates (_frontier)
         self.budget = budget
+        self.limits = None  # the steps and characters of one search of a sweep, in place of the budget's
         self.positions = None
         self.parents = {}
         self.order = []  # every structure, children before parents
@@ -7376,6 +7400,14 @@ class _PropositionalProver:
                 self.bound.append(structure)
             elif structure in names:
                 self.named[structure] = names[structure]
+        self.scope = scope if joined is not None else None
+        if joined is not None:  # a sweep, see sweep
+            if names is None or scope is None:
+                raise ValueError("a sweep states its links outside the proof, over the caller's names")
+            self.gates, self.proved, self.failed, self.definitions = set(), {}, set(), []
+            self.links = self._swept_structures(joined)
+            for link in self.links:
+                self._index(link)
         self.constants = [(structure, structure[0] == "true", "True.intro" if structure[0] == "true"
                            else "(fun _absurd => _absurd)")
                           for structure in (("true",), ("false",)) if structure in self.parents]
@@ -7476,17 +7508,29 @@ class _PropositionalProver:
         refutation that holds whatever its value would end with it
         undetermined.
         """
-        if self.positions is None:
-            self.positions = {structure: position for position, structure in enumerate(self.order)}
-        return sorted((-len(self.parents[structure]), self.positions[structure], structure)
-                      for structure in self.parents
+        if self.inputs[0] is not self.relevant:
+            # The operands of the relevant gates, once per relevant set: a
+            # search over a few gates of a large clause (sweep) must not walk
+            # the clause at every split.
+            self.inputs = (self.relevant, {child for gate in self.relevant for child in _structure_children(gate)})
+        positions = self._positions()
+        return sorted((-len(self.parents[structure]), positions[structure], structure)
+                      for structure in self.inputs[1]
                       if structure not in state and structure[0] not in ("true", "false")
-                      and (structure[0] in self.decidable or structure not in self.relevant)
-                      and any(parent in self.relevant for parent in self.parents[structure]))
+                      and (structure[0] in self.decidable or structure not in self.relevant))
+
+    def _positions(self):
+        """The index of every structure in the order, those indexed since the last call included."""
+        if self.positions is None:
+            self.positions = {}
+        for position in range(len(self.positions), len(self.order)):
+            self.positions[self.order[position]] = position
+        return self.positions
 
     def _exhausted(self):
-        return (self.steps > _STRUCTURAL_REWRITE_STEPS * self.budget
-                or self.chars > _STRUCTURAL_REWRITE_CHARS * self.budget)
+        steps, chars = self.limits or (_STRUCTURAL_REWRITE_STEPS * self.budget,
+                                       _STRUCTURAL_REWRITE_CHARS * self.budget)
+        return self.steps > steps or self.chars > chars
 
     def equivalence(self, left, right):
         """Tactic lines proving the goal Iff left right (as Lean reads the two structures), or None."""
@@ -7637,6 +7681,357 @@ class _PropositionalProver:
             facts.append((link, True, name))
         self.steps, self.chars = max(self.steps, start[0]), max(self.chars, start[1])
         return lines, facts
+
+    def _swept_structures(self, joined):
+        """The classes of the structures and the links a sweep starts from, children first.
+
+        A class is what Z3's rewriter makes of a structure before it logs
+        the clauses of a formula, as far as that is read here:
+
+        - the leaves that joined ties (a cnf lemma's leaf bridges: iff
+          structures between a leaf and a leaf or its negation) share a
+          class or have complementary ones;
+        - an and/or is the set of its operands' classes, flattened, without
+          units, and false (true) when it holds a member and its negation;
+        - a negation is its operand's class negated, cancelling a double
+          negation, an implication the disjunction it is rewritten to, and
+          an iff is keyed by its sides without their negations (one with a
+          constant side is the other side or its negation);
+        - a Boolean ite, read (or (and c t) (and (not c) e)), follows the
+          rewriter's mk_ite_core: (ite c false e) is (and (not c) e),
+          (ite c true e) is (or c e), (ite c t (not t)) is (= c t), and so
+          on; any other ite is the or of its two guarded branches.
+
+        The representative of a class is its first structure, or the
+        negation of the first structure of the complementary class. A
+        structure the caller named (a node's definition) is linked to its
+        class's representative unless it is that; a named structure whose
+        class is flattened into the class of some gate is linked to the
+        class's canonical gate instead, as is every other of its class:
+        the and/or of the members' representatives in the order of the
+        classes, where two structures that group the operands of one
+        conjunction differently meet (_canonical). Negations, atoms,
+        leaves, and the unnamed gates (the two branches of an ite) are
+        never linked: a search reads through them. The classes only
+        propose the links; each is proved or dropped (sweep).
+        """
+        self.group = {}  # a joined leaf: the leaf it is tied to, and whether as its negation
+        for _, left, right in joined:
+            negated = right[0] == "not"
+            right = right[1] if negated else right
+            for leaf in (left, right):
+                self.group.setdefault(leaf, (leaf, False))
+            (root, sign), (other, other_sign) = self._find(left), self._find(right)
+            if root != other:
+                self.group[other] = (root, sign ^ other_sign ^ negated)
+        keys, interned, flattened = [], {}, set()
+        self.classes, self.keys, self.representatives, self.canonical = {}, keys, {}, {}
+
+        def intern(key):
+            if key not in interned:
+                interned[key] = len(keys)
+                keys.append(key)
+            return interned[key]
+
+        true, false = intern(("true",)), intern(("false",))
+        self.representatives[true], self.representatives[false] = (("true",), False), (("false",), False)
+
+        def negate(cls):
+            if cls in (true, false):
+                return true + false - cls
+            return keys[cls][1] if keys[cls][0] == "not" else intern(("not", cls))
+
+        def gate(kind, operands):
+            unit, zero = (true, false) if kind == "and" else (false, true)
+            members = set()
+            for operand in operands:
+                if keys[operand][0] == kind:
+                    flattened.add(operand)
+                    members |= keys[operand][1]
+                else:
+                    members.add(operand)
+            members.discard(unit)
+            if zero in members or any(keys[member][0] == "not" and keys[member][1] in members for member in members):
+                return zero
+            if len(members) < 2:
+                return next(iter(members)) if members else unit
+            return intern((kind, frozenset(members)))
+
+        def iff(left, right):
+            sides = [keys[side][1] if keys[side][0] == "not" else side for side in (left, right)]
+            negated = (sides[0] != left) != (sides[1] != right)
+            if sides[0] == sides[1]:
+                cls = true
+            elif sides[0] in (true, false) or sides[1] in (true, false):
+                constant, other = sides if sides[0] in (true, false) else reversed(sides)
+                cls = other if constant == true else negate(other)
+            else:
+                cls = intern(("iff", frozenset(sides)))
+            return negate(cls) if negated else cls
+
+        def ite(condition, then, other):
+            if condition in (true, false) or then == other:
+                return then if condition != false else other
+            if then in (true, false):
+                return gate("or", [condition, other]) if then == true else gate("and", [negate(condition), other])
+            if other in (true, false):
+                return gate("or", [negate(condition), then]) if other == true else gate("and", [condition, then])
+            if condition == other:
+                return gate("and", [condition, then])
+            if condition == then:
+                return gate("or", [condition, other])
+            if then == negate(other):
+                return iff(condition, then)
+            return gate("or", [gate("and", [condition, then]), gate("and", [negate(condition), other])])
+
+        for structure in self.order:
+            kind = structure[0]
+            operands = [self.classes[child] for child in _structure_children(structure)]
+            if structure in self.group:
+                leaf, negated = self._find(structure)
+                cls = negate(intern(leaf)) if negated else intern(leaf)
+            elif kind == "not":
+                cls = negate(operands[0])
+            elif (kind == "or" and len(structure) == 3 and structure[1][0] == structure[2][0] == "and"
+                  and len(structure[1]) == len(structure[2]) == 3 and structure[2][1] == ("not", structure[1][1])):
+                # A Boolean ite as _boolean_connective reads it.
+                cls = ite(self.classes[structure[1][1]], self.classes[structure[1][2]], self.classes[structure[2][2]])
+            elif kind in ("and", "or"):
+                cls = gate(kind, operands)
+            elif kind == "implies":
+                cls = gate("or", [negate(operands[0]), operands[1]])
+            elif kind == "iff":
+                cls = iff(*operands)
+            else:
+                cls = intern(structure)
+            self.classes[structure] = cls
+            if kind != "not":
+                negated = keys[cls][0] == "not"
+                self.representatives.setdefault(keys[cls][1] if negated else cls, (structure, negated))
+        links = []
+        for structure in self.order:
+            if structure[0] in ("not", "atom", "leaf", "true", "false"):
+                continue
+            cls = self.classes[structure]
+            base = keys[cls][1] if keys[cls][0] == "not" else cls
+            if structure not in self.named and (base not in flattened
+                                                 or self.representatives[base][0] is not structure):
+                continue  # read through, unless it stands for a class that is flattened
+            target = self._canonical(structure) if base in flattened else self._literal(cls)
+            if target != structure:
+                links.append(("iff", structure, target))
+        return links
+
+    def _literal(self, cls):
+        """The representative of a class: its first structure, or the negation of the complementary class's."""
+        negated = self.keys[cls][0] == "not"
+        representative, sign = self.representatives[self.keys[cls][1] if negated else cls]
+        return representative if sign == negated else ("not", representative)
+
+    def _canonical(self, structure):
+        """The canonical gate of a structure's and/or class (negated for the complementary class), or None."""
+        cls = self.classes[structure]
+        negated = self.keys[cls][0] == "not"
+        base = self.keys[cls][1] if negated else cls
+        if self.keys[base][0] not in ("and", "or"):
+            return None
+        if base not in self.canonical:
+            gate = self.canonical[base] = (self.keys[base][0],) + tuple(
+                self._literal(member) for member in sorted(self.keys[base][1]))
+            self.gates.add(gate)
+            if gate not in self.named:
+                # Named by a definition of its own, as the nodes' gates are:
+                # a step states it by that name however wide it is.
+                self.definitions.append(("%s_k%d" % (self.scope[0], len(self.definitions)), self._shallow(gate)))
+                self.named[gate] = "(%s%s)" % (self.definitions[-1][0], self.scope[1])
+        return ("not", self.canonical[base]) if negated else self.canonical[base]
+
+    def _find(self, leaf):
+        """The leaf a joined leaf is tied to through the joining facts, and whether as its negation."""
+        root, negated = self.group[leaf]
+        while self.group[root][0] != root:
+            root, sign = self.group[root]
+            negated ^= sign
+        return root, negated
+
+    @staticmethod
+    def _end(link):
+        """The structure a link ties its structure to, without the negation."""
+        return link[2][1] if link[2][0] == "not" else link[2]
+
+    def _local(self, roots, rounds):
+        """The gates from roots down to the named structures, the facts that tie those, and the untied ones.
+
+        The search of a link's proof, and of the refutation after the
+        sweep, is restricted to these gates (`relevant`). Below a named
+        structure nothing is read: its link's fact stands for it, and
+        without one it is an input, as an atom is (unless its link was
+        tried and not proved: then it is read through). A fact ties the
+        structure to a representative, whose own fact is taken with it, or
+        to a canonical gate. A canonical gate propagates between its
+        operands, which are not walked either: the operands of the gates
+        met are tied by their facts in turn, rounds times. The facts are
+        these links, the joining facts of the joined leaves met, and the
+        constants met; the untied structures are the named ones met
+        without a fact.
+        """
+        gates, facts, groups, opened, untied = set(), {}, set(), {}, []
+        seen = set(roots)
+
+        def walk(pending, depth):
+            while pending:
+                structure = pending.pop()
+                if structure in self.gates:
+                    opened.setdefault(structure, depth)
+                elif structure not in roots and structure in self.proved:
+                    facts[structure] = self.proved[structure]
+                    end = self._end(facts[structure][0])
+                    if end not in seen:
+                        # A representative stands for its class: it is not read.
+                        seen.add(end)
+                        if end in self.gates or end in self.proved:
+                            pending.append(end)
+                        elif end in self.named and end not in self.failed:
+                            untied.append(end)
+                elif structure not in roots and structure in self.named and structure not in self.failed:
+                    untied.append(structure)
+                else:
+                    if structure in self.group:
+                        groups.add(self._find(structure)[0])
+                    children = _structure_children(structure)
+                    if children:
+                        gates.add(structure)
+                    for child in children:
+                        if child not in seen:
+                            seen.add(child)
+                            pending.append(child)
+
+        walk(list(roots), 0)
+        for depth in range(rounds):
+            for gate in [gate for gate, level in opened.items() if level == depth]:
+                operands = [operand for operand in gate[1:] if operand not in seen]
+                seen.update(operands)
+                walk(operands, depth + 1)
+        for gate in opened:
+            gates.add(gate)
+            gates.update(operand for operand in gate[1:] if operand[0] == "not")
+            seen.update(gate[1:])
+        facts = list(facts.values())
+        facts.extend(fact for group in sorted(groups, key=self._positions().get) for fact in self.joins[group])
+        for fact in facts:  # the facts propagate as gates, and so do the negations they tie
+            gates.add(fact[0])
+            gates.update(side for side in fact[0][1:] if side[0] == "not")
+        return gates, facts + [constant for constant in self.constants if constant[0] in seen], untied
+
+    def _tie(self, link, blocks):
+        """Prove a link over its local gates and record its fact and its theorem, or return the untied structures."""
+        _, left, right = link
+        for rounds in _SWEEP_ROUNDS:
+            self.relevant, below, untied = self._local((left, self._end(link)), rounds)
+            self.relevant.add(right)
+            directions = []
+            for source, target in ((left, right), (right, left)):
+                self.steps, self.chars = 0, 0
+                hypothesis, negation = self.name(), self.name()
+                lines = self._prove(dict(), ("false",),
+                                    below + [(source, True, hypothesis), (target, False, negation)])
+                if lines is None:
+                    break
+                directions.append([hypothesis, "refine Classical.byContradiction (fun %s => ?_)" % negation] + lines)
+            if len(directions) == 2:
+                break
+        else:
+            return untied
+        name = "%s_s%d" % (self.scope[0], len(blocks))
+        lines = ["refine Iff.intro (fun %s => ?_) (fun %s => ?_)" % (directions[0][0], directions[1][0])]
+        blocks.append((name, self._render(link), lines + _bullets([direction[1:] for direction in directions])))
+        fact = "(%s%s)" % (name, self.scope[1])
+        self.names.add(fact)
+        self.proved[left] = (link, True, fact)
+        return None
+
+    def _open(self, untied, blocks):
+        """Tie the untied structures of and/or classes to their canonical gates; whether any was."""
+        tied = False
+        for structure in untied:
+            target = None if structure in self.proved or structure in self.failed else self._canonical(structure)
+            if target is None:
+                continue
+            if target == structure:
+                tied = True  # its own canonical gate, known as one from here on
+                continue
+            link = ("iff", structure, target)
+            self._index(link)
+            if self._tie(link, blocks) is None:
+                tied = True
+            else:
+                self.failed.add(structure)
+        return tied
+
+    def sweep(self, structure, facts):
+        """Tactic lines proving the goal Not structure under the named facts through the links, or None.
+
+        The plain search (refutation) relates a clause Z3 logged over its
+        rewriter's form of an assertion to the assertion itself only by
+        case splits on the atoms and leaves the two forms share: over two
+        forms of one circuit (QF_IDL RTCL ckt_PROP1_tf_20: twenty frames of
+        Boolean ite chains, 4,000 gates each way, 77 pairs of bridged
+        leaves) it splits without end, with or without z3's unsat core.
+        Here the two forms are swept bottom up, as an equivalence checker
+        sweeps two circuits: the named structures are linked to the
+        representatives or canonical gates of their classes
+        (_swept_structures), and each link is proved, children first, by a
+        search over the few gates between its two ends and the links below
+        them (_local), within _SWEEP_LINK_STEPS steps and _SWEEP_LINK_CHARS
+        characters. When that search fails, the named structures it met
+        without a fact are tied to their canonical gates (_open) and it is
+        repeated once; a link still not proved is dropped, and the gates
+        under its structure are read by the links above. The clause is then
+        refuted over the gates above the links, opening what it meets up to
+        _SWEEP_OPENINGS times. facts are the joining facts (see __init__)
+        with their proofs. Returns the declarations the refutation needs
+        and its tactic lines: a canonical gate as (name, None, [body]), a
+        link as (name, statement, tactic lines), the gates first and the
+        links in the order they were proved. A link is a theorem of its
+        own and a fact by its name applied to the scope's arguments, where
+        a `have` would count its proof against the heartbeats of the
+        lemma.
+        """
+        self.joins = {}  # the joining facts by the leaf their leaves are tied to
+        for fact, name in facts:
+            self.joins.setdefault(self._find(fact[1])[0], []).append((fact, True, name))
+        self.names.update(name for _, name in facts)
+        blocks = []
+        self.limits = (_SWEEP_LINK_STEPS, _SWEEP_LINK_CHARS)
+        for link in self.links:
+            untied = self._tie(link, blocks)
+            if untied is not None and not (self._open(untied, blocks) and self._tie(link, blocks) is None):
+                self.failed.add(link[1])
+        refutation = None
+        for _ in range(_SWEEP_OPENINGS):
+            self.relevant, below, untied = self._local((structure, structure[1]), _SWEEP_ROUNDS[-1])
+            self.limits = None
+            self.steps, self.chars = 0, 0
+            refutation = self.refutation(structure, [(fact, name) for fact, truth, name in below
+                                                     if _structure_children(fact)])
+            self.limits = (_SWEEP_LINK_STEPS, _SWEEP_LINK_CHARS)
+            if refutation is not None or not self._open(untied, blocks):
+                break
+        if refutation is None:
+            return None
+        # The links the refutation uses, those their proofs use, and the
+        # canonical gates all of them state.
+        stated = re.compile(r"\b%s_[ks]\d+\b" % re.escape(self.scope[0]))
+        needed, kept = set(stated.findall("\n".join(refutation))), []
+        for name, statement, lines in reversed(blocks):
+            if name in needed:
+                needed.update(stated.findall(statement + "\n".join(lines)))
+                kept.append((name, statement, lines))
+        for name, body in reversed(self.definitions):
+            if name in needed:
+                needed.update(stated.findall(body))
+                kept.append((name, None, [body]))
+        return kept[::-1], refutation
 
     def _descendants(self, root):
         """The structures under root, root included."""
@@ -7823,7 +8218,12 @@ class _PropositionalProver:
         comes first, then the earliest indexed.
         """
         best = None
-        for position, structure in enumerate(self.order):
+        if self.relevant is None:
+            candidates = enumerate(self.order)
+        else:
+            positions = self._positions()
+            candidates = ((positions[structure], structure) for structure in self.relevant)
+        for position, structure in candidates:
             value = state.get(structure)
             if structure[0] != "or" or value is None or not value[0] or not self._relevant(structure):
                 continue
@@ -7865,7 +8265,10 @@ class _PropositionalProver:
             proof = name
         state[structure] = (truth, proof)
         pending.append(structure)
-        pending.extend(self.parents[structure])
+        if self.relevant is None:
+            pending.extend(self.parents[structure])
+        else:  # the other gates draw no consequence (_consequences)
+            pending.extend(parent for parent in self.parents[structure] if parent in self.relevant)
         return None
 
     def _propagate(self, state, lines, pending):
@@ -8011,7 +8414,17 @@ class _PropositionalProver:
             (left, right), (truth_a, truth_b), (proof_a, proof_b) = children, truths, proofs
             if left == right:
                 add(structure, True, "Iff.rfl")
-            if value is not None and value[0]:
+            if value is not None and value[0] and self.scope is not None:
+                # A sweep: the type follows from the fact, a link's theorem.
+                if truth_a is True:
+                    add(right, True, "(Iff.mp %s %s)" % (value[1], proof_a), typed=False)
+                elif truth_a is False:
+                    add(right, False, "(mt (Iff.mpr %s) %s)" % (value[1], proof_a), typed=False)
+                if truth_b is True:
+                    add(left, True, "(Iff.mpr %s %s)" % (value[1], proof_b), typed=False)
+                elif truth_b is False:
+                    add(left, False, "(mt (Iff.mp %s) %s)" % (value[1], proof_b), typed=False)
+            elif value is not None and value[0]:
                 if truth_a is True:
                     add(right, True, "(Iff.mp %s %s)" % (value[1], proof_a))
                 elif truth_a is False:
@@ -8098,7 +8511,12 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
     assertion with a disjunction per time step (QF_IDL planning plan-21)
     the search took the earlier steps' disjunctions first and exhausted its
     budget, and over the core it splits the one step the clause is about.
-    When neither search refutes the clause, it rests on what the leaves
+    When the core's search gives up too, the clause is swept
+    (_PropositionalProver.sweep): Z3 logged it over its rewriter's form of
+    the assertion, and the two forms of a circuit (QF_IDL RTCL
+    ckt_PROP1_tf_20, 4,000 gates each way) are related gate by gate, each
+    link a small theorem before the lemma, where the search split without
+    end. When no search refutes the clause, it rests on what the leaves
     denote beyond the bridges, and the search is repeated with theory
     clauses over the leaves (_theory_clauses), each a `have` the theory
     tactic proves, within _THEORY_CLAUSE_BUDGET times the limits; the proof
@@ -8115,7 +8533,14 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
     leaves, memo, synthetic = {}, {}, {}
     structure = _boolean_structure(graph, conclusion, atom_indices, memo, leaves, synthetic)
     bridges = _leaf_bridges(graph, leaves, synthetic)
-    refutation, names, order = _cnf_refutation(graph, memo, structure, bridges)
+    refutation, names, order, declarations = _cnf_refutation(graph, memo, structure, bridges, sweep=node)
+    if declarations:
+        # Found by the sweep: the links are theorems of their own before
+        # this one, and so are the bridges they rest on.
+        lemma, term = _grind_lemma(graph, node, "th_lemma", atom_indices, variable_indices,
+                                   opaque_tactic=_opaque_tactic(graph, node),
+                                   structural=["refine Classical.byContradiction ?_"] + refutation)
+        return declarations + lemma, term
     clauses = None
     if refutation is None:
         # The propositional abstraction may not refute the clause: once more
@@ -8124,7 +8549,7 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
                                   atom_indices)
         if clauses:
             bridges = bridges + clauses
-            refutation, names, _ = _cnf_refutation(graph, memo, structure, bridges, _THEORY_CLAUSE_BUDGET)
+            refutation, names, _, _ = _cnf_refutation(graph, memo, structure, bridges, _THEORY_CLAUSE_BUDGET)
     if refutation is None:
         # A clause over products that Z3 assumed on its nonlinear solver's
         # word (nlsat) holds by what the products denote: by a polynomial
@@ -8172,7 +8597,7 @@ def _theory_clause_proof(graph, structure, definitions, clause):
     return "by%sfirst%s  | (%s)%s  | (%s)" % (pad, pad, (pad + "     ").join(split), pad, unfolded)
 
 
-def _cnf_refutation(graph, memo, structure, bridges, budget=1):
+def _cnf_refutation(graph, memo, structure, bridges, budget=1, sweep=None):
     """The prover's refutation of a cnf lemma's negated clause under the bridges, their names, and its structures.
 
     The search runs over every gate first and, when it gives up, once more
@@ -8190,11 +8615,50 @@ def _cnf_refutation(graph, memo, structure, bridges, budget=1):
         names = [prover.name() for _ in bridges]
         refutation = prover.refutation(("not", structure),
                                        [(bridge, name) for (bridge, _), name in zip(bridges, names)])
-        if refutation is not None or relevant is not None:
-            return refutation, names, order
+        if refutation is not None:
+            return refutation, names, order, []
+        if relevant is not None:
+            break
         relevant = _relevant_structures(prover.order, facts)
         if relevant is None:
-            return None, names, order
+            return None, names, order, []
+    if sweep is None:
+        return None, names, order, []
+    # The clause follows propositionally and the search is lost in it: the
+    # sweep relates the two forms of the assertion gate by gate
+    # (_PropositionalProver.sweep). Its links, the canonical gates they
+    # state, and the bridges are declarations of their own, th_lemma_N_sK,
+    # _kK, and _bK: a tactic block is elaborated within the heartbeats of
+    # its declaration, and the links of a circuit take megabytes.
+    scope = ("th_lemma_%d" % sweep, " _atoms" + graph.valuation)
+    binder = "(_atoms : Nat -> Prop)" + _valuation_binder(graph)
+    prover = _PropositionalProver(*facts, classical=True, names=_structure_names(graph, memo), budget=budget,
+                                  joined=[bridge for bridge, _ in bridges], scope=scope)
+    stated = ["(%s_b%d%s)" % (scope[0], position, scope[1]) for position in range(len(bridges))]
+    found = prover.sweep(("not", structure), [(bridge, name) for (bridge, _), name in zip(bridges, stated)])
+    if found is None:
+        return None, names, order, []
+    declarations, refutation = found
+    text = "\n".join(refutation + [line for _, statement, lines in declarations for line in [statement or ""] + lines])
+    if len(text) > _SWEEP_CHARS:
+        return None, names, order, []
+    lines = []
+    for position, (bridge, definitions) in enumerate(bridges):
+        if stated[position] in text:
+            lines.extend(["", "set_option maxHeartbeats 1000000 in",
+                          "private theorem %s_b%d %s" % (scope[0], position, binder),
+                          "    : %s := %s" % (_render_structure(bridge), "eq_comm" if definitions is None else
+                                              _theory_clause_proof(graph, bridge, definitions, False))])
+    for name, statement, proof in declarations:
+        if statement is None:
+            lines.append("private def %s %s : Prop := %s" % (name, binder, proof[0]))
+        else:
+            lines.append("")
+            if sum(map(len, proof)) > _SWEEP_LINK_CHARS // 10:
+                lines.append("set_option maxHeartbeats 1000000 in")  # as a lemma has; the default is a fifth
+            lines.extend(["private theorem %s %s" % (name, binder), "    : %s := by" % statement])
+            lines.extend("  " + line for line in proof)
+    return refutation, stated, order, lines
 
 
 def _theory_clauses(graph, order, facts, atom_indices):
