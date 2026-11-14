@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #138: Check Lean certificates above 8 MB as a chain of 1 MB modules</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1c2024; --muted: #5b6570; --line: #d7dce1;
+  --panel: #f4f6f8; --accent: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --bad: #b42318; --open: #1a7f37;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171a; --fg: #e3e7eb; --muted: #9aa5b1; --line: #343b43;
+    --panel: #1d2227; --accent: #6cb0f5; --ok: #56c271; --warn: #e0b341; --bad: #f28b82; --open: #56c271;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; padding: 1.5rem 1rem 3rem; max-width: 52rem;
+  background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .6rem; }
+h2 { font-size: 1.2rem; margin: 2.2rem 0 .6rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 1.4rem 0 .4rem; }
+p, ul, ol, dl { margin: .6rem 0; }
+li { margin: .35rem 0; }
+a { color: var(--accent); }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86em; }
+code { background: var(--panel); padding: .05em .3em; border-radius: 3px; }
+pre {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: .7rem .9rem; overflow-x: auto; line-height: 1.45;
+}
+pre code { background: none; padding: 0; font-size: 1em; }
+.table { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .6rem 0; }
+th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+td.n, th.n { text-align: right; white-space: nowrap; }
+.meta { color: var(--muted); font-size: .93rem; }
+.meta span { display: inline-block; margin-right: 1.1rem; }
+.state { display: inline-block; padding: .05rem .55rem; border: 1px solid var(--open); color: var(--open); border-radius: 999px; font-weight: 600; font-size: .85rem; }
+.ok { color: var(--ok); font-weight: 600; }
+.unk { color: var(--warn); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.note { color: var(--muted); font-size: .92rem; }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin: .1rem 0 0 1.2rem; }
+footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Check Lean certificates above 8 MB as a chain of 1 MB modules</h1>
+<p class="meta">
+<span><a href="https://github.com/levnach/z3/pull/138">Pull request #138</a></span>
+<span><span class="state">OPEN</span></span>
+<span>2026-11-14T17:57:10Z</span>
+<span>Loop iteration 137</span>
+</p>
+<p>This pull request is open. It is not merged. The change commit is
+<a href="https://github.com/levnach/z3/commit/21a8ecc856250721e225c49abf31560dd68fd143"><code>21a8ecc85</code></a>,
+proposed for <code>master</code>.</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>A <a href="#g-certificate">certificate</a> whose Lean text is longer than 8 MB is now split into a
+<a href="#g-chain">chain of modules</a> of at most 1 MB each.
+Each <a href="#g-module">module</a> is checked by its own Lean process, under the unchanged flags and
+<a href="#g-cap">memory cap</a>.
+A later module <a href="#g-import">imports</a> the <a href="#g-olean">compiled form</a> of the one before it.
+The last module holds the <a href="#g-theorem">theorem</a> of the <a href="#g-refutation">refutation</a>.
+One Lean process keeps memory for the whole file it reads, so long certificates ran out of memory.
+Nine <a href="#g-benchmark">benchmark</a> files that did not certify before now do.
+The <a href="#g-kernel">kernel</a> still checks every <a href="#g-declaration">declaration</a> once.</p>
+
+<h2>Background</h2>
+<p>Before this PR, one Lean process checked every certificate as one file.
+Its memory grew with the length of the text, not with the hardest
+<a href="#g-lemma">lemma</a>.
+Seventeen larger sample files were exported but did not certify.
+Eleven certificates of 8 to 23 MB passed, five of them close to the cap.
+All use fragments already supported:
+<a href="#g-uf">uninterpreted functions</a>, integer difference <a href="#g-logic">logic</a>, and
+<a href="#g-array">arrays</a>.
+So the PR adds scale, not a new fragment.
+It serves the scale of milestones 3 and 4 of the plan: equality with
+<a href="#g-linear">linear arithmetic</a>, and broader theories.</p>
+
+<h2>What changed</h2>
+<p>An analogy: a proofreader who must keep notes on a whole long book runs out of desk.
+Now each proofreader gets one chapter, plus the stamped results of the earlier chapters.</p>
+<ul>
+<li><strong>Reconstructor.</strong> A certificate above 8 MB is cut between its top-level declarations into
+modules of at most 1 MB.</li>
+<li><strong>Checker script.</strong> The new <code>--chain</code> option checks the files in order, one Lean
+process each, and stops at the first rejection.</li>
+<li><strong>Publication.</strong> A large certificate is published as several files, only after
+the whole chain has passed.</li>
+<li><strong>Guard.</strong> A text with a layout the splitter does not recognise is rejected, never split wrongly.</li>
+<li><strong>Tests.</strong> Every reconstructed text must be splittable, small chains of five kinds are
+checked in Lean, and tampered chains must fail.</li>
+</ul>
+<p>Certificates up to 8 MB are unchanged byte for byte.</p>
+
+<div class="table">
+<table>
+<thead><tr><th>File</th><th>Role</th><th class="n">Added</th><th class="n">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>The splitter, the chain writer, publication</td><td class="n">149</td><td class="n">12</td></tr>
+<tr><td><code>scripts/check_lean.sh</code></td><td>The <code>--chain</code> option</td><td class="n">52</td><td class="n">2</td></tr>
+<tr><td><code>examples/python/lean_test_support.py</code></td><td>Tests check chains and require splittable texts</td><td class="n">19</td><td class="n">6</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>Unit tests of the split, without Lean</td><td class="n">227</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td>Chains checked and tampered with in Lean</td><td class="n">135</td><td class="n">2</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Two benchmark certificates as chains</td><td class="n">37</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Comments of three slow tests that are chains now</td><td class="n">12</td><td class="n">5</td></tr>
+<tr><td><code>scripts/tests/test_check_lean.py</code></td><td>Tests of the script with a fake Lean launcher</td><td class="n">126</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/data/QF_UF_QG_gensys_icl1079.smt2</code></td><td>New test input, 55 KB</td><td class="n">160</td><td class="n">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated section with the measurement tables</td><td class="n">181</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>How to re-check a published chain</td><td class="n">31</td><td class="n">2</td></tr>
+<tr><td><code>lean/README.md</code></td><td>What <code>--chain</code> does and trusts</td><td class="n">26</td><td class="n">1</td></tr>
+<tr><th>Total</th><th>12 files, 5 commits</th><th class="n">1155</th><th class="n">30</th></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Worked example</h2>
+<p>This PR is about size, so no ten-line input is newly certified.
+The example is the PR's new test input, which uses one uninterpreted function.
+All output comes from real runs made for this report.</p>
+
+<h3>(a) The input</h3>
+<p>The file has 160 lines and 142 <a href="#g-assertion">assertions</a>. Cuts are marked "...".</p>
+<pre><code>(set-logic QF_UF)
+(declare-sort U 0)
+(declare-sort I 0)
+(declare-fun op (I I) I)
+(declare-fun e4 () I)
+(declare-fun e3 () I)
+(declare-fun e2 () I)
+(declare-fun e1 () I)
+(declare-fun e0 () I)
+(assert (let ((?v_0 (op e0 e0)) (?v_1 (op e0 e1)) (?v_2 (op e0 e2)) ...
+...
+(assert (not (and (and (and (= e3 (op e2 e4)) (= e2 (op e4 e4))) (= e1 (op e2 e3))) (= e0 (op e1 e3)))))
+(check-sat)
+(exit)</code></pre>
+
+<h3>(b) Before</h3>
+<p>The base version wrote one Lean file of 31.7 MB. Lean gave up inside it after about 98 seconds.</p>
+<pre><code>Checking z3_proof__qzcjnkp.lean
+z3_proof__qzcjnkp.lean:229132:16: error: (kernel) excessive memory consumption detected
+z3_proof__qzcjnkp.lean:229170:16: error: (kernel) excessive memory consumption detected
+...
+z3_proof__qzcjnkp.lean:230313:16: error: maximum number of errors (100; from option `maxErrors`) reached, exiting
+Lean checking failed; no proof was published.</code></pre>
+<p class="note">The base reconstructor ran from an extracted copy, with the repository's checker script.</p>
+
+<h3>(c) After</h3>
+<p>The current code wrote 32 files, and Lean accepted all of them in about two minutes.</p>
+<pre><code>Lean checked the refutation; wrote example.lean
+imported module, checked before it: Z3Certificate_ba4f1d5655731d58_00.lean
+imported module, checked before it: Z3Certificate_ba4f1d5655731d58_01.lean
+...
+imported module, checked before it: Z3Certificate_ba4f1d5655731d58_30.lean</code></pre>
+
+<pre><code>import Init
+
+-- Module 1 of the 32 of a certificate checked as a chain; see the last one.
+namespace Z3Proofs.NativeCertificate.p1c1ea4435d58fdec299cbb681641332a8545b6833673ac671d39014c774bcdc9
+
+set_option maxRecDepth 100000
+set_option Elab.async false
+
+structure Interpretation where
+  U : Type
+  elems : Nat -&gt; U
+  funs : Nat -&gt; List U -&gt; U
+  preds : Nat -&gt; List U -&gt; Prop
+  bool : Prop -&gt; U
+
+def term_0 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 0
+def term_1 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.funs 0 [(term_0 _atoms _m), (term_0 _atoms _m)]
+def formula_2 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_1 _atoms _m) = (term_0 _atoms _m))
+...
+end Z3Proofs.NativeCertificate.p1c1ea4435d58fdec299cbb681641332a8545b6833673ac671d39014c774bcdc9</code></pre>
+<p>Module 1 holds the first declarations: the uninterpreted <a href="#g-sort">sort</a> becomes a type
+inside an arbitrary <a href="#g-interpretation">interpretation</a>.</p>
+
+<pre><code>import Init
+import Z3Certificate_ba4f1d5655731d58_00
+
+-- Module 2 of the 32 of a certificate checked as a chain; see the last one.
+namespace Z3Proofs.NativeCertificate.p1c1ea4435d58fdec299cbb681641332a8545b6833673ac671d39014c774bcdc9
+...</code></pre>
+<p>Module 2 starts with the new feature, an import of module 1.</p>
+
+<pre><code>theorem proof_step_78601 {_atoms : Nat -&gt; Prop} {_m : Interpretation}
+    (_inputs : Inputs _atoms _m)
+    : ((formula_10 _atoms _m) -&gt; ((formula_554 _atoms _m) -&gt; ((formula_572 _atoms _m) -&gt; (formula_840 _atoms _m)))) :=
+  fun _hyp10 _hyp554 _hyp572 =&gt;
+    ((proof_step_13559 _inputs).neg_resolve_right (proof_step_78598 _inputs _hyp10 _hyp554 _hyp572))</code></pre>
+<p>This <a href="#g-proof-step">proof step</a> in module 31 uses <code>proof_step_13559</code>, which was checked in module 7.</p>
+
+<pre><code>import Init
+import Z3Certificate_ba4f1d5655731d58_30
+
+-- Original input SHA-256: 1c1ea4435d58fdec299cbb681641332a8545b6833673ac671d39014c774bcdc9
+-- Element 0: "e0"
+...
+-- Function 0: "op"
+-- Uninterpreted sort "I" is the type _m.U; functions and predicates take argument lists.
+-- This certificate is checked as a chain of 32 modules: the 31 before this one, Z3Certificate_ba4f1d5655731d58_00 to Z3Certificate_ba4f1d5655731d58_30, hold
+-- its other declarations. scripts/check_lean.sh --chain checks them in that order, this file last.
+namespace Z3Proofs.NativeCertificate.p1c1ea4435d58fdec299cbb681641332a8545b6833673ac671d39014c774bcdc9
+...
+theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    (_h0 : (formula_278 _atoms _m))
+    (_h1 : (formula_527 _atoms _m))
+    ...
+    (_h141 : (formula_2717 _atoms _m))
+    : False :=
+  @proof_step_84057 _atoms _m (And.intro (And.intro (And.intro ...</code></pre>
+<p>The last file is the published output: its theorem takes the 142 assertions as
+<a href="#g-hypothesis">hypotheses</a> and derives <code>False</code>.</p>
+
+<pre><code>$ ./scripts/check_lean.sh --chain Z3Certificate_ba4f1d5655731d58_*.lean example.lean
+Build completed successfully (4 jobs).
+Checking Z3Certificate_ba4f1d5655731d58_00.lean
+Checking Z3Certificate_ba4f1d5655731d58_01.lean
+...
+Checking Z3Certificate_ba4f1d5655731d58_30.lean
+Checking example.lean
+Lean checks passed.</code></pre>
+<p>The published files were checked again from the shell, and Lean accepted them.
+The last file alone no longer checks, as a test of the PR confirms.</p>
+
+<h2>How it was verified</h2>
+<p>Every reconstruction test passed locally, including the four slow tests whose certificates are now chains.
+The integrator ran all commands at the branch head on macOS.</p>
+<div class="table">
+<table>
+<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>All <code>test_proof_to_lean*.py</code> tests</td><td><span class="ok">pass</span>: 680 tests, 12 skipped</td></tr>
+<tr><td>Four slow tests on chains of 10 to 31.7 MB</td><td><span class="ok">pass</span>: 4 tests in 421 s</td></tr>
+<tr><td><code>scripts/check_lean.sh</code> on the Lean project</td><td><span class="ok">pass</span></td></tr>
+<tr><td><code>test_proof_certificate.py</code></td><td><span class="ok">pass</span>: 125 tests</td></tr>
+<tr><td><code>test_check_lean.py</code></td><td><span class="ok">pass</span>: 17 tests</td></tr>
+<tr><td>All of <code>scripts/tests</code></td><td><span class="bad">1 failure</span> of 125, judged unrelated</td></tr>
+<tr><td>Proof tests of the z3test repository</td><td><span class="ok">pass</span>: 48 tests</td></tr>
+<tr><td>Two cells of the regression matrix with Lean</td><td><span class="ok">pass</span>: 6 of 6 and 8 of 8 verified in Lean</td></tr>
+<tr><td>A published chain of 13 files re-checked from sorted names</td><td><span class="ok">pass</span></td></tr>
+<tr><td>Z3's C++ unit tests and SMT2 regressions</td><td><span class="unk">not run</span>: no C++ change</td></tr>
+</tbody>
+</table>
+</div>
+<p>The one failure is <code>test_log_extension_diagnostic</code>. It runs only the z3 binary, and
+neither that test nor the C++ sources differ from <code>master</code>.</p>
+
+<p>The implementer measured the large sample files, and the reviewer checked the numbers against the logs.
+The integrator did not repeat them.</p>
+<div class="table">
+<table>
+<thead><tr><th>Sample file</th><th class="n">Lean text</th><th>As one file: time, peak memory</th><th>As a chain of 1 MB modules: time, peak memory of one process</th></tr></thead>
+<tbody>
+<tr><td>QF_UF gensys_icl1079</td><td class="n">31.7 MB</td><td>fails: kernel memory, 93.8 s, 8.04 GB</td><td>32 modules, verifies, 121.9 s, 0.95 GB</td></tr>
+<tr><td>QF_UF gensys_brn023</td><td class="n">33.0 MB</td><td>fails: kernel memory, 96.0 s, 8.05 GB</td><td>33 modules, verifies, 127.8 s, 1.03 GB</td></tr>
+<tr><td>QF_AUFLIA swap_t1_pp_sf_ai_00010_008</td><td class="n">35.7 MB</td><td>fails: kernel memory, 123.1 s, 8.26 GB</td><td>36 modules, verifies, 348.7 s, 2.66 GB</td></tr>
+<tr><td>QF_UF sokoban.3.prop1_ab_br_max</td><td class="n">40.1 MB</td><td>no verdict in 30 minutes</td><td>44 modules, fails in the sixth, 84.7 s, 1.57 GB</td></tr>
+<tr><td>QF_UF gensys_icl388</td><td class="n">44.5 MB</td><td>not run</td><td>45 modules, verifies, 175.5 s, 1.10 GB</td></tr>
+<tr><td>QF_UF gensys_icl665</td><td class="n">54.2 MB</td><td>not run</td><td>55 modules, verifies, 214.1 s, 1.10 GB</td></tr>
+<tr><td>QF_UF gensys_brn1262</td><td class="n">60.0 MB</td><td>not run</td><td>60 modules, verifies, 233.5 s, 1.18 GB</td></tr>
+<tr><td>QF_AUFLIA swap_t3_pp_sf_ai_00009_006</td><td class="n">76.5 MB</td><td>not run</td><td>77 modules, verifies, 676.3 s, 2.76 GB</td></tr>
+<tr><td>QF_AUFLIA swap_t3_pp_sf_ai_00010_007</td><td class="n">92.6 MB</td><td>not run</td><td>93 modules, verifies, 912.0 s, 2.99 GB</td></tr>
+<tr><td>QF_IDL vlsat3_c27</td><td class="n">141.3 MB</td><td>not run</td><td>143 modules, no verdict in 2400 s, 2.20 GB</td></tr>
+<tr><td>QF_UF gensys_icl588</td><td class="n">194.8 MB</td><td>not run</td><td>195 modules, verifies, 745.4 s, 1.41 GB</td></tr>
+<tr><td>Eleven files that already verified</td><td class="n">8.8 to 23.2 MB</td><td>3.10 to 7.64 GB</td><td>all verify, 0.87 to 2.23 GB, 0 to 17% slower</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>No CI check had been reported when this report was written, so CI results are unknown.
+The local gate has not been recorded, and there were no CI fix rounds.
+The PR names these places for its tests.</p>
+<div class="table">
+<table>
+<thead><tr><th>CI job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>ubuntu-cmake</code>, cell <code>releaseClang</code></td><td>"Check native proofs in Lean", the quick Lean tests</td><td><span class="unk">not reported yet</span></td></tr>
+<tr><td><code>python-script-tests</code></td><td>"Run Python script unit tests", the script tests</td><td><span class="unk">not reported yet</span></td></tr>
+<tr><td><code>manylinux-python-amd64</code></td><td>"Test Python wheel", the split tests without Lean</td><td><span class="unk">not reported yet</span></td></tr>
+</tbody>
+</table>
+</div>
+<p class="note">Current status: <a href="https://github.com/levnach/z3/pull/138/checks">checks of pull request #138</a>.
+The slow test of the 31.7 MB chain does not run in CI.</p>
+
+<h2>Review</h2>
+<p>The reviewer approved the change, with no blocker and no major finding.
+The reviewer also tampered with chains in seven ways, such as a <a href="#g-sorry"><code>sorry</code></a>
+or an added <a href="#g-axiom">axiom</a>. Lean rejected or reported every one.</p>
+<ul>
+<li><strong>Minor, fixed: leftover files.</strong> The reviewer killed a chain run with a
+signal that allows no cleanup. The compiled modules stayed in the system's temporary directory, where a
+stopped measurement had already left 706 MB. Deadlines kill runs this way, so disks could fill up.
+Now the caller can name the directory with <code>Z3_LEAN_CHAIN_DIR</code> and remove it itself.</li>
+<li><strong>Minor, fixed: a symbol that looked like a comment.</strong> The reviewer declared a constant
+named <code>a/-b</code>. The splitter saw <code>/-</code> in a header comment, took it for the start of a block
+comment, and refused a valid certificate. Comment lines are now skipped.</li>
+<li><strong>Minor, fixed: wrong file order.</strong> The reviewer re-checked a published
+chain with a shell wildcard. The shell sorted module 10 before module 2, so Lean rejected a valid chain.
+Module numbers are now zero-padded.</li>
+<li><strong>Two nits, fixed.</strong> A command before the <a href="#g-namespace">namespace</a> is now rejected.
+A stale README sentence about rechecking imports was reworded.</li>
+<li><strong>Nit, not changed.</strong> One commit carries the code under a generic message of the loop driver.
+The message disappears if the PR is squashed, as earlier ones were.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li><strong>Trust.</strong> A later module trusts the compiled form of an earlier one, as every Lean file
+trusts Lean's own library. Lean writes no compiled form for a file with errors.</li>
+<li><strong>Several files.</strong> Above 8 MB, the output file alone no longer checks.</li>
+<li><strong>No fallback.</strong> A large text the splitter does not recognise is rejected, not checked as one file.</li>
+<li><strong>Time and disk.</strong> A chain is somewhat slower and needs 5 to 9 MB of disk per MB of Lean text while it runs.</li>
+<li><strong>Platform.</strong> Only macOS was run locally, and CI on Linux has not reported.</li>
+<li><strong>Still open.</strong> The sokoban file fails when a lemma runs out of
+<a href="#g-heartbeat">heartbeats</a>. One file got no verdict in 40 minutes, and six were not measured.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+<li>Shorten the sokoban lemmas, which walk a long nested conjunction one conjunct at a time.</li>
+<li>Measure the six remaining files, and find why the modules of <code>vlsat3_c27</code> are slow.</li>
+<li>Let modules import only what they use, so they can be checked in parallel.</li>
+<li>Shrink the array lemmas, which stay costly even in 1 MB modules.</li>
+<li>From the review: hash every published file in the z3test repository.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-array">array</dt>
+<dd>A value that maps indices to elements, read with <code>select</code> and updated with <code>store</code>.</dd>
+<dt id="g-assertion">assertion</dt>
+<dd>A formula the input states to be true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement accepted without proof. Lean can list the axioms a theorem depends on.</dd>
+<dt id="g-benchmark">benchmark</dt>
+<dd>A standard input file used to test and measure solvers.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>The evidence for a result, written so that an independent checker can verify it. Here it is Lean text.</dd>
+<dt id="g-chain">chain of modules</dt>
+<dd>Modules in a fixed order, where each one imports the one before it.</dd>
+<dt id="g-olean">compiled module</dt>
+<dd>The file Lean writes after it accepts a module, with the extension <code>.olean</code>. Later files read it instead of the source.</dd>
+<dt id="g-declaration">declaration</dt>
+<dd>One named item in a Lean file, such as a definition or a theorem.</dd>
+<dt id="g-heartbeat">heartbeat</dt>
+<dd>Lean's unit of work. A proof that uses more than its budget of heartbeats is stopped with an error.</dd>
+<dt id="g-hypothesis">hypothesis</dt>
+<dd>An assumption of a theorem. Here each assertion of the input is one hypothesis.</dd>
+<dt id="g-import">import</dt>
+<dd>A line at the top of a Lean file that makes the declarations of another module available.</dd>
+<dt id="g-interpretation">interpretation</dt>
+<dd>A choice of meaning for the uninterpreted sorts and functions. A refutation must hold for every such choice.</dd>
+<dt id="g-kernel">kernel</dt>
+<dd>The small core of Lean that checks every proof. Only the kernel has to be trusted.</dd>
+<dt id="g-lemma">lemma</dt>
+<dd>A small proved statement used as a step toward a larger one.</dd>
+<dt id="g-linear">linear arithmetic</dt>
+<dd>Arithmetic where variables are only added and multiplied by constants, such as <code>2x + y &lt;= 5</code>.</dd>
+<dt id="g-logic">logic</dt>
+<dd>In SMT-LIB, a named fragment that says which theories an input uses. QF_UF has uninterpreted functions,
+QF_IDL has differences of integers, QF_AX and QF_AUFLIA have arrays.</dd>
+<dt id="g-cap">memory cap</dt>
+<dd>A limit on the memory one process may use. Here it is 8 GB per Lean process.</dd>
+<dt id="g-module">module</dt>
+<dd>One Lean file, treated as a unit that other files can import.</dd>
+<dt id="g-namespace">namespace</dt>
+<dd>A named scope that prefixes the names declared inside it, so that they cannot clash with others.</dd>
+<dt id="g-proof-step">proof step</dt>
+<dd>One inference of the solver's proof. Here each step becomes a small Lean theorem.</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that a set of assertions leads to a contradiction.</dd>
+<dt id="g-sorry">sorry</dt>
+<dd>Lean's placeholder for a missing proof. The checker treats it as an error.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, or Bool. An uninterpreted sort, such as <code>I</code> above, has no fixed meaning.</dd>
+<dt id="g-theorem">theorem</dt>
+<dd>A statement together with a proof that Lean has checked.</dd>
+<dt id="g-uf">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. Only one rule holds: equal arguments give equal results. Example: <code>op</code> above.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-14.
+</footer>
+
+</body>
+</html>
