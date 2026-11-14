@@ -1848,7 +1848,12 @@ rejected, publication only after the chain is checked),
 (`test_certificates_split_into_modules_verify_as_chains`: one small
 certificate per kind of text, split into four modules or more, with the
 axioms of the one file; `test_a_chain_is_rejected_with_any_module_lean_rejects`;
-`test_a_split_certificate_is_published_with_the_modules_it_imports`),
+`test_a_split_certificate_is_published_with_the_modules_it_imports`;
+`test_check_requires_every_reconstructed_text_to_split_into_modules`:
+`lean_test_support.check` splits every text it reconstructs, of any size,
+so a top-level command the splitter does not know fails the fast tier and
+not only a certificate above 8 MB; the 1,632 distinct texts the tests
+reconstruct all split),
 `test_proof_to_lean_uf.py`
 (`test_quasigroup_certificate_verifies_as_a_chain_of_modules`:
 `iso_brn041` in four modules; the slow

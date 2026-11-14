@@ -294,6 +294,26 @@ class TestProofToLeanIntegration(unittest.TestCase):
                     self.assertNotIn("Lean checks passed.", result.stdout)
                     self.assertNotIn("depend", result.stdout)
 
+    def test_check_requires_every_reconstructed_text_to_split_into_modules(self):
+        # No Lean. Only a certificate above proof_to_lean._MODULE_CHARS is split, and the fast
+        # tier has none; so lean_test_support.check splits every text it reconstructs, of any
+        # size, and a top-level command the splitter does not know fails the test of the small
+        # certificate that has it (2026-11-14: the 1,632 texts of these tests all split).
+        text = chained_text(6)
+        with patch.object(lean_test_support, "run_check_lean") as checker:
+            checker.return_value = subprocess.CompletedProcess([], 0, "'x.unsat' Lean checks passed.\n", "")
+            with patch.object(proof_to_lean, "reconstruct", return_value=text):
+                self.assertEqual(lean_test_support.check(self, "chained", {})[0], text)
+            self.assertEqual(checker.call_count, 1)
+            changed = text.replace("\ndef formula_3 ", "\nopen Classical\ndef formula_3 ")
+            with patch.object(proof_to_lean, "reconstruct", return_value=changed):
+                with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "cannot split Lean text at the line"):
+                    lean_test_support.check(self, "chained", {})
+            self.assertEqual(checker.call_count, 1)  # rejected before Lean is run
+            # A text the caller supplies is checked as it is (tests alter texts on purpose).
+            lean_test_support.check(self, "chained", text=changed)
+            self.assertEqual(checker.call_count, 2)
+
     def test_a_split_certificate_is_published_with_the_modules_it_imports(self):
         # check_and_write through the real checker: the chain is checked, and the published
         # files (the modules next to the output, under their module names) check again as they are.
