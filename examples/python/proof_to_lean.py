@@ -11242,6 +11242,8 @@ def modules(text, limit=None, size=None):
     namespace is the certificate's own). Nothing else is rewritten, and every module is checked by
     the kernel like the one file would be (`check_command`): a text that is not laid out as
     `reconstruct` writes it is rejected here, and a wrong split could only be rejected by Lean.
+    The modules are named `Z3Certificate_<16 hex digits of the text's SHA-256>_<index>`, the
+    indices zero-padded to one width, so the names sort in checking order.
     """
     limit = _MODULE_CHARS if limit is None else limit
     size = min(limit, _MODULE_SIZE) if size is None else size
@@ -11251,9 +11253,17 @@ def modules(text, limit=None, size=None):
     opening = [index for index, line in enumerate(lines) if line.startswith("namespace ")]
     closing = [index for index, line in enumerate(lines)
                if opening and line == "end " + lines[opening[0]][len("namespace "):]]
-    if len(opening) != 1 or len(closing) != 1 or "/-" in text:
+    # A block comment could hold lines that look like declarations. A line comment cannot open
+    # one, so `/-` in a comment line (an SMT symbol named in the header, say) is not one.
+    if len(opening) != 1 or len(closing) != 1 or any(
+            "/-" in line for line in lines if not line.lstrip().startswith("--")):
         raise ReconstructionError("cannot split Lean text that is not one namespace of declarations")
     start, end = opening[0], closing[0]
+    for line in lines[:start]:
+        # Before the namespace `reconstruct` writes imports and comments; the imports go to every
+        # module and the comments to the last one, and a command there would hold for one module.
+        if line and not line.startswith(("import ", "--")):
+            raise ReconstructionError("cannot split Lean text at the line: %s" % line[:80])
     body = start + 1
     while body < end and (not lines[body] or (
             lines[body].startswith("set_option ") and not lines[body].endswith(" in"))):
@@ -11288,7 +11298,10 @@ def modules(text, limit=None, size=None):
     if len(groups) == 1:
         return [(None, text)]
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
-    names = ["Z3Certificate_%s_%d" % (digest, index) for index in range(len(groups) - 1)] + [None]
+    # The indices have one width, so the names sort in checking order (a shell's
+    # `Z3Certificate_<digest>_*.lean` lists the modules as `check_lean.sh --chain` needs them).
+    width = len(str(len(groups) - 2))
+    names = ["Z3Certificate_%s_%0*d" % (digest, width, index) for index in range(len(groups) - 1)] + [None]
     imports = [line for line in lines[:start] if line.startswith("import ")]
     result = []
     for index, group in enumerate(groups):
@@ -11328,7 +11341,12 @@ def check_command(paths):
 def check_and_write(source, certificate, output):
     """Publish a Lean file, only after the pinned checker accepts it. A certificate above
     _MODULE_CHARS is checked as a chain of modules, and the modules the file imports are published
-    next to it, before it. Returns the published files in checking order, `output` last."""
+    next to it, before it. Returns the published files in checking order, `output` last.
+
+    While a chain is checked, the compiled modules (.olean, 5 to 9 MB per MB of Lean text) are
+    in the staging directory next to `output` (Z3_LEAN_CHAIN_DIR of check_lean.sh), which is
+    removed here: a check that is killed leaves them next to the output, not in the system's
+    temporary directory."""
     text = reconstruct(source, certificate)
     output = Path(output)
     if output.suffix != ".lean":
@@ -11336,7 +11354,8 @@ def check_and_write(source, certificate, output):
     staging = Path(tempfile.mkdtemp(prefix="z3_proof_", dir=output.parent))
     try:
         paths = write_modules(text, staging / output.name)
-        subprocess.run(check_command(paths), check=True, capture_output=True, text=True)
+        subprocess.run(check_command(paths), check=True, capture_output=True, text=True,
+                       env=dict(os.environ, Z3_LEAN_CHAIN_DIR=str(staging.resolve())))
         published = [output.with_name(path.name) for path in paths]
         for path, target in zip(paths, published):
             os.replace(path, target)

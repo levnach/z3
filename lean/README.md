@@ -210,7 +210,17 @@ that was not accepted. The later processes read those `.olean` files as they
 read Lean's own library: the kernel checked each declaration once, in the
 process that compiled it.
 
-Checks use `--trust=0` to recheck imported modules and
+While a chain runs, its `.olean` files take 5 to 9 MB of disk per MB of Lean
+text (176 MB for a 31.7 MB certificate). The directory that holds them is a
+fresh one made by `mktemp -d`, and a run that is killed with SIGKILL cannot
+remove it. A caller that runs chains under a deadline sets `Z3_LEAN_CHAIN_DIR`
+to a directory it removes itself: the fresh directory is then made there
+(`proof_to_lean.check_and_write` names its staging directory next to the
+output).
+
+Checks use `--trust=0`, so the kernel checks every declaration of the file a
+`lean` process elaborates (a module it imports is read from its `.olean` and
+not checked again; for a chain that is the paragraph above), and
 `-DwarningAsError=true` to treat warnings, including ordinary `sorry`/`admit`
 placeholders, as errors. Every `lean` process, including the library build, runs
 with `--memory=8192`, so a proof that needs more than 8 GB fails with

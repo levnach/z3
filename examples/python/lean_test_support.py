@@ -56,12 +56,16 @@ def namespace(source):
 
 def run_check_lean(path):
     """Run scripts/check_lean.sh on one file, or on the files of one chain of modules in their order
-    (`proof_to_lean.write_modules`); only the first run of the process builds the Lean project."""
+    (`proof_to_lean.write_modules`); only the first run of the process builds the Lean project.
+    The compiled modules of a chain are kept, while it is checked, in the directory of its files
+    (a temporary directory of the test), so a run that is killed leaves nothing anywhere else."""
     global _built
     environment = dict(os.environ)
     if _built:
         environment["Z3_LEAN_SKIP_BUILD"] = "1"
     paths = [path] if isinstance(path, (str, Path)) else list(path)
+    if len(paths) > 1:
+        environment["Z3_LEAN_CHAIN_DIR"] = str(Path(paths[0]).resolve().parent)
     result = subprocess.run(proof_to_lean.check_command(paths), text=True, capture_output=True, env=environment)
     if "Lean checks passed." in result.stdout:
         _built = True

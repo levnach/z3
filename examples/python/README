@@ -755,14 +755,22 @@ You can check the resulting Lean file again without Z3:
 A certificate of more than 8 MB of Lean text is checked and published as a
 chain of modules (since 2026-11-14): the output file holds the theorem and the
 last declarations, and imports the module before it, which the command writes
-next to it as Z3Certificate_<hash of the text>_<k>.lean and reports. One Lean
+next to it as Z3Certificate_<hash of the text>_<k>.lean (k zero-padded to one
+width, so the names sort in checking order) and reports. One Lean
 process keeps what it elaborated of a whole file until the file ends, so its
 memory grows with the text (0.25 to 2 GB per MB, by the kind of declaration:
 z3test's QF_UF gensys_icl1079, 31.7 MB, stopped at the 8 GB --memory cap as
 one file and checks as 32 modules of at most 1 MB). The modules are checked by
 one process each, in order, under the same flags:
 
-    ./scripts/check_lean.sh --chain /tmp/Z3Certificate_<hash>_0.lean ... /tmp/big.lean
+    ./scripts/check_lean.sh --chain /tmp/Z3Certificate_<hash>_*.lean /tmp/big.lean
+
+(the shell lists the modules in their order; the output file is last and names
+<hash> in its header). While a chain is checked its compiled modules take 5 to
+9 MB of disk per MB of Lean text, in a temporary directory that is removed when
+the check ends; proof_to_lean.py keeps it in its staging directory next to the
+output, so a check that is killed leaves nothing in the system's temporary
+directory (Z3_LEAN_CHAIN_DIR, see lean/README.md).
 
 Each module holds whole declarations of the one text, in its namespace and
 under its options, with `private` dropped from the declarations (later modules

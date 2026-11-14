@@ -2283,6 +2283,13 @@ class TestCertificateModules(unittest.TestCase):
         self.assertEqual(len(set(names)), len(names))
         for index, name in enumerate(names[:-1]):
             self.assertRegex(name, r"\AZ3Certificate_[0-9a-f]{16}_%d\Z" % index)
+        # The indices are zero-padded to one width: sorted by name the modules are in checking
+        # order, so `check_lean.sh --chain DIR/Z3Certificate_<digest>_*.lean LAST` is the chain.
+        finer = [name for name, _ in proof_to_lean.modules(text, limit, 500)[:-1]]
+        self.assertGreater(len(finer), 11)
+        self.assertLess(len(finer), 100)
+        self.assertEqual(finer, ["%s_%02d" % (names[0][:-2], index) for index in range(len(finer))])
+        self.assertEqual(sorted(finer), finer)
         original, declarations = self.body(text)[1], []
         for index, (name, module) in enumerate(modules):
             head, body, tail = self.body(module)
@@ -2353,11 +2360,28 @@ class TestCertificateModules(unittest.TestCase):
                 ("a block comment", text.replace(marker, "\n/- def formula_7 -/" + marker)),
                 ("a second namespace", text + text.partition("\n")[2]),
                 ("no namespace", text.replace("namespace ", "-- ").replace("\nend ", "\n-- ")),
+                ("a block comment after a line comment",
+                 text.replace(marker, "\n-- then\n/- def formula_7 -/" + marker)),
+                ("a block comment opened inside a declaration",
+                 text.replace(marker, " /-\n-- hidden" + marker).replace("\ndef formula_9 ", " -/\ndef formula_9 ")),
+                ("a command before the namespace", text.replace("\nnamespace ", "\nopen Classical\nnamespace ")),
+                ("an option before the namespace",
+                 text.replace("\nnamespace ", "\nset_option maxHeartbeats 0\nnamespace ")),
                 ("text before the first declaration", text.replace("\nstructure ", "\n  trivial\nstructure "))):
             with self.subTest(label=label):
                 self.assertEqual(proof_to_lean.modules(changed), [(None, changed)])  # one file, as it is
                 with self.assertRaisesRegex(proof_to_lean.ReconstructionError, "cannot split Lean text"):
                     proof_to_lean.modules(changed, 2000)
+        # A line comment cannot open a block comment: `/-` in one (an SMT symbol named in the
+        # header, or in the comment of a lemma) does not stop the split, and stays where it was.
+        changed = text.replace("-- Atom 0: \"p\"", "-- Atom 0: \"a/-b\"").replace(
+            "-- the left conjunct of formula_7\n", "-- the left conjunct of formula_7, a/-b\n")
+        self.assertEqual(changed.count("/-"), 2)
+        modules = proof_to_lean.modules(changed, 2000)
+        self.assertEqual(len(modules), len(proof_to_lean.modules(text, 2000)))
+        self.assertIn("\n-- Atom 0: \"a/-b\"\n", modules[-1][1])
+        self.assertEqual(sum(module.count("/-") for _, module in modules), 2)
+        self.assertEqual(sum("formula_7, a/-b\ntheorem lemma_7 " in module for _, module in modules), 1)
 
     def test_modules_are_written_next_to_the_file_and_checked_as_a_chain(self):
         text = chained_text(30)
@@ -2396,6 +2420,9 @@ class TestCertificateModules(unittest.TestCase):
                 self.assertEqual([path.read_text() for path in paths], [module for _, module in modules])
                 self.assertEqual({path.parent for path in paths}, {paths[0].parent})
                 self.assertEqual(sorted(directory.iterdir()), sorted([output, paths[0].parent]))
+                # The chain's compiled modules go to the staging directory, removed with it.
+                self.assertEqual(options["env"]["Z3_LEAN_CHAIN_DIR"], str(paths[0].parent.resolve()))
+                self.assertIn("PATH", options["env"])  # the caller's environment, plus that
                 self.assertEqual(output.read_text(), "old proof")
                 if len(commands) == 1:
                     raise subprocess.CalledProcessError(1, command, stderr="rejected")

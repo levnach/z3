@@ -40,9 +40,10 @@ MODULE_INPUTS = {
     "propositional": (BRANCHING, False),
     "real arithmetic": ("(declare-const x Real)(declare-const y Real)(declare-const z Real)"
                         "(assert (or (< x y) (< x z)))(assert (<= y x))(assert (<= z x))", True),
+    # The symbol a/-b is named in a header comment of the text: `/-` there opens no block comment.
     "uninterpreted sort": ("(declare-sort U 0)(declare-fun f (U) U)(declare-const a U)(declare-const b U)"
-                           "(declare-const c U)(assert (or (= a b) (= a c)))(assert (not (= (f a) (f b))))"
-                           "(assert (not (= (f a) (f c))))", True),
+                           "(declare-const a/-b U)(assert (or (= a b) (= a a/-b)))(assert (not (= (f a) (f b))))"
+                           "(assert (not (= (f a) (f a/-b))))", True),
     "integer ites": (MODULAR_CHAINS, True),
     "arrays": ("(declare-const a (Array Int Int))(declare-const b (Array Int Int))(declare-const i Int)"
                "(declare-const j Int)(assert (= b (store a i 5)))(assert (or (= j i) (= (select a j) 7)))"
@@ -241,6 +242,7 @@ class TestProofToLeanIntegration(unittest.TestCase):
                                else proof_certificate.export_certificate(source))
                 text, whole = lean_test_support.check(self, source, certificate)
                 self.assertIn("\nprivate theorem ", text)
+                self.assertEqual("/-" in text, "/-" in source)
                 limit = len(text) // 5
                 modules = proof_to_lean.modules(text, limit)
                 self.assertGreaterEqual(len(modules), 4)

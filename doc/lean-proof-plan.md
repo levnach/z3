@@ -1781,19 +1781,36 @@ of modules, one `lean` process each (`proof_to_lean.modules`,
   imports the module before it, so transitively all earlier ones. The last
   module is the published file: it keeps the header comments and holds the
   theorem `unsat`. The others are named
-  `Z3Certificate_<16 hex digits of the text's SHA-256>_<k>`.
+  `Z3Certificate_<16 hex digits of the text's SHA-256>_<k>`, `k` zero-padded
+  to one width: sorted by name they are in checking order, so
+  `check_lean.sh --chain DIR/Z3Certificate_<digest>_*.lean DIR/proof.lean`
+  re-checks a published chain (unpadded, a shell lists `_10` before `_2`
+  and a valid chain of eleven modules or more is rejected).
 - The only rewriting is that `private` is dropped from the declarations
   (later modules name them; the namespace is the certificate's own). A text
   that is not laid out as `reconstruct` writes one (one namespace; options;
   then `def`, `theorem`, `structure` declarations with their own
   `set_option .. in` and comment lines) is rejected, not split: any other
-  command at column 0, a block comment, a second namespace.
+  command at column 0, anything but imports and comments before the
+  namespace, a block comment, a second namespace. `/-` inside a line
+  comment opens no block comment and is not one: the header names the SMT
+  symbols, and `a/-b` is a symbol.
 - `check_lean.sh --chain FILE...` checks the files in order, each with its
   own `lean --trust=0 -DwarningAsError=true --memory=8192`, the flags of a
   single file. Each file but the last is also compiled (`-o`) to an
   `.olean` in a fresh temporary directory that is put on `LEAN_PATH` for
   the later files and removed when the run ends. The run stops at the
   first file Lean rejects.
+- Disk: the `.olean` files of a chain take 5 to 9 MB per MB of Lean text
+  while it runs (176 MB for the 31.7 MB of `gensys_icl1079`, 190 MB for the
+  23.2 MB of DTP, 706 MB for the first 92 modules of `vlsat3_c27`); that is
+  not in the memory columns below, and it is memory where the temporary
+  directory is a tmpfs. A run killed with SIGKILL cannot remove the
+  directory (the `vlsat3_c27` measurement, stopped by its deadline, left
+  those 706 MB in the system's temporary directory). So the fresh
+  directory is made inside the one `Z3_LEAN_CHAIN_DIR` names, if set, and
+  the caller removes that: `check_and_write` names its staging directory,
+  `lean_test_support.run_check_lean` the directory of the chain's files.
 - `check_and_write` stages the modules in a temporary directory next to
   the output, checks the chain, and only then moves the modules and, last,
   the output file into place; it returns the published files.
