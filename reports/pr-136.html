@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #136: Prove regrouping rewrites over theory atoms by their structure in Lean</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --soft: #f6f8fa;
+  --link: #0969da; --open-bg: #dafbe1; --open-fg: #1a7f37; --ok: #1a7f37; --bad: #b3261e; --note: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #30363d; --soft: #161b22;
+    --link: #4493f8; --open-bg: #12261e; --open-fg: #3fb950; --ok: #3fb950; --bad: #f85149; --note: #d29922;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; padding: 1.5rem 1rem 3rem; max-width: 54rem;
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
+}
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .6rem; }
+h1 a { color: inherit; text-decoration: underline dotted; text-underline-offset: .2em; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .3rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.02rem; margin: 1.4rem 0 .4rem; }
+a { color: var(--link); }
+p, ul { margin: .6rem 0; }
+li { margin: .35rem 0; }
+.meta { color: var(--muted); font-size: .95rem; margin: .2rem 0; }
+.state {
+  display: inline-block; padding: .05rem .6rem; border-radius: 1rem; font-weight: 600; font-size: .85rem;
+  background: var(--open-bg); color: var(--open-fg); border: 1px solid var(--open-fg);
+}
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; }
+:not(pre) > code { background: var(--soft); border: 1px solid var(--line); border-radius: .3rem; padding: .05rem .3rem; }
+pre {
+  background: var(--soft); border: 1px solid var(--line); border-radius: .4rem;
+  padding: .7rem .9rem; overflow-x: auto; line-height: 1.45; margin: .6rem 0 .3rem;
+}
+.under { color: var(--muted); font-size: .95rem; margin: 0 0 1rem; }
+.wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .7rem 0; }
+th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--soft); }
+td.n { text-align: right; white-space: nowrap; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.unknown { color: var(--note); font-weight: 600; }
+dl { margin: .6rem 0; }
+dt { font-weight: 600; margin-top: .7rem; scroll-margin-top: 1rem; }
+dt:target { color: var(--link); }
+dd { margin: .1rem 0 0 1.2rem; }
+footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove regrouping <a href="#g-rewrite">rewrites</a> over <a href="#g-theory-atom">theory atoms</a> by their structure in Lean</h1>
+<p class="meta"><a href="https://github.com/levnach/z3/pull/136">Pull request #136</a> in levnach/z3, targeting <code>master</code></p>
+<p class="meta"><span class="state">OPEN</span> This pull request is not merged. Its change commit is <a href="https://github.com/levnach/z3/commit/5b868e6cd0a0720dd3fdacbec4b58231669106da"><code>5b868e6cd</code></a>.</p>
+<p class="meta">Date: 2026-11-14T07:50:11Z. Loop iteration 135.</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>This PR changes how the <a href="#g-reconstructor">reconstructor</a> proves one kind of <a href="#g-rewrite">rewrite</a> step.
+Z3's rewriter regroups a large <a href="#g-assertion">assertion</a>: it flattens nested <a href="#g-conjunction">conjunctions</a> and <a href="#g-disjunction">disjunctions</a> and drops every <a href="#g-tautology">tautology</a>.
+The <a href="#g-certificate">certificate</a> must show that the result is <a href="#g-equivalence">equivalent</a> to the original.
+Lean proved this with a general <a href="#g-tactic">tactic</a> that tries <a href="#g-case-split">case splits</a>, and on large formulas it hit its <a href="#g-heartbeat">heartbeat</a> limit.
+The reconstructor now writes an explicit <a href="#g-propositional">propositional proof</a> first.
+Each <a href="#g-theory-atom">theory atom</a> is an <a href="#g-opaque-leaf">opaque leaf</a>, and each dropped tautology is proved once by <a href="#g-excluded-middle">excluded middle</a>.
+Six <a href="#g-qf-uf">QF_UF</a> <a href="#g-quasigroup">quasigroup</a> benchmarks that Lean rejected now verify.
+The <a href="#g-trust-boundary">trust boundary</a> is unchanged, and no new <a href="#g-axiom">axiom</a> is used.</p>
+
+<h2>Background</h2>
+<p>Before this PR, the pipeline already exported certificates for these benchmarks.
+They use only <a href="#g-equality">equalities</a> over one <a href="#g-uninterpreted-function">uninterpreted function</a> and one <a href="#g-uninterpreted-sort">uninterpreted sort</a>.
+Lean checked almost all of each file in seconds, and only the rewrite <a href="#g-lemma">lemma</a> timed out.
+So the gap was scale, not a missing theory.
+Rewrites over arithmetic atoms already avoided the general tactic above 16 atoms, but other theory atoms had no such path.
+The work serves milestone 3 of the plan, "Equality and linear arithmetic".</p>
+
+<h2>What changed</h2>
+<ul>
+<li><strong>Reconstructor, rewrite lemmas.</strong> A rewrite over more than 16 theory atoms is first proved from the <a href="#g-boolean">Boolean</a> structure of its two sides, by <code>_leaf_equivalence</code>.</li>
+<li><strong>Reconstructor, fallback.</strong> The old tactic proof stays as a second alternative, so a rewrite without the new proof keeps its previous text.</li>
+<li><strong>Propositional prover.</strong> A disjunction holding a formula and its negation is now a fact proved once by excluded middle, not a case split.</li>
+<li><strong>Tests.</strong> A generator builds inputs of this shape at any size, and Lean checks the new proof with the fallback removed.</li>
+<li><strong>Test data and docs.</strong> Two real quasigroup benchmarks became test inputs, and the plan and README record the measurements and open cases.</li>
+</ul>
+<p>An analogy: a checklist asks "Is the door open or not open?".
+The old prover examined both possibilities for every such question, so each one doubled the work.
+The new prover ticks the question off once.</p>
+
+<div class="wrap">
+<table>
+<thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="n">94</td><td class="n">4</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="n">249</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="n">36</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="n">11</td><td class="n">1</td></tr>
+<tr><td><code>examples/python/data/QF_UF_QG_gensys_icl1228.smt2</code></td><td class="n">154</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/data/QF_UF_QG_iso_brn041.smt2</code></td><td class="n">32</td><td class="n">0</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="n">75</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td class="n">12</td><td class="n">0</td></tr>
+<tr><th>Total, 8 files in 2 commits</th><th class="n">663</th><th class="n">5</th></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Worked example</h2>
+<p>The input is the generator instance <code>regrouped_gates_instance(5, 15)</code>, which the PR's Lean test also uses.
+Both pipelines were run on it for this report.</p>
+
+<h3>(a) The input</h3>
+<p>The file has 16 lines.
+Line 9 is one assertion of 3,973 characters, cut and broken over several lines here.</p>
+<pre><code>(set-logic QF_UF)
+(declare-sort U 0)
+(declare-fun op (U U) U)
+(declare-fun e0 () U)
+...
+(assert (or (or (or (or (and (and (and (and (and (and (and (and (and (and (and (and (and (and
+  (or (not (= (op e0 e0) e0)) (= (op e0 e1) e0))
+  (or (not (= (op e3 e3) e0)) (= (op e2 e4) e3)))
+  ...
+  (or (not (= (op e0 e2) e3)) (= (op e0 e2) e3)))
+  ...
+  (or (not (= (op e3 e3) e4)) (= (op e1 e3) e0)))))
+(assert (= (op e0 e0) e0))
+(assert (not (= (op e0 e1) e0)))
+(assert (not (= (op e0 e2) e0)))
+(assert (not (= (op e0 e3) e0)))
+(assert (not (= (op e0 e4) e0)))
+(assert (not (= (op e1 e0) e1)))
+(check-sat)</code></pre>
+<p class="under">The assertion is a disjunction of five conjunctions, each of 15 <a href="#g-clause">clauses</a> with two <a href="#g-literal">literals</a>.
+Ten clauses are tautologies like the one in the middle.</p>
+
+<h3>(b) Before</h3>
+<p>The base code exported the certificate and generated this lemma for the rewrite.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_323 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_322 _atoms _m) := by
+  unfold formula_322 formula_321 formula_320 formula_319 formula_318 formula_317 formula_312 formula_305 formula_304 f ...
+  grind (splits := 64)</code></pre>
+<p class="under">It unfolds every definition and calls the general tactic <code>grind</code>.</p>
+<p>Lean rejected the file. Line 383 in its message is the <code>grind</code> line above.</p>
+<pre><code>z3_proof_5uyy2etc.lean:383:2: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached
+...
+Lean checking failed; no proof was published.</code></pre>
+
+<h3>(c) After</h3>
+<p>The current code generated the text below, and Lean accepted it with the message <code>Lean checks passed.</code></p>
+<pre><code>structure Interpretation where
+  U : Type
+  elems : Nat -&gt; U
+  funs : Nat -&gt; List U -&gt; U
+  preds : Nat -&gt; List U -&gt; Prop
+  bool : Prop -&gt; U
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 0
+...
+def term_37 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.funs 0 [(term_0 _atoms _m), (term_12 _atoms _m)]
+def formula_38 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_37 _atoms _m) = (term_8 _atoms _m))
+def formula_39 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Not (formula_38 _atoms _m))
+def formula_40 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Or (formula_39 _atoms _m) (formula_38 _atoms _m))
+...</code></pre>
+<p class="under">The <a href="#g-sort">sort</a> <code>U</code> and the function <code>op</code> become fields of an arbitrary <a href="#g-interpretation">interpretation</a>, and <code>formula_40</code> is the tautology shown in the input.</p>
+<pre><code>def formula_305 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Or (formula_255 _atoms _m) (formula_304 _atoms _m))
+...
+def formula_321 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Or (formula_317 _atoms _m) (Or (formula_318 _atoms _m) (Or (formula_319 _atoms _m) (Or (formula_ ...
+def formula_322 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Iff (formula_305 _atoms _m) (formula_321 _atoms _m))</code></pre>
+<p class="under">Here <code>formula_322</code> states that the assertion as written is equivalent to its flattened form.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem rewrite_323 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_322 _atoms _m) := by
+  first
+    | (refine Iff.intro (fun (_f1 : (formula_305 _atoms _m)) =&gt; ?_) (fun (_f155 : (formula_321 _atoms _m)) =&gt; ?_)
+       · refine Classical.byContradiction (fun (_f2 : Not (formula_321 _atoms _m)) =&gt; ?_)
+       ...
+       · refine Classical.byContradiction (fun (_f156 : Not (formula_305 _atoms _m)) =&gt; ?_)
+         have _f157 : (formula_40 _atoms _m) := (Or.elim (Classical.em (formula_38 _atoms _m)) (fun _g =&gt; (Or.inr _g)) (fun _g =&gt; (Or.inl _g)))
+         have _f158 : (formula_69 _atoms _m) := (Or.elim (Classical.em (formula_67 _atoms _m)) (fun _g =&gt; (Or.inr _g)) (fun _g =&gt; (Or.inl _g)))
+           ...
+           exact (False.elim (_f308 (And.intro _f283 _f284))))</code></pre>
+<p class="under">The first alternative is the new proof, where step <code>_f157</code> proves the dropped tautology by excluded middle.</p>
+<pre><code>    | (unfold formula_322 formula_321 formula_320 formula_319 formula_318 formula_317 formula_312 formula_305 formula_ ...
+       grind (splits := 64))</code></pre>
+<p class="under">The second alternative is the old proof, which Lean tries only if the first one fails.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    (_h0 : (formula_305 _atoms _m))
+    (_h1 : (formula_2 _atoms _m))
+    ...
+    (_h6 : (formula_307 _atoms _m))
+    : False :=
+    ...</code></pre>
+<p class="under">The final theorem says that the seven assertions together imply <code>False</code>, for every interpretation.</p>
+
+<div class="wrap">
+<table>
+<thead><tr><th>Run on this input</th><th>Generated Lean text</th><th>Rewrite lemma</th><th>Reconstruction with its Lean check</th><th>Lean verdict</th></tr></thead>
+<tbody>
+<tr><td>Before, base <code>c3c7af47f</code></td><td class="n">563 lines, 56,134 bytes</td><td>5 lines, one tactic call</td><td class="n">50.7 s</td><td><span class="bad">rejected</span>, heartbeat timeout</td></tr>
+<tr><td>After, change commit <code>5b868e6cd</code></td><td class="n">864 lines, 74,103 bytes</td><td>306 lines, 9 excluded-middle facts</td><td class="n">1.9 s</td><td><span class="ok">accepted</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>How it was verified</h2>
+<p>Every local check passed on the final commit.
+The six benchmarks that failed before now verify in seconds, and the other three did not slow down.
+The reviewer's <a href="#g-fuzzing">fuzz</a> test found no disagreement between the new prover and the old one.</p>
+
+<div class="wrap">
+<table>
+<thead><tr><th>Local check</th><th>Run by</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction test suite</td><td>integrator, final commit</td><td><span class="ok">pass</span>: 658 tests, 10 skipped</td></tr>
+<tr><td>Slow test on <code>gensys_icl1228</code></td><td>integrator, final commit</td><td><span class="ok">pass</span>: 1 test, 29.8 s</td></tr>
+<tr><td>Certificate exporter tests</td><td>integrator, final commit</td><td><span class="ok">pass</span>: 125 tests</td></tr>
+<tr><td>Lean library build and check</td><td>integrator, final commit</td><td><span class="ok">pass</span>: "Lean checks passed."</td></tr>
+<tr><td>z3test proof script tests</td><td>integrator, final commit</td><td><span class="ok">pass</span>: 48 tests</td></tr>
+<tr><td>Proof matrix, Boolean inputs</td><td>integrator, final commit</td><td><span class="ok">pass</span>: 6 of 6 verified in Lean</td></tr>
+<tr><td>Proof matrix, QF_LRA inputs</td><td>integrator, final commit</td><td><span class="ok">pass</span>: 8 of 8 verified in Lean</td></tr>
+<tr><td>Prover fuzz, 400 random formulas in two prover modes</td><td>reviewer</td><td><span class="ok">pass</span>: 800 of 800 outcomes agree, 1,200 new proofs check in Lean</td></tr>
+<tr><td>Ten generated variants with the fallback removed</td><td>reviewer</td><td><span class="ok">pass</span>: all verify</td></tr>
+<tr><td>New tests against the base code</td><td>reviewer</td><td>3 failures and 2 errors, so the tests do exercise the change</td></tr>
+<tr><td>First full suite run, before the final code</td><td>implementer</td><td>1 failure: an existing prover test expected a case split on <code>p or not p</code>. Its expectation was updated and the rerun passed.</td></tr>
+<tr><td>Text of the 130 sample files up to 30 MB of Lean</td><td>implementer</td><td>9 quasigroup files change, 121 are byte-identical</td></tr>
+<tr><td>Scan of 175 sample files</td><td>implementer</td><td>127 verify in Lean, up from 121</td></tr>
+<tr><td>C++ unit tests and SMT2 regressions</td><td>nobody</td><td>not run, because no C++ file changed</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="wrap">
+<table>
+<thead><tr><th>Quasigroup sample file</th><th>Lean text, MB</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td><code>qg5/iso_brn041</code></td><td class="n">0.49 to 0.54</td><td><span class="bad">fails</span>, 20.7 s, 2.22 GB</td><td><span class="ok">verifies</span>, 1.4 s, 0.66 GB</td></tr>
+<tr><td><code>qg5/iso_icl478</code></td><td class="n">0.90 to 1.03</td><td><span class="bad">fails</span>, 37.8 s, 1.81 GB</td><td><span class="ok">verifies</span>, 2.2 s, 0.91 GB</td></tr>
+<tr><td><code>qg5/iso_brn085</code></td><td class="n">1.31 to 1.49</td><td><span class="bad">fails</span>, 82.4 s, 4.90 GB</td><td><span class="ok">verifies</span>, 2.7 s, 0.99 GB</td></tr>
+<tr><td><code>qg5/iso_icl093</code></td><td class="n">1.53 to 1.70</td><td><span class="bad">fails</span>, 80.8 s, 4.59 GB</td><td><span class="ok">verifies</span>, 3.0 s, 1.05 GB</td></tr>
+<tr><td><code>qg5/iso_icl701</code></td><td class="n">2.97 to 3.28</td><td><span class="bad">fails</span>, 84.8 s, 3.88 GB</td><td><span class="ok">verifies</span>, 5.0 s, 1.55 GB</td></tr>
+<tr><td><code>qg5/gensys_icl1228</code></td><td class="n">6.01 to 6.15</td><td><span class="bad">fails</span>, 179.7 s, 3.40 GB</td><td><span class="ok">verifies</span>, 24.6 s, 2.31 GB</td></tr>
+<tr><td><code>qg5/iso_icl484</code></td><td class="n">0.57 to 0.61</td><td><span class="ok">verifies</span>, 1.6 s, 0.68 GB</td><td><span class="ok">verifies</span>, 1.6 s, 0.69 GB</td></tr>
+<tr><td><code>qg5/iso_icl458</code></td><td class="n">0.63 to 0.65</td><td><span class="ok">verifies</span>, 1.7 s, 0.70 GB</td><td><span class="ok">verifies</span>, 1.7 s, 0.71 GB</td></tr>
+<tr><td><code>qg7/iso_brn043</code></td><td class="n">8.78 to 8.81</td><td><span class="ok">verifies</span>, 36.2 s, 3.09 GB</td><td><span class="ok">verifies</span>, 36.2 s, 3.10 GB</td></tr>
+</tbody>
+</table>
+</div>
+<p class="under">Wall time and peak memory of the Lean check. Every failure in the "Before" column is a heartbeat timeout.</p>
+
+<h3>Local gate and CI</h3>
+<p>The loop ran its local gate for this change instead of waiting for GitHub CI.
+That gate had not recorded a result when this report was written, and GitHub listed no checks on the branch.
+So the CI outcome is unknown.
+There were no CI fix rounds and no failures judged unrelated.</p>
+
+<div class="wrap">
+<table>
+<thead><tr><th>Workflow</th><th>Job and step that run the changed tests, per the PR description</th><th>Status</th><th>Link</th></tr></thead>
+<tbody>
+<tr><td><code>ci.yml</code></td><td>Ubuntu build - cmake - releaseClang, step "Check native proofs in Lean"</td><td><span class="unknown">no result recorded</span></td><td><a href="https://github.com/levnach/z3/pull/136/checks">PR checks</a></td></tr>
+<tr><td><code>ci.yml</code></td><td>Python bindings (manylinux Centos AMD64) build, step "Test Python wheel"</td><td><span class="unknown">no result recorded</span></td><td><a href="https://github.com/levnach/z3/pull/136/checks">PR checks</a></td></tr>
+<tr><td>Loop local gate</td><td>Exporter and reconstruction test suites</td><td><span class="unknown">not recorded yet</span></td><td>none</td></tr>
+</tbody>
+</table>
+</div>
+<h2>Review</h2>
+<p>The reviewer approved the change, with no blocker and no major finding.
+One minor finding and two nits were fixed in the second commit.</p>
+<ul>
+<li><strong>Minor, fixed.</strong> The reviewer saw that the tautology facts also reach rewrites over arithmetic atoms, and no test checked that in Lean.
+Hand-built <a href="#g-qf-lra">QF_LRA</a> variants did verify.
+But a later mistake there would silently fall back to the tactic that times out.
+A new QF_LRA test now removes the fallback, so Lean must accept the new proof.</li>
+<li><strong>Nit, fixed.</strong> The prover computed the facts even for a <a href="#g-refutation">refutation</a>, which never uses them.
+One benchmark got 336 unused proofs that way.
+The facts are now computed on first use.</li>
+<li><strong>Nit, fixed.</strong> Two tests located the rewrite by counting definitions and matching exact tactic text.
+An unrelated change could break them, so they now select the rewrites that carry a structural proof.</li>
+<li><strong>Suggestion, recorded.</strong> The reviewer found a failing input that the implementer believed did not exist.
+In a QF_UFLIA variant, Z3 reorients the equalities, so the two sides share no leaf.
+Lean rejects that input exactly as before the change, and the plan now lists it as open.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li>The prover change reaches every classical equivalence proof, so proofs of arithmetic rewrites can differ. No sample file outside the quasigroup family changed.</li>
+<li>The fallback catches a proof that Lean rejects, but not one that runs out of heartbeats.</li>
+<li>The threshold counts atoms, not difficulty, so three files that already verified grew slightly.</li>
+<li>The CI result and the local gate result are not known yet.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+<li>Support regroupings that also reorient equalities, starting from the reviewer's input.</li>
+<li>Cut memory use for the other <code>gensys</code> files, whose Lean text is 31 to 195 MB.</li>
+<li>Speed up the replay of a QF_IDL benchmark. A measured patch exists but is not in this PR.</li>
+<li>Investigate the 21 sample files that Z3 does not answer within the scan's time limit.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-assertion">assertion</dt><dd>A formula the input states to be true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+<dt id="g-axiom">axiom</dt><dd>A statement accepted without proof. Lean reports which axioms a finished proof depends on.</dd>
+<dt id="g-boolean">Boolean</dt><dd>The sort with the two values true and false. The Boolean structure of a formula is how it is built with and, or, and not.</dd>
+<dt id="g-case-split">case split</dt><dd>A proof step that handles each possibility separately, for example first "A is true" and then "A is false".</dd>
+<dt id="g-certificate">certificate</dt><dd>A file of evidence for a solver's answer that a separate program can check.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>(or (not A) B)</code>.</dd>
+<dt id="g-conjunction">conjunction</dt><dd>An "and" of formulas. It is true when every part is true.</dd>
+<dt id="g-disjunction">disjunction</dt><dd>An "or" of formulas. It is true when at least one part is true.</dd>
+<dt id="g-equality">equality</dt><dd>An atom <code>(= s t)</code> saying that two terms denote the same value.</dd>
+<dt id="g-equivalence">equivalence</dt><dd>Two formulas are equivalent when each one implies the other. Lean writes this as <code>Iff</code>.</dd>
+<dt id="g-excluded-middle">excluded middle</dt><dd>The law that <code>A or not A</code> holds for every statement A. In Lean it is <code>Classical.em</code>.</dd>
+<dt id="g-fuzzing">fuzzing</dt><dd>Testing a program on many randomly generated inputs.</dd>
+<dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit for counting work. A proof that needs more heartbeats than its limit is rejected with a timeout.</dd>
+<dt id="g-interpretation">interpretation</dt><dd>A choice of meaning for every uninterpreted sort and function. A refutation must hold for all of them.</dd>
+<dt id="g-lemma">lemma</dt><dd>A small proved statement used as one step of a larger proof.</dd>
+<dt id="g-literal">literal</dt><dd>An atom or the negation of an atom, such as <code>A</code> or <code>(not A)</code>.</dd>
+<dt id="g-opaque-leaf">opaque leaf</dt><dd>A sub-formula that a proof treats as one indivisible unit, without looking inside it.</dd>
+<dt id="g-propositional">propositional proof</dt><dd>A proof that uses only the meaning of and, or, not, and implication, never the meaning of the atoms.</dd>
+<dt id="g-qf-lra">QF_LRA</dt><dd>The SMT-LIB logic of quantifier-free linear arithmetic over the real numbers. QF_LIA is the same over the integers.</dd>
+<dt id="g-qf-uf">QF_UF</dt><dd>The SMT-LIB logic of quantifier-free formulas over equality and uninterpreted functions.</dd>
+<dt id="g-quasigroup">quasigroup</dt><dd>A set with one binary operation whose table has every element once in each row and column. The benchmarks ask about such tables.</dd>
+<dt id="g-reconstructor">reconstructor</dt><dd>The program that turns a certificate into Lean proof text.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of formulas implies false, so they cannot all hold together.</dd>
+<dt id="g-rewrite">rewrite</dt><dd>A step that replaces a formula by an equivalent one, usually simpler. Example: dropping <code>(or (not A) A)</code> from a conjunction.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof, sometimes by automated search. Example: <code>grind</code>.</dd>
+<dt id="g-tautology">tautology</dt><dd>A formula that is true whatever its atoms are, such as <code>(or (not A) A)</code>.</dd>
+<dt id="g-theory-atom">theory atom</dt><dd>A smallest formula whose truth depends on a theory, such as the equality <code>(= (op e0 e1) e2)</code> or the comparison <code>(&lt;= x 3)</code>.</dd>
+<dt id="g-trust-boundary">trust boundary</dt><dd>The set of things one must believe without checking them.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning. All that is known is that equal arguments give equal results.</dd>
+<dt id="g-uninterpreted-sort">uninterpreted sort</dt><dd>A sort declared by name only, with no fixed set of elements. Example: <code>(declare-sort U 0)</code>.</dd>
+</dl>
+
+<footer>Generated by the Lean certificate improvement loop on 2026-11-14 (UTC).</footer>
+
+</body>
+</html>
