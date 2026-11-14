@@ -18,6 +18,7 @@ _FAKE_ELAN = """#!/bin/bash
 printf '%s\\0' "$@" >> "$ELAN_TEST_LOG"
 printf '\\0' >> "$ELAN_TEST_LOG"
 printf '%s\\n' "$PWD" >> "$ELAN_TEST_CWD"
+printf '%s\\n' "${LEAN_PATH:-}" >> "$ELAN_TEST_CWD.paths"
 if [[ "${4:-}" == "build" ]]; then
     exit "${ELAN_TEST_BUILD_STATUS:-0}"
 fi
@@ -113,6 +114,73 @@ class TestCheckLean(unittest.TestCase):
         result = self.run_helper(str(self.proof), str(self.proof))
         self.assertEqual(result.returncode, 9)
         self.assertEqual(len(self.calls()), 2)
+        self.assertNotIn("Lean checks passed.", result.stdout)
+
+    def chain(self, count=3):
+        files = []
+        for index in range(count):
+            files.append(self.root / ("Module_%d.lean" % index))
+            files[-1].write_text("example : True := True.intro\n")
+        return files
+
+    def test_chain_compiles_every_file_but_the_last_for_the_later_ones(self):
+        files = self.chain()
+        self.env["LEAN_PATH"] = "/somewhere/else"
+        result = self.run_helper("--chain", files[0].name, str(files[1]), files[2].name)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        self.assertEqual(calls[0], ["run", _TOOLCHAIN, "lake", "build"])
+        strict = ["run", _TOOLCHAIN, "lake", "env", "lean", "--trust=0", "-DwarningAsError=true", "--memory=8192"]
+        objects = []
+        for call, path in zip(calls[1:3], files[:2]):
+            # The same flags as a single file; the module name is the file's name under its directory.
+            self.assertEqual(call[:len(strict)], strict)
+            self.assertEqual(call[len(strict)], "--root=" + str(self.root))
+            self.assertEqual(call[len(strict) + 1], "-o")
+            objects.append(Path(call[len(strict) + 2]))
+            self.assertEqual(call[len(strict) + 3:], [str(path)])
+        self.assertEqual([path.name for path in objects], ["Module_0.olean", "Module_1.olean"])
+        # The last file is checked as a single file is: nothing imports it.
+        self.assertEqual(calls[3], strict + [str(files[2])])
+        self.assertEqual(len(calls), 4)
+        # One fresh directory holds the chain's .olean files, is on the search path of its Lean
+        # runs (before what the caller had there), and is gone when the run ends.
+        directory = objects[0].parent
+        self.assertEqual(objects[1].parent, directory)
+        self.assertNotIn(directory, (self.root, _ROOT / "lean"))
+        self.assertFalse(directory.exists())
+        paths = Path(str(self.cwd_log) + ".paths").read_text().splitlines()
+        self.assertEqual(paths[1:], ["%s:/somewhere/else" % directory] * 3)
+        self.assertIn("Lean checks passed.", result.stdout)
+
+    def test_chain_of_one_file_is_a_single_file(self):
+        result = self.run_helper("--chain", "--", str(self.proof))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls()[1][-4:], ["--trust=0", "-DwarningAsError=true", "--memory=8192", str(self.proof)])
+        self.assertEqual(self.run_helper("--chain").returncode, 0)
+
+    def test_chain_rejects_an_imported_file_whose_name_is_not_a_module_name(self):
+        files = self.chain(2)
+        for name in ("example proof.txt", "1st.lean", "a.b.lean", "a-b.lean"):
+            with self.subTest(name=name):
+                (self.root / name).write_text("example : True := True.intro\n")
+                result = self.run_helper("--chain", name, str(files[1]))
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("must be named IDENTIFIER.lean", result.stderr)
+                self.assertEqual(self.calls(), [])
+        # The last file of a chain is imported by nothing, so any source file will do.
+        result = self.run_helper("--chain", str(files[0]), str(self.proof))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 3)
+
+    def test_chain_stops_at_the_first_module_lean_rejects(self):
+        files = self.chain()
+        self.env["ELAN_TEST_LEAN_STATUS"] = "9"
+        result = self.run_helper("--chain", *map(str, files))
+        self.assertEqual(result.returncode, 9)
+        calls = self.calls()
+        self.assertEqual(len(calls), 2)
+        self.assertFalse(Path(calls[1][-2]).parent.exists())  # the .olean directory is removed on failure too
         self.assertNotIn("Lean checks passed.", result.stdout)
 
     def test_missing_elan_has_an_actionable_error(self):

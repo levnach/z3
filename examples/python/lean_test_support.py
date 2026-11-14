@@ -14,6 +14,9 @@ project. So the tests
   the certificate's exact text, and `check` of that text takes it instead of
   running Lean again. A batch Lean rejects is not kept, so the certificates of
   a failing batch are checked one at a time and fail as they would alone;
+- check a certificate above `proof_to_lean._MODULE_CHARS` as `check_and_write`
+  does, as a chain of modules with one Lean process each
+  (`proof_to_lean.write_modules`, `scripts/check_lean.sh --chain`);
 - skip the stress tests, whose inputs exercise the reconstruction's limits of
   size and memory rather than a feature, unless `Z3_LEAN_SLOW_TESTS=1`.
 
@@ -50,13 +53,14 @@ def namespace(source):
 
 
 def run_check_lean(path):
-    """Run scripts/check_lean.sh on one file; only the first run of the process builds the Lean project."""
+    """Run scripts/check_lean.sh on one file, or on the files of one chain of modules in their order
+    (`proof_to_lean.write_modules`); only the first run of the process builds the Lean project."""
     global _built
     environment = dict(os.environ)
     if _built:
         environment["Z3_LEAN_SKIP_BUILD"] = "1"
-    result = subprocess.run([str(proof_to_lean._CHECK_LEAN), str(path)], text=True, capture_output=True,
-                            env=environment)
+    paths = [path] if isinstance(path, (str, Path)) else list(path)
+    result = subprocess.run(proof_to_lean.check_command(paths), text=True, capture_output=True, env=environment)
     if "Lean checks passed." in result.stdout:
         _built = True
     return result
@@ -81,9 +85,8 @@ def check(test, source, certificate=None, text=None, theorems=("unsat",)):
     if report is not None:
         return text, report
     with tempfile.TemporaryDirectory() as directory:
-        output = Path(directory) / "checked.lean"
-        output.write_text(checked)
-        result = run_check_lean(output)
+        # One file, or the chain of modules of a text above proof_to_lean._MODULE_CHARS.
+        result = run_check_lean(proof_to_lean.write_modules(checked, Path(directory) / "checked.lean"))
     if result.returncode != 0:
         output = result.stdout + result.stderr
         errors = [line for line in output.splitlines() if "error" in line]

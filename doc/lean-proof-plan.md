@@ -334,6 +334,17 @@ Lean source, not JSON. The separate `examples/python/proof_to_lean.py` consumer
 validates JSON and invokes the helper before publishing generated Lean source.
 Installation and usage are documented in `lean/README.md`.
 
+2026-11-14: `./scripts/check_lean.sh --chain FILE...` checks one certificate
+split into modules, one `lean` process per file under the same flags; each
+file but the last is compiled to an `.olean` that the later files of the run
+import (see "Certificates above 8 MB of Lean are checked as a chain of
+modules"). Measured there: `--trust=0` makes the kernel check every
+declaration of the file being elaborated; a module that is imported is read
+from its `.olean` and not checked again (a later module of a chain takes no
+longer than an earlier one of the same text). So "rechecks imported modules"
+above holds for the modules of a chain only in that each was checked by the
+process that compiled it, in the same run.
+
 The reconstruction tests (`examples/python/test_proof_to_lean*.py`) check
 Lean through `examples/python/lean_test_support.py`. Most of their
 certificates check in a tenth of a second, while each run of the helper
@@ -1735,6 +1746,116 @@ mapping and rejections, the live label on `_LIA_LATTICE`),
 `test_legacy_unsupported_label_is_a_coefficient_free_farkas`).
 
 ## Boolean and EUF proof infrastructure
+
+### Certificates above 8 MB of Lean are checked as a chain of modules (2026-11-14)
+
+Scale, not breadth: the largest class of files of z3test's `smtlib-sample`
+that are inside the supported fragments, export in under two minutes, and
+did not certify, seventeen files of 31 to 195 MB of Lean (eleven QF_UF
+`gensys_*`, four QF_AUFLIA `swap_t*_pp`, QF_UF sokoban, QF_IDL
+`vlsat3_c27`), plus the eleven files of 8 to 23 MB that verified at 3 to
+7.6 GB of the 8 GB cap.
+
+What dominates (measured first): Lean's command line keeps what it
+elaborated of every command, the info trees, until the end of its file
+(`Lean/Language/Lean.lean`, `infoTree? := infoTree` in the command's
+snapshot, which `runFrontend` holds to the end; no option of a file that
+imports only `Init` turns it off, see "Ite gates stated over folded
+definitions" below). So the memory
+of one `lean` process grows with the text it has read, not with the
+largest proof: about 0.25 GB per MB of proof steps written as terms, 0.5
+GB per MB of QF_AX files, and about 2 GB per MB of the tactic lemmas of
+the QF_AUFLIA swap files. `gensys_icl1079` (31.7 MB) stops with `(kernel)
+excessive memory consumption` at the cap after 94 s, at line 229,170 of
+275,409; `swap_t1_pp_sf_ai_00010_008` (35.7 MB) after 123 s, at line
+38,148 of 170,990, inside its array lemmas.
+
+A certificate of more than 8 MB (`_MODULE_CHARS`) is now checked as a chain
+of modules, one `lean` process each (`proof_to_lean.modules`,
+`write_modules`, `check_command`; `scripts/check_lean.sh --chain`):
+
+- `modules(text)` splits the one text `reconstruct` returns at its
+  top-level declarations into modules of at most 1 MB of declarations
+  (`_MODULE_SIZE`; one declaration that is longer is a module of its own).
+  Every module is the text's namespace under the text's options, and
+  imports the module before it, so transitively all earlier ones. The last
+  module is the published file: it keeps the header comments and holds the
+  theorem `unsat`. The others are named
+  `Z3Certificate_<16 hex digits of the text's SHA-256>_<k>`.
+- The only rewriting is that `private` is dropped from the declarations
+  (later modules name them; the namespace is the certificate's own). A text
+  that is not laid out as `reconstruct` writes one (one namespace; options;
+  then `def`, `theorem`, `structure` declarations with their own
+  `set_option .. in` and comment lines) is rejected, not split: any other
+  command at column 0, a block comment, a second namespace.
+- `check_lean.sh --chain FILE...` checks the files in order, each with its
+  own `lean --trust=0 -DwarningAsError=true --memory=8192`, the flags of a
+  single file. Each file but the last is also compiled (`-o`) to an
+  `.olean` in a fresh temporary directory that is put on `LEAN_PATH` for
+  the later files and removed when the run ends. The run stops at the
+  first file Lean rejects.
+- `check_and_write` stages the modules in a temporary directory next to
+  the output, checks the chain, and only then moves the modules and, last,
+  the output file into place; it returns the published files.
+  `lean_test_support.check` checks a text the same way, so every test of a
+  large certificate goes through the chain.
+
+Trust boundary: every declaration is still checked by Lean's kernel under
+`--trust=0`, once, in the process of its module; a `sorry` or an error in
+any module fails the chain there (the tests corrupt a middle module), and
+an axiom declared in an earlier module is in the `#print axioms` report of
+the theorem. What is new on the path of a certificate above 8 MB is Lean's
+own module mechanism: a later process reads the `.olean` files the earlier
+processes of the same run wrote, as every Lean file reads the `.olean`
+files of `Init`. They are not checked again on import (the time of a
+module does not grow along the chain). No limit is raised: the cap per
+process is the same 8 GB, and the processes run one after another.
+
+Measured on 2026-11-14 (`scripts/check_lean.sh`, wall time and the largest
+resident size of a `lean` process of the run). Files that verified as one
+file (the texts of the 2026-11-14 scan):
+
+| input | Lean text | one file | chain of 1 MB modules |
+| --- | --- | --- | --- |
+| QF_UF `qg7/iso_brn043` | 8.8 MB | 36.1 s, 3.10 GB | 9 modules, 38.3 s, 1.09 GB |
+| QF_AX `storecomm_t2_np_nf_ai_00040_006` | 9.0 MB | 74.1 s, 4.82 GB | 9 modules, 74.1 s, 1.03 GB |
+| QF_AX `storecomm_t1_np_nf_ai_00040_005` | 9.5 MB | 81.3 s, 5.19 GB | 10 modules, 81.0 s, 1.04 GB |
+| QF_UFLIA `hard20` | 9.5 MB | 60.4 s, 3.94 GB | 10 modules, 66.9 s, 1.24 GB |
+| QF_IDL `ckt_PROP1_tf_20` | 10.0 MB | 29.2 s, 4.20 GB | 10 modules, 32.8 s, 0.87 GB |
+| QF_UF `NEQ004_size4` | 10.1 MB | 42.3 s, 3.31 GB | 11 modules, 48.6 s, 1.03 GB |
+| QF_AX `storecomm_t2_np_nf_ai_00050_007` | 14.3 MB | 137.0 s, 7.64 GB | 15 modules, 138.5 s, 1.13 GB |
+| QF_AX `swap_t2_np_sf_ai_00009_002` | 15.2 MB | 109.0 s, 7.27 GB | 16 modules, 118.9 s, 2.23 GB |
+| QF_IDL `ckt_PROP3_tf_30` | 18.7 MB | 55.6 s, 7.14 GB | 19 modules, 63.1 s, 0.91 GB |
+| QF_IDL `plan-21` | 20.4 MB | 81.2 s, 6.47 GB | 21 modules, 88.8 s, 0.96 GB |
+| QF_IDL `DTP_k2_n35_c245_s9` | 23.2 MB | 122.2 s, 7.45 GB | 24 modules, 142.8 s, 1.75 GB |
+
+Files that did not verify as one file:
+
+BIGTABLE
+
+The module size was chosen on `swap_t1_pp_sf_ai_00010_008`: with 8 MB
+modules the module of its array lemmas still stops at the cap (8.39 GB);
+with 2 MB modules the file verifies in 346 s at 4.85 GB; with 1 MB modules
+in 348 s at 2.66 GB. `modules` itself takes 0.9 s on the 195 MB of
+`gensys_icl588` (97 modules at 2 MB), next to the 28 s of its
+reconstruction.
+
+Tests: `test_proof_to_lean.py` (`TestCertificateModules`, no Lean: the
+split of a generated text `chained_text(count)`, its linear growth, what is
+rejected, publication only after the chain is checked),
+`scripts/tests/test_check_lean.py` (the `--chain` commands, with a fake
+`elan`), `test_proof_to_lean_integration.py`
+(`test_certificates_split_into_modules_verify_as_chains`: one small
+certificate per kind of text, split into four modules or more, with the
+axioms of the one file; `test_a_chain_is_rejected_with_any_module_lean_rejects`;
+`test_a_split_certificate_is_published_with_the_modules_it_imports`),
+`test_proof_to_lean_uf.py`
+(`test_quasigroup_certificate_verifies_as_a_chain_of_modules`:
+`iso_brn041` in four modules; the slow
+`test_a_certificate_above_the_memory_of_one_lean_process_verifies_as_modules`,
+`data/QF_UF_QG_gensys_icl1079.smt2`).
+
+Still open: STILLOPEN
 
 ### A cnf lemma the search gives up on is swept gate by gate (2026-11-14)
 
