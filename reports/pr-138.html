@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c2024; --muted: #5b6570; --line: #d7dce1;
-  --panel: #f4f6f8; --accent: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --bad: #b42318; --open: #1a7f37;
+  --panel: #f4f6f8; --accent: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --bad: #b42318; --merged: #6f42c1;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171a; --fg: #e3e7eb; --muted: #9aa5b1; --line: #343b43;
-    --panel: #1d2227; --accent: #6cb0f5; --ok: #56c271; --warn: #e0b341; --bad: #f28b82; --open: #56c271;
+    --panel: #1d2227; --accent: #6cb0f5; --ok: #56c271; --warn: #e0b341; --bad: #f28b82; --merged: #b392f0;
   }
 }
 * { box-sizing: border-box; }
@@ -42,7 +42,7 @@ th { background: var(--panel); }
 td.n, th.n { text-align: right; white-space: nowrap; }
 .meta { color: var(--muted); font-size: .93rem; }
 .meta span { display: inline-block; margin-right: 1.1rem; }
-.state { display: inline-block; padding: .05rem .55rem; border: 1px solid var(--open); color: var(--open); border-radius: 999px; font-weight: 600; font-size: .85rem; }
+.state { display: inline-block; padding: .05rem .55rem; border: 1px solid var(--merged); color: var(--merged); border-radius: 999px; font-weight: 600; font-size: .85rem; }
 .ok { color: var(--ok); font-weight: 600; }
 .unk { color: var(--warn); font-weight: 600; }
 .bad { color: var(--bad); font-weight: 600; }
@@ -58,13 +58,12 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <h1>Check Lean certificates above 8 MB as a chain of 1 MB modules</h1>
 <p class="meta">
 <span><a href="https://github.com/levnach/z3/pull/138">Pull request #138</a></span>
-<span><span class="state">OPEN</span></span>
-<span>2026-11-14T17:57:10Z</span>
+<span><span class="state">MERGED</span></span>
+<span>2026-11-15T15:46:48Z</span>
 <span>Loop iteration 137</span>
 </p>
-<p>This pull request is open. It is not merged. The change commit is
-<a href="https://github.com/levnach/z3/commit/21a8ecc856250721e225c49abf31560dd68fd143"><code>21a8ecc85</code></a>,
-proposed for <code>master</code>.</p>
+<p>Merged into <code>master</code> on 2026-11-15T15:46:48Z as merge commit
+<a href="https://github.com/levnach/z3/commit/e086f4c79522a5680446cfef3647a85e3ecd78b8"><code>e086f4c79</code></a>.</p>
 </header>
 
 <h2>In one paragraph</h2>
@@ -81,8 +80,8 @@ The <a href="#g-kernel">kernel</a> still checks every <a href="#g-declaration">d
 <h2>Background</h2>
 <p>Before this PR, one Lean process checked every certificate as a single file.
 Its memory grew with the length of the text, not with the hardest <a href="#g-lemma">lemma</a>.
-Seventeen sample files were exported but did not certify, and five smaller ones passed close to the cap.
-All of them use <a href="#g-fragment">fragments</a> that were already supported:
+Seventeen sample files were exported but did not certify.
+They use <a href="#g-fragment">fragments</a> that were already supported:
 <a href="#g-uf">uninterpreted functions</a>, integer difference <a href="#g-logic">logic</a>, and
 <a href="#g-array">arrays</a>.
 So this PR adds no fragment. It adds scale to milestones 3 and 4 of the plan, which cover equality with
@@ -90,10 +89,10 @@ So this PR adds no fragment. It adds scale to milestones 3 and 4 of the plan, wh
 
 <h2>What changed</h2>
 <p>An analogy: one proofreader with a whole long book runs out of desk.
-Now each reader gets one chapter, plus the signed-off results of earlier chapters.</p>
+Now each reader gets one chapter and the signed-off results of earlier ones.</p>
 <ul>
-<li><strong>Reconstructor.</strong> A certificate above 8 MB is cut between top-level declarations into
-modules of at most 1 MB.</li>
+<li><strong>Reconstructor.</strong> A certificate above 8 MB can now be checked, because it is cut between
+top-level declarations into modules of at most 1 MB.</li>
 <li><strong>Checker script.</strong> The new <code>--chain</code> option checks files in order, one Lean
 process each, and stops at the first rejection.</li>
 <li><strong>Publication.</strong> A large certificate is published as several files, and only after
@@ -119,14 +118,15 @@ the whole chain passes.</li>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>Dated section with the measurement tables</td><td class="n">181</td><td class="n">0</td></tr>
 <tr><td><code>examples/python/README</code></td><td>How to re-check a published chain</td><td class="n">31</td><td class="n">2</td></tr>
 <tr><td><code>lean/README.md</code></td><td>What <code>--chain</code> does and trusts</td><td class="n">26</td><td class="n">1</td></tr>
-<tr><th>Total</th><th>12 files, 5 commits</th><th class="n">1155</th><th class="n">30</th></tr>
+<tr><th>Total</th><th>12 files, merged as one squashed commit</th><th class="n">1155</th><th class="n">30</th></tr>
 </tbody>
 </table>
 </div>
 
 <h2>Worked example</h2>
 <p>This PR is about size, so no ten-line input is newly certified.
-The example is the PR's new test input, from real runs with directory names removed.</p>
+The example is the PR's new test input, run on the merged code and on its base.
+Directory names are removed.</p>
 
 <h3>(a) The input</h3>
 <p>The file has 160 lines and 142 <a href="#g-assertion">assertions</a>. Cuts are marked "...".</p>
@@ -146,17 +146,17 @@ The example is the PR's new test input, from real runs with directory names remo
 (exit)</code></pre>
 
 <h3>(b) Before</h3>
-<p>The base version wrote one Lean file of 31.7 MB. Lean rejected it after 104 seconds.</p>
-<pre><code>Checking z3_proof_5jgiv4l9.lean
-z3_proof_5jgiv4l9.lean:229208:16: error: (kernel) excessive memory consumption detected
-z3_proof_5jgiv4l9.lean:229239:16: error: (kernel) excessive memory consumption detected
+<p>The base version wrote one Lean file of 31.7 MB. Lean rejected it after 98 seconds.</p>
+<pre><code>Checking z3_proof_162cs3j3.lean
+z3_proof_162cs3j3.lean:229176:16: error: (kernel) excessive memory consumption detected
+z3_proof_162cs3j3.lean:229200:16: error: (kernel) excessive memory consumption detected
 ...
-z3_proof_5jgiv4l9.lean:230341:16: error: maximum number of errors (100; from option `maxErrors`) reached, exiting
+z3_proof_162cs3j3.lean:230327:16: error: maximum number of errors (100; from option `maxErrors`) reached, exiting
 Lean checking failed; no proof was published.</code></pre>
-<p class="note">The base reconstructor ran from an extracted copy, with the repository's checker script.</p>
+<p class="note">The base reconstructor ran from an extracted copy, on the same exported certificate.</p>
 
 <h3>(c) After</h3>
-<p>The current code wrote 32 files, and the Lean check accepted all of them.</p>
+<p>The merged code wrote 32 files, and the Lean check accepted all of them.</p>
 <pre><code>Lean checked the refutation; wrote example.lean
 imported module, checked before it: Z3Certificate_ba4f1d5655731d58_00.lean
 imported module, checked before it: Z3Certificate_ba4f1d5655731d58_01.lean
@@ -183,8 +183,8 @@ def term_1 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.funs 0 [
 def formula_2 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_1 _atoms _m) = (term_0 _atoms _m))
 ...
 end Z3Proofs.NativeCertificate.p1c1ea4435d58fdec299cbb681641332a8545b6833673ac671d39014c774bcdc9</code></pre>
-<p>Module 1 holds the first declarations. The uninterpreted <a href="#g-sort">sort</a> <code>I</code> becomes a type
-inside an arbitrary <a href="#g-interpretation">interpretation</a>.</p>
+<p>Module 1 holds the first declarations. The uninterpreted <a href="#g-sort">sort</a> <code>I</code> is a type
+of an arbitrary <a href="#g-interpretation">interpretation</a>.</p>
 
 <pre><code>import Init
 import Z3Certificate_ba4f1d5655731d58_00
@@ -231,11 +231,33 @@ Checking Z3Certificate_ba4f1d5655731d58_01.lean
 Checking Z3Certificate_ba4f1d5655731d58_30.lean
 Checking example.lean
 Lean checks passed.</code></pre>
-<p>Lean also accepted the published files when the chain was re-checked from the shell.</p>
+<p>Lean accepted the published files again when re-checked from the shell.</p>
+
+<pre><code>$ ./scripts/check_lean.sh example.lean
+Checking example.lean
+example.lean:1:0: error: unknown module prefix 'Z3Certificate_ba4f1d5655731d58_30'</code></pre>
+<p>The last file alone is rejected. It needs the 31 modules before it.</p>
 
 <h2>How it was verified</h2>
-<p>Every reconstruction test passed locally, including four slow tests whose certificates are now chains.
-The integrator ran these commands at the branch head on macOS, before the gate.</p>
+<p>The fork runs no GitHub workflows, so this PR had no CI checks.
+The loop's local gate decided the merge, and every step of it passed.</p>
+<div class="table">
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="n">Time</th></tr></thead>
+<tbody>
+<tr><td>Lean script tests</td><td><span class="ok">pass</span>: 25 tests</td><td class="n">1 s</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span>: 125 tests</td><td class="n">19 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span>: 680 tests, 12 skipped</td><td class="n">1048 s</td></tr>
+<tr><td>Proof script tests of the z3test repository</td><td><span class="ok">pass</span>: 48 tests</td><td class="n">17 s</td></tr>
+<tr><td>Boolean matrix certified in Lean</td><td><span class="ok">pass</span>: 6 of 6 verified in Lean</td><td class="n">5 s</td></tr>
+<tr><td>QF_LRA matrix certified in Lean</td><td><span class="ok">pass</span>: 8 of 8 verified in Lean</td><td class="n">6 s</td></tr>
+</tbody>
+</table>
+</div>
+<p class="note">The gate ran on macOS on arm64 against the Release build, without the slow tests.</p>
+
+<p>Before the gate, the integrator ran more checks at the branch head.
+Four slow tests whose certificates are now chains passed too.</p>
 <div class="table">
 <table>
 <thead><tr><th>Local check</th><th>Result</th></tr></thead>
@@ -276,33 +298,15 @@ The integrator ran these commands at the branch head on macOS, before the gate.<
 </table>
 </div>
 
-<p>The fork runs no GitHub workflows, so this PR has no CI checks, and the loop's local gate decides the merge.
-The gate ran on the loop machine at the change commit, and every step passed.
-The PR was still open when this report was written.</p>
-<div class="table">
-<table>
-<thead><tr><th>Local gate step</th><th>Result</th><th class="n">Time</th></tr></thead>
-<tbody>
-<tr><td>Lean script tests</td><td><span class="ok">pass</span>: 25 tests</td><td class="n">1 s</td></tr>
-<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span>: 125 tests</td><td class="n">19 s</td></tr>
-<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span>: 680 tests, 12 skipped</td><td class="n">1048 s</td></tr>
-<tr><td>Proof script tests of the z3test repository</td><td><span class="ok">pass</span>: 48 tests</td><td class="n">17 s</td></tr>
-<tr><td>Boolean matrix certified in Lean</td><td><span class="ok">pass</span>: 6 of 6 verified in Lean</td><td class="n">5 s</td></tr>
-<tr><td>QF_LRA matrix certified in Lean</td><td><span class="ok">pass</span>: 8 of 8 verified in Lean</td><td class="n">6 s</td></tr>
-</tbody>
-</table>
-</div>
-<p class="note">The gate ran on macOS on arm64, without the slow tests.</p>
-
 <h2>Review</h2>
 <p>The reviewer approved the change, with no blocker and no major finding.
-The reviewer also tampered with chains in seven ways, such as a <a href="#g-sorry"><code>sorry</code></a>
-or an added <a href="#g-axiom">axiom</a>. Lean rejected or reported every one.</p>
+Its seven tampered chains, such as one with a <a href="#g-sorry"><code>sorry</code></a>
+or an added <a href="#g-axiom">axiom</a>, were all rejected or reported by Lean.</p>
 <ul>
 <li><strong>Minor, fixed.</strong> The reviewer killed a chain run with a signal that allows no cleanup.
-The compiled modules stayed in the system's temporary directory, where a stopped measurement had left 706 MB.
+The compiled modules stayed behind, 706 MB after one stopped measurement.
 Deadlines kill runs this way, so disks could fill.
-A caller can now name a directory with <code>Z3_LEAN_CHAIN_DIR</code> and remove it itself.</li>
+A caller can now name the directory with <code>Z3_LEAN_CHAIN_DIR</code> and remove it itself.</li>
 <li><strong>Minor, fixed.</strong> The reviewer declared a constant named <code>a/-b</code>.
 The splitter mistook those characters for the start of a block comment, and refused a valid certificate.
 Comment lines are now skipped.</li>
@@ -311,17 +315,16 @@ The shell sorted module 10 before module 2, so Lean rejected a valid chain.
 Module numbers are now zero-padded.</li>
 <li><strong>Two nits, fixed.</strong> A command before the <a href="#g-namespace">namespace</a> is now rejected,
 and a stale README sentence was reworded.</li>
-<li><strong>Nit, not changed.</strong> One commit carries the code under a generic message.
-Squashing the PR removes it.</li>
+<li><strong>Nit, not changed.</strong> One commit had a generic message.
+The squashed merge under the PR's title removed it.</li>
 </ul>
 
 <h2>Risks and open questions</h2>
 <ul>
 <li>A later module trusts the compiled form of an earlier one, as every Lean file trusts Lean's own library.</li>
-<li>Above 8 MB, the output file alone no longer checks.</li>
 <li>A large text the splitter does not recognise is rejected, not checked as one file.</li>
 <li>A chain is somewhat slower and needs 5 to 9 MB of disk per MB of text while it runs.</li>
-<li>Every recorded run was on macOS, none on Linux.</li>
+<li>Every recorded run was on macOS. Linux runs come when the batch goes upstream.</li>
 <li>The sokoban file still fails: a lemma runs out of <a href="#g-heartbeat">heartbeats</a>.
 One file got no verdict in 40 minutes, and six were not measured.</li>
 </ul>
