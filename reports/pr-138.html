@@ -72,9 +72,9 @@ proposed for <code>master</code>.</p>
 <a href="#g-chain">chain of modules</a> of at most 1 MB.
 Each <a href="#g-module">module</a> is checked by its own Lean process, under the unchanged flags and
 <a href="#g-cap">memory cap</a>.
-A later module <a href="#g-import">imports</a> the <a href="#g-olean">compiled form</a> of the one before it,
-and the last holds the <a href="#g-theorem">theorem</a> of the <a href="#g-refutation">refutation</a>.
-One Lean process keeps memory for all the text it reads, so long certificates ran out of memory.
+A later module <a href="#g-import">imports</a> the <a href="#g-olean">compiled form</a> of the one before it.
+The last module holds the <a href="#g-theorem">theorem</a> that states the <a href="#g-refutation">refutation</a>.
+One Lean process keeps memory for all the text it has read, so long certificates ran out of memory.
 Nine <a href="#g-benchmark">benchmark</a> files that did not certify before now do.
 The <a href="#g-kernel">kernel</a> still checks every <a href="#g-declaration">declaration</a> once.</p>
 
@@ -82,24 +82,24 @@ The <a href="#g-kernel">kernel</a> still checks every <a href="#g-declaration">d
 <p>Before this PR, one Lean process checked every certificate as a single file.
 Its memory grew with the length of the text, not with the hardest <a href="#g-lemma">lemma</a>.
 Seventeen sample files were exported but did not certify, and five smaller ones passed close to the cap.
-All use <a href="#g-fragment">fragments</a> already supported:
+All of them use <a href="#g-fragment">fragments</a> that were already supported:
 <a href="#g-uf">uninterpreted functions</a>, integer difference <a href="#g-logic">logic</a>, and
 <a href="#g-array">arrays</a>.
-So this PR adds scale to milestones 3 and 4 of the plan: equality with
-<a href="#g-linear">linear arithmetic</a>, and broader <a href="#g-theory">theories</a>.</p>
+So this PR adds no fragment. It adds scale to milestones 3 and 4 of the plan, which cover equality with
+<a href="#g-linear">linear arithmetic</a> and broader <a href="#g-theory">theories</a>.</p>
 
 <h2>What changed</h2>
 <p>An analogy: one proofreader with a whole long book runs out of desk.
-Now each gets one chapter, plus the stamped results of earlier chapters.</p>
+Now each reader gets one chapter, plus the signed-off results of earlier chapters.</p>
 <ul>
 <li><strong>Reconstructor.</strong> A certificate above 8 MB is cut between top-level declarations into
 modules of at most 1 MB.</li>
 <li><strong>Checker script.</strong> The new <code>--chain</code> option checks files in order, one Lean
 process each, and stops at the first rejection.</li>
-<li><strong>Publication.</strong> A large certificate is published as several files, only after
+<li><strong>Publication.</strong> A large certificate is published as several files, and only after
 the whole chain passes.</li>
-<li><strong>Guard.</strong> A large text with a layout the splitter does not recognise is rejected, never split wrongly.</li>
-<li><strong>Tests.</strong> Every reconstructed text must be splittable, and tampered chains must fail in Lean.</li>
+<li><strong>Guard.</strong> A large text whose layout the splitter does not recognise is rejected, never split by guessing.</li>
+<li><strong>Tests.</strong> Every text the tests reconstruct must be splittable, and tampered chains must fail in Lean.</li>
 </ul>
 <p>Certificates up to 8 MB are unchanged byte for byte.</p>
 
@@ -146,12 +146,12 @@ The example is the PR's new test input, from real runs with directory names remo
 (exit)</code></pre>
 
 <h3>(b) Before</h3>
-<p>The base version wrote one Lean file of 31.7 MB, and Lean rejected it after about 100 seconds.</p>
-<pre><code>Checking z3_proof_2_7ocbr_.lean
-z3_proof_2_7ocbr_.lean:229200:16: error: (kernel) excessive memory consumption detected
-z3_proof_2_7ocbr_.lean:229208:16: error: (kernel) excessive memory consumption detected
+<p>The base version wrote one Lean file of 31.7 MB. Lean rejected it after 104 seconds.</p>
+<pre><code>Checking z3_proof_5jgiv4l9.lean
+z3_proof_5jgiv4l9.lean:229208:16: error: (kernel) excessive memory consumption detected
+z3_proof_5jgiv4l9.lean:229239:16: error: (kernel) excessive memory consumption detected
 ...
-z3_proof_2_7ocbr_.lean:230333:16: error: maximum number of errors (100; from option `maxErrors`) reached, exiting
+z3_proof_5jgiv4l9.lean:230341:16: error: maximum number of errors (100; from option `maxErrors`) reached, exiting
 Lean checking failed; no proof was published.</code></pre>
 <p class="note">The base reconstructor ran from an extracted copy, with the repository's checker script.</p>
 
@@ -183,7 +183,7 @@ def term_1 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.funs 0 [
 def formula_2 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_1 _atoms _m) = (term_0 _atoms _m))
 ...
 end Z3Proofs.NativeCertificate.p1c1ea4435d58fdec299cbb681641332a8545b6833673ac671d39014c774bcdc9</code></pre>
-<p>Module 1 holds the first declarations. The uninterpreted <a href="#g-sort">sort</a> becomes a type
+<p>Module 1 holds the first declarations. The uninterpreted <a href="#g-sort">sort</a> <code>I</code> becomes a type
 inside an arbitrary <a href="#g-interpretation">interpretation</a>.</p>
 
 <pre><code>import Init
@@ -231,11 +231,11 @@ Checking Z3Certificate_ba4f1d5655731d58_01.lean
 Checking Z3Certificate_ba4f1d5655731d58_30.lean
 Checking example.lean
 Lean checks passed.</code></pre>
-<p>Lean also accepted the published files when re-checked from the shell.</p>
+<p>Lean also accepted the published files when the chain was re-checked from the shell.</p>
 
 <h2>How it was verified</h2>
 <p>Every reconstruction test passed locally, including four slow tests whose certificates are now chains.
-The integrator ran these commands at the branch head on macOS.</p>
+The integrator ran these commands at the branch head on macOS, before the gate.</p>
 <div class="table">
 <table>
 <thead><tr><th>Local check</th><th>Result</th></tr></thead>
@@ -253,8 +253,7 @@ The integrator ran these commands at the branch head on macOS.</p>
 </tbody>
 </table>
 </div>
-<p>The one failure is <code>test_log_extension_diagnostic</code>. It runs only the z3 binary, and
-this PR changes neither that test nor the C++ sources.</p>
+<p>The one failure, <code>test_log_extension_diagnostic</code>, runs only the z3 binary, which this PR does not change.</p>
 
 <p>The implementer measured the large sample files, and the reviewer checked the numbers against the logs.</p>
 <div class="table">
@@ -277,21 +276,23 @@ this PR changes neither that test nor the C++ sources.</p>
 </table>
 </div>
 
-<p>CI results are unknown: the loop's CI status file lists no check after 241 minutes of waiting.
-The local gate had not been recorded when this report was written. There were no CI fix rounds.
-The PR names these jobs for its tests.</p>
+<p>The fork runs no GitHub workflows, so this PR has no CI checks, and the loop's local gate decides the merge.
+The gate ran on the loop machine at the change commit, and every step passed.
+The PR was still open when this report was written.</p>
 <div class="table">
 <table>
-<thead><tr><th>CI job</th><th>Step that runs the new tests</th><th>Status</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="n">Time</th></tr></thead>
 <tbody>
-<tr><td><code>ubuntu-cmake</code>, cell <code>releaseClang</code></td><td>"Check native proofs in Lean", the quick Lean tests</td><td><span class="unk">no result reported</span></td></tr>
-<tr><td><code>python-script-tests</code></td><td>"Run Python script unit tests", the script tests</td><td><span class="unk">no result reported</span></td></tr>
-<tr><td><code>manylinux-python-amd64</code></td><td>"Test Python wheel", the split tests without Lean</td><td><span class="unk">no result reported</span></td></tr>
+<tr><td>Lean script tests</td><td><span class="ok">pass</span>: 25 tests</td><td class="n">1 s</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span>: 125 tests</td><td class="n">19 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span>: 680 tests, 12 skipped</td><td class="n">1048 s</td></tr>
+<tr><td>Proof script tests of the z3test repository</td><td><span class="ok">pass</span>: 48 tests</td><td class="n">17 s</td></tr>
+<tr><td>Boolean matrix certified in Lean</td><td><span class="ok">pass</span>: 6 of 6 verified in Lean</td><td class="n">5 s</td></tr>
+<tr><td>QF_LRA matrix certified in Lean</td><td><span class="ok">pass</span>: 8 of 8 verified in Lean</td><td class="n">6 s</td></tr>
 </tbody>
 </table>
 </div>
-<p class="note">Current status: <a href="https://github.com/levnach/z3/pull/138/checks">checks of pull request #138</a>.
-The slow test of the 31.7 MB chain does not run in CI.</p>
+<p class="note">The gate ran on macOS on arm64, without the slow tests.</p>
 
 <h2>Review</h2>
 <p>The reviewer approved the change, with no blocker and no major finding.
@@ -303,7 +304,7 @@ The compiled modules stayed in the system's temporary directory, where a stopped
 Deadlines kill runs this way, so disks could fill.
 A caller can now name a directory with <code>Z3_LEAN_CHAIN_DIR</code> and remove it itself.</li>
 <li><strong>Minor, fixed.</strong> The reviewer declared a constant named <code>a/-b</code>.
-The splitter took those characters in a header comment for the start of a block comment, and refused a valid certificate.
+The splitter mistook those characters for the start of a block comment, and refused a valid certificate.
 Comment lines are now skipped.</li>
 <li><strong>Minor, fixed.</strong> The reviewer re-checked a published chain with a shell wildcard.
 The shell sorted module 10 before module 2, so Lean rejected a valid chain.
@@ -320,7 +321,7 @@ Squashing the PR removes it.</li>
 <li>Above 8 MB, the output file alone no longer checks.</li>
 <li>A large text the splitter does not recognise is rejected, not checked as one file.</li>
 <li>A chain is somewhat slower and needs 5 to 9 MB of disk per MB of text while it runs.</li>
-<li>Only macOS was run locally, and no Linux CI result is known.</li>
+<li>Every recorded run was on macOS, none on Linux.</li>
 <li>The sokoban file still fails: a lemma runs out of <a href="#g-heartbeat">heartbeats</a>.
 One file got no verdict in 40 minutes, and six were not measured.</li>
 </ul>
