@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
-  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --badge: #fff8c5;
+  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --badge: #dafbe1;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
-    --soft: #151b23; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --badge: #2a2410;
+    --soft: #151b23; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --badge: #12261e;
   }
 }
 * { box-sizing: border-box; }
@@ -61,13 +61,12 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <h1>Start and-elim out of a chunked conjunction from its tail theorems</h1>
 <p class="meta">
 <span><a href="https://github.com/levnach/z3/pull/141">Pull request #141</a> in levnach/z3</span>
-<span>State: <span class="state">OPEN</span></span>
-<span>Date: 2026-11-16T22:51:35Z</span>
+<span>State: <span class="state">MERGED</span></span>
+<span>Date: 2026-11-16T23:10:10Z</span>
 <span>Loop iteration 140</span>
 </p>
-<p class="note">This pull request is open. It is not merged. The change commit is
-<a href="https://github.com/levnach/z3/commit/3eed64d173c7809cb2d81bd330875c1824585a65"><code>3eed64d17</code></a>,
-proposed for <code>master</code>.</p>
+<p class="note">Merged into <code>master</code> on 2026-11-16T23:10:10Z as merge commit
+<a href="https://github.com/levnach/z3/commit/df950b89b2c07353e315f3046cb3cd1609266655"><code>df950b89b</code></a>.</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
@@ -83,15 +82,16 @@ benchmark now verifies in Lean. No <a href="#g-axiom">axiom</a>, limit, or budge
 <h2 id="background">Background</h2>
 <p>Since PR #139, a conjunction of more than 256 operands is defined in
 <a href="#g-chunk">chunks</a> of 32, with one <a href="#g-tail-theorem">tail theorem</a> per chunk.
-The and-elimination step did not use those theorems. In every proof it bound a let every 32
-operands, up to the operand it needed. Since PR #140 the <a href="#g-logic">QF_IDL</a> benchmark
+The and-elimination step did not use them. In every proof it bound a let every 32 operands
+instead. Since PR #140 the <a href="#g-logic">QF_IDL</a> benchmark
 <code>parity/10.700.graph</code> exported, but its main theorem failed in Lean on these lets. The
-rule belongs to the <a href="#g-boolean">Boolean</a> slice of milestone 2, and the benchmark to the
-arithmetic of milestone 3. This PR adds no new fragment.</p>
+plan files this PR as scale work, not as a new fragment. And-elimination is a
+<a href="#g-boolean">Boolean</a> rule of milestone 2, and the benchmark uses the linear arithmetic
+of milestone 3.</p>
 
 <h2 id="changes">What changed</h2>
-<p>An analogy: before, each reader of a long book placed a bookmark every 32 pages, up to their page.
-Now the book has one checked index, and every reader jumps straight to the right section.</p>
+<p>An analogy: every reader of a long book used to lay a bookmark every 32 pages, up to their page.
+Now one checked index takes each reader straight to the right section.</p>
 
 <h3>Reconstructor</h3>
 <ul>
@@ -106,7 +106,7 @@ chunk's tail theorem and binds nothing.</li>
 <ul>
 <li>Five new fast tests pin both forms, and in one Lean must reject two deliberately wrong
 proofs.</li>
-<li>A new slow test checks a conjunction of 128,000 operands, which failed before.</li>
+<li>A new slow test checks 128,000 operands, which failed before.</li>
 </ul>
 <h3>Documentation</h3>
 <ul>
@@ -121,14 +121,15 @@ proofs.</li>
 <tr><td><code>examples/python/test_proof_to_lean_wide.py</code></td><td class="num">170</td><td class="num">17</td><td>Tests for wide conjunctions</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">119</td><td class="num">3</td><td>Plan, with measurements</td></tr>
 <tr><td><code>examples/python/README</code></td><td class="num">7</td><td class="num">1</td><td>User documentation</td></tr>
-<tr><th>Total, 4 commits</th><th class="num">316</th><th class="num">25</th><th></th></tr>
+<tr><th>Total: 4 commits, merged as one</th><th class="num">316</th><th class="num">25</th><th></th></tr>
 </tbody>
 </table>
 </div>
 
 <h2 id="example">Worked example</h2>
 <p>The old code handled small inputs, so the example has to be large. It is the input of the PR's new
-slow test, with repeated lines cut.</p>
+slow test, with repeated lines cut. Both runs were made for this report, on the merge commit and on
+the base commit's scripts.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(set-logic QF_UF)
@@ -143,14 +144,14 @@ slow test, with repeated lines cut.</p>
 refutation needs both.</p>
 
 <h3>(b) Before</h3>
-<p>The code of the base commit <code>c805a240c</code> produced the same certificate, from the
-<a href="#g-clause-log">clause log</a>. Lean then rejected its main theorem during a reduction to
-<a href="#g-whnf">weak head normal form</a>, and nothing was published. The directory before the file
-name is cut.</p>
+<p>The base scripts exported the same <a href="#g-certificate">certificate</a> from the
+<a href="#g-clause-log">clause log</a>. Lean rejected the main theorem during a reduction to
+<a href="#g-whnf">weak head normal form</a>, and nothing was published. The file's directory is
+cut.</p>
 <pre><code>example.lean:131102:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
 ...
 Lean checking failed; no proof was published.</code></pre>
-<p>The rejected theorem held 3,999 lets of this kind.</p>
+<p>The rejected theorem held 3,999 lets like these.</p>
 <pre><code>  let _step_128005 : (formula_128000 _atoms) :=
     _h0
   let _tail_128005_32 := _step_128005.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
@@ -162,8 +163,7 @@ Lean checking failed; no proof was published.</code></pre>
 <p>Each let names the rest of the conjunction after another 32 operands.</p>
 
 <h3>(c) After</h3>
-<p>The current code ran on the same input. Lean accepted the result, and a second check of the 14
-published files also passed.</p>
+<p>Lean accepted the merged code's output. A second check of the 14 published files also passed.</p>
 <pre><code>def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
 def formula_1 (_atoms : Nat -&gt; Prop) : Prop := _atoms 1
 ...
@@ -173,13 +173,12 @@ def formula_127999 (_atoms : Nat -&gt; Prop) : Prop := _atoms 127999</code></pre
 ...
 def formula_128000_c1 (_atoms : Nat -&gt; Prop) : Prop := (And (formula_32 _atoms) (And (formula_33 _atoms) ... (And (formula_63 _atoms) (formula_128000_c2 _atoms)) ... ))
 def formula_128000 (_atoms : Nat -&gt; Prop) : Prop := (And (formula_0 _atoms) (And (formula_1 _atoms) ... (And (formula_31 _atoms) (formula_128000_c1 _atoms)) ... ))</code></pre>
-<p>The conjunction is defined in chunks of 32 operands. This part is unchanged.</p>
+<p>The conjunction is defined in chunks of 32 operands, as before.</p>
 <pre><code>theorem formula_128000_t1 (_atoms : Nat -&gt; Prop) (_h : (formula_128000 _atoms)) : (formula_128000_c1 _atoms) := _h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
 theorem formula_128000_t2 (_atoms : Nat -&gt; Prop) (_h : (formula_128000 _atoms)) : (formula_128000_c2 _atoms) := (formula_128000_t1 _atoms _h).2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
 ...
 theorem formula_128000_t3999 (_atoms : Nat -&gt; Prop) (_h : (formula_128000 _atoms)) : (formula_128000_c3999 _atoms) := (formula_128000_t3998 _atoms _h).2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2</code></pre>
-<p>These are the tail theorems, one per chunk, each 32 projections past the one before. They are
-unchanged too.</p>
+<p>These are the tail theorems, each 32 projections past the one before. They are unchanged too.</p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
     (_h0 : (formula_128000 _atoms))
     (_h1 : (formula_128003 _atoms))
@@ -198,30 +197,30 @@ unchanged too.</p>
     (False.elim _step_128009)
   _step_128010</code></pre>
 <p>This is the whole main theorem. The two steps that start with <code>formula_128000_t3999</code>
-are the new feature. Each applies the tail theorem of the last chunk and projects inside that chunk
-only. The step after them is a <a href="#g-resolution">resolution</a>.</p>
+are the new feature. Each applies the last chunk's tail theorem and projects inside that chunk only.
+The step after them is a <a href="#g-resolution">resolution</a>.</p>
 
 <h2 id="verification">How it was verified</h2>
-<p>The whole reconstruction test suite passed on the final commit. The benchmark that failed before
-now verifies, and the reviewer and the integrator each repeated that run. The new tests fail against
-the old reconstructor, so they detect the change.</p>
+<p>The local gate passed every step on the loop machine, and the PR was merged on that result. The
+fork runs no GitHub workflows, so this PR has no CI checks.</p>
 <div class="tablewrap">
 <table>
-<thead><tr><th>Check, at commit <code>3eed64d17</code></th><th>Result</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
 <tbody>
-<tr><td>Lean reconstruction tests</td><td><span class="ok">pass</span>: 701 run, 16 skipped</td></tr>
-<tr><td>Wide-conjunction test module alone</td><td><span class="ok">pass</span>: 28 run, 3 skipped</td></tr>
-<tr><td>Certificate exporter tests</td><td><span class="ok">pass</span>: 128 run</td></tr>
-<tr><td>Lean project build and checks</td><td><span class="ok">pass</span></td></tr>
-<tr><td>z3test proof script tests</td><td><span class="ok">pass</span>: 48 run</td></tr>
-<tr><td>Two slow tests, 8,000 and 128,000 operands</td><td><span class="ok">pass</span></td></tr>
-<tr><td>Lean-certified matrix, Boolean inputs and QF_LRA inputs</td><td><span class="ok">pass</span>: 6 of 6 and 8 of 8 verified</td></tr>
-<tr><td>The new test module against the reconstructor of the base commit</td><td>fails as intended: 11 failures, 1 error</td></tr>
+<tr><td>Lean script tests</td><td><span class="ok">pass</span>: 25 run</td><td class="num">1 s</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span>: 128 run</td><td class="num">27 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span>: 701 run, 16 skipped</td><td class="num">1051 s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span>: 48 run</td><td class="num">18 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy <a href="#g-proof-object">proof object</a>)</td><td><span class="ok">pass</span>: 6 of 6 verified</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td><span class="ok">pass</span>: 8 of 8 verified</td><td class="num">6 s</td></tr>
 </tbody>
 </table>
 </div>
-<p>Six sample files of z3test change their Lean text. All six were checked in Lean before and
-after.</p>
+<p>In earlier sessions the slow tests at 8,000 and 128,000 operands passed. The new tests failed
+against the base reconstructor, so they detect the change. The C++ unit tests and the
+SMT2 regressions were not run, since the PR changes no C++.</p>
+<p>Six z3test sample files change their Lean text, and all six were checked before and after. The
+reviewer and the integrator each repeated the benchmark run that failed before.</p>
 <div class="tablewrap">
 <table>
 <thead><tr><th>Sample file</th><th class="num">and-elims, of which from a tail theorem</th><th>Before</th><th>After</th></tr></thead>
@@ -236,15 +235,10 @@ after.</p>
 </tbody>
 </table>
 </div>
-<p>Not run in these sessions: the script tests, the C++ unit tests, the SMT2 regressions, and the
-other slow tests. The PR changes no C++ and no script.</p>
-<p>The fork runs no GitHub workflows, so this PR has no CI checks. The loop's local gate decides the
-merge. Its result had not been recorded when this report was written.</p>
 
 <h2 id="review">Review</h2>
 <p>The verdict was <strong>approve</strong>, with no blocker, major, or minor finding. The reviewer
-reproduced the headline results and had Lean reject seven tampered texts. Three nits and four
-suggestions followed.</p>
+reproduced the headline results and had Lean reject seven tampered texts.</p>
 <ul>
 <li><strong>Nit, a test pinned too much.</strong> A new test compared two proof lines in a fixed
 order that comes from Z3's clause log. A later Z3 could swap them and fail a correct proof. The test
@@ -253,12 +247,12 @@ now sorts them.</li>
 were compared. Only six were written twice, and the rest are unchanged by an argument the reviewer
 confirmed. The sentence now says so.</li>
 <li><strong>Nit, a stale note.</strong> An older plan section still described the old behavior under
-hypotheses. It now points to the new section.</li>
-<li><strong>Suggestions.</strong> Wrong proofs were rejected only in scratch scripts. A committed
+hypotheses, which would mislead a reader about its cost. It now points to the new section.</li>
+<li><strong>Four suggestions.</strong> Wrong proofs were rejected only in scratch scripts. A committed
 test now feeds Lean two <a href="#g-mutant">mutants</a>, and each fails with a
-<a href="#g-type-mismatch">type mismatch</a>. Further tests cover a full last chunk and a
-hypothesis inside an <a href="#g-outlined">outlined lemma</a>. The plan now records that eliminating
-every operand grows the text by under 1%.</li>
+<a href="#g-type-mismatch">type mismatch</a>. New tests also cover a full last chunk and a
+hypothesis inside an <a href="#g-outlined">outlined lemma</a>, the latter in a different form than
+suggested. The plan now records that eliminating every operand grows the text by under 1%.</li>
 </ul>
 
 <h2 id="risks">Risks and open questions</h2>
@@ -269,7 +263,6 @@ tests cover this form at several widths.</li>
 hand-made proofs pin that path.</li>
 <li>The sample files are not in the repository, and the 128,000-operand test runs only in the slow
 tier.</li>
-<li>The result of the local gate is unknown here.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
@@ -278,6 +271,7 @@ tier.</li>
 lists this first.</li>
 <li>Conjunctions of 33 to 256 operands keep their lets. Lowering the threshold was not tried.</li>
 <li>Three sample files still fail in Lean, for reasons outside this change.</li>
+<li>The change goes upstream later in a batch, and upstream CI runs on that pull request.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
@@ -290,9 +284,12 @@ it gives <code>b</code>.</dd>
 <dt id="g-atom">atom</dt>
 <dd>A formula with no logical connective inside it, such as a Boolean constant <code>b0</code>.</dd>
 <dt id="g-axiom">axiom</dt>
-<dd>A statement accepted without proof. The generated Lean files add none.</dd>
+<dd>A statement accepted without proof. This PR adds none.</dd>
 <dt id="g-boolean">Boolean</dt>
 <dd>The sort with the two values true and false, written <code>Bool</code> in SMT-LIB.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>The file of proof steps exported for one refutation. The reconstructor turns it into Lean
+text.</dd>
 <dt id="g-chunk">chunk</dt>
 <dd>In this project, a group of 32 consecutive operands of a wide conjunction, given its own Lean
 definition.</dd>
@@ -333,6 +330,9 @@ own.</dd>
 <dt id="g-projection">projection</dt>
 <dd>Taking one side of a proved conjunction. In Lean, <code>h.1</code> is the left side and
 <code>h.2</code> the right side.</dd>
+<dt id="g-proof-object">proof object</dt>
+<dd>The proof term that Z3's older core returns directly. The pipeline can use it instead of the
+clause log.</dd>
 <dt id="g-proof-step">proof step</dt>
 <dd>One application of a proof rule, with its premises and its conclusion.</dd>
 <dt id="g-refutation">refutation</dt>
