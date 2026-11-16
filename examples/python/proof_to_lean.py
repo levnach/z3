@@ -7442,7 +7442,9 @@ class _PropositionalProver:
     case and a bullet each, `exact`; see _prove) and every and, or, implies
     and iff structure has a name: the caller's (`names`, the definitions of
     the nodes the structures were read from, see _structure_names) or,
-    without, a tactic `let` (`_bindings`, children first). Propositions are
+    without, a tactic `let` (`_bindings`, children first). With the names
+    come `tails`: the theorems that project the operands of the named
+    conjunctions defined in chunks (_formula_definitions). Propositions are
     stated over the names, so a step costs a few names however deep or wide
     the gates are; with the propositions written out at every step, a chain
     through a nested gate was quadratic in the gate, and the 74-way
@@ -7482,10 +7484,12 @@ class _PropositionalProver:
     clause as a whole (sweep): classical mode, over the caller's names.
     """
 
-    def __init__(self, *roots, classical=False, names=None, links=False, relevant=None, budget=1, joined=None,
-                 scope=None):
+    def __init__(self, *roots, classical=False, names=None, tails=None, links=False, relevant=None, budget=1,
+                 joined=None, scope=None):
         if (relevant is not None or joined is not None) and not classical:
             raise ValueError("a relevant set splits gates by Classical.em, so it needs classical mode")
+        if tails and names is None:
+            raise ValueError("the tail theorems are those of the caller's names")
         self.relevant = relevant
         self.inputs = (None, None)  # a relevant set and the operands of its gates (_frontier)
         self.budget = budget
@@ -7495,7 +7499,7 @@ class _PropositionalProver:
         self.order = []  # every structure, children before parents
         self.named = {}  # the and, or, implies and iff structures by their names
         # The conjunctions defined in chunks, with their tail theorems (_structure_names).
-        self.tails = getattr(names, "tails", {})
+        self.tails = tails or {}
         self.bound = []  # the named structures bound by a tactic `let`, in order
         self.needed = set()
         self.names = set()
@@ -8635,33 +8639,26 @@ def _structure_names(graph, memo):
     and no `unfold` expands them in the goal: a cnf lemma over a 13,000-node
     assertion (QF_IDL BubbleSort) spent its heartbeats unfolding the 13,000
     definitions one at a time. Two nodes reading alike share a structure;
-    either definition names it. The names' `tails` are the conjunctions
-    among them that are defined in chunks, with the format of their tail
-    theorems (_chunk_tail): the prover projects their operands from those.
+    either definition names it. Returned as the prover's keyword arguments:
+    `names`, and `tails`, the conjunctions among them that are defined in
+    chunks, with the format of their tail theorems (_chunk_tail), from
+    which the prover projects their operands.
     """
-    names = _StructureNames()
+    names, tails = {}, {}
     for node, structure in memo.items():
         if structure[0] in ("and", "or", "implies", "iff"):
             names[structure] = _formula(graph, node)
-            names.tails.pop(structure, None)  # of the node that names it, not of another reading alike
+            tails.pop(structure, None)  # of the node that names it, not of another reading alike
             if structure[0] == "and" and graph.wide_conjunctions.get(node) == len(structure) - 1:
-                names.tails[structure] = _chunk_tail(graph, node)
-    return names
-
-
-class _StructureNames(dict):
-    """The names of structures (_structure_names), and the tail theorems of those defined in chunks."""
-
-    def __init__(self):
-        super().__init__()
-        self.tails = {}
+                tails[structure] = _chunk_tail(graph, node)
+    return {"names": names, "tails": tails}
 
 
 def _structural_equivalence(graph, left, right, atom_indices):
     """Tactic lines proving the Boolean equivalence of two formulas, with the atoms it needs decidable."""
     memo = {}
     left, right = (_boolean_structure(graph, side, atom_indices, memo) for side in (left, right))
-    prover = _PropositionalProver(left, right, names=_structure_names(graph, memo))
+    prover = _PropositionalProver(left, right, **_structure_names(graph, memo))
     return prover.equivalence(left, right), sorted(prover.needed)
 
 
@@ -8801,7 +8798,7 @@ def _cnf_refutation(graph, memo, structure, bridges, budget=1, sweep=None):
     facts = [("not", structure)] + [bridge for bridge, _ in bridges]
     relevant, order = None, None
     while True:
-        prover = _PropositionalProver(*facts, classical=True, names=_structure_names(graph, memo), relevant=relevant,
+        prover = _PropositionalProver(*facts, classical=True, **_structure_names(graph, memo), relevant=relevant,
                                       budget=budget)
         order = order or prover.order
         names = [prover.name() for _ in bridges]
@@ -8827,7 +8824,7 @@ def _cnf_refutation(graph, memo, structure, bridges, budget=1, sweep=None):
     allowed = _SWEEP_CHARS - sum(chars for node, chars in graph.swept.items() if node != sweep)
     scope = ("th_lemma_%d" % sweep, " _atoms" + graph.valuation)
     binder = "(_atoms : Nat -> Prop)" + _valuation_binder(graph)
-    prover = _PropositionalProver(*facts, classical=True, names=_structure_names(graph, memo), budget=budget,
+    prover = _PropositionalProver(*facts, classical=True, **_structure_names(graph, memo), budget=budget,
                                   joined=[bridge for bridge, _ in bridges], scope=scope)
     stated = ["(%s_b%d%s)" % (scope[0], position, scope[1]) for position in range(len(bridges))]
     found = prover.sweep(("not", structure), [(bridge, name) for (bridge, _), name in zip(bridges, stated)],
@@ -9260,7 +9257,7 @@ def _leaf_equivalence(graph, left, right, atom_indices):
         return None
     if len(leaves) <= _NORMALIZED_REWRITE_ATOMS:
         return None
-    prover = _PropositionalProver(*sides, classical=True, names=_structure_names(graph, memo), links=True)
+    prover = _PropositionalProver(*sides, classical=True, **_structure_names(graph, memo), links=True)
     return prover.equivalence(*sides)
 
 
