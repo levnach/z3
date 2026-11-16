@@ -12,6 +12,7 @@
 from pathlib import Path
 import re
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -313,14 +314,15 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
         atoms = ["b%d" % index for index in range(WIDTH)]
         conjunction, operand = "(and %s)" % " ".join(atoms), atoms[-2]
         declarations = "".join("(declare-const %s Bool)" % atom for atom in atoms) + "(declare-const p Bool)"
+        guarded = "(assert (or (not p) %s))(assert p)" % conjunction
         cases = [
-            ("_hyp", declarations + "(assert (not %s))(assert %s)" % (operand, conjunction), [
+            ("_hyp\\d+", False, declarations + "(assert (not %s))(assert %s)" % (operand, conjunction), [
                 ("hypothesis", [], conjunction),
                 ("and-elim", [2], operand),
                 ("unit-resolution", [0, 3], "false"),
                 ("lemma", [4], "(not %s)" % conjunction),
                 ("unit-resolution", [5, 1], "false")]),
-            ("_step_", declarations + "(assert (not %s))(assert (or (not p) %s))(assert p)" % (operand, conjunction), [
+            ("_step_\\d+", False, declarations + "(assert (not %s))" % operand + guarded, [
                 ("hypothesis", [], "p"),
                 ("unit-resolution", [1, 3], conjunction),
                 ("and-elim", [4], operand),
@@ -328,11 +330,30 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
                 ("lemma", [6], "(not p)"),
                 ("unit-resolution", [7, 2], "false")]),
         ]
-        for premise, source, steps in cases:
-            with self.subTest(premise=premise):
+        # Eliminated twice, the conjunction that follows from the hypothesis
+        # is a step of its own, a function of the hypothesis that each
+        # and-elim applies inside the theorem's application; outlined, that
+        # step is a lemma (the text passes that put the application there
+        # rewrite the premise's name inside the parentheses).
+        shared = (declarations + "(assert (or (not %s) (not %s)))" % (atoms[-1], operand) + guarded, [
+            ("hypothesis", [], "p"),
+            ("unit-resolution", [1, 3], conjunction),
+            ("and-elim", [4], atoms[-1]),
+            ("and-elim", [4], operand),
+            ("unit-resolution", [0, 5, 6], "false"),
+            ("lemma", [7], "(not p)"),
+            ("unit-resolution", [8, 2], "false")])
+        cases += [("\\(_step_\\d+ _hyp\\d+\\)", outlined) + shared for outlined in (False, True)]
+        for premise, outlined, source, steps in cases:
+            with self.subTest(premise=premise, outlined=outlined), \
+                    patch.object(proof_to_lean, "_OUTLINE_PROOF_STEPS",
+                                 0 if outlined else proof_to_lean._OUTLINE_PROOF_STEPS):
                 text, _ = lean_test_support.check(self, source, make_certificate(source, steps))
                 self.assertNotIn("_tail_", text)
-                self.assertRegex(text, r"\n    \(formula_\d+_t%d _atoms %s\d+\)%s\.1\n" % (
+                self.assertEqual("private def Inputs" in text, outlined)
+                imports = re.findall(r"\n  let _step_\d+ := proof_step_\d+ _inputs\n", text)
+                self.assertEqual(len(imports), int(outlined))
+                self.assertRegex(text, r"\n    \(formula_\d+_t%d _atoms %s\)%s\.1\n" % (
                     (WIDTH - 2) // stride, premise, r"\.2" * ((WIDTH - 2) % stride)))
 
 
@@ -693,15 +714,45 @@ class TestChunkedConjunctionsClauseLog(_WideLeanIntegration):
         # and-elims out of one assertion of 115,040 operands. The theorem
         # bound the assertion's tail every 32 operands up to the last one
         # eliminated, 3,339 lets, and ran out of heartbeats at operand 52,832.
-        # Here the last operand is alone in the last chunk, which the
-        # chunk's theorem proves as it stands, and the one before it is the
-        # last of its chunk.
+        # At the first width the last operand is alone in the last chunk,
+        # which the chunk's theorem proves as it stands, and the one before
+        # it is the last of its chunk; at the second the last chunk is full
+        # and both are in it, the last one with no `.1`. (In whichever order
+        # the log needs the two operands.)
+        stride = proof_to_lean._AND_ELIM_STRIDE
+        for width in (proof_to_lean._CHUNKED_OPERANDS + 1, proof_to_lean._CHUNKED_OPERANDS + stride):
+            with self.subTest(width=width):
+                theorem = self.check_last_operands(width).split("\ntheorem unsat ")[1]
+                self.assertNotIn("_tail_", theorem)
+                tails = re.findall(r"\n    \(formula_%d_t(\d+) _atoms _step_\d+\)((?:\.2)*(?:\.1)?)\n" % width, theorem)
+                self.assertEqual(sorted(tails), sorted(
+                    (str(position // stride), ".2" * (position % stride) + (".1" if position < width - 1 else ""))
+                    for position in (width - 2, width - 1)))
+
+    def test_and_elim_from_another_chunk_or_of_another_operand_is_rejected(self):
+        # What an and-elim out of a chunked conjunction rests on is checked
+        # by Lean: started from the theorem of the chunk before, or one
+        # projection short, the step proves another operand than its type
+        # says. (The text as exported is the one the test above checks.)
         stride = proof_to_lean._AND_ELIM_STRIDE
         width = proof_to_lean._CHUNKED_OPERANDS + 1
-        theorem = self.check_last_operands(width).split("\ntheorem unsat ")[1]
-        self.assertNotIn("_tail_", theorem)
-        tails = re.findall(r"\n    \(formula_%d_t(\d+) _atoms _step_\d+\)((?:\.2)*(?:\.1)?)\n" % width, theorem)
-        self.assertEqual(tails, [(str(width // stride - 1), ".2" * (stride - 1) + ".1"), (str(width // stride), "")])
+        source = last_operands_conjunction(width)
+        text = proof_to_lean.reconstruct(source, proof_certificate.export_clause_log_certificate(source))
+        chunk, path = width // stride - 1, r"\.2" * (stride - 1) + r"\.1"
+        (use,) = re.findall(r"\n    \(formula_%d_t%d _atoms _step_\d+\)%s\n" % (width, chunk, path), text)
+        mutants = {"another chunk": use.replace("_t%d _atoms" % chunk, "_t%d _atoms" % (chunk - 1)),
+                   "another operand": use.replace(".2.1\n", ".1\n")}
+        for name, mutant in mutants.items():
+            with self.subTest(mutant=name), tempfile.TemporaryDirectory() as directory:
+                self.assertNotEqual(mutant, use)
+                output = Path(directory) / "mutant.lean"
+                output.write_text(text.replace(use, mutant))
+                result = lean_test_support.run_check_lean(output)
+                report = result.stdout + result.stderr
+                self.assertNotEqual(result.returncode, 0, report)
+                errors = [line for line in report.split("\n") if "error:" in line]
+                self.assertTrue(errors, report)
+                self.assertIn("Type mismatch", errors[0])
 
     def test_and_elim_far_into_a_conjunction_binds_nothing(self):
         # No Lean: the text. The theorem grew by a let of 110 characters per
