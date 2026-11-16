@@ -1372,11 +1372,15 @@ class TestLegacyIntegerMixedLeanIntegration(unittest.TestCase):
                     # ((>= (+ (* -1 (cnt 1)) (* 1 (cnt 0))) -1) from the
                     # premise (>= (+ (cnt 0) (* -1 (cnt 1))) -1)), one
                     # premise each, which grind proves as the implication.
+                    # Since upstream #11698 (the rewriter leaves an equality
+                    # between sums as written) it also restates a bound of
+                    # the numeral 1, (<= (* 1 1) 1), from no premise: a
+                    # closed fact that Lean proves like the others.
                     graph = proof_to_lean._validate_graph(source, certificate)
                     smt = [node for node in _th_lemma_nodes(certificate) if graph.decl(node).parameters == ("smt",)]
-                    self.assertTrue(smt)
+                    self.assertTrue(any(len(graph.arguments(node)) == 2 for node in smt))
                     for node in smt:
-                        self.assertEqual(len(graph.arguments(node)), 2)
+                        self.assertIn(len(graph.arguments(node)), (1, 2))
                         self.assertTrue(graph.is_arith(graph.arguments(graph.conclusion(node))[0]))
         self.assertEqual(hints, {"farkas", "bound", "implied-eq", "triangle-eq", "arith", "smt"})
         # The legacy core's congruences are monotonicity steps, never euf hints.
