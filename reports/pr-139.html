@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #139: Define conjunctions of more than 256 operands in chunks in Lean</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1c1f24; --muted: #5b6370; --line: #d6dae0;
+  --soft: #f4f6f8; --link: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --bad: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171b; --fg: #e4e7eb; --muted: #9aa3ae; --line: #343a42;
+    --soft: #1d2127; --link: #7cb7ff; --ok: #56d364; --warn: #e3b341; --bad: #ff7b72;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.55; max-width: 52rem; margin: 2rem auto; padding: 0 1.1rem;
+}
+h1 { font-size: 1.6rem; line-height: 1.25; margin-bottom: .4rem; }
+h2 { font-size: 1.2rem; margin-top: 2.2rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1rem; margin-top: 1.4rem; }
+a { color: var(--link); }
+.meta { color: var(--muted); font-size: .93rem; margin: .2rem 0; }
+.badge {
+  display: inline-block; border: 1px solid var(--warn); color: var(--warn);
+  border-radius: 999px; padding: 0 .6rem; font-size: .82rem; font-weight: 600;
+}
+.note { background: var(--soft); border-left: 3px solid var(--line); padding: .6rem .9rem; margin: 1rem 0; }
+.cap { color: var(--muted); font-size: .92rem; margin: .3rem 0 1rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; }
+pre {
+  background: var(--soft); border: 1px solid var(--line); border-radius: 6px;
+  padding: .7rem .85rem; overflow-x: auto; line-height: 1.4; margin: .6rem 0 .2rem;
+}
+pre code { font-size: .8rem; white-space: pre; }
+.tablewrap { overflow-x: auto; margin: .8rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--soft); }
+td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+dl { margin: .6rem 0; }
+dt { font-weight: 600; margin-top: .65rem; }
+dd { margin: .1rem 0 0 1.2rem; }
+footer { margin: 2.5rem 0 1.5rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Define conjunctions of more than 256 operands in chunks in Lean</h1>
+<p class="meta">
+  <a href="https://github.com/levnach/z3/pull/139">Pull request #139</a> in levnach/z3, targeting <code>master</code>
+  &nbsp;·&nbsp; <span class="badge">OPEN</span>
+</p>
+<p class="meta">Date: 2026-11-16T17:11:50Z &nbsp;·&nbsp; Loop iteration 138</p>
+<p class="meta">
+  This pull request is open and <strong>not merged</strong>. Its change commit is
+  <a href="https://github.com/levnach/z3/commit/b5ad06d2aba1c8801cbc846a49ee4f29bd447d13"><code>b5ad06d2a</code></a>.
+</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+This PR changes how the reconstructor writes a very wide
+<a href="#g-conjunction">conjunction</a> in Lean.
+A conjunction with more than 256 <a href="#g-operand">operands</a> is now a chain of 32-operand chunks.
+Each chunk is a named definition, and each has one small <a href="#g-projection">projection</a> theorem.
+The same holds for a <a href="#g-distinct"><code>distinct</code></a> over 24 or more arguments, which stands for a conjunction of pairs.
+Proofs of <a href="#g-theory-lemma">theory lemmas</a> now reach an operand through those theorems.
+This matters because one <a href="#g-qfuf">QF_UF</a> <a href="#g-benchmark">benchmark</a> produced a
+<a href="#g-certificate">certificate</a> that Lean could not finish checking.
+Its Lean text shrank from 40.1 MB to 8.5 MB, and it now verifies.
+No <a href="#g-axiom">axiom</a>, trust setting, or resource limit changed, so the Lean
+<a href="#g-kernel">kernel</a> checks every step as before.
+</p>
+
+<h2>Background</h2>
+<p>
+The pipeline already accepted wide conjunctions and wide <code>distinct</code> constraints, but only up to a size.
+Each one was written out in full inside a single definition.
+A <a href="#g-refutation">refutation</a> of it from one false operand then took one proof step per earlier operand.
+Lean's checking time grew much faster than the width, and the largest cases ran out of
+<a href="#g-heartbeat">heartbeats</a>.
+The change serves milestone 3 of the plan, equality and
+<a href="#g-uf">uninterpreted functions</a>.
+It follows the plan's top priority, the regression methodology, by fixing a supported benchmark that failed only on resources.
+</p>
+
+<h2>What changed</h2>
+<h3>Reconstructor</h3>
+<ul>
+  <li>You can now certify inputs with conjunctions of thousands of operands, because each is defined as chunks that unfold to exactly the old text.</li>
+  <li>A proof now reaches any operand in at most 31 projection steps from a chunk's theorem, where it used to walk the whole conjunction.</li>
+  <li>Lemmas that fall back to <a href="#g-unfold">unfolding</a> definitions still work, because every unfold list now names the chunks as well.</li>
+</ul>
+<h3>Tests and documentation</h3>
+<ul>
+  <li>Twelve new tests pin the chunk layout, the order of a <code>distinct</code>'s pairs, and the sizes that failed before.</li>
+  <li>Three older tests now follow an upstream change to Z3's arithmetic <a href="#g-rewriter">rewriter</a>, so the suite passes again with no check weakened.</li>
+</ul>
+<p>
+The old definition was a scroll: to read its last line, Lean unrolled everything before it.
+The new one is a book with chapters. A proof opens the right chapter by name and reads at most a page.
+</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>File</th><th class="num">Added</th><th class="num">Removed</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">139</td><td class="num">31</td><td>Chunked definitions, chunk theorems, prover</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_wide.py</code></td><td class="num">400</td><td class="num">0</td><td>New tests and input generators</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">17</td><td class="num">6</td><td>Two expectations follow upstream</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td class="num">6</td><td class="num">2</td><td>One expectation follows upstream</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">105</td><td class="num">1</td><td>Dated section with measurements and open items</td></tr>
+<tr><td><code>examples/python/README</code></td><td class="num">12</td><td class="num">0</td><td>Describes the chunks</td></tr>
+<tr><th>Total, 6 files in 4 commits</th><th class="num">679</th><th class="num">40</th><th></th></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Worked example</h2>
+<p>
+The input is the reduced sokoban benchmark, built by the generator <code>distinct_through_ites(209)</code> of the PR's tests.
+It was run for this report on the PR's base and on its head.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_UF)
+(declare-sort U 0)
+(declare-const c0 U) (declare-const c1 U) ... (declare-const c208 U)
+(declare-const p Bool) (declare-const q Bool)
+(declare-const x U) (declare-const y U)
+(declare-fun f (U) U)
+(assert (distinct c0 c1 c2 ... c207 c208))
+(assert (= x (ite p c208 c207)))
+(assert (= y (ite q c207 c208)))
+(assert (= (f x) c0))
+(assert (= (f y) c1))
+(assert (= p (not q)))
+(check-sat)</code></pre>
+<p class="cap">
+Two long lines are shortened here with "...", and declarations are joined onto shared lines.
+The <code>distinct</code> over 209 <a href="#g-constant">constants</a> of <a href="#g-sort">sort</a> <code>U</code> stands for 21,736 pairs.
+Two <a href="#g-ite">if-then-else terms</a> make Z3 compare the last two constants.
+</p>
+
+<h3>(b) Before</h3>
+<pre><code>old_example.lean:550:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (1000000) has been reached
+...
+Lean checking failed; no proof was published.</code></pre>
+<p class="cap">
+Lean rejected the old text after about 40 seconds. The directory part of the path is removed.
+Line 550 starts the lemma <code>th_lemma_264</code>, which held this line:
+</p>
+<pre><code>       have _f4 : (Not (formula_209 _atoms _m)) := (mt (@And.right _ _) (mt (@And.right _ _) (mt (@And.right _ _) ...</code></pre>
+<p class="cap">
+One such step for each of the 21,735 pairs before the last. The lemma was 480,489 characters long.
+</p>
+
+<h3>(c) After</h3>
+<p>Lean accepted the new file. <code>scripts/check_lean.sh</code> printed "Lean checks passed."</p>
+
+<pre><code>structure Interpretation where
+  U : Type
+  elems : Nat -&gt; U
+  funs : Nat -&gt; List U -&gt; U
+  preds : Nat -&gt; List U -&gt; Prop
+  bool : Prop -&gt; U
+
+def term_0 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 0
+...
+def term_208 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : _m.U := _m.elems 208</code></pre>
+<p class="cap">The declarations: an arbitrary <a href="#g-interpretation">interpretation</a> of the sort <code>U</code>, and one definition per constant.</p>
+
+<pre><code>def formula_209_c679 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (And (Not ((term_204 _atoms _m) = (term_207 _atoms _m))) (And ... (Not ((term_207 _atoms _m) = (term_208 _atoms _m))))))))))
+...
+def formula_209_c1 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (And (Not ((term_0 _atoms _m) = (term_33 _atoms _m))) (And ... (And (Not ((term_0 _atoms _m) = (term_64 _atoms _m))) (formula_209_c2 _atoms _m)) ... ))
+def formula_209 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (And (Not ((term_0 _atoms _m) = (term_1 _atoms _m))) (And ... (And (Not ((term_0 _atoms _m) = (term_32 _atoms _m))) (formula_209_c1 _atoms _m)) ... ))</code></pre>
+<p class="cap">
+The new chunks. The <code>distinct</code> holds its first 32 pairs and then names the next chunk. The last of 679 further chunks holds the final 8 pairs.
+</p>
+
+<pre><code>theorem formula_209_t1 (_atoms : Nat -&gt; Prop) (_m : Interpretation) (_h : (formula_209 _atoms _m)) : (formula_209_c1 _atoms _m) := _h.2.2.2. ... .2
+theorem formula_209_t2 (_atoms : Nat -&gt; Prop) (_m : Interpretation) (_h : (formula_209 _atoms _m)) : (formula_209_c2 _atoms _m) := (formula_209_t1 _atoms _m _h).2.2.2. ... .2
+...
+theorem formula_209_t679 (_atoms : Nat -&gt; Prop) (_m : Interpretation) (_h : (formula_209 _atoms _m)) : (formula_209_c679 _atoms _m) := (formula_209_t678 _atoms _m _h).2.2.2. ... .2</code></pre>
+<p class="cap">
+The new theorems. Each says "if the <code>distinct</code> holds, then chunk k holds", by 32 projections from the theorem before it.
+</p>
+
+<pre><code>def formula_257 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := ((term_207 _atoms _m) = (term_208 _atoms _m))
+def formula_261 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Not (formula_209 _atoms _m))
+def formula_262 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Not (formula_257 _atoms _m))
+def formula_263 (_atoms : Nat -&gt; Prop) (_m : Interpretation) : Prop := (Or (formula_261 _atoms _m) (formula_262 _atoms _m))
+...
+set_option maxHeartbeats 1000000 in
+private theorem th_lemma_264 (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    : (formula_263 _atoms _m) := by
+  first
+    | (refine Classical.byContradiction ?_
+       refine (fun (_f1 : (Not (formula_263 _atoms _m))) =&gt; ?_)
+       have _f2 := (mt (@Or.inl _ _) _f1)
+       have _f3 := (mt (@Or.inr _ _) _f1)
+       have _f4 : (Not (formula_209 _atoms _m)) := (fun (_conj : (formula_209 _atoms _m)) =&gt; _f3 (formula_209_t679 _atoms _m _conj).2.2.2.2.2.2.2)
+       exact (False.elim (_f4 (Classical.byContradiction (fun _g =&gt; _f2 _g)))))
+    | (unfold formula_263 formula_262 formula_261 formula_257 formula_209 formula_209_c1 formula_209_c2 ...
+       grind (splits := 64))</code></pre>
+<p class="cap">
+The lemma that failed before. It proves the <a href="#g-clause">clause</a> "not distinct, or c207 differs from c208", two <a href="#g-literal">literals</a>.
+The <code>_f4</code> line jumps to the last chunk by one theorem and takes 7 projections to the last pair. That first alternative is now 536 characters.
+</p>
+
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_m : Interpretation)
+    (_h0 : (formula_209 _atoms _m))
+    (_h1 : (formula_213 _atoms _m))
+    (_h2 : (formula_217 _atoms _m))
+    (_h3 : (formula_219 _atoms _m))
+    (_h4 : (formula_221 _atoms _m))
+    (_h5 : (formula_223 _atoms _m))
+    : False :=
+  ...</code></pre>
+<p class="cap">The theorem statement: under any interpretation, the six <a href="#g-assertion">assertions</a> together imply <code>False</code>.</p>
+
+<h2>How it was verified</h2>
+<p>
+About 700 reconstruction tests all passed at the branch head.
+The sokoban benchmark verified in three separate runs.
+Several hundred Lean texts without a wide conjunction came out byte-for-byte unchanged.
+Every fast new test fails on the old reconstructor, so the tests do test this change.
+</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Check, run locally on 2026-11-16</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction suite, <code>test_proof_to_lean*.py</code>, at the head</td><td><span class="ok">OK</span>: 692 tests, 14 skipped. 680 tests on master.</td></tr>
+<tr><td>Wide-input test module</td><td><span class="ok">OK</span>: 22 tests, 2 skipped</td></tr>
+<tr><td>Its slow tier: a 16,000-operand refutation and an 8,000-operand <a href="#g-and-elim">and-elimination</a></td><td><span class="ok">OK</span>: 2 tests. Other slow tests were not run.</td></tr>
+<tr><td>Certificate exporter tests</td><td><span class="ok">OK</span>: 125 tests</td></tr>
+<tr><td>Lean project check, <code>scripts/check_lean.sh</code></td><td><span class="ok">Lean checks passed</span></td></tr>
+<tr><td>Proof scripts of the z3test repository</td><td><span class="ok">OK</span>: 48 tests</td></tr>
+<tr><td>Two cells of the regression matrix</td><td><span class="ok">6 of 6</span> and <span class="ok">8 of 8</span> verified in Lean</td></tr>
+<tr><td>Sokoban benchmark, exported and checked at the head</td><td><span class="ok">Verified</span>: 9 <a href="#g-module">modules</a>, 208.6 s, about 5.5 GB peak, no <a href="#g-sorry"><code>sorry</code></a> or <code>axiom</code></td></tr>
+<tr><td>Texts without a wide conjunction, compared with master's</td><td><span class="ok">331 of 331 byte-identical</span></td></tr>
+<tr><td>New tests with the old reconstructor loaded, by the reviewer</td><td>9 run: 8 failures, 1 error, as intended</td></tr>
+<tr><td>Reviewer's 77 adversarial input and core pairs</td><td>61 verify with both versions, 13 fail with both, <span class="ok">3 newly verify</span>, 0 regress</td></tr>
+<tr><td>Tampered certificate of a 300-operand <code>and</code>, three ways</td><td><span class="ok">Rejected</span> each time</td></tr>
+<tr><td>This report's worked example</td><td><span class="bad">Fails</span> on the base, <span class="ok">passes</span> on the head</td></tr>
+<tr><td><code>scripts/tests</code>, <code>test-z3</code>, SMT2 regressions</td><td>Not run by the agents. No script or C++ file changed.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Measured effect. Only the sokoban row was repeated by the reviewer and the integrator.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Input</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>QF_UF sokoban, a <code>distinct</code> over 209 constants</td><td><span class="bad">Fails</span>: 40.11 MB, 44 modules, heartbeats, 81.2 s, 1.57 GB</td><td><span class="ok">Verifies</span>: 8.52 MB, 9 modules, 213.0 s, 5.11 GB</td></tr>
+<tr><td>QF_IDL parity, an <code>and</code> of 2,942 operands</td><td>Verifies, 9.1 s</td><td>Verifies, 3.9 s</td></tr>
+<tr><td>QF_LIA <code>ex11200_2600_100</code>, 2,009 operands</td><td>Verifies, 32.5 s</td><td>Verifies, 10.6 s</td></tr>
+<tr><td>QF_LIA <code>ex2360_2400_100</code>, 1,537 operands</td><td>Verifies, 40.9 s</td><td>Verifies, 14.9 s</td></tr>
+<tr><td>QF_UF <code>NEQ004_size4</code>, 338 operands</td><td>Verifies, 46.6 s</td><td>Verifies, 38.6 s</td></tr>
+<tr><td>Reduced sokoban, 100 and 209 constants</td><td>13.6 s, then <span class="bad">fails</span> at 37.5 s</td><td>1.3 s and 4.0 s</td></tr>
+<tr><td>Refute an <code>and</code> from its last operand, 8,000 and 16,000 operands</td><td>17.6 s, then <span class="bad">fails</span></td><td>3.2 s and 7.5 s</td></tr>
+<tr><td>A true <code>distinct</code> over 190 constants in one lemma</td><td><span class="bad">Fails</span>, 50.6 s, 2.84 GB</td><td><span class="bad">Fails</span> the same way, 74.6 s, 5.10 GB</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+The fork runs no GitHub workflows, so this PR has no CI checks. The loop's local gate decides the merge.
+When this report was written, the gate was still running and its result had not been recorded.
+</div>
+
+<h2>Review</h2>
+<p>The reviewer approved the change. There was no blocker and no major finding.</p>
+<ul>
+  <li>
+    <strong>Minor, not fixed.</strong> The reviewer tried a reversed <code>distinct</code> over 100 constants.
+    Its lemma falls back to unfolding, and Lean now makes one pass per chunk name.
+    The case fails with both versions, but in 36.8 s instead of 31.9 s.
+    A lemma that passes only through that fallback would get slower, though none was found.
+    The fix touches about a dozen places, so it went to the backlog.
+  </li>
+  <li>
+    <strong>Minor, fixed.</strong> The reviewer looked for behaviour that no committed test would catch.
+    Three cases had none: two alike conjunctions sharing one name, the pair order in a chunked <code>distinct</code>, and a
+    <a href="#g-boolean">Boolean</a> <code>distinct</code>.
+    The code was right, but a later edit could have broken it unnoticed.
+    Three tests were added, and each fails under the <a href="#g-mutation">mutation</a> it targets.
+  </li>
+  <li>
+    <strong>Nit, fixed.</strong> Some new tests assumed that Z3 logs exactly one lemma.
+    An upstream change would have crashed them with an unrelated error. They now name the cause.
+  </li>
+  <li>
+    <strong>Nit, fixed.</strong> The chunk information reached the prover as a hidden attribute on a dictionary.
+    A caller passing a plain dictionary would silently get the old slow path. It is now an explicit argument.
+  </li>
+  <li><strong>Nit, fixed.</strong> One test generator sat after its first use. It moved up to the others.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li>A lemma that verifies only by unfolding several thousand operands gets slower. No such input is known.</li>
+  <li>Sokoban peaks at 5.1 to 5.5 GB, under the 8 GB cap. Its costly module does not mention the <code>distinct</code> and was not traced.</li>
+  <li>A true <code>distinct</code> over 190 constants in one lemma still fails, in the <code>grind</code> <a href="#g-tactic">tactic</a> as before.</li>
+  <li>Three code paths for <code>distinct</code> still step through the written-out conjunction. They were not measured at this width.</li>
+  <li>Why Lean is slow on a written-out conjunction was measured, not profiled.</li>
+  <li>Sample texts above 30 MB were not exported again. Whether they hold a wide conjunction is unknown.</li>
+  <li>The three adjusted test expectations move again if upstream changes its rewriter again.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>Unfold all chunk names in one step, which was measured to be linear in the width.</li>
+  <li>Trace sokoban's remaining cost, one module that takes 177.6 of its 213 seconds.</li>
+  <li>Measure the remaining <code>distinct</code> code paths, then move them onto the chunk theorems.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+  <dt id="g-and-elim">and-elimination</dt>
+  <dd>The proof rule that concludes one operand from a true conjunction. From "A and B" it gives "B".</dd>
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+  <dt id="g-axiom">axiom</dt>
+  <dd>A statement accepted without proof. A certificate should add none of its own.</dd>
+  <dt id="g-benchmark">benchmark</dt>
+  <dd>A fixed input file used to test and measure solvers, here from the SMT-LIB collection.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>The sort with the two values true and false.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>A recorded proof that an independent checker can replay without trusting the solver.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>(or (not a) b)</code>.</dd>
+  <dt id="g-conjunction">conjunction</dt>
+  <dd>A formula that is true when all its parts are true, written <code>and</code> in SMT-LIB.</dd>
+  <dt id="g-constant">constant</dt>
+  <dd>A named value of some sort whose meaning is not fixed, declared with <code>declare-const</code>.</dd>
+  <dt id="g-distinct">distinct</dt>
+  <dd>The SMT-LIB constraint that all its arguments differ pairwise. Over n arguments it stands for n(n-1)/2 disequalities.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit of work for a deterministic time limit. A proof that needs more than its budget is rejected.</dd>
+  <dt id="g-ite">if-then-else term</dt>
+  <dd>A term that equals one of two values depending on a condition, written <code>ite</code> in SMT-LIB.</dd>
+  <dt id="g-interpretation">interpretation</dt>
+  <dd>A choice of meaning for every sort, constant and function symbol of the input.</dd>
+  <dt id="g-kernel">kernel</dt>
+  <dd>The small trusted core of Lean that checks every finished proof.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>(= a b)</code> or <code>(not (= a b))</code>.</dd>
+  <dt id="g-module">module</dt>
+  <dd>One Lean source file. A large certificate is split into several, checked one after another.</dd>
+  <dt id="g-mutation">mutation testing</dt>
+  <dd>Breaking the code on purpose in one small way to confirm that a test notices.</dd>
+  <dt id="g-operand">operand</dt>
+  <dd>One of the parts an operator joins. The operands of a conjunction are also called conjuncts.</dd>
+  <dt id="g-projection">projection</dt>
+  <dd>Taking one side of a proved conjunction. In Lean, <code>h.1</code> is the left side and <code>h.2</code> the right.</dd>
+  <dt id="g-qfuf">QF_UF</dt>
+  <dd>The SMT-LIB logic of quantifier-free formulas over equality and uninterpreted functions.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a formula, or a set of assertions, is false.</dd>
+  <dt id="g-rewriter">rewriter</dt>
+  <dd>The solver component that simplifies terms into an equivalent standard form before solving.</dd>
+  <dt id="g-sorry">sorry</dt>
+  <dd>Lean's placeholder for a missing proof. A certificate must contain none.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Bool, or a declared sort like <code>U</code>.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. <code>grind</code> is a general-purpose one.</dd>
+  <dt id="g-theory-lemma">theory lemma</dt>
+  <dd>A clause that is true by the rules of a theory alone, such as equality, whatever the input says.</dd>
+  <dt id="g-unfold">unfolding</dt>
+  <dd>Replacing a defined name by the body of its definition.</dd>
+  <dt id="g-uf">uninterpreted function</dt>
+  <dd>A function symbol with no fixed meaning. Only congruence holds: equal arguments give equal results.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-16.
+</footer>
+
+</body>
+</html>
