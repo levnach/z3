@@ -1784,15 +1784,17 @@ conjunction of at most 256 operands keeps its lets. No limit, heartbeat
 budget, or axiom changes; the tail theorems are 32 projections each of the
 one before and the kernel checks them like everything else. A projection
 from the theorem of another chunk, or of another operand, is a type error
-(checked by mutating a text).
+(a test mutates a text both ways).
 
 Measured on 2026-11-16, before (the exporter of fork master `c805a240c`)
 and after, through `proof_to_lean.write_modules` and
 `scripts/check_lean.sh` (`--memory=8192`; wall time, largest resident size
 of one `lean` process; texts above 8 MB as chains of 1 MB modules). All 152
-sample files that export were exported with both; these six are the ones
-whose text changes (an and-elim past operand 31 of a chunked conjunction),
-the other 146 texts are the same:
+sample files that export were exported again, counting the and-elims that
+start from a tail theorem (past operand 31 of a chunked conjunction), the
+one place where the text can differ. Six files have any; their texts were
+written by both exporters and checked. The other 146 have none, so their
+texts cannot differ and were not compared:
 
 | file | and-elims (from a tail theorem) | before | after |
 | --- | --- | --- | --- |
@@ -1818,10 +1820,21 @@ and-elims), Lean's time for the whole file:
 | Lean before | 3.3 s, 0.90 GB | 7.6 s, 1.42 GB | 23.7 s, 2.49 GB | 68.5 s, 1.27 GB (7 modules) | FAILS after 78.7 s at 1.70 GB (`whnf` out of heartbeats in the theorem; 14 modules) |
 | Lean after | 2.7 s, 0.83 GB | 5.2 s, 1.28 GB | 13.4 s, 2.18 GB | 23.0 s, 1.14 GB | verifies, 46.6 s, 1.15 GB |
 
+Each and-elim names the theorem's application, about 40 characters more
+than a let's name, so a proof with many and-elims per chunk repeats it
+where it shared one let. With every operand eliminated (the implication
+chain of `test_proof_to_lean_wide.py`, legacy core) the text grows by 0.7%
+at 600 operands (1,139,147 to 1,147,361 bytes), 0.6% at 1,200, and 0.2% at
+2,400, and Lean's time does not (2.7 s and 5.2 s before and after, 27.7 s
+before and 26.1 s after). No sample text grows.
+
 Tests: `examples/python/test_proof_to_lean_wide.py`:
 `test_and_elim_out_of_a_chunked_conjunction_starts_from_its_tail_theorems`
-(257 operands, checked by Lean: the last operand alone in the last chunk,
-the one before it the last of its chunk),
+(checked by Lean; 257 operands: the last operand alone in the last chunk,
+the one before it the last of its chunk; 288: both in a full last chunk),
+`test_and_elim_from_another_chunk_or_of_another_operand_is_rejected` (the
+257-operand text with the theorem of the chunk before, or one projection
+fewer: Lean reports a type mismatch),
 `test_and_elim_far_into_a_conjunction_binds_nothing` (the theorem's text
 at 1,000 to 4,000 operands),
 `test_outlined_conjunction_with_every_operand_eliminated_is_checked` (600
@@ -1830,7 +1843,9 @@ operands through the legacy core, every chunk's theorem used, no let),
 (256 operands, the lets as before),
 `test_and_elim_under_a_hypothesis_starts_from_the_tail_theorems` (steps
 written by hand, since no proof of Z3's in the tests has such a step: the
-conjunction a hypothesis, or a step that follows from one),
+conjunction a hypothesis, a step that follows from one, or such a step
+eliminated twice, which each and-elim applies to the hypothesis inside the
+theorem's application, inline and as an outlined lemma),
 `test_a_conjunction_above_the_limit_is_defined_in_chunks_that_unfold_to_it`
 (the and-elim is the one line that differs from the conjunction written
 out); slow: `test_last_operands_of_a_conjunction_of_128000_are_eliminated`.
@@ -4214,7 +4229,11 @@ conjunction once every 32 operands (`let _tail_P_K := ...`, each tail
 projected from the one before with an inferred type) in every lemma and
 theorem that eliminates from it, and each and-elim projects at most 32
 levels from the nearest tail. Premises that take hypotheses still project
-from the start. The 600-operand implication chain checks in 6 s and
+from the start. (Both hold up to 256 operands only since 2026-11-16: out
+of a conjunction defined in chunks an and-elim binds no tail and starts
+from the chunk's theorem, under hypotheses too; see "and-elim out of a
+chunked conjunction starts from its tail theorems".) The 600-operand
+implication chain checks in 6 s and
 `mixed1200` in 28 s. Tests: `test_proof_to_lean_wide.py`, outlined (600
 operands), inline (150), and outlined with the conjunction's proof local to
 the eliminating lemma (80).
