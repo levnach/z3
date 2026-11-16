@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
-  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --badge: #ddf4ff;
+  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --badge: #dafbe1;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
-    --soft: #151b23; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --badge: #121d2f;
+    --soft: #151b23; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --badge: #12261e;
   }
 }
 * { box-sizing: border-box; }
@@ -47,7 +47,7 @@ pre code { font-size: .8rem; }
 table { border-collapse: collapse; width: 100%; font-size: .93rem; margin: .7rem 0; }
 th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
 th { background: var(--soft); }
-td.num { text-align: right; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
 .ok { color: var(--ok); font-weight: 600; }
 .warn { color: var(--warn); font-weight: 600; }
 dt { font-weight: 600; margin-top: .7rem; }
@@ -61,35 +61,33 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <h1>Replay deeply nested conjunctions linearly; tie clauses by leaf cores</h1>
 <p class="meta">
 <span><a href="https://github.com/levnach/z3/pull/140">Pull request #140</a> in levnach/z3</span>
-<span>State: <span class="state">OPEN</span></span>
-<span>Date: 2026-11-16T20:07:13Z</span>
+<span>State: <span class="state">MERGED</span></span>
+<span>Date: 2026-11-16T20:26:37Z</span>
 <span>Loop iteration 139</span>
 </p>
-<p class="note">This pull request is open. It is <strong>not merged</strong>. The change commit is
-<a href="https://github.com/levnach/z3/commit/17ff13eddd517e94c506470905c1e60ca2916eac"><code>17ff13edd</code></a>.</p>
+<p class="note">Merged into <code>master</code> on 2026-11-16T20:26:37Z as commit
+<a href="https://github.com/levnach/z3/commit/46f26bcb4c5059e5dbcda7b1ccb979bdd761c35c"><code>46f26bcb4</code></a>.</p>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
 <p>This PR changes the <a href="#g-replay">clause-log replay</a>. Its tables for a deeply nested
 <a href="#g-conjunction">conjunction</a> now grow <a href="#g-growth">linearly</a> with the
 <a href="#g-nesting-depth">nesting depth</a>, not quadratically. A conjunction with more than 8,192 parts is no
-longer handed whole to a solver. Instead, an <a href="#g-assumed-clause">assumed clause</a> is tied to an
+longer handed whole to a solver. An <a href="#g-assumed-clause">assumed clause</a> is instead tied to an
 <a href="#g-unsat-core">unsat core</a> of <a href="#g-leaf-conjunct">leaf conjuncts</a>, each reached by
 <a href="#g-and-elim">and-elimination</a>. One <a href="#g-qfidl">QF_IDL</a> benchmark, whose single
 <a href="#g-assertion">assertion</a> nests 41,822 conjunctions, could not get a
 <a href="#g-certificate">certificate</a> at all. It now does, and Lean verifies the
-<a href="#g-refutation">refutation</a>. Nothing new is trusted. The core only chooses the premises of a
-<a href="#g-theory-lemma">theory lemma</a>, which Lean must still prove.</p>
+<a href="#g-refutation">refutation</a>. The core only chooses the
+<a href="#g-premise">premises</a> of a <a href="#g-theory-lemma">theory lemma</a>, which Lean must still prove.</p>
 
 
 <h2 id="background">Background</h2>
 <p>Before this PR the replay handled shallow and moderately nested conjunctions. For a very deep one, three of its
-tables grew quadratically with the depth. It also asked a solver to check the whole conjunction for each
+tables grew quadratically with the depth. It also asked a solver to check whole conjunctions against each
 <a href="#g-clause">clause</a>. On the benchmark above, the replay passed 17 GB of memory before reading the
-<a href="#g-clause-log">clause log</a>. The inputs name no milestone. The work is about scale in fragments that
-already work. The plan files it under <a href="#g-boolean">Boolean</a> and
-<a href="#g-euf">EUF</a> proof infrastructure. The benchmark's logic falls under milestone 3, equality and linear
-arithmetic.</p>
+<a href="#g-clause-log">clause log</a>. The inputs name no milestone. The plan files this work under
+<a href="#g-boolean">Boolean</a> and <a href="#g-euf">EUF</a> proof infrastructure. The benchmark's logic belongs to milestone 3, equality and linear arithmetic.</p>
 
 
 <h2 id="changes">What changed</h2>
@@ -97,32 +95,31 @@ arithmetic.</p>
 <ul>
 <li><strong>Paths.</strong> Each <a href="#g-conjunct">conjunct</a> now remembers only the conjunction directly
 above it, so an assertion nested 40,000 levels deep fits in memory.</li>
-<li><strong>Keys.</strong> The <a href="#g-canonical-key">canonical key</a> of a conjunction now names its set of
-operands by one shared number, and formulas match exactly as before.</li>
+<li><strong>Keys.</strong> The <a href="#g-canonical-key">canonical key</a> of a conjunction names its operand
+set by one shared number, and formulas match exactly as before.</li>
 <li><strong>Index.</strong> The <a href="#g-symbol">symbol</a> index lists leaf conjuncts only and finds the
 conjunctions above them by walking up.</li>
 <li><strong>Solver limit.</strong> A conjunction with more than 8,192 parts is never given to a solver whole, so
 one slow check cannot stall the export.</li>
-<li><strong>Leaf cores.</strong> A clause that no single conjunction settles is tied to an unsat core of leaf
-conjuncts, so its lemma names only the conjuncts that matter.</li>
+<li><strong>Leaf cores.</strong> When a conjunction is too large or its check is cut off, the clause is tied to an
+unsat core of leaf conjuncts.</li>
 </ul>
 <h3>Tests and documentation</h3>
 <ul>
-<li>Six new tests pin the linear memory, the solver limit, and the leaf cores, and the plan and README describe
-them.</li>
+<li>Six new tests pin the linear memory, the solver limit, and the leaf cores.</li>
 </ul>
-<p>An analogy for the leaf cores: the old lemma cited a whole book as evidence. The new one cites the two
+<p>An analogy: the old lemma cited a whole book as evidence. The new one cites the two
 sentences that matter.</p>
 <div class="tablewrap">
 <table>
-<thead><tr><th>File</th><th>Role</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<thead><tr><th>File</th><th>Role</th><th class="num">Lines added</th><th class="num">Lines removed</th></tr></thead>
 <tbody>
 <tr><td><code>examples/python/proof_clause_log.py</code></td><td>The replay</td><td class="num">372</td><td class="num">58</td></tr>
 <tr><td><code>examples/python/test_proof_certificate.py</code></td><td>Unit tests of the replay</td><td class="num">242</td><td class="num">15</td></tr>
 <tr><td><code>examples/python/test_proof_to_lean_deep.py</code></td><td>Tests checked by Lean</td><td class="num">77</td><td class="num">6</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan, with measurements</td><td class="num">121</td><td class="num">0</td></tr>
 <tr><td><code>examples/python/README</code></td><td>User documentation</td><td class="num">9</td><td class="num">1</td></tr>
-<tr><th>Total</th><th>5 files, 6 commits. No C++, Lean, or CI file.</th><th class="num">821</th><th class="num">80</th></tr>
+<tr><th>Total</th><th>5 files, merged as one commit. No C++, Lean, or CI file.</th><th class="num">821</th><th class="num">80</th></tr>
 </tbody>
 </table>
 </div>
@@ -131,7 +128,7 @@ sentences that matter.</p>
 <h2 id="example">Worked example</h2>
 <p>This PR is about size, so no ten-line input is newly certified. The example is the PR's test generator
 <code>guarded_chain</code> at 2,500 links, shown with cuts. Its one assertion has 10,007 parts, above the new
-limit. At 2 links, old and new code wrote identical certificates.</p>
+limit. Both runs were made for this report, reading the clause log with a 300 second limit per stage.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(set-logic QF_UF)
@@ -146,16 +143,16 @@ limit. At 2 links, old and new code wrote identical certificates.</p>
         (and (or (not b2500) d) (or (not b2500) (not d)))))...)))))
 (check-sat)</code></pre>
 <p>Each link is a guard <code>(not wi)</code> and a clause that starts with <code>wi</code>. Z3 logs the clause
-without <code>wi</code> as assumed. That shorter clause follows only from the link together with its guard.</p>
+without <code>wi</code> as assumed. It follows only from the link together with its guard.</p>
 
 <h3>(b) Before</h3>
-<p>The exporter of the base commit, run with the options <code>--core clause-log --timeout 300</code>:</p>
+<p>The exporter of the parent commit <code>7abc8fabe</code> printed:</p>
 <pre><code>proof_certificate.py: error: the clause-log replay exceeded the time limit of 300 s</code></pre>
-<p>The old exporter gave up after 301 seconds at 1.3 GB and wrote no certificate, so nothing reached Lean. How long it would need without the time limit is unknown.</p>
+<p>It gave up after 302 seconds at 1.3 GB and wrote no certificate, so nothing reached Lean. The time it needs without the limit is unknown.</p>
 
 <h3>(c) After</h3>
-<p>The PR's code wrote a certificate in 15 seconds at 205 MB, reconstructed as 7.25 MB of Lean.
-<strong>Lean accepted the file</strong>: the check printed <code>Lean checks passed.</code></p>
+<p>The merged code wrote a certificate in 14 seconds at 204 MB, which became 7.25 MB of
+Lean. <strong>Lean accepted the file</strong>: the check printed <code>Lean checks passed.</code></p>
 <pre><code>-- Atom 4998: "b2499"
 -- Atom 4999: "w2499"
 -- Atom 5000: "b2500"
@@ -171,7 +168,8 @@ def formula_12500 (_atoms : Nat -&gt; Prop) : Prop := (Or (formula_12496 _atoms)
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
     (_h0 : (formula_17512 _atoms))
     : False :=
-  ...</code></pre>
+  refute_with_decidable (formula_2 _atoms) fun _df2 =&gt;
+  @proof_step_45027 _atoms _h0 _df2</code></pre>
 <p>The theorem says that the whole nested assertion implies False.</p>
 <pre><code>def formula_22519 (_atoms : Nat -&gt; Prop) : Prop := (Not (formula_12497 _atoms))
 def formula_22520 (_atoms : Nat -&gt; Prop) : Prop := (Not (formula_12500 _atoms))
@@ -198,17 +196,19 @@ clause.</p>
   let _step_22518 : (formula_12500 _atoms) :=
     (proof_step_22512 _inputs).1
   let _step_22522 : (formula_22521 _atoms) :=
-    (th_lemma_22522 _atoms)</code></pre>
+    (th_lemma_22522 _atoms)
+  let _step_22524 : (formula_22523 _atoms) :=
+    (Or.elim ((_step_22522.neg_resolve_left _step_22517).neg_resolve_left _step_22518) ...)</code></pre>
 <p>Each and-elimination step takes one side of the conjunction above it.
 <a href="#g-resolution">Resolution</a> then combines the two leaves with the lemma.</p>
 
 
 <h2 id="verification">How it was verified</h2>
-<p>Every fast test suite passed on the final commit, and Lean again checked the benchmark that motivated the
-change. The integrator ran these commands one at a time.</p>
+<p>Every fast test suite passed on the PR head, and Lean again checked the benchmark that motivated the change.
+The merge commit has the same file tree as that head.</p>
 <div class="tablewrap">
 <table>
-<thead><tr><th>Check on <code>17ff13edd</code></th><th>Result</th></tr></thead>
+<thead><tr><th>Check by the integrator on the PR head <code>17ff13edd</code></th><th>Result</th></tr></thead>
 <tbody>
 <tr><td>Lean reconstruction tests</td><td><span class="ok">OK</span>: 695 tests, 15 skipped, 1,021 s</td></tr>
 <tr><td>Certificate exporter tests</td><td><span class="ok">OK</span>: 128 tests, 27 s</td></tr>
@@ -225,39 +225,38 @@ change. The integrator ran these commands one at a time.</p>
 </tbody>
 </table>
 </div>
-<p>The fork runs no GitHub workflows, so this PR has no CI checks. The local gate decides the merge.
-It ran after the integrator, on the loop machine, and all six steps passed.</p>
+<p>The fork runs no GitHub workflows, so this PR had no CI checks. The local gate decided the merge, and all six
+of its steps passed.</p>
 <div class="tablewrap">
 <table>
-<thead><tr><th>Local gate step</th><th>Result</th><th>Details</th><th>Time</th></tr></thead>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Details</th><th class="num">Time</th></tr></thead>
 <tbody>
 <tr><td>Lean script tests</td><td><span class="ok">pass</span></td><td>25 tests</td><td class="num">2 s</td></tr>
 <tr><td>Certificate exporter tests</td><td><span class="ok">pass</span></td><td>128 tests</td><td class="num">26 s</td></tr>
 <tr><td>Lean reconstruction tests</td><td><span class="ok">pass</span></td><td>695 tests, 15 skipped</td><td class="num">1,033 s</td></tr>
 <tr><td>Proof script tests of the benchmark repository</td><td><span class="ok">pass</span></td><td>48 tests</td><td class="num">18 s</td></tr>
-<tr><td>Lean-certified Boolean matrix, legacy proof object</td><td><span class="ok">pass</span></td><td>6 of 6 lean-verified</td><td class="num">5 s</td></tr>
-<tr><td>Lean-certified QF_LRA matrix, clause log</td><td><span class="ok">pass</span></td><td>8 of 8 lean-verified</td><td class="num">6 s</td></tr>
+<tr><td>Lean-certified Boolean matrix, <a href="#g-proof-object">legacy proof object</a></td><td><span class="ok">pass</span></td><td>6 of 6 lean-verified</td><td class="num">5 s</td></tr>
+<tr><td>Lean-certified <a href="#g-qflra">QF_LRA</a> matrix, clause log</td><td><span class="ok">pass</span></td><td>8 of 8 lean-verified</td><td class="num">6 s</td></tr>
 </tbody>
 </table>
 </div>
-<p>Upstream CI runs only when the batch that carries this change goes upstream.</p>
 
 
 <h2 id="review">Review</h2>
 <p>The reviewer approved the change, with no blocker and no major finding.</p>
 <ol>
 <li><strong>Minor, fixed.</strong> The reviewer removed the guard that keeps a large conjunction out of the
-last-resort solver call. Every test still passed, because the test raised its expected error before it inspected
-the solver's input. That guard prevents a 24 second, 10 GB solver call on the benchmark. The test now checks both
-outcomes and catches the removal.</li>
+last-resort solver call. Every test still passed, because the test raised its expected error before inspecting
+the solver's input. That guard prevents a 24 second, 10 GB solver call on the benchmark. The test now catches the
+removal.</li>
 <li><strong>Minor, fixed.</strong> Deleting the same limit from the
 <a href="#g-equivalence-check">equivalence check</a> also went unnoticed. A new test case requires that a large
 conjunction gets no such check.</li>
-<li><strong>Nit, fixed.</strong> Switching off the loop that shrinks a core broke no test, and would only make
+<li><strong>Nit, fixed.</strong> Switching off the loop that shrinks a core broke no test. It would only make
 Lean files larger. A test now pads a core with five unneeded leaves and expects the smallest lemma.</li>
 <li><strong>Nit, kept with a comment.</strong> Some tests expect an exact core size, which depends on the core Z3
-returns. They stay, because the smallest core is unique there. Removing the dependence is a follow-up.</li>
-<li><strong>Nit, fixed.</strong> The README read as if the limit counted leaf conjuncts only. It now says nested
+returns. They stay, because the smallest core is unique there.</li>
+<li><strong>Nit, fixed.</strong> The README read as if the limit counted only leaf conjuncts. It now says nested
 conjunctions count too.</li>
 <li><strong>Nit, fixed.</strong> One search function rebuilt a set on every call. It is now computed once.</li>
 </ol>
@@ -267,9 +266,8 @@ conjunctions count too.</li>
 <ul>
 <li>Certificates change where a conjunction was undecided. Of the sample only plan-21 changed, and it still
 verifies.</li>
-<li>The limit is a cliff. Just below it, a chain of 2,000 links exports with neither version in 300
-seconds.</li>
-<li>Why Z3 needs 24 seconds and 10 GB to assert a deeply nested conjunction was not traced.</li>
+<li>The limit is a cliff. Just below it, a chain of 2,000 links still does not export in 300 seconds.</li>
+<li>Why asserting a deeply nested conjunction costs Z3 24 seconds and 10 GB was not traced.</li>
 <li>Inputs where most clauses need a core over all leaves still grow faster than linearly.</li>
 <li>The benchmark files are not in the repository, so tests pin the generated reduction only.</li>
 </ul>
@@ -279,7 +277,7 @@ seconds.</li>
 <ul>
 <li>Use leaf cores below the limit too, which requires checking the sample again.</li>
 <li>Fix three sample files that now export but fail in Lean. Two run out of
-<a href="#g-heartbeat">heartbeats</a> on an arithmetic lemma. One times out deep in a 115,040-operand
+<a href="#g-heartbeat">heartbeats</a> on an arithmetic lemma. One times out inside a 115,040-operand
 conjunction.</li>
 <li>Make the chosen core independent of which core Z3 returns.</li>
 </ul>
@@ -302,7 +300,8 @@ number.</dd>
 <dt id="g-certificate">certificate</dt>
 <dd>A file that records a proof step by step, so that an independent checker can confirm it.</dd>
 <dt id="g-clause">clause</dt>
-<dd>A disjunction of literals, such as <code>(or (not b0) b1)</code>.</dd>
+<dd>A <a href="#g-disjunction">disjunction</a> of <a href="#g-literal">literals</a>, such as
+<code>(or (not b0) b1)</code>.</dd>
 <dt id="g-clause-log">clause log</dt>
 <dd>The list of clauses a solver assumed, derived, and deleted while it searched for the refutation.</dd>
 <dt id="g-replay">clause-log replay</dt>
@@ -315,6 +314,8 @@ assertions.</dd>
 <dt id="g-qfidl">difference logic (QF_IDL)</dt>
 <dd>Quantifier-free formulas over integers whose arithmetic atoms compare a difference with a constant, such as
 <code>x - y &lt;= 3</code>.</dd>
+<dt id="g-disjunction">disjunction</dt>
+<dd>A formula built with <code>or</code>. It is true when at least one operand is true.</dd>
 <dt id="g-equivalence-check">equivalence check</dt>
 <dd>A solver query that asks whether two formulas always have the same truth value.</dd>
 <dt id="g-euf">EUF</dt>
@@ -324,6 +325,9 @@ assertions.</dd>
 <dt id="g-leaf-conjunct">leaf conjunct</dt>
 <dd>A conjunct that is not itself a conjunction. In <code>(and p (and q r))</code> the leaves are <code>p</code>,
 <code>q</code>, and <code>r</code>.</dd>
+<dt id="g-proof-object">legacy proof object</dt>
+<dd>The proof term Z3 builds in memory for a refutation. It is the older of the two proof sources. The clause log
+is the other.</dd>
 <dt id="g-growth">linear and quadratic growth</dt>
 <dd>Linear: twice the input costs twice as much. Quadratic: twice the input costs four times as much.</dd>
 <dt id="g-qflra">linear real arithmetic (QF_LRA)</dt>
@@ -334,6 +338,8 @@ assertions.</dd>
 <dd>A small deliberate bug put into a copy of the code, to see whether some test fails.</dd>
 <dt id="g-nesting-depth">nesting depth</dt>
 <dd>How many levels of operators sit inside one another. <code>(and p (and q r))</code> has depth 2.</dd>
+<dt id="g-premise">premise</dt>
+<dd>A formula that a proof step starts from. The step's conclusion follows from its premises.</dd>
 <dt id="g-refutation">refutation</dt>
 <dd>A proof that the assertions together imply False.</dd>
 <dt id="g-resolution">resolution</dt>
@@ -342,8 +348,8 @@ assertions.</dd>
 <dt id="g-symbol">symbol</dt>
 <dd>A declared name in the input, such as the constant <code>b0</code>.</dd>
 <dt id="g-theory-lemma">theory lemma</dt>
-<dd>A clause that is valid on its own and enters the proof without premises. Here Lean proves each one from the
-Boolean structure of its formulas.</dd>
+<dd>A clause that is valid on its own and enters the proof without earlier steps. Here each one says that some
+conjuncts imply an assumed clause, and Lean proves it from its Boolean structure.</dd>
 <dt id="g-unsat-core">unsat core</dt>
 <dd>A subset of formulas that is already contradictory. Here it is the few conjuncts that suffice to imply a
 clause.</dd>
