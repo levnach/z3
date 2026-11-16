@@ -2806,7 +2806,8 @@ class TestClauseLogReplay(unittest.TestCase):
         # conjunct and the clause's negation, from a failed implication
         # check or a failed equivalence check that makes the clause false,
         # refutes that conjunct and every conjunct below it, and those are
-        # skipped; the order of the checks, so the source chosen, is kept.
+        # skipped; the order of the checks, so the source chosen, is kept
+        # while every check is decided.
         width = 300
         body = "(or p%d q)" % (width - 1)
         for i in reversed(range(width - 1)):
@@ -2864,20 +2865,23 @@ class TestClauseLogReplay(unittest.TestCase):
         self.assertEqual(checked, [(z3.Z3_OP_IMPLIES, z3.Z3_OP_AND)])
         self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 1, 0))
         cut_off_ands.append(True)
-        # With the ands undecided, only the equivalence model refutes the
-        # leaf over p7, q, r: its implication is not checked, the other
-        # leaves are (each sharing q), then the fallback.
+        # With the first and undecided the search no longer walks the ands
+        # and leaves below it, a solver call each (on qlock about 89 per
+        # clause, 116 s of its replay): an unsat core over the leaf
+        # conjuncts ties the clause. Here the leaves sharing a symbol with
+        # the clause do not imply it, all leaves do, and the lemma is over
+        # the two that are needed, each and-eliminated from its assertion,
+        # where the fallback gave one over both whole assertions.
         counts = assume([p[7], q])
-        self.assertEqual(checked[0], (z3.Z3_OP_EQ, z3.Z3_OP_OR))
-        self.assertNotIn("Or(p7, q, r)", implications)
-        self.assertIn("Or(p8, q)", implications)
-        self.assertEqual((counts["th-lemma"], counts["asserted"]), (1, 2))
-        # An undecided check refutes nothing: the leaf over p5 and q below
-        # the undecided ands is still checked, and is the source chosen.
+        self.assertEqual(checked, [(z3.Z3_OP_EQ, z3.Z3_OP_OR), (z3.Z3_OP_IMPLIES, z3.Z3_OP_AND)])
+        self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 2, 8))
+        # A clause one leaf implies: the core is over the candidates' leaves,
+        # one check after the undecided and, and the lemma has at most the
+        # two sources of the other derivation (through p3 and s).
         counts = assume([p[5], q, s])
-        self.assertEqual(implications[-1], "Or(p5, q)")
-        self.assertEqual(implications.count("Or(p5, q)"), 1)
-        self.assertEqual((counts["th-lemma"], counts["asserted"]), (1, 1))
+        self.assertEqual(checked, [(z3.Z3_OP_IMPLIES, z3.Z3_OP_AND)])
+        self.assertEqual(counts["th-lemma"], 1)
+        self.assertIn(counts["asserted"], (1, 2))
         self.assertGreater(counts["and-elim"], 0)
 
     def test_assumption_search_index_is_linear_on_deep_terms(self):
@@ -2927,8 +2931,12 @@ class TestClauseLogReplay(unittest.TestCase):
         self.assertEqual(normalizer.key(z3.Implies(p, q)), normalizer.key(z3.Or(q, z3.Not(p))))
         form = normalizer.forms[key]
         self.assertEqual(form[0], "and")
-        self.assertTrue(all(isinstance(child, int) for child in form[1]), form)
-        self.assertEqual(list(form[1]), sorted(form[1]))
+        # The operands are a set of keys named by one integer (_KeySets).
+        self.assertIsInstance(form[1], int)
+        operands = normalizer.sets.keys(form[1])
+        self.assertEqual(len(operands), 3)
+        self.assertEqual(operands, sorted(operands))
+        self.assertEqual(sorted(operands), sorted(normalizer.key(formula) for formula in (p, z3.Or(q, r), x <= 4)))
         self.assertEqual(normalizer.ids[form], key)
         # A chain of 200 nested gates sharing a subformula (the recursion
         # over the formula bounds the depth, as before): every node is keyed
@@ -2941,6 +2949,176 @@ class TestClauseLogReplay(unittest.TestCase):
         self.assertTrue(all(len(form) <= 3 and all(len(part) <= 3 for part in form if isinstance(part, tuple))
                             for form in normalizer.forms), "a form grew with its subtree")
         self.assertGreater(len(normalizer.forms), 400)
+
+    def test_key_sets_name_equal_sets_alike(self):
+        # The operands of a flattened and or or are a set named by one
+        # integer (_KeySets): built in any order, or as the union of two
+        # overlapping sets built apart, equal sets get one name.
+        sets = proof_clause_log._KeySets()
+        keys = list(range(1, 400))
+        scattered = sorted(keys, key=proof_clause_log._mix)
+        names = set()
+        for order in (keys, keys[::-1], scattered, scattered[::-1]):
+            name = 0
+            for key in order:
+                name = sets.union(name, sets.single(key))
+            names.add(name)
+        low = high = 0
+        for key in keys[:250]:
+            low = sets.union(low, sets.single(key))
+        for key in reversed(keys[150:]):
+            high = sets.union(sets.single(key), high)
+        names.update((sets.union(low, high), sets.union(high, low)))
+        self.assertEqual(len(names), 1)
+        name = names.pop()
+        self.assertEqual(sets.keys(name), keys)
+        self.assertEqual((sets.union(name, low), sets.union(low, name), sets.union(name, name)), (name,) * 3)
+        self.assertNotEqual(low, name)
+        self.assertEqual(sets.keys(low), keys[:250])
+        self.assertEqual((sets.only(sets.single(7)), sets.only(name), sets.keys(0)), (7, None, []))
+        # A set that extends another by one key shares all but a path of
+        # it: 20,000 sets, each the one before and one more key, take
+        # about 2 log n nodes each (as sorted tuples, 200 million keys),
+        # and the trees stay shallow whatever the order of the keys.
+        chain = proof_clause_log._KeySets()
+        count = 20000
+        name = 0
+        for key in range(count):
+            name = chain.union(name, chain.single(key))
+        self.assertLess(len(chain.nodes), 40 * count)
+        self.assertEqual(chain.keys(name), list(range(count)))
+        depth, level = 0, [name]
+        while level:
+            depth += 1
+            level = [child for node in level for child in chain.nodes[node][::2] if child]
+        self.assertLess(depth, 80)
+
+    def test_assumption_sources_of_a_deep_conjunction_are_linear(self):
+        # QF_IDL PO4-10-PO4 is one assertion of 41,822 nested binary ands.
+        # Three tables of the replay were quadratic in that depth: the
+        # and-elim path of every conjunct as a tuple of steps (1.75e9
+        # steps, 14 GB), the flattened operands of every and's key as a
+        # sorted tuple (7 GB), and every and listed under each of its
+        # symbols in the search index. The replay passed 17 GB before it
+        # read the log. Now a conjunct holds the position of the and above
+        # it, the operand sets share their common part, and the index
+        # lists the leaf conjuncts only.
+        def measure(depth):
+            leaves = ["(or (not x%d) y%d)" % (i, i) for i in range(depth)]
+            body = leaves[-1]
+            for leaf in reversed(leaves[:-1]):
+                body = "(and %s %s)" % (leaf, body)
+            source = ("".join("(declare-const x%d Bool)(declare-const y%d Bool)" % (i, i) for i in range(depth))
+                      + "(assert %s)" % body)
+            context = z3.Context()
+            assertions, fragment = proof_certificate.parse_assertions(source, context)
+            clauses = [[z3.Not(z3.Bool("x%d" % i, context)), z3.Bool("y%d" % i, context)] for i in range(depth)]
+            tracemalloc.start()
+            try:
+                replay = proof_clause_log._Replay(source, fragment, assertions, context)
+                # Every leaf is tied by its key, deepest first; no solver.
+                with patch.object(replay, "_check", side_effect=AssertionError("unnecessary solver search")):
+                    for clause in reversed(clauses):
+                        replay.assume(clause)
+                candidates = replay._candidate_sources(z3.Or(clauses[0]))
+                peak = tracemalloc.get_traced_memory()[1]
+            finally:
+                tracemalloc.stop()
+            self.assertEqual(len(replay.assumption_sources), 2 * depth - 1)
+            self.assertEqual(replay.source_parents[:4], [None, 0, 0, 2])
+            self.assertEqual(replay.source_sizes[:3], [2 * depth - 1, 1, 2 * depth - 3])
+            # One and-elim step per conjunct, however deep.
+            self.assertEqual(replay.dag.rule_counts["and-elim"], 2 * depth - 2)
+            self.assertEqual(replay.dag.rule_counts["asserted"], 1)
+            # The first leaf and the assertion above it; two symbols a leaf.
+            self.assertEqual([source[2] for source in candidates], [0, 1])
+            self.assertEqual(sum(len(positions) for positions in replay.sources_by_symbol.values()), 2 * depth)
+            self.assertLess(len(replay.normalizer.sets.nodes), 60 * depth)
+            return peak
+
+        small, large = measure(1000), measure(4000)
+        # Four times the depth: four times the memory, not sixteen (the
+        # paths alone were 64 MB at 4,000 levels).
+        self.assertLess(large, 6 * small)
+        self.assertLess(large, 48 * 2 ** 20)
+
+    def test_and_above_the_solver_limit_is_tied_through_its_leaves(self):
+        # Z3 flattens nested ands a level at a time when a formula is
+        # asserted, whatever the resource limit of the check: one
+        # implication check from the 41,822 nested ands of QF_IDL
+        # PO4-10-PO4 took 24 s and 10 GB. An and with more than
+        # _CHECKED_CONJUNCTS sources at and below it is never handed to a
+        # solver; a clause is tied to it by an unsat core of leaf conjuncts.
+        width, limit = 300, 100
+        body = "(or p%d q)" % (width - 1)
+        for i in reversed(range(width - 1)):
+            body = "(and %s %s)" % ("(or p7 q r)" if i == 7 else "(or p%d q)" % i, body)
+        source = ("(declare-const q Bool)(declare-const r Bool)(declare-const s Bool)(declare-const t Bool)"
+                  + "".join("(declare-const p%d Bool)" % i for i in range(width))
+                  + "(assert %s)(assert (or (not p3) s))(assert (not r))" % body)
+        context = z3.Context()
+        q, r, s, t = z3.Bools("q r s t", context)
+        p = [z3.Bool("p%d" % i, context) for i in range(width)]
+        checked, tracked = [], []
+        original_check = proof_clause_log._Replay._check
+        original_track = z3.Solver.assert_and_track
+
+        def check(replay, claim):
+            checked.append(sum(1 for _ in proof_clause_log._conjuncts(claim.arg(0))))
+            return original_check(replay, claim)
+
+        def track(solver, formula, literal):
+            tracked.append(formula.decl().kind())
+            return original_track(solver, formula, literal)
+
+        def assume(literals):
+            assertions, fragment = proof_certificate.parse_assertions(source, context)
+            replay = proof_clause_log._Replay(source, fragment, assertions, context)
+            self.assertEqual(replay.source_sizes[0], 2 * width - 1)
+            # Of the ands above the limit only the assertion is a candidate.
+            bound = proof_clause_log._CHECKED_CONJUNCTS
+            large = [position for _, _, position in replay._candidate_sources(z3.Or(literals))
+                     if replay.source_sizes[position] > bound]
+            self.assertEqual(large, [0] if bound == limit else [])
+            checked.clear()
+            tracked.clear()
+            with patch.object(proof_clause_log._Replay, "_check", check), \
+                    patch.object(z3.Solver, "assert_and_track", track):
+                replay.assume(literals)
+            self.assertTrue(all(size <= bound for size in checked), checked)
+            self.assertNotIn(z3.Z3_OP_AND, tracked)
+            return replay.dag.rule_counts
+
+        with patch.object(proof_clause_log, "_CHECKED_CONJUNCTS", limit):
+            # Needs the leaf over p7, q, r and the assertion (not r), which
+            # shares no symbol with the clause: a core over all leaves, and
+            # a lemma over those two, the leaf and-eliminated in 8 steps.
+            counts = assume([p[7], q])
+            self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 2, 8))
+            self.assertEqual(checked, [1])  # the equivalence check of the leaf over p7, q, r
+            # Needs the leaf over p3 and q and the second assertion: a core
+            # over the leaves sharing a symbol with the clause.
+            counts = assume([q, s])
+            self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 2, 4))
+            self.assertEqual(checked, [])
+            # One leaf implies it.
+            counts = assume([p[5], q, t])
+            self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 1, 6))
+            # A clause that needs 200 of the 300 leaves, more than a quarter
+            # of the assertion's 599 sources: the assertion is the lemma's
+            # one source, as when a solver decided it, not 200 leaves.
+            counts = assume([q, z3.And(p[8:208])])
+            self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 1, 0))
+            # A clause the assertions do not imply is still rejected, by
+            # the leaves: the last resort tracks no assertion above the limit.
+            with self.assertRaisesRegex(proof_certificate.ProofExportError, "does not match any original assertion"):
+                assume([p[9], t])
+            self.assertTrue(tracked)
+        # Below the limit nothing changes: the whole assertion is checked,
+        # and implies the clause.
+        counts = assume([p[5], q, t])
+        self.assertEqual(checked, [2 * width - 1])
+        self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 1, 0))
 
     def test_rewritten_assumptions_are_tied_to_their_assertions(self):
         source = ("(declare-const x Real)(declare-const y Real)"
