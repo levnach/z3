@@ -1821,14 +1821,18 @@ as chains of 1 MB modules; before is the exporter of fork master 7abc8fabe):
 | --- | --- | --- |
 | PO4-10-PO4 | no export: replay above 17 GB (2026-11-13), 3.4 GB after 6 s | replay 15.7 s at 0.70 GB, 24.36 MB of Lean, verifies as 25 modules in 88.3 s at 0.95 GB |
 | qlock-4-10-8 | replay 137.2 s, 78,004 nodes | replay 16.9 s, 78,160 nodes, 45.96 MB of Lean; Lean FAILS as 47 modules after 67.9 s at 1.13 GB, on `th_lemma_9887`, an arithmetic lemma (`first | omega | grind`) out of heartbeats at `isDefEq`: the Lean side of this file was open before (iter-119, iter-120) |
-| qlock-4-10-9 | not measured (above 120 s on 2026-11-13) | replay 23.1 s, 93.77 MB of Lean, not checked |
+| qlock-4-10-9 | not measured (above 120 s on 2026-11-13) | replay 23.1 s, 93.77 MB of Lean; Lean FAILS as 95 modules after 71.1 s at 1.06 GB, a lemma of the same kind in the seventh module |
 | parity 13.400.graph | no export: resource limit while tying an assumed clause | replay 14.3 s at 0.81 GB, 17.23 MB of Lean, verifies as 17 modules in 267.3 s at 1.39 GB |
-| parity 10.700.graph | no export: the same | replay 46.0 s at 2.08 GB, 45.73 MB of Lean, not checked |
+| parity 10.700.graph | no export: the same | replay 46.0 s at 2.08 GB, 45.73 MB of Lean; Lean FAILS as 44 modules after 193.1 s at 1.58 GB: the main theorem (386 kB, under the default 200,000 heartbeats) times out at `whnf` where it binds the tail of the assertion at operand 52,832 of 115,040 |
 | planning/plan-21 | 20.37 MB, 297 and-elim steps, verifies in 88.8 s (2026-11-14) | some clauses tied by leaf cores (300 and-elim steps): 20.28 MB, verifies as 21 modules in 89.4 s at 0.95 GB |
 
 The two parity files are one flat and of 36,440 and 115,040 conjuncts:
 above the limit, so the last resort ties their clauses by leaf cores
-instead of tracking the whole assertion. Of the 147 sample files that
+instead of tracking the whole assertion. So five more sample files export
+(152 of 175) and two more verify (PO4-10-PO4, parity 13.400); the three
+others fail in Lean on costs this change does not touch (an arithmetic
+lemma of the qlock files, and-elim far into a conjunction of 115,040
+operands). Of the 147 sample files that
 exported before, 146 give the same certificate byte for byte (plan-21 is
 the one that differs); their replays take 345.7 s in all against 345.3 s.
 
