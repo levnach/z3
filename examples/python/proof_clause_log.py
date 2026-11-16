@@ -107,8 +107,9 @@ _SEARCH_ALL_SOURCES = 64
 # presumably the rewriter flattening the ands a level at a time, was not
 # traced).
 # Such an and is tied to a clause through its leaf conjuncts instead
-# (_implying_leaves). The largest and decided so far, the 3,993 sources
-# of QF_IDL FISCHER6-4-ninc, is below the limit.
+# (_implying_leaves). The limit is far above what a check is known to
+# decide (QF_IDL FISCHER6-4-ninc's assertion of 3,993 sources is the
+# largest seen), so that certificates tied to an and keep their shape.
 _CHECKED_CONJUNCTS = 8192
 # Limits of every z3 run below unless the caller passes its own: seconds (-T)
 # and megabytes (-memory). Z3 stops itself at either; a run that outlives its
