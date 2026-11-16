@@ -2997,10 +2997,10 @@ class TestClauseLogReplay(unittest.TestCase):
         # QF_IDL PO4-10-PO4 is one assertion of 41,822 nested binary ands.
         # Three tables of the replay were quadratic in that depth: the
         # and-elim path of every conjunct as a tuple of steps (1.75e9
-        # steps, 14 GB), the flattened operands of every and's key as a
-        # sorted tuple (7 GB), and every and listed under each of its
-        # symbols in the search index. The replay passed 17 GB before it
-        # read the log. Now a conjunct holds the position of the and above
+        # steps, about 14 GB), the flattened operands of every and's key
+        # as a sorted tuple (8.7e8 keys), and every and listed under each
+        # of its symbols in the search index. The replay passed 17 GB
+        # before it read the log. Now a conjunct holds the position of the and above
         # it, the operand sets share their common part, and the index
         # lists the leaf conjuncts only.
         def measure(depth):
@@ -3043,10 +3043,10 @@ class TestClauseLogReplay(unittest.TestCase):
         self.assertLess(large, 48 * 2 ** 20)
 
     def test_and_above_the_solver_limit_is_tied_through_its_leaves(self):
-        # Z3 flattens nested ands a level at a time when a formula is
-        # asserted, whatever the resource limit of the check: one
-        # implication check from the 41,822 nested ands of QF_IDL
-        # PO4-10-PO4 took 24 s and 10 GB. An and with more than
+        # Asserting a deeply nested and costs Z3 time and memory that the
+        # resource limit of a check does not bound: one implication check
+        # from the 41,822 nested ands of QF_IDL PO4-10-PO4 took 24 s and
+        # 10 GB inside Z3_solver_assert. An and with more than
         # _CHECKED_CONJUNCTS sources at and below it is never handed to a
         # solver; a clause is tied to it by an unsat core of leaf conjuncts.
         width, limit = 300, 100

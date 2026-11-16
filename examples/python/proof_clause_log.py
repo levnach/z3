@@ -100,10 +100,12 @@ _RLIMIT = 200000
 _SEARCH_ALL_SOURCES = 64
 # An and with more conjuncts at and below it than this (counted through
 # nested ands) is never handed to a solver whole, in an equivalence or
-# implication check or as a tracked assertion: Z3 flattens nested ands a
-# level at a time when a formula is asserted, quadratic in the nesting
-# depth whatever the resource limit of the check, and one check of the
-# 41,822 nested binary ands of QF_IDL PO4-10-PO4 took 24 s and 10 GB.
+# implication check or as a tracked assertion: asserting a deeply nested
+# and costs Z3 time and memory that the resource limit of the check does
+# not bound (one check of the 41,822 nested binary ands of QF_IDL
+# PO4-10-PO4 took 24 s and 10 GB inside Z3_solver_assert; the cause,
+# presumably the rewriter flattening the ands a level at a time, was not
+# traced).
 # Such an and is tied to a clause through its leaf conjuncts instead
 # (_implying_leaves). The largest and decided so far, the 3,993 sources
 # of QF_IDL FISCHER6-4-ninc, is below the limit.
@@ -1271,7 +1273,8 @@ class _KeySets:
     one node and a set that extends another shares all but a path of it.
     The union of a set of n keys with one more key adds about log n nodes.
     As sorted tuples, the sets of a conjunction nested n levels deep held
-    n * n / 2 keys in all: the 41,822 levels of QF_IDL PO4-10-PO4 took 7 GB.
+    n * n / 2 keys in all: 8.7e8 for the 41,822 levels of QF_IDL
+    PO4-10-PO4, about 7 GB.
     """
 
     def __init__(self):
@@ -1509,8 +1512,8 @@ def _conjuncts(expr):
     of them take memory linear in the number of conjuncts. Written out as
     one tuple of steps per conjunct the paths are quadratic in the nesting
     depth: QF_IDL PO4-10-PO4, one assertion that nests 41,822 binary ands,
-    held 1.75e9 steps, and its replay grew to 17 GB before it read the
-    first line of the log.
+    held 1.75e9 steps (about 14 GB), and its replay grew to 17 GB before
+    it read the first line of the log.
     """
     pending = [(expr, None)]
     position = 0
@@ -1864,8 +1867,9 @@ class _Replay:
         are not listed: an and nested n levels deep is over the symbols of
         all n levels, and listing every and under each of its symbols took
         memory quadratic in the depth, as did the set of symbols kept for
-        every and while the index was built (3.7 GB together on QF_IDL
-        PO4-10-PO4, 41,822 levels). symbol_signatures gives each conjunct a
+        every and while the index was built (on QF_IDL PO4-10-PO4, 41,822
+        levels, the replay peaked at 3.7 GB with them and at 0.5 GB
+        without). symbol_signatures gives each conjunct a
         hash of its symbol set (_symbol_signature). Sources list an and
         before its conjuncts, so in reverse every conjunct is read before
         the and above it, which takes over the largest symbol set among its

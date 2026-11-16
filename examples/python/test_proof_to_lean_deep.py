@@ -234,8 +234,8 @@ class TestDeepClauseLog(_LeanChecked):
         # leaf conjuncts, the link and its guard, each and-eliminated once.
         # The lemma is over those two leaves; without the limit it is over
         # the first and that implies the clause, the conjunction of
-        # everything from the guard on, and the certificate is four times
-        # the text.
+        # everything from the guard on, and the certificate is more than
+        # four times the text.
         count = 100
         source = guarded_chain(count)
         whole = proof_certificate.export_clause_log_certificate(source)
@@ -267,8 +267,8 @@ class TestDeepClauseLog(_LeanChecked):
                             "50 s of export and 15 MB of Lean")
     def test_conjunction_of_20000_levels_is_checked(self):
         # The size of QF_IDL PO4-10-PO4's nesting halved, above the limit
-        # as it is: before, the replay of 2,500 links took 2 GB and that
-        # of PO4-10-PO4 passed 17 GB without reading the log.
+        # as it is: before, the replay of 2,500 links did not end in 300 s
+        # and that of PO4-10-PO4 passed 17 GB without reading the log.
         count = 5000
         certificate = self.check(guarded_chain(count), "propositional")
         self.assertEqual(certificate["rule_counts"]["th-lemma"], count)
