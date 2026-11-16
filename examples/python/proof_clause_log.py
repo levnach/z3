@@ -98,8 +98,10 @@ _RLIMIT = 200000
 # Up to this many assertion conjuncts, an assumed clause is checked against all
 # of them; above it, only against those sharing a symbol (_candidate_sources).
 _SEARCH_ALL_SOURCES = 64
-# An and with more conjuncts at and below it than this (counted through
-# nested ands) is never handed to a solver whole, in an equivalence or
+# An and with more sources at and below it than this (the and itself, its
+# conjuncts, and those of the ands nested in it, the nested ands counted
+# too: 4,097 leaf conjuncts when the ands are binary) is never handed to a
+# solver whole, in an equivalence or
 # implication check or as a tracked assertion: asserting a deeply nested
 # and costs Z3 time and memory that the resource limit of the check does
 # not bound (one check of the 41,822 nested binary ands of QF_IDL
@@ -1602,6 +1604,7 @@ class _Replay:
         for position in reversed(range(len(self.assumption_sources))):
             if self.source_parents[position] is not None:
                 self.source_sizes[self.source_parents[position]] += self.source_sizes[position]
+        self.largest_source = max(self.source_sizes, default=0)  # an assertion's: no source is larger than its root
         self.and_elim_nodes = {}  # position of a source below an and -> the and-elim node deriving it
         self.leaf_solver = None   # (solver over every leaf conjunct, tracking literal id -> (literal, source))
         self.assumptions_by_key = None
@@ -2044,7 +2047,7 @@ class _Replay:
         assertions = list(dict.fromkeys(self.assertions, None))
         if not assertions:
             return None
-        if any(self.source_sizes[position] > _CHECKED_CONJUNCTS for position in set(self.source_roots)):
+        if self.largest_source > _CHECKED_CONJUNCTS:
             # An assertion too large to hand to a solver whole: a core of the leaves instead.
             result, core = self._all_leaves_core(formula)
             if result == z3.unknown:

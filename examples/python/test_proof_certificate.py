@@ -3050,18 +3050,21 @@ class TestClauseLogReplay(unittest.TestCase):
         # _CHECKED_CONJUNCTS sources at and below it is never handed to a
         # solver; a clause is tied to it by an unsat core of leaf conjuncts.
         width, limit = 300, 100
-        body = "(or p%d q)" % (width - 1)
-        for i in reversed(range(width - 1)):
-            body = "(and %s %s)" % ("(or p7 q r)" if i == 7 else "(or p%d q)" % i, body)
-        source = ("(declare-const q Bool)(declare-const r Bool)(declare-const s Bool)(declare-const t Bool)"
+        leaves = ["(or p%d q)" % i for i in range(width)]
+        leaves[2], leaves[7] = "(not w)", "(or p7 q r)"
+        body = leaves[-1]
+        for leaf in reversed(leaves[:-1]):
+            body = "(and %s %s)" % (leaf, body)
+        source = ("".join("(declare-const %s Bool)" % name for name in "c q r s t w".split())
                   + "".join("(declare-const p%d Bool)" % i for i in range(width))
-                  + "(assert %s)(assert (or (not p3) s))(assert (not r))" % body)
+                  + "(assert %s)(assert (or (not p3) s))(assert (not r))(assert (or c w))" % body)
         context = z3.Context()
-        q, r, s, t = z3.Bools("q r s t", context)
+        c, q, r, s, t, w = z3.Bools("c q r s t w", context)
         p = [z3.Bool("p%d" % i, context) for i in range(width)]
-        checked, tracked = [], []
+        checked, tracked, cores = [], [], []
         original_check = proof_clause_log._Replay._check
         original_track = z3.Solver.assert_and_track
+        original_core = proof_clause_log._Replay._leaf_core
 
         def check(replay, claim):
             checked.append(sum(1 for _ in proof_clause_log._conjuncts(claim.arg(0))))
@@ -3071,28 +3074,46 @@ class TestClauseLogReplay(unittest.TestCase):
             tracked.append(formula.decl().kind())
             return original_track(solver, formula, literal)
 
-        def assume(literals):
+        def padded_core(replay, formula, given):
+            # The first core comes back with five leaves it does not need,
+            # as a core of Z3's may: _leaf_sources has to shrink it.
+            core = original_core(replay, formula, given)
+            cores.append((len(given), len(core)))
+            if len(cores) == 1:
+                kept = {position for _, _, position in core}
+                core = core + [leaf for leaf in given if leaf[2] not in kept][:5]
+            return core
+
+        def assume(literals, candidate=True):
             assertions, fragment = proof_certificate.parse_assertions(source, context)
             replay = proof_clause_log._Replay(source, fragment, assertions, context)
             self.assertEqual(replay.source_sizes[0], 2 * width - 1)
-            # Of the ands above the limit only the assertion is a candidate.
+            # Of the ands above the limit only the assertion is a candidate,
+            # when the clause shares a symbol with it.
             bound = proof_clause_log._CHECKED_CONJUNCTS
             large = [position for _, _, position in replay._candidate_sources(z3.Or(literals))
                      if replay.source_sizes[position] > bound]
-            self.assertEqual(large, [0] if bound == limit else [])
+            self.assertEqual(large, [0] if bound == limit and candidate else [])
             checked.clear()
             tracked.clear()
-            with patch.object(proof_clause_log._Replay, "_check", check), \
-                    patch.object(z3.Solver, "assert_and_track", track):
-                replay.assume(literals)
-            self.assertTrue(all(size <= bound for size in checked), checked)
-            self.assertNotIn(z3.Z3_OP_AND, tracked)
+            try:
+                with patch.object(proof_clause_log._Replay, "_check", check), \
+                        patch.object(z3.Solver, "assert_and_track", track):
+                    replay.assume(literals)
+            finally:
+                # Also of a clause that is rejected: no and above the limit
+                # was checked, and no and was tracked.
+                self.assertTrue(all(size <= bound for size in checked), checked)
+                self.assertNotIn(z3.Z3_OP_AND, tracked)
             return replay.dag.rule_counts
 
         with patch.object(proof_clause_log, "_CHECKED_CONJUNCTS", limit):
             # Needs the leaf over p7, q, r and the assertion (not r), which
             # shares no symbol with the clause: a core over all leaves, and
             # a lemma over those two, the leaf and-eliminated in 8 steps.
+            # (The counts pinned here and below are those of the one
+            # smallest core each clause has; which core Z3 returns is its
+            # choice, so where there are several the pins are looser.)
             counts = assume([p[7], q])
             self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 2, 8))
             self.assertEqual(checked, [1])  # the equivalence check of the leaf over p7, q, r
@@ -3101,6 +3122,14 @@ class TestClauseLogReplay(unittest.TestCase):
             counts = assume([q, s])
             self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 2, 4))
             self.assertEqual(checked, [])
+            # A core with leaves it does not need is checked again on its
+            # own until that stops shrinking it: the same lemma from a
+            # first core of seven leaves.
+            with patch.object(proof_clause_log._Replay, "_leaf_core", padded_core):
+                counts = assume([q, s])
+            self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 2, 4))
+            self.assertEqual(cores[1:], [(7, 2), (2, 2)])
+            self.assertEqual(cores[0], (width, 2))  # the leaves over q or s: all but (not w), and (or (not p3) s)
             # One leaf implies it.
             counts = assume([p[5], q, t])
             self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 1, 6))
@@ -3109,8 +3138,28 @@ class TestClauseLogReplay(unittest.TestCase):
             # one source, as when a solver decided it, not 200 leaves.
             counts = assume([q, z3.And(p[8:208])])
             self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 1, 0))
+            # A clause over exactly the symbols of the assertion is not
+            # checked for equivalence with it (the symbol sets agree, which
+            # below the limit earns the and that check): no check at all,
+            # and a lemma over a leaf, any but (not w) implying the clause.
+            counts = assume([p[i] for i in range(width) if i != 2] + [q, r, w])
+            self.assertEqual(checked, [])
+            self.assertEqual((counts["th-lemma"], counts["asserted"]), (1, 1))
+            self.assertGreater(counts["and-elim"], 0)
+            # A clause that shares no symbol with the large assertion and
+            # needs its unit (not w), with (or c w): the one candidate, that
+            # small assertion, does not imply it, no and is undecided, and
+            # the last resort, which tracked whole assertions, takes the
+            # core over the leaves: the unit, and-eliminated in 3 steps,
+            # and the small assertion.
+            counts = assume([c], candidate=False)
+            self.assertEqual(checked, [1])  # the equivalence check of (or c w)
+            self.assertEqual((counts["th-lemma"], counts["asserted"], counts["and-elim"]), (1, 2, 3))
+            self.assertEqual(len(tracked), width + 3 + 2)  # every leaf, then the core of two again
             # A clause the assertions do not imply is still rejected, by
-            # the leaves: the last resort tracks no assertion above the limit.
+            # the leaves: the last resort tracks no assertion above the
+            # limit (assume checks what was tracked when the replay raises
+            # too).
             with self.assertRaisesRegex(proof_certificate.ProofExportError, "does not match any original assertion"):
                 assume([p[9], t])
             self.assertTrue(tracked)
