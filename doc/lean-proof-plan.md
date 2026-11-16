@@ -1696,7 +1696,7 @@ none touching the trust boundary: (1) `_PropositionalProver` emits a tactic
 script (`have` lines, `refine` over `Or.elim`/`Iff.intro` with one hole per
 case and a bullet each, `exact`; `equivalence`, `implication` and
 `refutation` return lines), (2) the cnf lemmas and the propositional rewrites
-name the gates by the nodes' own definitions (`names=_structure_names`), so
+name the gates by the nodes' own definitions (the `names` of `_structure_names`), so
 the proof binds no `let` and the lemma unfolds nothing before the attempt
 (Lean unfolds a definition when a step unifies with it, one level per step),
 and the steps through conjunctions and disjunctions leave their operands to
@@ -1817,7 +1817,10 @@ Sokoban's export is otherwise unchanged (solve 0.7 s, trim 1.2 s, replay
 Tests: `examples/python/test_proof_to_lean_wide.py`
 (`TestChunkedConjunctionDefinitions`, `TestChunkedConjunctionsClauseLog`;
 the 16,000-operand conjunction and the 8,000-operand and-elim are slow
-tests).
+tests). They include the chunks of a term and of a Boolean distinct
+unfolding to its pairs in order, and a distinct and the conjunction of its
+pairs written out meeting as one structure in one lemma, which must take
+the tail theorems of the definition that names it.
 
 Still open:
 

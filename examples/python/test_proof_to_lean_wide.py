@@ -141,6 +141,35 @@ def distinct_with_equalities(count):
     return source + "(check-sat)\n"
 
 
+def distinct_with_last_equality(count):
+    """A distinct over count constants, and its last two equal."""
+    names = ["c%d" % index for index in range(count)]
+    source = "(declare-sort U 0)\n" + "".join("(declare-const %s U)\n" % name for name in names)
+    return source + "(assert (distinct %s))\n(assert (= %s %s))\n(check-sat)\n" % (
+        " ".join(names), names[-2], names[-1])
+
+
+def boolean_distinct(count):
+    """A distinct over count Boolean constants: its pairs are negated equivalences."""
+    names = ["b%d" % index for index in range(count)]
+    source = "".join("(declare-const %s Bool)\n" % name for name in names)
+    return source + "(assert (distinct %s))\n(check-sat)\n" % " ".join(names)
+
+
+def distinct_or_its_pairs(count):
+    """A distinct over count constants or the conjunction of its pairs written out, and its last two equal.
+
+    The two disjuncts are different nodes that read alike: one structure
+    to the propositional prover, which refutes it from the last pair.
+    """
+    names = ["c%d" % index for index in range(count)]
+    source = "(set-logic QF_UF)\n(declare-sort U 0)\n" + "".join("(declare-const %s U)\n" % name for name in names)
+    pairs = ["(not (= %s %s))" % (left, right) for index, left in enumerate(names) for right in names[index + 1:]]
+    source += "(declare-const p Bool)\n(declare-const q Bool)\n"
+    source += "(assert (or (and (and %s) p) (and (distinct %s) q)))\n" % (" ".join(pairs), " ".join(names))
+    return source + "(assert (= %s %s))\n(check-sat)\n" % (names[-2], names[-1])
+
+
 def longest_run(text, step):
     """The most consecutive repetitions of step in text."""
     return max((len(run) // len(step) for run in re.findall("(?:%s)+" % re.escape(step), text)), default=0)
@@ -301,6 +330,28 @@ def formula_definitions(text):
     return dict(re.findall(r"^def (formula_\w+) .*? : Prop := (.*)$", text, flags=re.M))
 
 
+def chunked_definitions(definitions):
+    """The names of the conjunctions defined in chunks, among the definitions of a text."""
+    return [name for name in definitions if name + "_c1" in definitions]
+
+
+def unfolded(test, definitions, name):
+    """The body of a definition with its chunks substituted, each of which the one before names once."""
+    body, chunk = definitions[name], 1
+    while "%s_c%d" % (name, chunk) in definitions:
+        applied = re.findall(r"\(%s_c%d [^()]*\)" % (name, chunk), body)
+        test.assertEqual(len(applied), 1, "chunk %d of %s is not named once by the chunks before it" % (chunk, name))
+        body = body.replace(applied[0], definitions["%s_c%d" % (name, chunk)])
+        chunk += 1
+    return body
+
+
+def reconstruct_written_out(source, certificate):
+    """The text with every conjunction written out in its definition, as before the chunks."""
+    with patch.object(proof_to_lean, "_CHUNKED_OPERANDS", float("inf")):
+        return proof_to_lean.reconstruct(source, certificate)
+
+
 class TestChunkedConjunctionDefinitions(unittest.TestCase):
     """A conjunction above _CHUNKED_OPERANDS operands is defined in chunks (_formula_definitions)."""
 
@@ -331,10 +382,7 @@ class TestChunkedConjunctionDefinitions(unittest.TestCase):
                     self.assertEqual(body.count("(And "), stride)
                     self.assertTrue(body.endswith(applied + ")" * stride), chunk)
                     body = chunked[chunk]
-                unfolded = chunked[name]
-                for chunk in reversed(chunks):
-                    unfolded = unfolded.replace("(%s _atoms)" % chunk, chunked[chunk])
-                self.assertEqual(unfolded, flat[name])
+                self.assertEqual(unfolded(self, chunked, name), flat[name])
                 # Theorem k proves chunk k from the conjunction by a stride of projections of chunk k - 1.
                 theorems = re.findall(r"^theorem (\w+) \(_atoms : Nat -> Prop\) \(_h : \((\w+) _atoms\)\) : "
                                       r"\((\w+) _atoms\) := (.*)$", text, flags=re.M)
@@ -343,7 +391,8 @@ class TestChunkedConjunctionDefinitions(unittest.TestCase):
                      ("_h" if chunk == 1 else "(%s_t%d _atoms _h)" % (name, chunk - 1)) + ".2" * stride)
                     for chunk in range(1, count)])
                 # What the proof says of the conjunction is unchanged: only its definition differs.
-                rest = [line for line in text.split("\n") if not re.match(r"(?:def|theorem) %s(?:_[ct]\d+)? " % name, line)]
+                rest = [line for line in text.split("\n")
+                        if not re.match(r"(?:def|theorem) %s(?:_[ct]\d+)? " % name, line)]
                 self.assertEqual(rest, [line for line in whole.split("\n") if not line.startswith("def %s " % name)])
 
     def test_a_distinct_and_the_conjunction_of_its_pairs_are_chunked_alike(self):
@@ -353,25 +402,73 @@ class TestChunkedConjunctionDefinitions(unittest.TestCase):
         stride = proof_to_lean._AND_ELIM_STRIDE
         source = distinct_with_last_equality(24)
         certificate = proof_certificate.export_certificate(source)
-        self.assertEqual(certificate["rule_counts"]["def-axiom"], 2)
+        self.assertIn("def-axiom", certificate["rule_counts"],
+                      "the legacy core no longer relates this distinct to the conjunction of its pairs by def-axioms")
         text, report = lean_test_support.check(self, source, certificate)
         self.assertIn(".unsat' does not depend on any axioms", report)
-        definitions = formula_definitions(text)
-        chunked = [name for name in definitions if name + "_c1" in definitions]
-        self.assertEqual(len(chunked), 2)
+        definitions, flat = formula_definitions(text), formula_definitions(reconstruct_written_out(source, certificate))
+        chunked = chunked_definitions(definitions)
+        self.assertEqual(len(chunked), 2, "expected the distinct and the conjunction of its pairs, both in chunks")
         for name in chunked:
             chunks = [name] + ["%s_c%d" % (name, chunk) for chunk in range(1, (276 + stride - 1) // stride)]
             self.assertEqual([chunk for chunk in definitions if chunk == name or chunk.startswith(name + "_c")],
                              chunks[:0:-1] + [name])
             self.assertEqual(sum(definitions[chunk].count("(And ") for chunk in chunks), 275)
+            self.assertEqual(unfolded(self, definitions, name), flat[name])
+        # One of the two is the distinct, over the terms.
+        self.assertEqual(sum(self.pairs_in_order(flat[name], 24, r"\(Not \(%s = %s\)\)", r"\(term_\d+ [^()]*\)")
+                             for name in chunked), 1)
 
+    def pairs_in_order(self, body, count, pair, operand):
+        """Whether a conjunction is the pairs of a distinct over count arguments: by the first, then the second."""
+        pairs = re.findall(pair % (("(%s)" % operand,) * 2), body)
+        if len(pairs) != body.count("(And ") + 1:
+            return False  # a conjunction of something else
+        arguments = [pairs[0][0]] + [right for _, right in pairs[:count - 1]]
+        self.assertEqual(len(set(arguments)), count)
+        self.assertEqual(pairs, [(left, right) for index, left in enumerate(arguments)
+                                 for right in arguments[index + 1:]])
+        return True
 
-def distinct_with_last_equality(count):
-    """A distinct over count constants, and its last two equal."""
-    names = ["c%d" % index for index in range(count)]
-    source = "(declare-sort U 0)\n" + "".join("(declare-const %s U)\n" % name for name in names)
-    return source + "(assert (distinct %s))\n(assert (= %s %s))\n(check-sat)\n" % (
-        " ".join(names), names[-2], names[-1])
+    def test_the_chunks_of_a_distinct_unfold_to_its_pairs_in_order(self):
+        # No Lean: the definitions. 24 arguments are the fewest whose pairs (276) are defined in
+        # chunks; 25 leave a last chunk that is not full; through both cores.
+        stride, limit = proof_to_lean._AND_ELIM_STRIDE, proof_to_lean._CHUNKED_OPERANDS
+        self.assertLessEqual(23 * 22 // 2, limit)
+        for count, core in ((24, "clause-log"), (25, "legacy"), (25, "clause-log")):
+            if core == "clause-log" and not _z3_available():
+                continue
+            source = distinct_with_last_equality(count)
+            certificate = (proof_certificate.export_certificate(source) if core == "legacy"
+                           else proof_certificate.export_clause_log_certificate(source))
+            definitions = formula_definitions(proof_to_lean.reconstruct(source, certificate))
+            flat = formula_definitions(reconstruct_written_out(source, certificate))
+            with self.subTest(count=count, core=core):
+                chunked = chunked_definitions(definitions)
+                self.assertTrue(chunked)
+                self.assertEqual(set(definitions) - {name for name in definitions if re.search(r"_c\d+$", name)},
+                                 set(flat))
+                for name in chunked:
+                    self.assertIn("%s_c%d" % (name, (count * (count - 1) // 2 - 1) // stride), definitions)
+                    self.assertEqual(unfolded(self, definitions, name), flat[name])
+                self.assertEqual(sum(self.pairs_in_order(flat[name], count, r"\(Not \(%s = %s\)\)",
+                                                         r"\(term_\d+ [^()]*\)") for name in chunked), 1)
+
+    def test_a_boolean_distinct_is_chunked_over_its_negated_equivalences(self):
+        # Over Booleans the pairs are negated equivalences; 24 arguments have no model, which
+        # the proof shows from pairs it projects through the chunks' theorems.
+        source = boolean_distinct(24)
+        certificate = proof_certificate.export_certificate(source)
+        self.assertEqual(certificate["fragment"], "propositional")
+        text, report = lean_test_support.check(self, source, certificate)
+        self.assertIn(".unsat' does not depend on any axioms", report)
+        definitions, flat = formula_definitions(text), formula_definitions(reconstruct_written_out(source, certificate))
+        chunked = chunked_definitions(definitions)
+        self.assertEqual(len(chunked), 1, "expected the distinct alone to be defined in chunks")
+        name = chunked[0]
+        self.assertEqual(unfolded(self, definitions, name), flat[name])
+        self.assertTrue(self.pairs_in_order(flat[name], 24, r"\(Not \(Iff %s %s\)\)", r"\(formula_\d+ [^()]*\)"))
+        self.assertRegex(text, r"\(%s_t\d+ _atoms _f\d+\)" % name)
 
 
 @unittest.skipUnless(_z3_available(), "the z3 executable is required for the clause log")
@@ -415,14 +512,49 @@ class TestChunkedConjunctionsClauseLog(_WideLeanIntegration):
         source = distinct_with_equalities(60)
         certificate, axioms = self.check(source, "clause-log", "qf_uf", 60)
         self.assertLessEqual(axioms, _STANDARD_AXIOMS)
-        (lemma,) = lemma_texts(proof_to_lean.reconstruct(source, certificate))
-        lemma = self.structural(lemma)
-        projections = re.findall(r"have _f\d+ := \(formula_\d+_t(\d+) _atoms _m (_f\d+)\)((?:\.2)*)(?:\.1)?\n", lemma)
-        self.assertEqual(len(projections), 3)  # one per equality
-        self.assertEqual(len({proof for _, proof, _ in projections}), 1)  # from the distinct's own proof
-        self.assertLess(max(len(path) // 2 for _, _, path in projections), stride)
-        # No tail of the distinct is bound in the proof: the theorems are the tails.
-        self.assertIsNone(re.search(r"have _f\d+ := _f\d+(?:\.2){%d}\n" % stride, lemma))
+        lemmas = [self.structural(lemma) for lemma in lemma_texts(proof_to_lean.reconstruct(source, certificate))]
+        projected = 0
+        for lemma in lemmas:
+            projections = re.findall(r"have _f\d+ := \(formula_\d+_t(\d+) _atoms _m (_f\d+)\)((?:\.2)*)(?:\.1)?\n",
+                                     lemma)
+            if not projections:
+                continue
+            projected += len(projections)
+            self.assertEqual(len({proof for _, proof, _ in projections}), 1)  # from the distinct's own proof
+            self.assertLess(max(len(path) // 2 for _, _, path in projections), stride)
+            # No tail of the distinct is bound in the proof: the theorems are the tails.
+            self.assertIsNone(re.search(r"have _f\d+ := _f\d+(?:\.2){%d}\n" % stride, lemma))
+        self.assertGreater(projected, 0, "no lemma of Z3's clause log for this input projects a pair out of the "
+                           "true distinct any more: the test needs another input")
+        self.assertLessEqual(projected, 3)  # at most one per equality
+
+    def test_distinct_and_the_conjunction_of_its_pairs_are_one_structure_in_a_lemma(self):
+        # Two nodes that read alike are one structure to the prover, named by
+        # one of their definitions (_structure_names): the tail theorems it
+        # projects with must be those of that definition. Here the distinct
+        # and the conjunction of its 276 pairs are both defined in chunks,
+        # and the lemma refutes the structure from its last pair.
+        source = distinct_or_its_pairs(24)
+        certificate, axioms = self.check(source, "clause-log", "qf_uf", 276)
+        self.assertLessEqual(axioms, _STANDARD_AXIOMS)
+        with patch.object(proof_to_lean, "_structure_names", wraps=proof_to_lean._structure_names) as named:
+            text = proof_to_lean.reconstruct(source, certificate)
+        self.assertEqual(len(chunked_definitions(formula_definitions(text))), 2)
+        shared = 0
+        for (graph, memo), _ in named.call_args_list:
+            alike = {}
+            for node, structure in memo.items():
+                if node in graph.wide_conjunctions:
+                    alike.setdefault(structure, []).append(node)
+            shared += sum(len(nodes) > 1 for nodes in alike.values())
+        self.assertGreater(shared, 0, "no lemma of Z3's clause log for this input reads the distinct and the "
+                           "conjunction of its pairs together any more: the test needs another input")
+        refutations = re.findall(r"\(fun \(_conj : \((formula_\d+) _atoms _m\)\) => [^\n]*?"
+                                 r"\((formula_\d+)_t(\d+) _atoms _m _conj\)", text)
+        self.assertTrue(refutations)
+        for named_by, tails_of, chunk in refutations:
+            self.assertEqual(named_by, tails_of)
+            self.assertEqual(int(chunk), 275 // proof_to_lean._AND_ELIM_STRIDE)  # the last pair's chunk
 
     def test_unfolding_a_chunked_distinct_names_its_chunks(self):
         # The fallback of a theory lemma unfolds the definitions down to the
@@ -433,21 +565,31 @@ class TestChunkedConjunctionsClauseLog(_WideLeanIntegration):
         self.assertLessEqual(axioms, _STANDARD_AXIOMS)
         text = proof_to_lean.reconstruct(source, certificate)
         definitions = formula_definitions(text)
-        (name,) = [name for name in definitions if name + "_c1" in definitions]
-        chunks = [name] + ["%s_c%d" % (name, chunk) for chunk in range(1, (276 + stride - 1) // stride)]
-        unfolds = [line for line in text.split("\n") if re.search(r"\bunfold\b.* %s " % name, line)]
-        self.assertTrue(unfolds)
-        for line in unfolds:
-            self.assertIn(" %s " % " ".join(chunks), line)
+        chunked = chunked_definitions(definitions)
+        self.assertTrue(chunked)
+        unfolded_somewhere = False
+        for name in chunked:
+            chunks = [name] + ["%s_c%d" % (name, chunk) for chunk in range(1, (276 + stride - 1) // stride)]
+            unfolds = [line for line in text.split("\n") if re.search(r"\bunfold\b.* %s " % name, line)]
+            unfolded_somewhere = unfolded_somewhere or bool(unfolds)
+            for line in unfolds:
+                self.assertIn(" %s " % " ".join(chunks), line)
+        self.assertTrue(unfolded_somewhere, "no lemma of this input unfolds the distinct any more")
+
+    def refutations(self, text):
+        """The structural proofs of the lemmas that refute a conjunction defined in chunks from one operand."""
+        lemmas = [self.structural(lemma) for lemma in lemma_texts(text)]
+        lemmas = [lemma for lemma in lemmas if "(fun (_conj : " in lemma]
+        self.assertTrue(lemmas, "no lemma of Z3's clause log for this input refutes the conjunction from one "
+                        "of its operands any more: the test needs another input")
+        return lemmas
 
     def check_guarded_conjunction(self, width):
         source = guarded_conjunction(width)
         certificate, axioms = self.check(source, "clause-log", "propositional", width)
         self.assertLessEqual(axioms, _STANDARD_AXIOMS)
         text = proof_to_lean.reconstruct(source, certificate)
-        (lemma,) = lemma_texts(text)
-        self.assertIn("(fun (_conj : ", self.structural(lemma))
-        return text, self.structural(lemma)
+        return text, max(self.refutations(text), key=len)
 
     def test_wide_conjunction_is_refuted_from_its_last_operand(self):
         self.check_guarded_conjunction(2000)
@@ -461,8 +603,7 @@ class TestChunkedConjunctionsClauseLog(_WideLeanIntegration):
         for width in (1000, 2000, 4000):
             source = guarded_conjunction(width)
             text = proof_to_lean.reconstruct(source, proof_certificate.export_clause_log_certificate(source))
-            (lemma,) = lemma_texts(text)
-            self.assertLess(len(self.structural(lemma)), 1500)
+            self.assertLess(max(len(lemma) for lemma in self.refutations(text)), 1500)
             self.assertLessEqual(longest_run(text, ".2"), stride)
             self.assertEqual(longest_run(text, "(mt (@And.right _ _) "), 0)
             sizes[width] = len(text)
