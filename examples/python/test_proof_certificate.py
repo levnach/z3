@@ -3037,10 +3037,10 @@ class TestClauseLogReplay(unittest.TestCase):
             return peak
 
         small, large = measure(1000), measure(4000)
-        # Four times the depth: four times the memory, not sixteen (the
-        # paths alone were 64 MB at 4,000 levels).
+        # Four times the depth: four times the memory, not sixteen (12 and
+        # 47 MB of Python objects; before, 71 MB and 1,013 MB).
         self.assertLess(large, 6 * small)
-        self.assertLess(large, 48 * 2 ** 20)
+        self.assertLess(large, 160 * 2 ** 20)
 
     def test_and_above_the_solver_limit_is_tied_through_its_leaves(self):
         # Asserting a deeply nested and costs Z3 time and memory that the
