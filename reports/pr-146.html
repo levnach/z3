@@ -7,272 +7,270 @@
 <style>
   :root {
     --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #0969da;
-    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e;
+    --code-bg: #f6f8fa; --border: #d1d9e0; --ok: #1a7f37; --bad: #cf222e;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #4493f8;
-      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+      --code-bg: #161b22; --border: #3d444d; --ok: #3fb950; --bad: #f85149;
     }
   }
-  html { background: var(--bg); color: var(--fg); }
-  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6;
-         max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  body { background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         line-height: 1.6; max-width: 52rem; margin: 0 auto; padding: 1.5rem; }
   a { color: var(--accent); }
-  h1 { font-size: 1.6rem; line-height: 1.3; margin-bottom: 0.3rem; }
-  h2 { font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.2rem; margin-top: 2.2rem; }
-  h3 { font-size: 1.05rem; margin-top: 1.4rem; }
-  .meta { color: var(--muted); font-size: 0.95rem; }
-  .state { display: inline-block; padding: 0.05rem 0.55rem; border-radius: 1rem; border: 1px solid var(--ok);
-           color: var(--ok); font-weight: 600; font-size: 0.85rem; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
-         background: var(--code-bg); padding: 0.1rem 0.3rem; border-radius: 4px; }
-  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.8rem;
-        overflow-x: auto; line-height: 1.4; }
-  pre code { background: none; padding: 0; font-size: 0.82rem; }
-  table { border-collapse: collapse; margin: 0.8rem 0; font-size: 0.92rem; }
-  th, td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+  h1 { font-size: 1.6rem; line-height: 1.3; }
+  h2 { border-bottom: 1px solid var(--border); padding-bottom: .3rem; margin-top: 2.2rem; }
+  .meta { color: var(--muted); }
+  .meta dt { font-weight: 600; float: left; clear: left; width: 9rem; }
+  .meta dd { margin-left: 9.5rem; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: .8rem;
+        overflow-x: auto; font-size: .85rem; line-height: 1.45; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+  p code, li code, td code, dd code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 4px; }
+  table { border-collapse: collapse; margin: 1rem 0; width: 100%; }
+  th, td { border: 1px solid var(--border); padding: .4rem .6rem; text-align: left; vertical-align: top; }
   th { background: var(--code-bg); }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .ok { color: var(--ok); font-weight: 600; }
   .bad { color: var(--bad); font-weight: 600; }
-  .note { color: var(--muted); font-size: 0.92rem; }
-  dt { font-weight: 600; margin-top: 0.6rem; }
-  dd { margin-left: 1.2rem; }
-  footer { margin-top: 3rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 0.8rem; }
+  .explain { color: var(--muted); margin-top: -.4rem; }
+  dl.glossary dt { font-weight: 600; margin-top: .7rem; }
+  dl.glossary dd { margin-left: 1.2rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--border); padding-top: .8rem; }
 </style>
 </head>
 <body>
 
 <header>
-<h1>Keep the literals of a wide unit resolution in place, not case-split</h1>
-<p class="meta">
-  Pull request <a href="https://github.com/levnach/z3/pull/146">levnach/z3 #146</a>
-  · state <span class="state">OPEN</span>
-  · opened 2026-11-17T19:09:28Z
-  · loop iteration 145
-</p>
-<p class="meta">
-  This pull request is open and not merged.
-  Its change commit is
-  <a href="https://github.com/levnach/z3/commit/5135dacdc4f567202f9bdc7df88acffba69c03ac"><code>5135dacdc</code></a>.
-</p>
+  <h1>Keep the literals of a wide unit resolution in place, not case-split</h1>
+  <dl class="meta">
+    <dt>Pull request</dt><dd><a href="https://github.com/levnach/z3/pull/146">levnach/z3#146</a></dd>
+    <dt>State</dt><dd><span class="ok">MERGED</span> into <code>master</code></dd>
+    <dt>Merge commit</dt><dd><a href="https://github.com/levnach/z3/commit/90a1b97a4a6722b24b18f66d37d661e73f119bfc">90a1b97a4</a></dd>
+    <dt>Merged on</dt><dd>2026-11-17T19:28:54Z</dd>
+    <dt>Loop iteration</dt><dd>145</dd>
+  </dl>
 </header>
 
 <h2 id="summary">In one paragraph</h2>
 <p>
-  A <a href="#g-refutation">refutation</a> from Z3 often contains a
-  <a href="#g-unit-resolution">unit resolution</a> that removes one
-  <a href="#g-literal">literal</a> from a long <a href="#g-clause">clause</a> and keeps all the others.
-  The Lean exporter used to write that step as one <a href="#g-case-split">case split</a> per kept literal.
-  Each split rebuilt the literal's position in the conclusion, so the text grew with the
-  <a href="#g-quadratic">square</a> of the clause width.
-  At 400 kept literals, Lean ran out of <a href="#g-heartbeat">heartbeats</a> on that one step and rejected the whole file.
-  Now, when more than eight literals are kept in the same order, the exporter writes a short term that moves no literal.
-  Its size is <a href="#g-linear">linear</a> in the clause.
-  The same 400-literal input now gets a Lean certificate.
-  The <a href="#g-kernel">kernel</a> still checks every step, and no <a href="#g-axiom">axiom</a> is added.
+Z3 often logs a <a href="#g-clause">clause</a> that it simplified under a <a href="#g-unit">unit</a>.
+The reconstructor ties that clause to its source with one <a href="#g-unit-resolution">unit resolution</a>.
+Before this PR, the Lean text for such a step opened one <a href="#g-case-split">case split</a> per kept
+<a href="#g-literal">literal</a> and moved each literal back into its place.
+That text grew with the square of the number of kept literals.
+With 400 kept literals, Lean ran out of <a href="#g-heartbeat">heartbeats</a> and rejected the whole
+<a href="#g-refutation">refutation</a>.
+Now, when more than eight literals are kept in their original order, the exporter writes a short term that leaves every literal where it is.
+The term grows only in step with the clause.
+The same 400-literal input now produces a Lean file that the <a href="#g-kernel">kernel</a> accepts.
 </p>
 
 <h2 id="background">Background</h2>
 <p>
-  Before this PR, every sample file that exports verified in Lean, except one failure and five files never checked for time.
-  But the pipeline still had costs that grew faster than the input.
-  One of them was the unit resolution described above.
-  It appears when Z3 logs a clause it has simplified under a <a href="#g-unit">unit</a> and ties it back to its source.
-  Wide clauses of that kind were rejected by Lean on generated inputs with a few hundred
-  <a href="#g-literal">literals</a>, even though the step is trivial.
-  The resolution rule belongs to the <a href="#g-boolean">Boolean</a> slice of milestone 2 in the plan.
-  The inputs it helps here are linear-arithmetic files, part of milestone 3.
-  The change is about scale, not about new kinds of input.
+Before this PR, the pipeline already certified this family of <a href="#g-qf-lra">QF_LRA</a> inputs at small sizes.
+The case-split text was correct, only too large.
+A resolution step that kept 400 literals became a single line of about 745 kB.
+Its outlined <a href="#g-lemma">lemma</a> hit Lean's limit after about 17 seconds.
+This iteration chose to remove a cost that grows faster than its input, rather than add a new theory.
+It serves the Boolean core of milestone 2, the kernel-checked Boolean slice, as it is reused by the
+<a href="#g-clause-log">clause log</a> path of milestone 3, equality and linear arithmetic.
 </p>
 
 <h2 id="changes">What changed</h2>
 <ul>
-  <li>A unit resolution that keeps more than eight literals of its clause, in order, now gives Lean a term whose size is linear in the clause.</li>
-  <li>Generated inputs with 400 and 800 kept literals, which Lean rejected before, now verify.</li>
-  <li>Cuts after a kept literal use two new small helper <a href="#g-theorem">theorems</a>, <code>resolve_first</code> and <code>resolve_rest</code>, which Lean proves without axioms.</li>
-  <li>Narrower or reordered resolutions are written exactly as before, so 146 of 152 sample texts are byte-for-byte unchanged.</li>
-  <li>New tests pin the exact terms, check them in Lean, and check that seven tampered versions are rejected.</li>
-  <li>The plan document gains a section with the measurements, and the examples README describes the new form.</li>
+  <li>A unit resolution that keeps more than eight literals, in order, is now written as a term whose size grows linearly with the clause.</li>
+  <li>Literals cut at the front of the clause are removed one by one with Lean's <code>Or.resolve_left</code>, and nothing else is needed.</li>
+  <li>Literals cut further along are removed by one composed function that walks past each kept literal without opening a case split.</li>
+  <li>Two small helper <a href="#g-theorem">theorems</a> do the walking, and Lean checks them without any <a href="#g-axiom">axiom</a>.</li>
+  <li>Narrower or reordered resolutions are written exactly as before, so only six sample texts changed, and all six still verify in the same time.</li>
 </ul>
 <p>
-  An analogy: the old exporter copied a long list by taking each item out and putting it back where it was, one item at a time.
-  The new exporter crosses out the removed items and leaves the rest of the list where it is.
+An analogy helps here. Think of a row of 400 numbered boxes with one box to remove.
+The old text unpacked every box and repacked it on a fresh shelf, counting from the start each time.
+The new text simply says "skip this box" for each kept box and "remove this one" for the cut one.
 </p>
+<p>The two helpers, as added to <code>proof_to_lean.py</code>:</p>
+<pre><code>private theorem resolve_first {p q r : Prop} (n : Not p) (f : q -&gt; r) : p \/ q -&gt; r :=
+  fun h =&gt; f (h.resolve_left n)
+
+private theorem resolve_rest {p q : Prop} (n : Not q) : p \/ q -&gt; p :=
+  fun h =&gt; h.resolve_right n</code></pre>
+<p class="explain">The first cuts the first literal of a <a href="#g-disjunction">disjunction</a> and hands the rest on. The second cuts everything after the last kept literal.</p>
+
 <table>
   <thead><tr><th>File</th><th>Component</th><th>Lines added</th><th>Lines removed</th></tr></thead>
   <tbody>
     <tr><td><code>examples/python/proof_to_lean.py</code></td><td>Lean exporter</td><td class="num">94</td><td class="num">1</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_wide.py</code></td><td>Tests</td><td class="num">222</td><td class="num">0</td></tr>
     <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Tests</td><td class="num">7</td><td class="num">0</td></tr>
-    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Documentation</td><td class="num">114</td><td class="num">0</td></tr>
+    <tr><td><code>doc/lean-proof-plan.md</code></td><td>Plan document</td><td class="num">114</td><td class="num">0</td></tr>
     <tr><td><code>examples/python/README</code></td><td>Documentation</td><td class="num">18</td><td class="num">0</td></tr>
-    <tr><th>Total, 5 files, 5 commits</th><th></th><th class="num">455</th><th class="num">1</th></tr>
+    <tr><th>Total</th><th>5 files</th><th class="num">455</th><th class="num">1</th></tr>
   </tbody>
 </table>
 
 <h2 id="example">Worked example</h2>
 <p>
-  This change is about size, so a tiny input is accepted both before and after.
-  The example below is ten bounds from the PR's own test family.
-  It shows the shape of the change.
-  The rejection under "Before" comes from the 400-bound member of the same family.
-  It was produced by the test generator <code>wide_clause_under_a_unit(400)</code>.
-  All outputs below come from real runs made for this page.
+The input comes from the PR's new test helper <code>wide_clause_under_a_unit(400)</code>.
+It has 400 Real variables. It is shown below with "..." for the repeated parts and with the assertion spread over three lines.
+The real file has one declaration per line and the whole assertion on one line.
 </p>
-
 <h3>(a) The input</h3>
 <pre><code>(set-logic QF_LRA)
 (declare-const b Bool)
-(declare-const x0 Real) (declare-const x1 Real) (declare-const x2 Real) (declare-const x3 Real) (declare-const x4 Real)
-(declare-const x5 Real) (declare-const x6 Real) (declare-const x7 Real) (declare-const x8 Real) (declare-const x9 Real)
+(declare-const x0 Real)
+...
+(declare-const x399 Real)
 (assert (and (not b)
-  (or b (&lt;= 1.0 x0) (&lt;= 1.0 x1) (&lt;= 1.0 x2) (&lt;= 1.0 x3) (&lt;= 1.0 x4) (&lt;= 1.0 x5) (&lt;= 1.0 x6) (&lt;= 1.0 x7) (&lt;= 1.0 x8) (&lt;= 1.0 x9))
-  (&lt; x0 1.0) (&lt; x1 1.0) (&lt; x2 1.0) (&lt; x3 1.0) (&lt; x4 1.0) (&lt; x5 1.0) (&lt; x6 1.0) (&lt; x7 1.0) (&lt; x8 1.0) (&lt; x9 1.0)))
+             (or b (&lt;= 1.0 x0) (&lt;= 1.0 x1) ... (&lt;= 1.0 x399))
+             (&lt; x0 1.0) (&lt; x1 1.0) ... (&lt; x399 1.0)))
 (check-sat)</code></pre>
-<p>Every <code>xi</code> is below 1, yet the clause says some <code>xi</code> is at least 1, so the assertion is unsatisfiable.</p>
+<p class="explain">Each bound <code>1 &lt;= xi</code> is contradicted by <code>xi &lt; 1</code>, and <code>b</code> is contradicted by <code>not b</code>, so no assignment satisfies the assertion.</p>
 
-<h3>(b) Before</h3>
-<p>On the ten-bound input, the base exporter wrote the step as a chain of case splits, and Lean accepted it.
-The step's line was 1,048 characters long:</p>
-<pre><code>  let _step_41 : (formula_40 _atoms _vars) :=
-    (Or.elim (_step_39.neg_resolve_left _step_35) (fun _literal =&gt; (Or.inl _literal)) (fun _tail =&gt; (Or.elim _tail (fun _literal =&gt; (Or.inr (Or.inl _literal))) (fun _tail =&gt; (Or.elim _tail (fun _literal =&gt; (Or.inr (Or.inr (Or.inl _literal)))) ...</code></pre>
-<p>Each kept literal gets one more <code>Or.inr</code> than the one before it, which is where the square comes from.
-On the 400-bound input of the same family, the base pipeline failed in Lean:</p>
-<pre><code>family400.lean:9393:0: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
+<h3>(b) Before: the pipeline at the PR's base</h3>
+<p>The old certificate exporter succeeded. The old Lean exporter wrote its file, and Lean then rejected it after 16.9 seconds:</p>
+<pre><code>old.lean:9393:0: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
 ...
 Lean checking failed; no proof was published.</code></pre>
+<p class="explain">The case-split text for the one wide resolution step was too large for Lean to check within its default budget.</p>
 
-<h3>(c) After</h3>
-<p>The current exporter on the ten-bound input. First, the clause and the conclusion of the step:</p>
-<pre><code>def formula_37 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (formula_34 _atoms _vars))
-def formula_38 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Or (formula_37 _atoms _vars) (Or (formula_4 _atoms _vars) ... (formula_22 _atoms _vars)))))))))))
-def formula_40 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Or (formula_4 _atoms _vars) (Or (formula_6 _atoms _vars) ... (formula_22 _atoms _vars))))))))))</code></pre>
-<p><code>formula_34</code> is the whole assertion. <code>formula_38</code> is the clause "the assertion is false, or one of the ten bounds holds". <code>formula_40</code> is the same clause without its first literal.</p>
-<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
-    (_h0 : (formula_34 _atoms _vars))
-    : False :=</code></pre>
-<p>The theorem says that the assertion implies False.</p>
-<pre><code>  let _step_39 : (formula_38 _atoms _vars) :=
-    (th_lemma_39 _atoms _vars)
-  let _step_41 :=
-    (_step_39.neg_resolve_left _step_35)
+<h3>(c) After: the Lean text generated now</h3>
+<pre><code>def formula_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := _atoms 0
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_2 _atoms _vars) &lt;= (term_3 _atoms _vars))
+...
+def formula_804 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_3 _atoms _vars) &lt; (term_2 _atoms _vars))
+...</code></pre>
+<p class="explain">Each atom and bound of the input gets a definition. Here <code>formula_0</code> is <code>b</code>, <code>formula_4</code> is <code>1 &lt;= x0</code>, and <code>formula_804</code> is <code>x0 &lt; 1</code>.</p>
+
+<pre><code>def formula_1206 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (formula_1204 _atoms _vars))
+def formula_1207 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Or (formula_1206 _atoms _vars) (Or (formula_4 _atoms _vars) (Or (formula_6 _atoms _vars) ...
+...</code></pre>
+<p class="explain"><code>formula_1207</code> is the wide clause: "the assertion is false, or <code>1 &lt;= x0</code>, or <code>1 &lt;= x1</code>, and so on up to <code>x399</code>".</p>
+
+<pre><code>private theorem proof_step_3213 {_atoms : Nat -&gt; Prop} {_vars : Nat -&gt; Rat}
+    (_inputs : Inputs _atoms _vars)
+    : (formula_3211 _atoms _vars) :=
+  let _step_1205 := proof_step_1205 _inputs
+  let _step_1208 : (formula_1207 _atoms _vars) :=
+    (th_lemma_1208 _atoms _vars)
+  let _step_1210 :=
+    (_step_1208.neg_resolve_left _step_1205)
   ...</code></pre>
-<p>The new step cuts the first literal with the assertion itself and keeps the ten bounds where they stand, in one short line.</p>
-<p>
-  The Lean check accepted this file: <code>Lean checks passed.</code>
-  On the 400-bound input, the current exporter also finished with "Lean checked the refutation".
-  Z3 puts the cut literal in front here, so this run does not use the two helper theorems.
-  They are written only when a cut follows a kept literal, and only the PR's hand-made test certificates do that.
-  Their text, from the exporter's source, is:
-</p>
-<pre><code>private theorem resolve_first {p q r : Prop} (n : Not p) (f : q -&gt; r) : p \/ q -&gt; r :=
-  fun h =&gt; f (h.resolve_left n)
+<p class="explain">This is the new feature at work. <code>_step_1210</code> cuts the first literal using the proof of the assertion, and the 400 kept bounds stay exactly as they stand, in one short line instead of 745 kB.</p>
 
-private theorem resolve_rest {p q : Prop} (n : Not q) : p \/ q -&gt; p :=
-  fun h =&gt; h.resolve_right n</code></pre>
-<p>The first cuts the leading literal and passes the rest on. The second cuts everything after the leading literal.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_1204 _atoms _vars))
+    : False :=
+  @proof_step_3213 _atoms _vars (Inputs.mk _h0)</code></pre>
+<p class="explain">The final theorem states that the input assertion implies <code>False</code>.</p>
+<p>
+<span class="ok">Lean accepted this file.</span>
+The check printed "Lean checks passed." in about 11 seconds on the loop machine.
+In this input the only cut sits at the front, so the helpers <code>resolve_first</code> and <code>resolve_rest</code> are not needed here.
+They are exercised by the PR's hand-made test certificates, which cut literals in the middle and at the end.
+</p>
 
 <h2 id="verification">How it was verified</h2>
 <p>
-  The whole Lean exporter test suite passed on the final commit, and so did Lean's own checks.
-  The inputs that failed before now verify, and the six sample files whose text changed verify in the same time as before.
-  The local gate result had not been recorded when this page was written, so the merge decision is still open.
-  The fork runs no GitHub workflows, so this PR has no CI checks. Its local gate decides the merge.
+In plain words: the full set of Lean reconstruction tests passed, both before and after review.
+The new tests check the exact terms, check that Lean accepts twelve certificates of up to 800 literals, and check that seven deliberately broken texts are rejected.
+The same new tests fail against the old exporter, which shows they test the change.
+</p>
+<p>
+This is a fork pull request. The fork runs no GitHub workflows, so it has no CI checks.
+The loop's local gate decided the merge, and it passed.
 </p>
 <table>
-  <thead><tr><th>Check</th><th>Who, on which commit</th><th>Result</th></tr></thead>
+  <thead><tr><th>Local gate step</th><th>Result</th><th>Time</th></tr></thead>
   <tbody>
-    <tr><td>Lean exporter tests, <code>test_proof_to_lean*.py</code></td><td>integrator, <code>5135dacdc</code></td><td class="ok">725 tests, OK, 22 skipped</td></tr>
-    <tr><td><code>scripts/check_lean.sh</code></td><td>integrator, <code>5135dacdc</code></td><td class="ok">Lean checks passed</td></tr>
-    <tr><td>New <code>TestWideUnitResolution</code></td><td>integrator, <code>5135dacdc</code></td><td class="ok">6 tests, OK, 1 skipped (slow tier)</td></tr>
-    <tr><td>Whole <a href="#g-tier">slow tier</a></td><td>implementer, <code>da8f48314</code></td><td class="ok">22 tests, OK</td></tr>
-    <tr><td>Proof tests in z3test</td><td>implementer</td><td class="ok">48 tests, OK</td></tr>
-    <tr><td>Certificate exporter tests</td><td>implementer</td><td class="ok">128 tests, OK</td></tr>
-    <tr><td>Regression matrix with Lean</td><td>implementer</td><td class="ok">6/6 and 8/8 verified</td></tr>
-    <tr><td>New tests against the old exporter</td><td>implementer</td><td>all five fail, as expected</td></tr>
+    <tr><td>Lean script tests</td><td class="ok">pass</td><td class="num">2 s</td></tr>
+    <tr><td>Python example tests: certificate exporter</td><td class="ok">pass</td><td class="num">27 s</td></tr>
+    <tr><td>Python example tests: Lean reconstruction</td><td class="ok">pass</td><td class="num">1101 s</td></tr>
+    <tr><td>z3test proof script tests</td><td class="ok">pass</td><td class="num">18 s</td></tr>
+    <tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td class="ok">pass</td><td class="num">5 s</td></tr>
+    <tr><td>Lean-certified QF_LRA matrix (clause log)</td><td class="ok">pass</td><td class="num">7 s</td></tr>
   </tbody>
 </table>
 <table>
-  <thead><tr><th>Input</th><th>Before</th><th>After</th></tr></thead>
+  <thead><tr><th>Other run</th><th>Who</th><th>Result</th></tr></thead>
   <tbody>
-    <tr><td>Family, 400 bounds</td><td class="bad">fails after 16.7 s (heartbeats)</td><td class="ok">verifies in 10.4 s, 1.13 GB</td></tr>
-    <tr><td>Family, 800 bounds</td><td class="bad">fails after 60.7 s</td><td class="ok">verifies in 48.7 s, 2.26 GB</td></tr>
-    <tr><td>Family, 1,600 bounds</td><td>not checked</td><td class="ok">verifies in 408.0 s, 5.55 GB</td></tr>
-    <tr><td>800-literal clause, every other literal cut</td><td class="bad">fails after 7.0 s</td><td class="ok">verifies in 1.6 s, 0.62 GB</td></tr>
-    <tr><td>Step's line, 400 bounds</td><td>745 kB</td><td>45 bytes</td></tr>
-    <tr><td>Sample texts identical / changed</td><td colspan="2">146 identical, 6 changed, all 6 verify in the same time</td></tr>
+    <tr><td>All <code>test_proof_to_lean*.py</code> on the final tree</td><td>integrator</td><td>725 tests, OK, 22 skipped</td></tr>
+    <tr><td><code>scripts/check_lean.sh</code></td><td>integrator</td><td>Lean checks passed</td></tr>
+    <tr><td>Slow tier, before the review fixes</td><td>implementer</td><td>22 tests, OK</td></tr>
+    <tr><td>All <code>test_proof_to_lean*.py</code></td><td>reviewer</td><td>724 tests, OK, 22 skipped</td></tr>
+    <tr><td>New tests against the old exporter</td><td>implementer</td><td>all 5 fail, as expected</td></tr>
+    <tr><td>Worked example above, new and old exporter</td><td>this report</td><td>new accepted, old rejected</td></tr>
   </tbody>
 </table>
-<p class="note">Timings are the implementer's measurements, as reported in the PR. The reviewer also ran the full suite (724 tests, OK) and six extra edge cases in Lean, which all passed.</p>
+<p>The slow tier was not rerun after the review fixes. The integrator could not run it there.</p>
 
 <h2 id="review">Review</h2>
-<p>The reviewer approved, with no blockers and no major findings.</p>
+<p>The reviewer approved the change. There were no blockers and no major findings.</p>
 <ul>
-  <li><strong>Minor.</strong> The reviewer noticed that the helper theorems were only reached by hand-made certificates.
-    Nothing checked them in a large text that is split into a <a href="#g-module">chain of modules</a>.
-    That split changes how private declarations are handled, so a helper could end up out of reach.
-    The fix is a new test that splits a 40-literal certificate using both helpers into four or more modules.
-    It checks that the helpers come first and that Lean accepts the chain without axioms.
-    It still remains true that no Z3-produced certificate uses this form.</li>
-  <li><strong>Nit.</strong> The reviewer could not reconcile two counts of rewritten resolutions in the plan document.
-    They came from different sets of texts. The paragraph now names the set behind each count.</li>
-  <li><strong>Nit.</strong> The decision to write the helpers searched the text for their names, which is fragile.
-    It now matches only an application of a helper. A dedicated flag was not added.
-    The reason given is that a wrong decision either adds an unused theorem or makes Lean reject the file.
-    It can never cause a wrong proof to be accepted.</li>
+  <li><strong>Minor, fixed.</strong>
+  The reviewer noticed that large proofs are split into a chain of Lean <a href="#g-module">modules</a>.
+  No test checked the new helpers in such a chain, where they are declared in one file and used in a later one.
+  A breakage there would only cause a rejection, never a false acceptance, but it would still lose a certificate.
+  The integrator added a test that splits a certificate into four or more modules, and Lean accepts the chain with no axioms.</li>
+  <li><strong>Nit, fixed.</strong>
+  The plan document gave three counts of rewritten resolutions that came from different sample sets.
+  A reader could not reconcile them. The document now says which set each count comes from.</li>
+  <li><strong>Nit, partly fixed.</strong>
+  The exporter decided whether to emit the helpers by searching the text for their names.
+  The reviewer called that a fragile coupling. The search now looks only for an application, such as <code>(resolve_first </code>.
+  No separate flag was added, because a wrong decision can only make Lean reject a proof.</li>
 </ul>
 
 <h2 id="risks">Risks and open questions</h2>
 <ul>
-  <li>Six sample texts change. All were checked in Lean after the change and verify.</li>
-  <li>A resolution that is its clause's tail is now bound without a stated type. Lean checks it where it is used, as it already does for one-literal resolutions.</li>
-  <li>The helper form is tested only on hand-made certificates. No certificate from Z3 has yet shown a cut after a kept literal.</li>
-  <li>The limit of eight kept literals is a chosen constant, not a measured optimum.</li>
-  <li>Lean's time on the family is still faster-growing than linear: 408 s at 1,600 bounds. Inputs of this shape with a few thousand literals still do not certify.</li>
+  <li>The middle and end cuts, which use the helpers, are covered only by hand-made test certificates. No Z3-produced certificate in this iteration had such a cut.</li>
+  <li>A resolution whose result is the clause's tail is now bound without a stated type. Lean checks it where it is used. A consumer that needs the formula's name would reject it. None was found.</li>
+  <li>The limit of eight kept literals keeps sample texts unchanged. It is not a measured optimum.</li>
+  <li>Lean's time on this family is still superlinear because of a different step, the <a href="#g-cnf-lemma">cnf lemma</a>. At 1,600 bounds it took 408 seconds and 5.55 GB. Inputs with a few thousand literals still do not certify.</li>
 </ul>
 
 <h2 id="next">What comes next</h2>
 <ul>
-  <li>The remaining cost on the family is the <a href="#g-cnf-lemma">cnf lemma</a> that links each literal of the simplified clause to the assertion. It is the first candidate in the backlog.</li>
-  <li>Resolutions that keep two to eight literals, and wide reordered or factored conclusions, still use case splits. Both are in the backlog.</li>
+  <li>The cnf lemma of a clause simplified under a unit is the first candidate in the backlog. It builds one bridge per literal, and its cost grows between the square and the cube of the clause.</li>
+  <li>Resolutions that keep two to eight literals remain case splits. Lowering the limit is in the backlog but not recommended on its own.</li>
+  <li>A conclusion that reorders a wide clause still costs the square of its width. This was not seen above eight literals in the sample.</li>
 </ul>
 
 <h2 id="glossary">Glossary</h2>
-<dl>
+<dl class="glossary">
   <dt id="g-axiom">axiom</dt>
-  <dd>A statement Lean accepts without proof. The certificates here should depend on none beyond Lean's core.</dd>
-  <dt id="g-boolean">Boolean</dt>
-  <dd>A value that is either true or false, written <code>Bool</code> in SMT-LIB.</dd>
+  <dd>A statement Lean accepts without proof. A certificate that depends on no extra axioms trusts only Lean's own logic.</dd>
   <dt id="g-case-split">case split</dt>
-  <dd>A proof that handles each alternative of a disjunction separately. In Lean it is written with <code>Or.elim</code>.</dd>
-  <dt id="g-module">chain of modules</dt>
-  <dd>A large Lean text cut into several files, each importing the one before it, so Lean can check them in turn.</dd>
+  <dd>A proof that handles "A or B" by proving the goal once assuming A and once assuming B. In Lean this is <code>Or.elim</code>.</dd>
   <dt id="g-clause">clause</dt>
-  <dd>A disjunction of literals: it holds if at least one literal holds. Example: <code>(or b (&lt;= 1.0 x0))</code>.</dd>
+  <dd>A disjunction of literals, such as <code>b or (1 &lt;= x0) or (1 &lt;= x1)</code>.</dd>
+  <dt id="g-clause-log">clause log</dt>
+  <dd>A record Z3 writes of the clauses it learns and the inferences that justify them. The pipeline replays it to build a proof.</dd>
   <dt id="g-cnf-lemma">cnf lemma</dt>
-  <dd>A clause that follows from a formula's Boolean structure alone, used to turn the formula into clauses.</dd>
+  <dd>A clause that holds because of how a formula is translated into clauses (conjunctive normal form). For example, "not (A and B), or A".</dd>
+  <dt id="g-disjunction">disjunction</dt>
+  <dd>An "or" of formulas. It is true when at least one part is true.</dd>
   <dt id="g-heartbeat">heartbeat</dt>
-  <dd>Lean's unit of work. A declaration that uses more than its limit, by default 200,000, is rejected.</dd>
+  <dd>Lean's unit of work for elaboration. By default a declaration may use 200,000 of them before Lean stops with a timeout.</dd>
   <dt id="g-kernel">kernel</dt>
-  <dd>The small trusted core of Lean that checks every proof term.</dd>
-  <dt id="g-linear">linear growth</dt>
-  <dd>Size that doubles when the input doubles.</dd>
+  <dd>The small trusted core of Lean that checks every finished proof term.</dd>
+  <dt id="g-lemma">lemma</dt>
+  <dd>A helper theorem proved on the way to the main result. The exporter outlines large proof steps into separate lemmas.</dd>
   <dt id="g-literal">literal</dt>
-  <dd>An atom or the negation of an atom. Example: <code>b</code>, <code>(not b)</code>, or <code>(&lt;= 1.0 x0)</code>.</dd>
-  <dt id="g-quadratic">quadratic growth</dt>
-  <dd>Size that grows with the square of the input: doubling the input makes it about four times bigger.</dd>
+  <dd>An atom or its negation, such as <code>b</code>, <code>not b</code>, or <code>1 &lt;= x0</code>.</dd>
+  <dt id="g-module">module</dt>
+  <dd>One Lean source file. Very large proofs are split into a chain of modules, each importing the one before it.</dd>
+  <dt id="g-qf-lra">QF_LRA</dt>
+  <dd>The SMT-LIB logic of quantifier-free linear real arithmetic. Example: <code>(&lt;= 1.0 x0)</code> with <code>x0</code> of sort Real.</dd>
   <dt id="g-refutation">refutation</dt>
-  <dd>A proof that a set of assertions leads to False.</dd>
-  <dt id="g-tier">slow tier</dt>
-  <dd>The tests that take long and run only when asked, here with <code>Z3_LEAN_SLOW_TESTS=1</code>. The rest form the fast tier.</dd>
+  <dd>A proof that a set of assertions leads to <code>False</code>, so they cannot all hold.</dd>
   <dt id="g-theorem">theorem</dt>
-  <dd>A named statement together with its proof, which Lean checks once and can then reuse.</dd>
+  <dd>A named statement together with a proof that Lean checks.</dd>
   <dt id="g-unit">unit</dt>
-  <dd>A clause with exactly one literal, which is therefore known to hold. Example: <code>(not b)</code>.</dd>
+  <dd>A clause with a single literal, that is, a fact known to hold, such as <code>not b</code>.</dd>
   <dt id="g-unit-resolution">unit resolution</dt>
-  <dd>The step that removes from a clause every literal whose negation is a unit. From <code>(or b c d)</code> and <code>(not b)</code> it gives <code>(or c d)</code>.</dd>
+  <dd>An inference that removes literals from a clause using units that contradict them. From "b or c" and "not b" it concludes "c".</dd>
 </dl>
 
 <footer>
