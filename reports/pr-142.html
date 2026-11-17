@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1c1f24; --muted: #5b6370; --line: #d9dde3;
-  --soft: #f4f6f8; --accent: #0b5cad; --ok: #1a7f37; --warn: #9a6700; --bad: #b3261e;
+  --soft: #f4f6f8; --accent: #0b5cad; --ok: #1a7f37; --merged: #6f42c1; --bad: #b3261e;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171b; --fg: #e4e7eb; --muted: #9aa3af; --line: #343a43;
-    --soft: #1d2127; --accent: #7ab7ff; --ok: #56d364; --warn: #e3b341; --bad: #ff7b72;
+    --soft: #1d2127; --accent: #7ab7ff; --ok: #56d364; --merged: #b392f0; --bad: #ff7b72;
   }
 }
 * { box-sizing: border-box; }
@@ -41,7 +41,7 @@ th { background: var(--soft); }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .meta { list-style: none; padding: .7rem .9rem; margin: .8rem 0; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; }
 .meta li { margin: .15rem 0; }
-.state { display: inline-block; font-weight: 600; border: 1px solid var(--warn); color: var(--warn); border-radius: 999px; padding: 0 .6em; }
+.state { display: inline-block; font-weight: 600; border: 1px solid var(--merged); color: var(--merged); border-radius: 999px; padding: 0 .6em; }
 .ok { color: var(--ok); font-weight: 600; }
 .bad { color: var(--bad); font-weight: 600; }
 .sev { font-weight: 600; }
@@ -57,25 +57,24 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 <h1>Sweep cnf lemmas through nested gates and further below the clause</h1>
 <ul class="meta">
 <li>Pull request: <a href="https://github.com/levnach/z3/pull/142">levnach/z3 #142</a>, targeting <code>master</code></li>
-<li>State: <span class="state">OPEN</span> This pull request is not merged.</li>
-<li>Change commit: <a href="https://github.com/levnach/z3/commit/35f62027f0e2211715fa2e6a6cba02dcd0bfc663"><code>35f62027f</code></a>, the last of three commits</li>
-<li>Date: 2026-11-17T01:57:46Z</li>
+<li>State: <span class="state">MERGED</span></li>
+<li>Merge commit: <a href="https://github.com/levnach/z3/commit/85a7c04d4ad3ad7d6e9b00b31435209cff45d8b8"><code>85a7c04d4</code></a>, merged 2026-11-17T02:16:09Z</li>
+<li>Date: 2026-11-17T02:16:09Z</li>
 <li>Loop iteration: 141</li>
 </ul>
 </header>
 
 <h2>In one paragraph</h2>
-<p>This PR makes the exporter's <a href="#g-sweep">sweep</a> of a <a href="#g-cnf-lemma">cnf lemma</a> succeed on two shapes of formula where it used to give up. First, the sweep now reads through a chain of nested <a href="#g-conjunction">conjunctions</a> instead of writing one <a href="#g-link">link</a> per level. Second, when its <a href="#g-refutation">refutation</a> of the <a href="#g-clause">clause</a> gets stuck, it tries again deeper, closer to the <a href="#g-atom">atoms</a>. Two <a href="#g-idl">integer difference logic</a> benchmark files, qlock-4-10-8 and qlock-4-10-9, now verify in Lean. Before, each failed because a brute-force fallback <a href="#g-tactic">tactic</a> ran out of <a href="#g-heartbeat">heartbeats</a>. Only the Python exporter changed, so the <a href="#g-trusted-base">trusted base</a> is the same.</p>
+<p>This PR makes the exporter's <a href="#g-sweep">sweep</a> of a <a href="#g-cnf-lemma">cnf lemma</a> succeed on two shapes of formula where it used to give up. First, the sweep now reads through a chain of nested <a href="#g-conjunction">conjunctions</a> instead of writing one <a href="#g-link">link</a> per level. Second, when its <a href="#g-refutation">refutation</a> of the <a href="#g-clause">clause</a> gets stuck, it tries again deeper, closer to the <a href="#g-atom">atoms</a>. Two <a href="#g-idl">integer difference logic</a> benchmark files, qlock-4-10-8 and qlock-4-10-9, now verify in Lean. Before, each failed because a fallback <a href="#g-tactic">tactic</a> ran out of <a href="#g-heartbeat">heartbeats</a>. Only the Python exporter changed, so the <a href="#g-trusted-base">trusted base</a> is the same.</p>
 
 <h2>Background</h2>
-<p>Before this PR, both qlock files exported to Lean text, but the check failed after about 70 seconds. One cnf lemma in each had no structural proof, only a fallback that <a href="#g-unfold">unfolds</a> over a thousand definitions. Two things stopped the sweep. A deeply nested conjunction cost a <a href="#g-quadratic">quadratic</a> amount of proof text. And Z3 had logged the clause over a formula simplified under <a href="#g-unit">unit clauses</a>, so the clause and the <a href="#g-assertion">assertion</a> shared no <a href="#g-gate">gate</a> above the atoms. The files are integer difference logic, part of milestone 3, equality and <a href="#g-linear">linear arithmetic</a>.</p>
+<p>Before this PR, both qlock files exported to Lean text, but the check failed after about 70 seconds. In each file, a cnf lemma had no <a href="#g-structural">structural proof</a>, only a fallback that <a href="#g-unfold">unfolds</a> over a thousand definitions. Two things stopped the sweep. A deeply nested conjunction cost a <a href="#g-quadratic">quadratic</a> amount of proof text. And Z3 had logged the clause over a formula simplified under <a href="#g-unit">unit clauses</a>. The clause and the <a href="#g-assertion">assertion</a> then had no matching <a href="#g-gate">gate</a> above the atoms. The files are integer difference logic, which belongs to milestone 3, equality and <a href="#g-linear">linear arithmetic</a>.</p>
 
 <h2>What changed</h2>
 <h3>Exporter</h3>
 <ul>
 <li>A conjunction nested <i>n</i> levels deep now costs the sweep one link instead of <i>n</i> links, so its proof text grows linearly.</li>
 <li>A refutation that ends without a contradiction is now repeated one round further down the formula, up to eight rounds where there were three.</li>
-<li>After review, a repeat that would read exactly the same gates and facts as the search before it is skipped.</li>
 </ul>
 <p>An analogy for the first change: read ((a&nbsp;and&nbsp;b)&nbsp;and&nbsp;c)&nbsp;and&nbsp;d as the flat list a, b, c, d, without justifying every bracket.</p>
 <h3>Tests and documentation</h3>
@@ -98,7 +97,7 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 </div>
 
 <h2>Worked example</h2>
-<p>The newly certified files are over 100 kB each, too large to show. The PR's tests use a small stand-in with the same shape, from the generator <code>nested_under_units</code>. Here it is at two levels: three unit clauses first, then the nested formula they decide.</p>
+<p>The newly certified files are over 100 kB each. The PR's tests use a small stand-in from the generator <code>nested_under_units</code>, shown here at two levels.</p>
 
 <h3>(a) The input</h3>
 <pre><code>(set-logic QF_LIA)
@@ -111,7 +110,7 @@ footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--lin
 (assert (or (and (or (and (or (&lt;= i j) (not u)) p0) r0) p1) r1))
 (assert (&gt; i j))
 (check-sat)</code></pre>
-<p class="note">A caveat: on an input this small the ordinary <a href="#g-search">proof searches</a> succeed. Run plainly, the old and new pipelines write the same Lean file, and Lean accepts it. The runs below therefore make the two searches give up, as the PR's test does.</p>
+<p class="note">A caveat: on an input this small the ordinary <a href="#g-search">proof searches</a> succeed. Run plainly, the old and new pipelines write the same Lean file, which Lean accepts. The runs below make the searches give up, as the PR's test does.</p>
 
 <h3>(b) Before</h3>
 <p>The base exporter's sweep gave up on the lemma for <code>(&lt;= i j)</code> and wrote only this:</p>
@@ -120,11 +119,11 @@ private theorem th_lemma_69 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
     : (formula_68 _atoms _vars) := by
   unfold formula_68 formula_67 formula_66 formula_65 formula_64 formula_16 formula_15 formula_14 formula_13 formula_12 formula_11 formula_10 formula_9 formula_8 formula_7 term_6 term_5 formula_4 formula_3 formula_2 formula_1 formula_0
   first | omega | grind (splits := 64)</code></pre>
-<p>This is the fallback alone: unfold everything and let general tactics try. Lean accepts it here because the formula is tiny. On qlock-4-10-8, run again with the base exporter for this report, Lean stopped in the fifth of 47 modules:</p>
+<p>This is the fallback alone: unfold everything and let general tactics try. Lean accepts it here because the formula is tiny. On qlock-4-10-8, exported again with the base exporter, Lean stopped in the fifth of 47 modules:</p>
 <pre><code>Z3Certificate_efd30e5340d8816a_04.lean:2582:18: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached</code></pre>
 
 <h3>(c) After</h3>
-<p>The current exporter sweeps the lemma. Lean accepted the file (<code>Lean checks passed.</code>), also with the fallback alternatives removed.</p>
+<p>The merged exporter sweeps the lemma. Lean accepted the file (<code>Lean checks passed.</code>), also with the fallback alternatives removed.</p>
 <pre><code>def formula_7 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_5 _atoms _vars) &lt;= (term_6 _atoms _vars))
 def formula_8 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Not (formula_0 _atoms _vars))
 def formula_9 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_7 _atoms _vars) (formula_8 _atoms _vars))
@@ -165,19 +164,26 @@ private theorem th_lemma_69 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
        exact (False.elim (_f126 (Classical.byContradiction (fun _g =&gt; _f109 _g)))))
     | (unfold formula_68 formula_67 ... formula_0
        first | omega | grind (splits := 64))</code></pre>
-<p>The new first alternative assumes the clause is false, follows the links down to the comparison, and reaches a contradiction. The fallback stays as the second alternative.</p>
+<p>The new first alternative assumes the clause is false, follows the links down to the comparison, and reaches a contradiction. With the old limit of three rounds the merged exporter loses this proof again. The fallback stays as the second alternative.</p>
 
 <h2>How it was verified</h2>
-<p>The whole reconstruction test suite passed on the final commit, including slow tests that check qlock-4-10-8 in Lean. Every exporting sample file was regenerated with the old and the new exporter, and the four changed texts were checked in Lean before and after. The reviewer also ran a <a href="#g-fuzz">differential fuzz</a>, with every new proof checked in Lean.</p>
+<p>The local gate passed all six of its steps on the merged change. The fork runs no GitHub workflows, so this PR had no CI checks, and the local gate decided the merge.</p>
 <div class="wrap">
 <table>
-<tr><th>Check</th><th>Result</th></tr>
-<tr><td>Lean reconstruction tests, three modules</td><td><span class="ok">OK</span>: 705 tests, 17 skipped</td></tr>
+<tr><th>Local gate step</th><th>Result</th><th class="n">Time</th></tr>
+<tr><td>Lean script tests</td><td><span class="ok">pass</span>: 25 tests</td><td class="n">1 s</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span>: 128 tests</td><td class="n">27 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span>: 705 tests, 17 skipped</td><td class="n">1040 s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span>: 48 tests</td><td class="n">18 s</td></tr>
+<tr><td>Lean-certified <a href="#g-boolean">Boolean</a> matrix, legacy proof object</td><td><span class="ok">pass</span>: 6 of 6 Lean-verified</td><td class="n">5 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix, clause log</td><td><span class="ok">pass</span>: 8 of 8 Lean-verified</td><td class="n">6 s</td></tr>
+</table>
+</div>
+<p>Earlier runs went further. Every exporting sample file was regenerated with both exporters, and the four changed texts were checked in Lean. The reviewer's <a href="#g-fuzz">differential fuzz</a> found no regression.</p>
+<div class="wrap">
+<table>
+<tr><th>Check before the gate</th><th>Result</th></tr>
 <tr><td>Slow sweep tests, with qlock-4-10-8 checked in Lean</td><td><span class="ok">OK</span>: 8 tests</td></tr>
-<tr><td>Certificate exporter tests</td><td><span class="ok">OK</span>: 128 tests</td></tr>
-<tr><td>Lean project checks, <code>scripts/check_lean.sh</code></td><td><span class="ok">passed</span></td></tr>
-<tr><td>z3test proof script tests</td><td><span class="ok">OK</span>: 48 tests</td></tr>
-<tr><td>Proof matrix, <a href="#g-boolean">Boolean</a> inputs and <code>lra_*.smt2</code></td><td><span class="ok">Lean-verified</span>: 6 of 6 and 8 of 8</td></tr>
 <tr><td>qlock-4-10-9, exported and checked as a <a href="#g-chain">chain of modules</a></td><td><span class="ok">verified</span>: 88 modules, 305.7 s, 1.16 GB</td></tr>
 <tr><td>Sample scan, old against new exporter</td><td>152 files export, 148 texts identical, 4 changed and Lean-checked. 144 of 175 sample files verify, 142 before.</td></tr>
 <tr><td>Reviewer's fuzz against the base exporter</td><td>663 swept clauses, all 14 Lean chunks pass, no regression</td></tr>
@@ -199,12 +205,11 @@ private theorem th_lemma_69 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
 </table>
 </div>
 <p>Not run: the other slow tests and the C++ test suites, since no C++ code changed.</p>
-<p>The fork runs no GitHub workflows, so this PR has no CI checks. The local gate decides the merge. When this report was written, the gate was still running and its result had not been recorded.</p>
 
 <h2>Review</h2>
 <p>Verdict: approve, with no blocker and no major finding.</p>
 <ul>
-<li><span class="sev">Minor, fixed.</span> The reviewer swept a clause that does not hold, so no proof exists. The new retry loop ran eight searches, most of them the same search again. A large case slowed from 0.26 s to 15.5 s, and a file with many such lemmas would pay that each time. The sweep now skips a search over input it has already read. Eight searches became three, and the large case takes 3.3 s.</li>
+<li><span class="sev">Minor, fixed.</span> The reviewer swept a clause that does not hold, so no proof exists. The new retry loop ran eight searches, most of them identical, and a large case slowed from 0.26 s to 15.5 s. A file with many such lemmas would pay that each time. The sweep now skips a search over input it has already read, and the large case takes 3.3 s.</li>
 <li><span class="sev">Nit, fixed.</span> A test checked the link count with "at least". For one case that meant "at least zero", which can never fail. It now checks exact counts.</li>
 <li><span class="sev">Nit, fixed.</span> A table row in the plan still called the failing lemma an arithmetic one.</li>
 <li><span class="sev">Nit, corrected.</span> Two numbers in the implementer's summary did not match the scan they cited. The PR description uses the scan's numbers.</li>
@@ -213,15 +218,17 @@ private theorem th_lemma_69 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
 <h2>Risks and open questions</h2>
 <ul>
 <li>Four sample texts change. All were checked in Lean before and after, and inputs outside the sample will change the same way.</li>
-<li>A failing sweep now costs more searches: 3.3 s against 0.26 s on the large failing case.</li>
+<li>A failing sweep still runs more searches than before, each bounded by step and text limits.</li>
 <li>A link through a very long chain can exceed a link's limits. It is then dropped, and the refutation reads the chain itself.</li>
-<li>Only the slow test tier guards qlock-4-10-8, and qlock-4-10-9 is not in the repository.</li></ul>
+<li>Only the slow test tier guards qlock-4-10-8, and qlock-4-10-9 is not in the repository.</li>
+</ul>
 
 <h2>What comes next</h2>
 <ul>
 <li>A chain above about 630 levels is still not swept, because inner gates still count against a size limit. This is the first follow-up.</li>
 <li>An <a href="#g-equivalence">equivalence</a> or <a href="#g-implication">implication</a> that stands for its <a href="#g-class">class</a> is never read through.</li>
 <li>Nine cnf lemmas in the sample still have no structural proof.</li>
+<li>The batch carrying this change is verified on a second machine before it goes upstream, where CI runs.</li>
 </ul>
 
 <h2>Glossary</h2>
@@ -231,7 +238,7 @@ private theorem th_lemma_69 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
 <dt id="g-boolean">Boolean</dt><dd>Having one of the two values true and false. Boolean reasoning uses only connectives such as and, or, and not.</dd>
 <dt id="g-canonical">canonical gate</dt><dd>One agreed way to write a gate, with its operands flattened and in a fixed order, so that two differently grouped gates can be compared.</dd>
 <dt id="g-chain">chain of modules</dt><dd>A large Lean text split into files of about 1 MB that Lean checks one after another.</dd>
-<dt id="g-clause">clause</dt><dd>A disjunction of literals, such as <code>(or p (not q))</code>.</dd>
+<dt id="g-clause">clause</dt><dd>A <a href="#g-disjunction">disjunction</a> of <a href="#g-literal">literals</a>, such as <code>(or p (not q))</code>.</dd>
 <dt id="g-cnf-lemma">cnf lemma</dt><dd>A proof step saying that a clause Z3 logged follows from the asserted formulas by Boolean reasoning. CNF stands for conjunctive normal form, a conjunction of clauses.</dd>
 <dt id="g-conjunction">conjunction</dt><dd>An "and" of formulas. It is true when all its operands are true.</dd>
 <dt id="g-fuzz">differential fuzzing</dt><dd>Testing two versions of a program on many random inputs and comparing their results.</dd>
@@ -248,6 +255,7 @@ private theorem th_lemma_69 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
 <dt id="g-search">proof search</dt><dd>An automatic attempt to find a proof, here by the exporter, within limits on steps and text. It can give up.</dd>
 <dt id="g-quadratic">quadratic</dt><dd>Growing with the square of the input size: twice the depth costs four times the text.</dd>
 <dt id="g-refutation">refutation</dt><dd>A proof that a set of formulas cannot all be true, ending in <code>False</code>.</dd>
+<dt id="g-structural">structural proof</dt><dd>A proof that follows the shape of the formula gate by gate, instead of handing the whole formula to a general tactic.</dd>
 <dt id="g-sweep">sweep</dt><dd>The exporter's structural proof of a cnf lemma: it links matching gates of the two formulas one by one, then refutes the negated clause through the links.</dd>
 <dt id="g-tactic">tactic</dt><dd>A Lean command that builds part of a proof, such as <code>omega</code> for linear integer arithmetic.</dd>
 <dt id="g-trusted-base">trusted base</dt><dd>The parts that must be correct for a verified result to be believed. The exporter is outside it: Lean checks whatever the exporter writes.</dd>
@@ -255,6 +263,6 @@ private theorem th_lemma_69 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
 <dt id="g-unit">unit clause</dt><dd>A clause with one literal, such as <code>u</code> or <code>(not r0)</code>. It fixes the truth value of its atom.</dd>
 </dl>
 
-<footer>Generated by the Lean certificate improvement loop on 2026-11-17 (UTC).</footer>
+<footer>Generated by the Lean certificate improvement loop on 2026-11-16.</footer>
 </body>
 </html>
