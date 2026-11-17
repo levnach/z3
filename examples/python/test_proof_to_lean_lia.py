@@ -2009,6 +2009,20 @@ class TestIntegerLeanIntegration(unittest.TestCase):
         certificate = self.check(pinned_negated_distinct_source(12))
         self.assertEqual(certificate["rule_counts"]["th-lemma"], 66)
 
+    @lean_test_support.slow("a negated 56-term distinct, 2.6 MB of Lean, about 20 s at 2.9 GB")
+    def test_a_lemma_step_over_fifteen_hundred_literals_verifies(self):
+        # 56 pinned terms, 1,540 refuted pairs: the lemma step over 1,539 of
+        # them, refuting each through the negated clause's tails (a line of
+        # 321 kB), ran out of the default 200,000 heartbeats, and Lean
+        # rejected the file after 13 s. As a chain (52 kB) it verifies.
+        source = pinned_negated_distinct_source(56)
+        certificate = self.check(source)
+        self.assertEqual(certificate["rule_counts"]["th-lemma"], 1540)
+        text = proof_to_lean.reconstruct(source, certificate)
+        widths = [line.count("(classical_or_intro ") + 1 for line in text.split("\n") if "(classical_or_intro " in line]
+        self.assertGreater(max(widths), 1500)
+        self.assertLess(max(len(line) for line in text.split("\n")), 60000)
+
     def test_negated_distinct_rewrites_of_reversed_pairs_verify(self):
         # The eq_comm congruence of a pair written (= aj ai), which Z3's
         # rewriter does not produce, on a certificate whose first and last
