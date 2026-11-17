@@ -1832,30 +1832,42 @@ day:
 
 | file | cnf lemmas with facts; facts; most in one lemma | before | after |
 | --- | --- | --- | --- |
-| QF_LRA `simple_startup_15nodes.synchro.base` | 1; 694; 694 | 4.85 MB; FAILS after 51.5 s at 3.35 GB (`th_lemma_17023` out of 1,000,000 heartbeats) | 4.86 MB; **verifies** in 19.3 s at 3.53 GB |
-| QF_LRA `simple_startup_11nodes.synchro.base` | 1; 446; 446 | 3.03 MB; verifies in 24.9 s at 2.30 GB | 3.04 MB; verifies in 10.8 s at 2.16 GB |
-| QF_IDL `BubbleSort_safe_bgmc007` | 1; 342; 342 | 2.96 MB; verifies in 9.6 s at 1.61 GB | 2.96 MB; verifies in 9.0 s at 1.59 GB |
-| QF_LRA `clocksynchro_8clocks.main_invar.base` | 19; 791; 203 | 4.27 MB; verifies in 23.1 s at 2.31 GB | 4.28 MB; verifies in 21.4 s at 2.32 GB |
+| QF_LRA `simple_startup_15nodes.synchro.base` | 1; 694; 694 | 4.85 MB; FAILS after 51.5 s at 3.35 GB (`th_lemma_17023` out of 1,000,000 heartbeats) | 4.88 MB; **verifies** in 19.4 s at 3.50 GB |
+| QF_LRA `simple_startup_11nodes.synchro.base` | 1; 446; 446 | 3.03 MB; verifies in 24.9 s at 2.30 GB | 3.05 MB; verifies in 10.9 s at 2.17 GB |
+| QF_IDL `BubbleSort_safe_bgmc007` | 1; 342; 342 | 2.96 MB; verifies in 9.6 s at 1.61 GB | 2.97 MB; verifies in 9.0 s at 1.60 GB |
+| QF_LRA `clocksynchro_8clocks.main_invar.base` | 19; 791; 203 | 4.27 MB; verifies in 23.1 s at 2.31 GB | 4.30 MB; verifies in 21.7 s at 2.32 GB |
 | QF_LRA `clocksynchro_3clocks.main_invar.base` | 8; 143; 63 | 1.00 MB; verifies in 6.9 s at 0.99 GB | 1.01 MB; verifies in 6.9 s at 0.98 GB |
-| QF_IDL `FISCHER6-4-ninc` | 7; 378; 54 | 2.25 MB; verifies in 5.4 s at 1.14 GB | 2.25 MB; verifies in 5.4 s at 1.14 GB |
-| QF_LRA `current_frame.base` | 13; 415; 35 | 1.81 MB; verifies in 4.0 s at 1.06 GB | 1.81 MB; verifies in 4.0 s at 1.07 GB |
-| QF_IDL `ckt_PROP1_tf_10` | 4; 50; 47 | 0.85 MB; verifies in 2.9 s at 0.95 GB | 0.85 MB; verifies in 2.8 s at 0.96 GB |
+| QF_IDL `FISCHER6-4-ninc` | 7; 378; 54 | 2.25 MB; verifies in 5.4 s at 1.14 GB | 2.26 MB; verifies in 5.4 s at 1.14 GB |
+| QF_LRA `current_frame.base` | 13; 415; 35 | 1.81 MB; verifies in 4.0 s at 1.06 GB | 1.82 MB; verifies in 4.0 s at 1.08 GB |
+| QF_IDL `ckt_PROP1_tf_10` | 4; 50; 47 | 0.85 MB; verifies in 2.9 s at 0.95 GB | 0.85 MB; verifies in 2.9 s at 0.96 GB |
 
 The other 28 have at most 28 facts in a lemma (QF_IDL `qlock-4-10-8` and
 `-9`: 101 and 123 lemmas of up to 24 facts) and all verify. The old texts
 of three of the larger ones were checked the same day: QF_UF
-`NEQ004_size4` 38.7 s before and 39.4 s after, QF_IDL `ckt_PROP1_tf_20`
-31.7 s and 32.3 s, `plan-21` 88.0 s and 88.4 s (chains of 10 to 21
-modules; 1 to 2% apart, not looked into). The other 25 against their last
+`NEQ004_size4` 38.7 s before and 39.6 s after, QF_IDL `ckt_PROP1_tf_20`
+31.7 s and 32.5 s, `plan-21` 88.0 s and 88.8 s (chains of 10 to 21
+modules; 1 to 3% apart, not looked into). The other 25 against their last
 measurements (2026-11-13 to 2026-11-16; their old texts were not checked
-again): none is slower by more than 0.2 s but `ckt_PROP3_tf_30` (61.8 s;
-59.7 s) and `qlock-4-10-9` (87.0 MB, 88 modules, 329.3 s; 313.5 s), by 4
-and 5%, about what the old texts above lost against their own last
+again): none is slower by more than 0.3 s but `ckt_PROP3_tf_30` (62.1 s;
+59.7 s) and `qlock-4-10-9` (87.1 MB, 88 modules, 321.8 s; 313.5 s), by 4
+and 3%, about what the old texts above lost against their own last
 measurements (`plan-21` 88.0 s against 85.1 s, `NEQ004_size4` 38.7 s
-against 37.2 s); `qlock-4-10-8` takes 158.7 s (159.0 s). The text grows
-by a line per lemma and two parentheses per fact. Sample: 152 of 175
-export, 145 verify, 1 fails in Lean (QF_AUFLIA `dlx-regfile`), 6 not
+against 37.2 s); `qlock-4-10-8` takes 159.0 s (159.0 s). Sample: 152 of
+175 export, 145 verify, 1 fails in Lean (QF_AUFLIA `dlx-regfile`), 6 not
 checked.
+
+The text grows by two lines per lemma and 36 bytes per fact (a line
+break, the indentation, two parentheses, and the 25 bytes of the guard):
+25,055 bytes over the 694 facts of `simple_startup_15nodes`, 0.5% of its
+text. The guard itself costs nothing measurable: the 36 texts were
+checked without it as well, 867 s of Lean in all against 861 s with it
+(no file apart by more than 0.4 s but `qlock-4-10-9`, 329.3 s without
+and 321.8 s with). The bound on an attempt kept after the search over
+theory clauses (`_STRUCTURAL_REWRITE_CHARS`, 1,000,000 characters) counts
+the attempt as written, 43 characters more for a fact than the `have` it
+was: an attempt within 30 kB of the bound at 694 facts is now left to
+the fallback alone. No sample lemma is (every changed text is the old one
+but for how its facts are stated).
 
 Generated family `bridged_comparisons(n)` (`test_proof_to_lean_arith.py`):
 one assertion, `(not b)`, `(or b (<= 1 x))`, `(< x 1)`, and n conjuncts
@@ -1867,7 +1879,7 @@ least limit, of those tried, under which both lemmas are accepted
 | pairs | 100 | 200 | 400 | 800 | 1,600 |
 | --- | --- | --- | --- | --- | --- |
 | before | 0.09 MB: 2.3 s | 0.19 MB: 5.9 s | 0.38 MB: 19.6 s (19.8 s) | 0.76 MB: FAILS after 41.6 s, both lemmas out of heartbeats | 1.53 MB: not checked |
-| after | 0.10 MB: 1.4 s | 0.19 MB: 2.2 s | 0.39 MB: 3.8 s (3.9 s) | 0.78 MB: 7.3 s | 1.56 MB: 14.4 s at 1.23 GB |
+| after | 0.10 MB: 1.4 s | 0.20 MB: 2.1 s | 0.41 MB: 3.8 s | 0.82 MB: 7.1 s | 1.64 MB: 14.0 s at 1.28 GB |
 | heartbeats, before | not measured | fails at 100,000 | fails at 400,000; passes at 600,000 | above 1,000,000 | not measured |
 | heartbeats, after | not measured | not measured | fails at 40,000; passes at 80,000 | fails at 80,000; passes at 160,000 | within 1,000,000 |
 
