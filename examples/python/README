@@ -412,8 +412,11 @@ step:
     is proved in the lemma's own context, not over the facts before it
     (as a `have` each, the theory tactic of the k-th read the k-1 before
     it; the 694 facts of QF_LRA tta_startup simple_startup_15nodes ran the
-    lemma out of its heartbeats). A clause that neither search refutes
-    within its budget falls back to the unfolded grind proof.
+    lemma out of its heartbeats). A fact's tactics are written as `first
+    | ((tactics); done) | fail`: Lean recovers from errors in the tactics
+    of an argument, and a fact that is not proved must fail the lemma's
+    attempt, not be admitted with an error. A clause that neither search
+    refutes within its budget falls back to the unfolded grind proof.
   - farkas, bound, implied-eq, and euf hints list literals that are jointly
     contradictory; the exporter emits one th-lemma concluding the clause of
     their complements, after checking farkas and bound coefficients with exact

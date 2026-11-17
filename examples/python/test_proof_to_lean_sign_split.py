@@ -443,7 +443,8 @@ class TestSignSplitValidation(unittest.TestCase):
 
     def test_a_theory_clause_is_proved_by_the_signs_of_its_factors(self):
         # 0 < m n and 0 <= m give 0 <= n: a clause over three leaves of the cnf lemma, each
-        # a fact (_stated_facts) whose first proof is the split, the unfolded tactic its fallback.
+        # a fact (_stated_facts) whose first proof is the split, the unfolded tactic its fallback;
+        # each alternative closed by `done` and the last one `fail` (_fact_tactics).
         source = SIGN_INPUTS["conjunction"][1]
         certificate = _replay("conjunction")
         text = proof_to_lean.reconstruct(source, certificate)
@@ -451,6 +452,8 @@ class TestSignSplitValidation(unittest.TestCase):
         self.assertEqual(_kinds(steps), {"th_lemma"})
         clauses = re.findall(r"\n {10}\(by\n +first\n +\| \(have _i0 :", text)
         self.assertEqual(len(clauses), len(steps))
+        self.assertEqual(len(re.findall(r"\n {21}done\)\n {18}\| \(unfold [^\n]*\n {21}done\)\n {18}\| fail\)\n", text)),
+                         len(steps))
         self.assertEqual(len(re.findall(r"\n {12}\(_f\d+ : \(Or [^\n]*\)\)(?=\n)", text)), len(steps))
         self.assertTrue(clauses)
         # A bridge between two leaves of one constraint is no theory clause: no split.

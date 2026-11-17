@@ -1068,7 +1068,7 @@ class TestUninterpretedValidation(unittest.TestCase):
                     self.assertIn("\n  first\n    | (refine Classical.byContradiction ?_\n", lemma)
                 elif oracle:
                     self.assertRegex(lemma, r"\n  first\n    \| \(refine \(fun\n +\(_f1 : \(Or [^\n]*\n"
-                                            r"(?: +\(_f\d+ : [^\n]*\n)* +=> [^\n]*\n +\(by unfold [^\n]*\bterm_")
+                                            r"(?: +\(_f\d+ : [^\n]*\n)* +=> [^\n]*\n +\(by first \| \(\(unfold [^\n]*\bterm_")
                     self.assertIn("refine Classical.byContradiction ?_\n", lemma)
                 else:
                     self.assertNotIn("Classical.byContradiction", lemma)

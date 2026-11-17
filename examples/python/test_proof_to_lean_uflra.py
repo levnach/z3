@@ -952,7 +952,7 @@ class TestMixedLeanIntegration(_LeanIntegration):
                 self.assertNotIn("unfold", head)
                 # A theory clause over a function's term definitions.
                 self.assertRegex(structural, r"\n {12}\(_f\d+ : \(Or [^\n]*\)\)\n")
-                self.assertRegex(structural, r"\n {10}\(by unfold [^;\n]*\bterm_\d+[^;\n]*; ")
+                self.assertRegex(structural, r"\n {10}\(by first \| \(\(unfold [^;\n]*\bterm_\d+[^;\n]*; ")
                 self.assertIn("refine Classical.byContradiction ?_", structural)
                 self.assertIn("unfold formula_", fallback)
                 alone = text.replace(lemma, head + "\n  first\n" + structural, 1)

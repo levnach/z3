@@ -8883,7 +8883,10 @@ def _cnf_lemma(graph, node, atom_indices, variable_indices):
         # The search over the theory clauses may look further, but the proof
         # kept stays within what the first searches could keep: a longer one
         # risks the lemma's heartbeats, which `first` does not catch (a
-        # runtime exception fails the whole lemma, fallback included).
+        # runtime exception fails the whole lemma, fallback included). The
+        # count is of the text as written: a fact as a binder and a guarded
+        # argument (_stated_facts, _fact_tactics) is 43 characters more
+        # than the `have` it was, 30 kB of the limit at 694 facts.
         attempt = None
     return _grind_lemma(graph, node, "th_lemma", atom_indices, variable_indices,
                         opaque_tactic=_opaque_tactic(graph, node), structural=attempt)
@@ -8903,10 +8906,12 @@ def _stated_facts(facts, goal):
     of one function, which the goal is refined by, and proved as its
     arguments: every proof is elaborated in the context of the lemma,
     without the other facts, and the refutation that follows has them all,
-    by the same names. An argument that fails is an error of the `refine`,
-    which `first` catches as it caught a failing `have`. One tactic, its
-    lines indented past the column of an alternative (_grind_lemma); a
-    multi-line proof (_theory_clause_proof) is indented further still.
+    by the same names. A proof is a term (eq_comm) or tactics written by
+    _fact_tactics, which fail when they do not prove the fact: an argument
+    that fails is an error of the `refine`, which `first` catches as it
+    caught a failing `have`. One tactic, its lines indented past the column
+    of an alternative (_grind_lemma); a multi-line proof (_fact_tactics) is
+    indented further still.
     """
     if not facts:
         return []
@@ -8915,20 +8920,47 @@ def _stated_facts(facts, goal):
             + "%s=> (?_ : %s))" % (pad, goal) + "".join("%s(%s)" % (pad[:-2], proof) for _, _, proof in facts)]
 
 
+def _fact_tactics(*alternatives):
+    """A fact's proof by tactics, as an argument of _stated_facts: the first alternative (tactic lines) proving it.
+
+    A `have`'s tactics were tactics of the lemma's block, under its `first`,
+    where a tactic that fails is an exception and the lemma's fallback is
+    taken. The tactics of an argument `(by ...)` are run by the term
+    elaborator, which recovers from errors whatever block the term is in: a
+    tactic failing under a bullet, a `case`, or braces, or a block ending
+    with its goal open, is logged and the fact admitted; the `refine`
+    succeeds, the fallback is never tried, and Lean rejects a certificate
+    its fallback would have proved (never an acceptance: the error is
+    reported). So the alternatives are those of a `first` that ends in
+    `fail`, which turns recovery off in the ones before it, and each is
+    closed by `done`: a fact that is not proved fails the `refine`, whatever
+    the shape of its proof. One alternative of one line stays on the line
+    of its argument; otherwise the lines are indented past the column the
+    argument starts at.
+    """
+    if len(alternatives) == 1 and len(alternatives[0]) == 1:
+        return "by first | ((%s); done) | fail" % alternatives[0][0]
+    pad = "\n" + " " * 16
+    return "by%sfirst%s%s  | fail" % (pad, "".join(
+        "%s  | (%s)" % (pad, (pad + "     ").join(list(lines) + ["done"])) for lines in alternatives), pad)
+
+
+def _unfolded_theory_tactic(graph, definitions):
+    """The theory tactic over the unfolded definitions of a bridge or theory clause, one line."""
+    return "unfold %s; %s" % (" ".join(definitions), _theory_tactic(graph))
+
+
 def _theory_clause_proof(graph, structure, definitions, clause):
-    """The proof of a bridge or theory clause of a cnf lemma: the theory tactic over the unfolded leaves.
+    """The proof of a bridge or theory clause as a fact of a cnf lemma: the theory tactic over the unfolded leaves.
 
     A theory clause (_theory_clauses) over products of Int terms is first
     proved by the signs of their factors (_sign_split_clause), which the
-    theory tactic does not find. The lines of that proof are indented past
-    the column its fact's argument starts at (_stated_facts).
+    theory tactic does not find. An argument of _stated_facts: the tactics
+    fail when they do not prove the fact (_fact_tactics).
     """
-    unfolded = "unfold %s; %s" % (" ".join(definitions), _theory_tactic(graph))
+    unfolded = [_unfolded_theory_tactic(graph, definitions)]
     split = _sign_split_clause(graph, structure) if clause else None
-    if split is None:
-        return "by " + unfolded
-    pad = "\n" + " " * 16
-    return "by%sfirst%s  | (%s)%s  | (%s)" % (pad, pad, (pad + "     ").join(split), pad, unfolded)
+    return _fact_tactics(unfolded) if split is None else _fact_tactics(split, unfolded)
 
 
 def _cnf_refutation(graph, memo, structure, bridges, budget=1, sweep=None):
@@ -8993,7 +9025,7 @@ def _cnf_refutation(graph, memo, structure, bridges, budget=1, sweep=None):
             lines.extend(["", "set_option maxHeartbeats 1000000 in",
                           "private theorem %s_b%d %s" % (scope[0], position, binder),
                           "    : %s := %s" % (_render_structure(bridge), "eq_comm" if definitions is None else
-                                              _theory_clause_proof(graph, bridge, definitions, False))])
+                                              "by " + _unfolded_theory_tactic(graph, definitions))])
     for name, statement, proof in declarations:
         if statement is None:
             lines.append("private def %s %s : Prop := %s" % (name, binder, proof[0]))
@@ -9112,7 +9144,7 @@ def _theory_clauses(graph, order, facts, atom_indices):
         if not used or used == leaves:
             # A clause over every leaf restates the lemma as one theory fact,
             # which the fallback proves with its helpers (scaled ite gates)
-            # and the `have` would prove without them; over a wide distinct
+            # and the fact's proof would prove without them; over a wide distinct
             # as one leaf it ran omega out of heartbeats the same way.
             return None
         clauses.append((_structure_fold("or", parts), _definition_names(graph, _reachable(graph, *nodes)[0], nodes)))

@@ -1095,7 +1095,7 @@ def _stated_fact_lemmas(certificate, text):
         name = "th_lemma_%d" % node
         lemma = text.split("private theorem %s " % name, 1)[1].split("\n\n", 1)[0]
         found.append((name, lemma, re.findall(r"\n {12}\((_f\d+) : ([^\n]*)\)(?=\n)", lemma),
-                      re.findall(r"\n {10}\(((?:by unfold |eq_comm)[^\n]*)\)(?=\n)", lemma)))
+                      re.findall(r"\n {10}\(((?:by first \| \(\(unfold |eq_comm)[^\n]*)\)(?=\n)", lemma)))
     return found
 
 
@@ -1944,7 +1944,7 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 self.assertNotIn("unfold", head)
                 self.assertRegex(structural, r"\n +\(_f\d+ : \(Or \(Not \(formula_\d+ _atoms _vars\)\) "
                                              r"\(formula_\d+ _atoms _vars\)\)\)\n")
-                self.assertRegex(structural, r"\n +\(by unfold [^;\n]*; grind \(splits := 64\)\)\n")
+                self.assertRegex(structural, r"\n +\(by first \| \(\(unfold [^;\n]*; grind \(splits := 64\)\); done\) \| fail\)\n")
                 self.assertNotRegex(structural, r"have _f\d+ : [^\n]* := by")
                 self.assertIn("refine Classical.byContradiction ?_", structural)
                 self.assertIn("unfold formula_", fallback)
@@ -2053,7 +2053,7 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
         for name, lemma, binders, proofs in lemmas:
             self.assertEqual([fact for fact, _ in binders], ["_f%d" % index for index in range(1, count + 2)])
             self.assertEqual(len(proofs), count + 1)
-            self.assertTrue(all(proof.endswith("; grind (splits := 64)") for proof in proofs))
+            self.assertTrue(all(proof.endswith("; grind (splits := 64)); done) | fail") for proof in proofs))
             head, _, attempts = lemma.partition("\n  first\n")
             structural, fallback = attempts.split("\n    | (")
             self.assertTrue(structural.startswith("    | (refine (fun\n"))
@@ -2105,6 +2105,52 @@ class TestArithmeticLeanIntegration(unittest.TestCase):
                 lean_test_support.check(self, source, certificate, text=text.replace(lemma, changed, 1))
         # The attempt alone, unchanged, is what verifies the lemma.
         _, report = lean_test_support.check(self, source, certificate, text=text.replace(lemma, alone, 1))
+        self.assertIn(_STANDARD_AXIOMS, report)
+
+    def test_a_fact_that_fails_under_a_bullet_or_is_left_open_is_caught(self):
+        # A fact's tactics are run by the term elaborator, which recovers
+        # from errors: under a bullet a failing tactic is logged and the
+        # fact admitted, and so is a goal left open; the `refine` succeeds,
+        # the lemma's fallback is not tried, and Lean rejects a certificate
+        # the fallback proves. The exporter's proofs are single lines today
+        # (and the sign split sits in an alternative of a `first`), which
+        # throw; _fact_tactics makes that hold for a proof of any shape. A
+        # false fact proved under a bullet, and a true one whose proof stops
+        # after the unfold: guarded, the lemma verifies through its
+        # fallback; as a bare `by`, Lean rejects the same text.
+        source = bridged_comparisons(8)
+        certificate = proof_certificate.export_clause_log_certificate(source)
+        text = proof_to_lean.reconstruct(source, certificate)
+        ((name, lemma, binders, proofs),) = _stated_fact_lemmas(certificate, text)
+        fact, statement = binders[3]
+        binder = "\n            (%s : %s)\n" % (fact, statement)
+        false = binder.replace("(Not (formula_", "((formula_")  # 1 <= y iff y < 1
+        self.assertNotEqual(false, binder)
+        tactic = re.fullmatch(r"by first \| \(\((unfold [^\n]*)\); done\) \| fail", proofs[3]).group(1)
+        self.assertEqual(proofs[3], proof_to_lean._fact_tactics([tactic]))
+        argument = "\n          (%s)\n" % proofs[3]
+        self.assertEqual([lemma.count(binder), lemma.count(argument)], [1, 1])
+        unfold, _, theory = tactic.partition("; ")
+        self.assertTrue(unfold.startswith("unfold formula_") and theory.startswith("grind"), tactic)
+        bullet = ["· " + unfold, "  " + theory]
+        for label, stated, lines in (("bullet", false, bullet), ("open goal", binder, [unfold])):
+            with self.subTest(shape=label):
+                guarded = lemma.replace(binder, stated).replace(
+                    argument, "\n          (%s)\n" % proof_to_lean._fact_tactics(lines))
+                self.assertEqual(guarded.count(" | fail)\n"), len(binders))  # every argument, the changed one too
+                _, report = lean_test_support.check(self, source, certificate, text=text.replace(lemma, guarded, 1))
+                self.assertIn(_STANDARD_AXIOMS, report)
+                bare = lemma.replace(binder, stated).replace(
+                    argument, "\n          (by\n%s)\n" % "\n".join(" " * 16 + line for line in lines))
+                with self.assertRaises(self.failureException):
+                    lean_test_support.check(self, source, certificate, text=text.replace(lemma, bare, 1))
+        # The guard does not get in the way of a proof of several lines: the
+        # true fact under the bullet, in the attempt without its fallback.
+        head, _, attempts = lemma.partition("\n  first\n")
+        alone = head + "\n  first\n" + attempts.split("\n    | (")[0]
+        several = alone.replace(argument, "\n          (%s)\n" % proof_to_lean._fact_tactics(bullet))
+        self.assertNotEqual(several, alone)
+        _, report = lean_test_support.check(self, source, certificate, text=text.replace(lemma, several, 1))
         self.assertIn(_STANDARD_AXIOMS, report)
 
     @lean_test_support.slow("a cnf lemma of 1,601 facts, about 15 s of Lean at 1.3 GB")

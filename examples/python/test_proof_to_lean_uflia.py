@@ -691,7 +691,8 @@ class TestIntegerMixedValidation(unittest.TestCase):
             for statement, proof in zip(binders, proofs):
                 match = re.fullmatch(r"\(Iff \(formula_(\d+) [^)]*\) \(formula_(\d+) [^)]*\)\)", statement)
                 if match is None or re.fullmatch(
-                        r"by unfold [^;]*; first \| omega \| grind \(splits := 64\)\)", proof) is None:
+                        r"by first \| \(\(unfold [^;]*; first \| omega \| grind \(splits := 64\)\); done\) \| fail\)",
+                        proof) is None:
                     continue
                 first, second = int(match.group(1)), int(match.group(2))
                 self.assertNotEqual(first, second)

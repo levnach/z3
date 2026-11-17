@@ -1780,17 +1780,44 @@ and their proofs are its arguments (`_stated_facts`):
             (_f1 : (Iff (formula_265 _atoms _vars) (formula_14560 _atoms _vars)))
             ...
             => (?_ : (formula_17022 _atoms _vars)))
-          (by unfold formula_14560 formula_265 term_237 term_222; grind (splits := 64))
+          (by first | ((unfold formula_14560 formula_265 term_237 term_222; grind (splits := 64)); done) | fail)
           ...
     refine Classical.byContradiction ?_
 
-Each proof is elaborated in the lemma's own context, the refutation that
-follows has every fact under the name it had, and a proof that fails is an
-error of the `refine`, which `first` catches as it caught a failing `have`
-(the lemma is then proved by its unfolded fallback). The statements, the
-proofs, and the refutation are the same text as before; the lemma keeps
-its one heartbeat limit, and no limit of the check moved. A sweep's
-bridges were theorems of their own already (`th_lemma_N_bK`).
+Each proof is elaborated in the lemma's own context, and the refutation
+that follows has every fact under the name it had. The statements, the
+tactics that prove them, and the refutation are the same text as before;
+the lemma keeps its one heartbeat limit, and no limit of the check moved.
+A sweep's bridges were theorems of their own already (`th_lemma_N_bK`).
+
+A fact that Lean cannot prove must fail the `refine`, so that the lemma's
+`first` takes the unfolded fallback, as it did when a `have` failed. A
+`have`'s tactics were tactics of the lemma's own block, where a failure
+under `first` is an exception. The tactics of an argument `(by ...)` are
+run by the term elaborator, which recovers from errors whatever block the
+term is in: a tactic that fails under a bullet, a `case`, or braces, or a
+block that ends with its goal open, is logged and the fact admitted; the
+`refine` succeeds, the fallback is never tried, and Lean rejects a
+certificate its fallback would have proved (never an acceptance: the error
+is reported and `sorryAx` is among the axioms). The proofs written today
+do not get there (a single line `unfold ...; grind` throws, and the sign
+split was a non-last alternative of a `first`, which turns recovery off),
+but the next shape of proof could. So a fact's tactics are the
+alternatives of a `first` that ends in `fail`, each closed by `done`
+(`_fact_tactics`): one line as above, or, for a theory clause with a sign
+split,
+
+          (by
+                first
+                  | (have _i0 : ...
+                     ...
+                     done)
+                  | (unfold ...; first | omega | grind (splits := 64)
+                     done)
+                  | fail)
+
+A fact that is not proved fails the `refine`, whatever the shape of its
+proof.
 
 Measured on 2026-11-17 (`scripts/check_lean.sh`, `--memory=8192`, one
 `lean` process at a time; wall time, largest resident size of one process;
@@ -1854,7 +1881,14 @@ where the old text needs more than 400,000;
 fact leaves the lemma to its fallback, and without the fallback, with a
 proof dropped, or with two proofs exchanged Lean rejects the certificate;
 slow: 1,600 pairs under the exporter's limit, and
-`simple_startup_15nodes` itself, copied to `examples/python/data`).
+`simple_startup_15nodes` itself, copied to `examples/python/data`;
+`test_a_fact_that_fails_under_a_bullet_or_is_left_open_is_caught`: a
+false fact whose tactic fails under a bullet and a fact whose proof stops
+with its goal open leave the lemma to its fallback when written by
+`_fact_tactics`, and as a bare `by` Lean rejects the same text), and
+`test_proof_to_lean.py`
+(`test_tactics_of_a_fact_fail_when_they_do_not_prove_it`, no Lean: the
+guard's layout).
 
 Still open:
 
