@@ -300,13 +300,18 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
         # s of Lean for each MB of its 128 MB of lemmas and had no verdict
         # after 40 minutes; with Inputs a structure it verifies in 517 s.
         # Here, among 4,157 assertions: as a definition, more than 100 of the
-        # 154 lemmas needed more than 240,000 heartbeats each (the limit below
+        # 154 lemmas needed more than 240,000 heartbeats each (maxHeartbeats
         # counts thousands), and some more than 320,000. Now every lemma is
-        # within 100,000, the default being 200,000.
+        # within 100,000. Lean's default limit, 200,000 thousand, is far above
+        # either: what the limit below pins is that a reference to a lemma
+        # no longer costs the assertions.
         self.check_shared_units(4000, 160)
 
     @lean_test_support.slow("19 s of Lean: 16,157 assertions, most of it the theorem's own binders")
     def test_lemmas_among_sixteen_thousand_assertions_stay_within_their_heartbeats(self):
+        # Every lemma within 200,000 heartbeats; as a definition more than
+        # 100 of them needed over 800,000 each, four times those of 4,157
+        # assertions.
         self.check_shared_units(16000, 400)
 
     def test_projection_of_another_assertion_is_rejected(self):
