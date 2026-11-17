@@ -1666,16 +1666,17 @@ class TestProofToLean(unittest.TestCase):
         # _SWEEP_DEPTH rounds, each with its openings (QF_IDL qlock-4-10-8
         # and -9: five rounds; with the three there were, their lemmas were
         # left to the unfolded fallback, which ran out of heartbeats).
-        searches = []
+        searches, read = [], []
         refutation = proof_to_lean._PropositionalProver.refutation
 
         def counted(self, structure, facts=()):
             searches.append(len(self.relevant))
+            read.append((frozenset(self.relevant), tuple(facts)))
             return refutation(self, structure, facts)
 
-        def sweep(depth):
-            del searches[:]
-            clause, names = simplified_under_a_unit(depth)
+        def sweep(depth, family=simplified_under_a_unit):
+            del searches[:], read[:]
+            clause, names = family(depth)
             prover = proof_to_lean._PropositionalProver(("not", clause), classical=True, names=names, joined=[],
                                                         scope=("lemma", " _atoms"))
             with patch.object(proof_to_lean._PropositionalProver, "refutation", counted):
@@ -1689,6 +1690,7 @@ class TestProofToLean(unittest.TestCase):
             self.assertEqual(prover.links, [])
             self.assertNotIn("Classical.em", "\n".join(found[1]))
             self.assertEqual(searches, sorted(searches))  # each search reads at least the gates of the one before
+            self.assertEqual(len(set(read)), len(read))  # and never the gates and facts of one that failed
             if depth > 1:
                 self.assertGreater(len(searches), openings)
         # Beyond the last round the clause is left to the lemma's other
@@ -1696,6 +1698,16 @@ class TestProofToLean(unittest.TestCase):
         prover, found = sweep(5)
         self.assertIsNone(found)
         self.assertLessEqual(len(searches), openings * (proof_to_lean._SWEEP_DEPTH - rounds + 1))
+        self.assertEqual(len(set(read)), len(read))
+        # A round further down that meets no gate the search before did not
+        # read, and nothing to open, is not searched: a clause that does
+        # not hold costs the searches of its openings, not one more for
+        # every round (eight searches, the last six the same one).
+        prover, found = sweep(30, lambda count: swept_frames(count, extra=True))
+        self.assertIsNone(found)
+        self.assertEqual(len(prover.proved), 92)  # the links of the frames, and what the refutation opened
+        self.assertEqual(len(set(read)), len(read))
+        self.assertLessEqual(len(searches), openings)
         with patch.object(proof_to_lean, "_SWEEP_DEPTH", rounds):  # as it was
             self.assertIsNotNone(sweep(1)[1])
             self.assertIsNone(sweep(2)[1])

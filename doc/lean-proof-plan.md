@@ -1800,7 +1800,12 @@ after four searches, in an assignment of the gates at the cut. Such a
 search is now repeated a round further down, with its openings, up to
 `_SWEEP_DEPTH` = 8 rounds, unless it ran out of its own limits (then more
 gates do not help): `th_lemma_9887` is refuted five rounds down, at the
-eighth search, and so is the one lemma of qlock-4-10-9 that had no proof.
+seventh search, and so is the one lemma of qlock-4-10-9 that had no proof.
+A round that reads no gate and no fact the search before did not read is
+not searched again, only what it opens is: a clause that does not hold
+(`swept_frames(100, extra=True)` of the tests) ran eight searches, the last
+six the same one, and runs three; over 1,000 frames that was 14.1 s and is
+3.3 s.
 
 Both are heuristics of the exporter's search. What they find is a tactic
 proof that Lean checks as before; a link or a refutation that does not
@@ -1845,13 +1850,14 @@ Tests: `test_proof_to_lean.py`
 link and no canonical gate at 50, 100, and 200 levels, the characters
 linear; an and that is also under an or keeps its link;
 `test_sweep_refutes_a_clause_simplified_under_a_unit_rounds_further_down`:
-the depths found, the number of searches bounded, no repetition after a
-search out of its limits; `test_sweep_gives_up_beyond_its_limits` now
+the depths found, the number of searches bounded, no two searches of a
+sweep over the same gates and facts, no repetition after a search out of
+its limits; `test_sweep_gives_up_beyond_its_limits` now
 takes its character limit on `swept_frames(30)`),
 `test_proof_to_lean_integration.py`
 (`test_sweep_declarations_check_in_lean`: Lean checks the nested
-conjunction at 64 and at 600 levels and the formula under a unit at depth
-4; `test_sweep_gives_up_on_a_thousand_nested_conjunctions_before_any_search`:
+conjunction at 64 levels, one link, and at 600, none, and the formula
+under a unit at depth 4; `test_sweep_gives_up_on_a_thousand_nested_conjunctions_before_any_search`:
 400 levels in under 100,000 characters),
 `test_proof_to_lean_lia.py`
 (`test_cnf_lemma_over_a_formula_simplified_under_units_is_swept_rounds_down`:
@@ -2050,7 +2056,7 @@ as chains of 1 MB modules; before is the exporter of fork master 7abc8fabe):
 | file (QF_IDL) | before | after |
 | --- | --- | --- |
 | PO4-10-PO4 | no export: replay above 17 GB (2026-11-13), 3.4 GB after 6 s | replay 15.7 s at 0.70 GB, 24.36 MB of Lean, verifies as 25 modules in 88.3 s at 0.95 GB |
-| qlock-4-10-8 | replay 137.2 s, 78,004 nodes | replay 16.9 s, 78,160 nodes, 45.96 MB of Lean; Lean FAILS as 47 modules after 67.9 s at 1.13 GB, on `th_lemma_9887`, an arithmetic lemma (`first | omega | grind`) out of heartbeats at `isDefEq`: the Lean side of this file was open before (iter-119, iter-120) |
+| qlock-4-10-8 | replay 137.2 s, 78,004 nodes | replay 16.9 s, 78,160 nodes, 45.96 MB of Lean; Lean FAILS as 47 modules after 67.9 s at 1.13 GB, on `th_lemma_9887`, then taken for an arithmetic lemma (`first | omega | grind`; it is a cnf lemma left to its unfolded fallback, see "A sweep reads through nested gates" above) out of heartbeats at `isDefEq`: the Lean side of this file was open before (iter-119, iter-120) |
 | qlock-4-10-9 | not measured (above 120 s on 2026-11-13) | replay 23.1 s, 93.77 MB of Lean; Lean FAILS as 95 modules after 71.1 s at 1.06 GB, a lemma of the same kind in the seventh module |
 | parity 13.400.graph | no export: resource limit while tying an assumed clause | replay 14.3 s at 0.81 GB, 17.23 MB of Lean, verifies as 17 modules in 267.3 s at 1.39 GB |
 | parity 10.700.graph | no export: the same | replay 46.0 s at 2.08 GB, 45.73 MB of Lean; Lean FAILS as 44 modules after 193.1 s at 1.58 GB: the main theorem (386 kB, under the default 200,000 heartbeats) times out at `whnf` where it binds the tail of the assertion at operand 52,832 of 115,040 |

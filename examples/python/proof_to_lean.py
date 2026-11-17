@@ -249,7 +249,7 @@ _LINK_CHARS = 5000
 # when that fails, and how many times the refutation of the clause may open
 # the structures it meets (the RTCL circuits take one), and up to how many
 # rounds it is repeated a round further (_SWEEP_DEPTH; the two qlock inputs
-# of the SMT-LIB sample take five rounds and eight searches). The characters of
+# of the SMT-LIB sample take five rounds and seven searches). The characters of
 # all the declarations of the sweeps of a file: ckt_PROP3_tf_30 takes 12
 # million, in a 19 MB file that Lean checks in 56 s at 7.1 GB, under the
 # 8 GB of check_lean.sh. A sweep stops when its canonical gates, the links
@@ -8169,12 +8169,14 @@ class _PropositionalProver:
         tied _SWEEP_ROUNDS[-1] rounds down. A search that ends there
         without a refutation, and not for its limits, has met the cut as
         inputs: it is repeated a round further down, opening as before, up
-        to _SWEEP_DEPTH rounds. A clause Z3 simplified under the units
+        to _SWEEP_DEPTH rounds, but not over the very gates and facts of
+        the search before (a round that met nothing new: only what it
+        opens is tried). A clause Z3 simplified under the units
         among the assertions shares no class with the assertion above the
         atoms the units decide: the transition relation of QF_IDL
         qlock-4-10-8, a disjunction of conjunctions of disjunctions of
         conjunctions logged with the values of the present state put in,
-        is refuted five rounds down, at the eighth search, and was left to
+        is refuted five rounds down, at the seventh search, and was left to
         the unfolded fallback, which ran out of heartbeats.
         facts are the joining facts (see __init__)
         with their proofs. Returns the declarations the refutation needs
@@ -8211,16 +8213,22 @@ class _PropositionalProver:
             untied = self._tie(link, blocks)
             if untied is not None and not (self._open(untied, blocks) and self._tie(link, blocks) is None):
                 self.failed.add(link[1])
-        refutation, lost = None, False
+        refutation, lost, searched = None, False, None
         for rounds in range(_SWEEP_ROUNDS[-1], _SWEEP_DEPTH + 1):
             for _ in range(_SWEEP_OPENINGS):
                 self.relevant, below, untied = self._local((structure, structure[1]), rounds)
-                self.limits = None
-                self.steps, self.chars = 0, 0
-                refutation = self.refutation(structure, [(fact, name) for fact, truth, name in below
-                                                         if _structure_children(fact)])
-                lost = refutation is None and self._exhausted()
-                self.limits = (_SWEEP_LINK_STEPS, _SWEEP_LINK_CHARS)
+                # A round further down often meets no gate the search before
+                # did not read (a clause that does not hold: five of eight
+                # searches), only named structures to open: over the same
+                # gates and facts the search would end as that one did.
+                if (self.relevant, below) != searched:
+                    searched = (self.relevant, below)
+                    self.limits = None
+                    self.steps, self.chars = 0, 0
+                    refutation = self.refutation(structure, [(fact, name) for fact, truth, name in below
+                                                             if _structure_children(fact)])
+                    lost = refutation is None and self._exhausted()
+                    self.limits = (_SWEEP_LINK_STEPS, _SWEEP_LINK_CHARS)
                 if refutation is not None or not self._open(untied, blocks):
                     break
             if refutation is not None or lost:

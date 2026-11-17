@@ -206,7 +206,7 @@ class TestProofToLeanIntegration(unittest.TestCase):
         # the 600 ands. The last is refuted four rounds below the first cut
         # (_SWEEP_DEPTH), over canonical gates opened on the way.
         binder = "(_atoms : Nat -> Prop)"
-        for family, size, links in ((swept_frames, 3, 6), (opened_frames, 3, 6), (nested_conjunction, 64, 1),
+        for family, size, links in ((swept_frames, 3, 7), (opened_frames, 3, 7), (nested_conjunction, 64, 1),
                                     (nested_conjunction, 600, 0), (simplified_under_a_unit, 4, 2)):
             with self.subTest(family=family.__name__, size=size):
                 clause, names = family(size)
@@ -225,7 +225,7 @@ class TestProofToLeanIntegration(unittest.TestCase):
                         source += ["  " + line for line in lines]
                 source += ["theorem refutation %s" % binder, "    : Not (Not %s) := by" % names[clause]]
                 source += ["  " + line for line in refutation]
-                self.assertGreaterEqual(sum(line.startswith("theorem lemma_s") for line in source), links)
+                self.assertEqual(sum(line.startswith("theorem lemma_s") for line in source), links)
                 with tempfile.TemporaryDirectory() as directory:
                     path = Path(directory) / "sweep.lean"
                     path.write_text("\n".join(source) + "\n")
