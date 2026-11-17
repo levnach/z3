@@ -1839,10 +1839,18 @@ texts above 25 MB six were checked: the three in the table and, after the
 change only, QF_IDL `qlock-4-10-8` (38.8 MB, 145.2 s as 39 modules; 159.0
 s on 2026-11-17 before it), QF_UF `gensys_brn023` (29.4 MB, 104.0 s; 127.8
 s on 2026-11-14), and `gensys_icl388` (40.6 MB, 148.6 s; 175.5 s on
-2026-11-14). The other 12 (eight `gensys_*` files, three swap files,
-`qlock-4-10-9`) are 8 to 16% shorter and were not checked again. The
-sample stands as before: 152 of 175 files export, 145 verify, 1 fails, 6
-were not checked.
+2026-11-14). Review and integration checked five more, again after the
+change only and against their last measurements: `gensys_icl665` (46.3
+MB, 154.6 s as 47 modules; 214.1 s on 2026-11-14), `gensys_brn1262` (55.0
+MB, 181.9 s as 55 modules at 1.17 GB; 233.5 s on 2026-11-14),
+`qlock-4-10-9` (77.8 MB, 251.5 s as 78 modules at 1.14 GB; 321.8 s on
+2026-11-17 before the change), QF_AUFLIA `swap_t3_pp_sf_ai_00009_006`
+(68.3 MB, 590.5 s as 69 modules at 2.76 GB; 676.3 s on 2026-11-14), and
+`gensys_icl565`, which had not been checked in Lean before: 105.5 MB (125.4
+before the change), it verifies as 106 modules in 320.9 s at 1.11 GB. The
+other 7 (five `gensys_*` files, two swap files) are 9 to 12% shorter and
+were not checked again. The sample: 152 of 175 files export, 146 verify
+(145 before, and `gensys_icl565`), 1 fails, 5 were not checked.
 
 Generated: `(not (distinct x0 ... xn-1))` with every `xi` pinned, whose
 proof refutes each pair (`pinned_negated_distinct_source`; three `lemma`
