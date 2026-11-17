@@ -1806,10 +1806,12 @@ ran out of heartbeats after 12 s at 3.1 GB, where the case splits verify in
 
 Resolutions that keep at most eight literals (nearly all: of the 5,200
 case-split resolutions in the 73 sample texts with outlined `lemma` steps,
-5,164 keep two literals and 14 keep nine or more) or keep them in another
-order (a reordered or factored conclusion, a double negation read through)
-are case splits as before, so that the texts of the sample change in six
-files only. The limit is `_RESOLUTION_SPLITS`.
+5,164 keep two literals and 14 keep nine or more) or
+keep them in another order (a reordered or factored conclusion, a double
+negation read through) are case splits as before, so that the texts of the
+sample change in six files only. The limit is `_RESOLUTION_SPLITS`. (Over
+all 152 sample texts that export, a larger set than the 73 surveyed, the
+resolutions rewritten are 15, keeping 10 to 76 literals; see below.)
 
 Measured on 2026-11-17 (`scripts/check_lean.sh`, `--memory=8192`, one
 `lean` process at a time; wall time, largest resident size of one process;

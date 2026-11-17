@@ -11645,7 +11645,8 @@ def reconstruct(source, certificate):
         raise ReconstructionError("the root proof has undischarged hypotheses")
     if ite_congruence:
         lines.extend(_ITE_CONGRUENCE)
-    if any(_RESOLVE_FIRST in term or _RESOLVE_REST in term for term in step_terms.values()):
+    # The helpers are applied, never passed: each use opens a parenthesis.
+    if any("(%s " % _RESOLVE_FIRST in term or "(%s " % _RESOLVE_REST in term for term in step_terms.values()):
         lines.extend(_RESOLVE_LEMMAS)
     direct = _direct_hypotheses(graph, step_terms)
     step_terms = _reference_hypotheses(step_terms, direct)

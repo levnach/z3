@@ -1020,6 +1020,26 @@ class TestWideUnitResolution(_WideLeanIntegration):
                 _, report = lean_test_support.check(self, source, certificate)
                 self.assertIn(".unsat' does not depend on any axioms", report)
 
+    def test_resolutions_through_the_helpers_verify_as_a_chain_of_modules(self):
+        # A text above proof_to_lean._MODULE_CHARS is checked as a chain of
+        # modules, `private` dropped: the helpers are declared in an earlier
+        # module and the steps that apply them are in later ones. The limit
+        # is lowered so that this small certificate splits into four or more.
+        source, certificate = wide_resolution(40, set(range(2, 40, 3)) | {39}, set(range(0, 40, 4)))
+        text, _ = lean_test_support.check(self, source, certificate)
+        self.assertIn("\nprivate theorem resolve_first ", text)
+        self.assertIn("\nprivate theorem resolve_rest ", text)
+        limit = len(text) // 5
+        modules = proof_to_lean.modules(text, limit)
+        self.assertGreaterEqual(len(modules), 4)
+        declared = next(index for index, (_, module) in enumerate(modules) if "theorem resolve_first " in module)
+        for helper in ("(resolve_first ", "(resolve_rest "):
+            self.assertTrue(any(helper in module for _, module in modules[declared + 1:]), helper)
+        with patch.object(proof_to_lean, "_MODULE_CHARS", limit):
+            _, chained = lean_test_support.check(self, source, text=text)
+        self.assertEqual(chained.count("Checking "), len(modules))
+        self.assertIn(".unsat' does not depend on any axioms", chained)
+
     def test_a_resolution_that_cuts_another_literal_or_keeps_another_clause_is_rejected(self):
         # What the term proves is checked by Lean against the clause its
         # step states: a kept literal passed over too few or too many, the
