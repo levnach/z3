@@ -2319,7 +2319,8 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         blocks, dropped = [], 0
         for block in proof_to_lean.reconstruct(source, certificate).split("\n\n"):
             if "private theorem th_lemma_" in block:
-                self.assertEqual(block.count(") := eq_comm\n"), 528)
+                self.assertEqual(block.count("\n          (eq_comm)"), 528)
+                self.assertEqual(len(re.findall(r"\n {12}\(_f\d+ : \(Iff ", block)), 528)
                 block, count = re.subn(r"\n    \| \(unfold [^\n]*\n       grind \(splits := 64\)\)", "", block)
                 dropped += count
             blocks.append(block)

@@ -1742,7 +1742,7 @@ class TestIntegerValidation(unittest.TestCase):
                 lemma = proof_to_lean.reconstruct(source, certificate).split(
                     "private theorem th_lemma_%d " % cnf, 1)[1].split("\n\n", 1)[0]
                 self.assertIn("\n  first\n    | (refine (fun\n            (_f1 : (Iff ", lemma)
-                self.assertEqual(lemma.count("\n          (eq_comm)\n"), pairs)
+                self.assertEqual(lemma.count("\n          (eq_comm)"), pairs)
                 self.assertIn("refine Classical.byContradiction ?_\n", lemma)
                 # Without the bridges the pairs of the two are unrelated:
                 # no propagation proof, the unfolded fallback alone (the
