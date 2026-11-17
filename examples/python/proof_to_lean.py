@@ -3030,20 +3030,28 @@ def _balanced_select(position, count, name):
 
 
 def _input_chunks(count):
-    """The numbers of assertions in the chunks of Inputs; one chunk is no chunk (_INPUT_CHUNK)."""
-    return [min(_INPUT_CHUNK, count - start) for start in range(0, count, _INPUT_CHUNK)] if count > _INPUT_CHUNK else []
+    """The chunks of Inputs, each the range of its assertions' positions; one chunk is no chunk (_INPUT_CHUNK).
+
+    The one place that says which assertions a chunk holds: the definitions
+    (_input_definitions), the projections (_input_select), and the theorem's
+    proof of Inputs (_input_term) all take the chunks from here.
+    """
+    if count <= _INPUT_CHUNK:
+        return []
+    return [range(start, min(start + _INPUT_CHUNK, count)) for start in range(0, count, _INPUT_CHUNK)]
 
 
 def _input_definitions(graph, signature):
     """The lines defining Inputs, the hypothesis of the outlined lemmas (_INPUT_CHUNK)."""
     formulas = [_formula(graph, node) for node in graph.assertions]
     lines, operands = [], formulas
-    if _input_chunks(len(formulas)):
+    chunks = _input_chunks(len(formulas))
+    if chunks:
         operands = []
-        for start in range(0, len(formulas), _INPUT_CHUNK):
-            name = "Inputs_c%d" % len(operands)
+        for index, chunk in enumerate(chunks):
+            name = "Inputs_c%d" % index
             lines.extend(["", "private def %s %s : Prop := %s" % (
-                name, signature, _balanced("And", formulas[start:start + _INPUT_CHUNK], "True"))])
+                name, signature, _balanced("And", [formulas[position] for position in chunk], "True"))])
             operands.append("(%s _atoms%s)" % (name, graph.valuation))
     return lines + ["", "private structure Inputs %s : Prop where" % signature,
                     "  all : %s" % _balanced("And", operands, "True")]
@@ -3054,17 +3062,20 @@ def _input_select(position, count):
     chunks = _input_chunks(count)
     if not chunks:
         return _balanced_select(position, count, "_inputs.all")
-    chunk = _balanced_select(position // _INPUT_CHUNK, len(chunks), "_inputs.all")
-    return _balanced_select(position % _INPUT_CHUNK, chunks[position // _INPUT_CHUNK], chunk)
+    index = position // _INPUT_CHUNK
+    # `range.index` raises unless the chunk at that index holds the position.
+    return _balanced_select(chunks[index].index(position), len(chunks[index]),
+                            _balanced_select(index, len(chunks), "_inputs.all"))
 
 
 def _input_term(count):
     """The proof of Inputs from the hypotheses `_h0`, ... of the theorem (_input_definitions)."""
-    names = ["_h%d" % position for position in range(count)]
-    if _input_chunks(count):
-        names = [_balanced("And.intro", names[start:start + _INPUT_CHUNK], "True.intro")
-                 for start in range(0, count, _INPUT_CHUNK)]
-    return "(Inputs.mk %s)" % _balanced("And.intro", names, "True.intro")
+    def conjunction(positions):
+        return _balanced("And.intro", ["_h%d" % position for position in positions], "True.intro")
+    chunks = _input_chunks(count)
+    if not chunks:
+        return "(Inputs.mk %s)" % conjunction(range(count))
+    return "(Inputs.mk %s)" % _balanced("And.intro", [conjunction(chunk) for chunk in chunks], "True.intro")
 
 
 def _modus_ponens(graph, terms, node):

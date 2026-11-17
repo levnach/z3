@@ -259,10 +259,13 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
             text = proof_to_lean.reconstruct(source, certificate)
         self.assertEqual(axioms, set())
         self.assertIn("private structure Inputs", text)
+        size = proof_to_lean._INPUT_CHUNK
+        full, rest = divmod(OUTLINED_WIDTH + 1, size)  # 18 chunks of 32 and one of 25
+        self.assertTrue(full and rest)
         chunks = re.findall(r"^private def Inputs_c\d+ .* : Prop := (.*)$", text, re.M)
-        self.assertEqual([chunk.count("formula_") for chunk in chunks], [32] * 18 + [25])
+        self.assertEqual([chunk.count("formula_") for chunk in chunks], [size] * full + [rest])
         field = re.search(r"^private structure Inputs .* : Prop where\n  all : (.*)$", text, re.M).group(1)
-        self.assertEqual(re.findall(r"\w+_c?\d+", field), ["Inputs_c%d" % index for index in range(19)])
+        self.assertEqual(re.findall(r"\w+_c?\d+", field), ["Inputs_c%d" % index for index in range(full + 1)])
         paths = re.findall(r"_inputs\.all((?:\.[12])+)", text)
         self.assertEqual(len(paths), text.count("_inputs."))
         self.assertEqual(len(set(paths)), OUTLINED_WIDTH + 1)
@@ -285,7 +288,8 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
         self.assertTrue(all("    (_inputs : Inputs _atoms)\n" in lemma for lemma in lemmas))
         self.assertEqual(text.count("_inputs.all."), 157)
         self.assertEqual(text.count("_inputs."), 157)
-        self.assertEqual(len(re.findall(r"^private def Inputs_c\d+ ", text, re.M)), -(-(unused + 157) // 32))
+        self.assertEqual(len(re.findall(r"^private def Inputs_c\d+ ", text, re.M)),
+                         -(-(unused + 157) // proof_to_lean._INPUT_CHUNK))
         marker = "\nprivate theorem proof_step_"
         limited = text.replace(marker, "\nset_option maxHeartbeats %d in" % heartbeats + marker)
         self.assertEqual(limited.count("\nset_option maxHeartbeats %d in\n" % heartbeats), len(lemmas))
@@ -318,10 +322,14 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
         # What a projection out of Inputs proves is checked by Lean: through
         # another chunk, or to its chunk's other half, a step proves another
         # assertion than its type says; and so does the theorem's own proof
-        # of Inputs with two hypotheses exchanged.
+        # of Inputs with two hypotheses exchanged. Each is a type mismatch,
+        # and the text they are made from is accepted: a text Lean rejected
+        # for another reason would not show it.
         source = wide_disjunction(70)
         with patch.object(proof_to_lean, "_OUTLINE_PROOF_STEPS", 0):
             text = proof_to_lean.reconstruct(source, proof_certificate.export_certificate(source))
+        _, accepted = lean_test_support.check(self, source, text=text)
+        self.assertIn(".unsat' does not depend on any axioms", accepted)
         self.assertEqual(len(re.findall(r"^private def Inputs_c\d+ ", text, re.M)), 3)
         (use,) = re.findall(r"\n +_inputs\.all\.1\.2\.1\.1\.1\.1\.1\n", text)
         term = text[text.index("(Inputs.mk "):]
@@ -337,7 +345,9 @@ class TestWidePropositionalLegacyCore(_WideLeanIntegration):
                 result = lean_test_support.run_check_lean(output)
                 report = result.stdout + result.stderr
                 self.assertNotEqual(result.returncode, 0, report)
-                self.assertTrue([line for line in report.split("\n") if "error:" in line], report)
+                errors = [line for line in report.split("\n") if "error:" in line]
+                self.assertTrue(errors, report)
+                self.assertTrue(all("mismatch" in line for line in errors), report)
 
     def check_every_operand_eliminated(self, width, outlined):
         source = implication_chain_conjunction(width)
