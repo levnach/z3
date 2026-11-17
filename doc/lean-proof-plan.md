@@ -1821,7 +1821,16 @@ Of the 17 changed texts above 25 MB (QF_UF `gensys_*`, the QF_AUFLIA swap
 files, the two qlock files; 73 to 142 assertions or one), QF_UF
 `gensys_icl1079` (verifies as 32 modules in 110.4 s at 0.95 GB; 121.9 s on
 2026-11-14) and QF_IDL `qlock-4-10-8` (as 42 modules in 159.0 s at 1.01 GB;
-157.5 s) were checked; the other 15 were not checked again.
+157.5 s) were checked, and in the review and the integration of the change
+seven more, which all verify: QF_UF `gensys_brn023` (33 modules, 119.7 s
+at 1.04 GB), `gensys_icl388` (45 modules, 165.7 s at 1.10 GB),
+`gensys_icl665` (55 modules, 199.6 s at 1.10 GB) and `gensys_brn1262` (60
+modules, 222.4 s at 1.18 GB), QF_AUFLIA `swap_t1_pp_sf_ai_00010_008` (36
+modules, 333.3 s at 2.66 GB) and `swap_t3_pp_sf_ai_00009_006` (77 modules,
+651.9 s at 2.76 GB), and QF_IDL `qlock-4-10-9` (88 modules, 321.6 s at
+1.16 GB; 305.7 s before). The other eight (92.6 to 194.8 MB: six
+`gensys_*` and two swap files, 73 to 140 assertions) were not checked
+again.
 
 Generated family `shared_units_among_assertions(unused)`
 (`test_proof_to_lean_wide.py`): a chain of 150 clauses in which every unit
@@ -1850,7 +1859,8 @@ assertions; no Lean), `test_proof_to_lean_wide.py`
 at 4,157 assertions verifies with every lemma under 160 thousand
 heartbeats; `test_projection_of_another_assertion_is_rejected`: a
 projection through another chunk or to another assertion of its chunk, and
-two hypotheses exchanged in the theorem's term, are errors in Lean; slow:
+two hypotheses exchanged in the theorem's term, are type mismatches in
+Lean, in a text that is accepted without them; slow:
 `test_lemmas_among_sixteen_thousand_assertions_stay_within_their_heartbeats`,
 under 400 thousand; the 601-assertion test pins the 19 chunks).
 
