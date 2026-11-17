@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #143: Make Inputs a structure over chunks so lemmas stop unfolding it</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --soft: #f6f8fa; --link: #0969da; --ok: #1a7f37; --warn: #9a6700; --badge: #ddf4ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+    --soft: #161b22; --link: #4493f8; --ok: #3fb950; --warn: #d29922; --badge: #132f4c;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; padding: 1.5rem 1rem 3rem; max-width: 54rem;
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.55; font-size: 1rem;
+}
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .6rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.02rem; margin: 1.4rem 0 .4rem; }
+a { color: var(--link); }
+p { margin: .6rem 0; }
+ul { padding-left: 1.3rem; }
+li { margin: .3rem 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+  background: var(--soft); padding: .08em .3em; border-radius: 4px; }
+pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px;
+  padding: .7rem .9rem; overflow-x: auto; line-height: 1.4; margin: .6rem 0; }
+pre code { background: none; padding: 0; font-size: .82rem; white-space: pre; }
+.meta { border: 1px solid var(--line); border-radius: 6px; background: var(--soft); padding: .7rem .9rem; }
+.meta p { margin: .2rem 0; }
+.state { display: inline-block; background: var(--badge); border: 1px solid var(--line);
+  border-radius: 999px; padding: 0 .6rem; font-weight: 600; font-size: .9rem; }
+.wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .6rem 0; }
+th, td { border: 1px solid var(--line); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+th { background: var(--soft); }
+td.n { text-align: right; white-space: nowrap; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.note { color: var(--muted); font-size: .93rem; }
+dl { margin: .4rem 0; }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin: .1rem 0 0 1.2rem; }
+footer { margin-top: 2.5rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Make Inputs a structure over chunks so lemmas stop unfolding it</h1>
+<div class="meta">
+<p><a href="https://github.com/levnach/z3/pull/143">Pull request #143</a> in <code>levnach/z3</code>, targeting <code>master</code></p>
+<p>State: <span class="state">OPEN</span> This pull request is not merged.</p>
+<p>Change commit: <a href="https://github.com/levnach/z3/commit/3827af004e677be1b950c692baac8f4a6c2216b8"><code>3827af004</code></a></p>
+<p>Date: 2026-11-17T07:28:04Z. Loop iteration 142.</p>
+</div>
+</header>
+
+<h2>In one paragraph</h2>
+<p>In a large <a href="#g-certificate">certificate</a>, the <a href="#g-refutation">refutation</a> is split into many
+<a href="#g-outlined-lemma">outlined lemmas</a>. Every <a href="#g-lemma">lemma</a> receives all the <a href="#g-assertion">assertions</a> as one
+<a href="#g-hypothesis">hypothesis</a>, named <code>Inputs</code>. Until now <code>Inputs</code> was a
+<a href="#g-definition">definition</a> of the <a href="#g-conjunction">conjunction</a> of every assertion.
+Lean's <a href="#g-elaboration">elaboration</a> unfolded it whenever one lemma named another, and at every
+<a href="#g-projection">projection</a> of an assertion. This PR makes <code>Inputs</code> a
+<a href="#g-structure">structure</a>, which Lean does not unfold, over chunks of 32 assertions.
+A benchmark with 15,332 assertions had no verdict after 40 minutes and now verifies in about nine minutes.
+The certified <a href="#g-theorem">theorem</a> is stated exactly as before.</p>
+
+<h2>Background</h2>
+<p>Before this PR the pipeline already exported this benchmark and wrote its Lean text.
+Only the Lean check failed, and only on resources.
+The cost grew as the number of references between lemmas times the number of assertions.
+The work serves the plan's regression methodology, which the plan names its current top priority.
+The file is in the <a href="#g-logic">logic</a> QF_IDL, whose arithmetic belongs to milestone 3, equality and linear arithmetic.</p>
+
+<h2>What changed</h2>
+<p>Think of a sealed envelope: lemmas hand it on unopened, and whoever needs one page opens one small folder.</p>
+<h3>Exporter</h3>
+<ul>
+<li>Lemmas now pass the assertions to one another without Lean copying them, because <code>Inputs</code> is a structure with one field.</li>
+<li>A lemma that needs one assertion opens one chunk of 32, not the whole conjunction.</li>
+<li>The theorem keeps its statement, and only its last line now builds the structure.</li>
+</ul>
+<h3>Tests</h3>
+<ul>
+<li>Four new tests pin the chunk layout, the cost under a <a href="#g-heartbeat">heartbeat</a> limit at two sizes, and Lean's rejection of wrong projections.</li>
+</ul>
+<h3>Documentation</h3>
+<ul>
+<li>The plan and the README describe the new hypothesis and record the measurements.</li>
+</ul>
+<div class="wrap">
+<table>
+<thead><tr><th>File</th><th>Lines added</th><th>Lines removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="n">73</td><td class="n">8</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="n">72</td><td class="n">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_wide.py</code></td><td class="n">117</td><td class="n">7</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_integration.py</code></td><td class="n">2</td><td class="n">1</td></tr>
+<tr><td><code>examples/python/README</code></td><td class="n">7</td><td class="n">1</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="n">137</td><td class="n">2</td></tr>
+<tr><th>Total, 6 files in 5 commits</th><th class="n">408</th><th class="n">19</th></tr>
+</tbody>
+</table>
+</div>
+<p class="note">No C++ source and no Lean source changed.</p>
+
+<h2>Worked example</h2>
+<p>This PR changes cost, not coverage, so no ten-line input was rejected before.
+The input below is a five-assertion instance of the PR's test generator, with outlining forced as the PR's tests do.
+Without forcing, both exporters write identical Lean for it.
+Everything quoted comes from runs made for this report.</p>
+
+<h3>(a) The input</h3>
+<pre><code>(declare-const p0 Bool)
+(declare-const p1 Bool)
+(declare-const p2 Bool)
+(declare-const p3 Bool)
+(assert p0)
+(assert p1)
+(assert (or (not p0) (not p1) p2))
+(assert (or (not p1) (not p2) p3))
+(assert (not p3))
+(check-sat)</code></pre>
+<p>Five assertions over four <a href="#g-boolean">Boolean</a> constants: three <a href="#g-unit-clause">unit clauses</a> and two longer <a href="#g-clause">clauses</a>.</p>
+
+<h3>(b) Before</h3>
+<p>The base exporter's text, which Lean accepted, defines <code>Inputs</code> as the whole conjunction.</p>
+<pre><code>private def Inputs (_atoms : Nat -&gt; Prop) : Prop := (And (And (And (formula_0 _atoms) (formula_1 _atoms)) (formula_5 _atoms)) (And (formula_8 _atoms) (formula_9 _atoms)))
+...
+  let _step_14 := proof_step_14 _inputs
+  let _step_10 : (formula_8 _atoms) :=
+    _inputs.2.1
+...
+  @proof_step_24 _atoms (And.intro (And.intro (And.intro _h0 _h1) _h2) (And.intro _h3 _h4))</code></pre>
+<p>The failure appears only at scale.
+This is Lean's report for the PR's new test, the same family at 4,157 assertions, with the base exporter.</p>
+<pre><code>family4157_old.lean:9711:0: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (160) has been reached
+family4157_old.lean:9725:0: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (160) has been reached
+...
+family4157_old.lean:10913:0: error: maximum number of errors (100; from option `maxErrors`) reached, exiting</code></pre>
+<p>Lean stopped after 100 such errors.
+The limit of 160 thousand heartbeats per lemma is the test's own, far below Lean's default.</p>
+
+<h3>(c) After</h3>
+<pre><code>def formula_0 (_atoms : Nat -&gt; Prop) : Prop := _atoms 0
+def formula_1 (_atoms : Nat -&gt; Prop) : Prop := _atoms 1
+...
+def formula_5 (_atoms : Nat -&gt; Prop) : Prop := (Or (formula_2 _atoms) (Or (formula_3 _atoms) (formula_4 _atoms)))
+...
+def formula_9 (_atoms : Nat -&gt; Prop) : Prop := (Not (formula_7 _atoms))
+...
+def formula_23 (_atoms : Nat -&gt; Prop) : Prop := False</code></pre>
+<p>Each formula of the input gets a name, and <code>_atoms</code> gives a truth value to every <a href="#g-atom">atom</a>.</p>
+<pre><code>private structure Inputs (_atoms : Nat -&gt; Prop) : Prop where
+  all : (And (And (And (formula_0 _atoms) (formula_1 _atoms)) (formula_5 _atoms)) (And (formula_8 _atoms) (formula_9 _atoms)))</code></pre>
+<p>The new feature: the five assertions sit in the single field of a structure, which Lean passes around without unfolding.</p>
+<pre><code>private theorem proof_step_14 {_atoms : Nat -&gt; Prop}
+    (_inputs : Inputs _atoms)
+    : (formula_1 _atoms) :=
+  _inputs.all.1.1.2
+
+private theorem proof_step_24 {_atoms : Nat -&gt; Prop}
+    (_inputs : Inputs _atoms)
+    : (formula_23 _atoms) :=
+  let _step_14 := proof_step_14 _inputs
+  let _step_10 : (formula_8 _atoms) :=
+    _inputs.all.2.1
+  ...
+  let _step_20 :=
+    ((_step_18.neg_resolve_left _step_19).neg_resolve_left _step_14)
+  ...
+  (False.elim (_step_22 _step_21))</code></pre>
+<p>The first lemma projects the assertion <code>p1</code> out of the field, and the second names the first and reaches False by <a href="#g-resolution">resolution</a>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop)
+    (_h0 : (formula_0 _atoms))
+    (_h1 : (formula_1 _atoms))
+    (_h2 : (formula_5 _atoms))
+    (_h3 : (formula_8 _atoms))
+    (_h4 : (formula_9 _atoms))
+    : False :=
+  @proof_step_24 _atoms (Inputs.mk (And.intro (And.intro (And.intro _h0 _h1) _h2) (And.intro _h3 _h4)))</code></pre>
+<p>The statement is unchanged, and only the last line now wraps the hypotheses with <code>Inputs.mk</code>.</p>
+<p>Lean accepted the file:</p>
+<pre><code>'Z3Proofs.NativeCertificate.pa0b17336a1fe37d1ccc241595154aae65dc36d6237ef11286e482a3d7b8741a3.unsat' does not depend on any axioms
+Lean checks passed.</code></pre>
+<p>Chunks appear only above 32 assertions, as in the PR exporter's text for the 4,157-assertion input.</p>
+<pre><code>private def Inputs_c0 (_atoms : Nat -&gt; Prop) : Prop := (And (And (And (And (And (formula_0 _atoms) (formula_1 _atoms)) (And (formula_2 _atoms) (formula_3 _atoms))) ...
+private def Inputs_c1 (_atoms : Nat -&gt; Prop) : Prop := (And (And (And (And (And (formula_32 _atoms) (formula_33 _atoms)) (And (formula_34 _atoms) (formula_35 _atoms))) ...
+...
+private structure Inputs (_atoms : Nat -&gt; Prop) : Prop where
+  all : (And (And (And (And (And (And (And (And (Inputs_c0 _atoms) (Inputs_c1 _atoms)) (Inputs_c2 _atoms)) (And (Inputs_c3 _atoms) (Inputs_c4 _atoms))) ...</code></pre>
+<p>The field lists 130 chunk names, not 4,157 formulas, and Lean accepted this text under the same limit without <a href="#g-axiom">axioms</a>.</p>
+<h2>How it was verified</h2>
+<p>Every test suite passed, in the reviewer's run and again after the review fixes.
+The large benchmark was checked in Lean twice, once by the implementer and once by the reviewer.
+The last run was at commit <code>a4c647c1b</code>, and the final commit differs from it only in the plan document.</p>
+<div class="wrap">
+<table>
+<thead><tr><th>Local check</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Lean reconstruction tests, fast tier</td><td><span class="ok">OK</span>: 709 tests, 18 skipped as slow</td></tr>
+<tr><td>Slow tier, the 18 tests skipped above</td><td><span class="ok">OK</span>: 18 tests</td></tr>
+<tr><td>Certificate exporter tests</td><td><span class="ok">OK</span>: 128 tests</td></tr>
+<tr><td><code>./scripts/check_lean.sh</code></td><td><span class="ok">Lean checks passed</span></td></tr>
+<tr><td>Proof script tests of the benchmark repository</td><td><span class="ok">OK</span>: 48 tests</td></tr>
+<tr><td>Proof matrix, two cells</td><td><span class="ok">6 of 6 and 8 of 8</span> verified in Lean</td></tr>
+<tr><td>New fast tests against the base exporter</td><td>One errors and the others fail, as intended</td></tr>
+<tr><td>Not run</td><td>Build script tests, <code>test-z3</code>, and the SMT2 regressions, because no C++ or script changed</td></tr>
+</tbody>
+</table>
+</div>
+<div class="wrap">
+<table>
+<thead><tr><th>Sample benchmark texts</th><th>Count</th></tr></thead>
+<tbody>
+<tr><td>Files that export, reconstructed with both exporters</td><td class="n">152</td></tr>
+<tr><td>Texts byte-identical before and after</td><td class="n">74</td></tr>
+<tr><td>Texts that change, only in <code>Inputs</code>, the projection paths, and the theorem's last line</td><td class="n">78</td></tr>
+<tr><td>Changed texts checked in Lean after the change</td><td class="n">70</td></tr>
+<tr><td>Of those, verified</td><td class="n">68</td></tr>
+<tr><td>Of those, failing with the base exporter as well</td><td class="n">2</td></tr>
+<tr><td>Changed texts not checked again</td><td class="n">8</td></tr>
+</tbody>
+</table>
+</div>
+<div class="wrap">
+<table>
+<thead><tr><th>File</th><th>Assertions</th><th>Lean check before</th><th>Lean check after</th></tr></thead>
+<tbody>
+<tr><td>QF_IDL <code>vlsat3_c27</code></td><td class="n">15,332</td><td>No verdict after 2,400 s</td><td><span class="ok">Verifies</span> in 516.7 s at 1.15 GB. Reviewer's run: 529.9 s</td></tr>
+<tr><td>QF_UF <code>sokoban.3.prop1_ab_br_max</code></td><td class="n">7,643</td><td>217.8 s at 5.11 GB</td><td>38.2 s at 1.14 GB</td></tr>
+<tr><td>QF_AUFLIA <code>storecomm_t3_pp_sf_ai_00060_005</code></td><td class="n">1,894</td><td>72.2 s at 4.43 GB</td><td>50.9 s at 3.67 GB</td></tr>
+<tr><td>QF_AX <code>storecomm_t2_np_sf_ai_00050_005</code></td><td class="n">1,326</td><td>20.1 s at 3.53 GB</td><td>11.7 s at 2.57 GB</td></tr>
+<tr><td>QF_AX <code>storecomm_t3_np_sf_ai_00040_001</code></td><td class="n">861</td><td>11.0 s at 2.41 GB</td><td>7.3 s at 1.82 GB</td></tr>
+</tbody>
+</table>
+</div>
+<p>The fork runs no GitHub workflows, so this PR has no CI checks. The local gate decides the merge.
+Its result had not been recorded when this report was written.</p>
+
+<h2>Review</h2>
+<p>Verdict: approve. The reviewer found no blocker and no major problem.</p>
+<ul>
+<li><strong>Minor, fixed.</strong> One new test feeds Lean three deliberately wrong texts, called <a href="#g-mutant">mutants</a>.
+It passed whenever Lean reported any error, so a text broken for an unrelated reason would have passed too.
+That mattered because the test guards a safety property: a wrong projection must be a <a href="#g-type-mismatch">type mismatch</a>.
+The test now checks the unchanged text first and requires every error to be a type mismatch.</li>
+<li><strong>Nit, not changed.</strong> The heartbeat limits in two tests depend on how Lean counts work.
+A new Lean version could fail them with nothing wrong in the exporter.
+The reviewer asked for no change, so it is listed under Risks.</li>
+<li><strong>Nit, fixed.</strong> Two tests hard-coded the chunk size 32, and now read the exporter's constant.</li>
+<li><strong>Nit, fixed.</strong> The exporter split the assertions into chunks in three separate places.
+The reviewer planted five slips in that code, and the unit test caught each.
+One function now does the split, and all 152 sample texts stayed byte-identical.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li>Eight of the largest changed texts were not checked in Lean after the change. Nine of the same families verify.</li>
+<li>A Lean toolchain change could fail the heartbeat limits.</li>
+<li>The chunk names and <code>Inputs.mk</code> are new names in a certificate, with no clash found.</li>
+<li>A projection still copies the chunk names, a 32nd of the assertions.</li><li>One QF_LRA sample file fails in a <a href="#g-theory-lemma">theory lemma</a> with both exporters. It verified on 2026-11-13, and the cause is unknown.</li>
+<li>The large benchmark is not in the repository, so a generated family stands in for it.</li>
+<li>The test suite became about 160 s slower since the previous PR, with either exporter, for an unknown reason.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+<li>Investigate the QF_LRA file that stopped verifying.</li>
+<li>Check the eight remaining large texts in Lean.</li>
+<li>Look at the cost of the theorem's own hypotheses, 13.8 s on the large benchmark.</li>
+<li>Survey other large definitions used as the type of a hypothesis, which Lean unfolds the same way.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-assertion">assertion</dt><dd>A formula the input states to be true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+<dt id="g-atom">atom</dt><dd>A formula with no smaller formula inside it, such as the Boolean constant <code>p0</code>.</dd>
+<dt id="g-axiom">axiom</dt><dd>A statement accepted without proof. A certificate that depends on no axioms proves everything it uses.</dd>
+<dt id="g-boolean">Boolean</dt><dd>The <a href="#g-sort">sort</a> with the two values true and false.</dd>
+<dt id="g-certificate">certificate</dt><dd>A file of evidence that an independent checker can verify. Here it is the Lean text of the refutation.</dd>
+<dt id="g-clause">clause</dt><dd>A disjunction of <a href="#g-literal">literals</a>, such as <code>(or (not p0) (not p1) p2)</code>.</dd>
+<dt id="g-conjunction">conjunction</dt><dd>The "and" of several formulas. It is true when every operand is true.</dd>
+<dt id="g-definition">definition</dt><dd>A name that stands for an expression. Unfolding a definition replaces the name by that expression.</dd>
+<dt id="g-elaboration">elaboration</dt><dd>The step in which Lean turns the text a user writes into a fully typed proof term.</dd>
+<dt id="g-heartbeat">heartbeat</dt><dd>Lean's unit of work for its deterministic time limit. A proof that needs more than the limit is rejected.</dd>
+<dt id="g-hypothesis">hypothesis</dt><dd>An assumption that a lemma or theorem takes as given.</dd>
+<dt id="g-lemma">lemma</dt><dd>A small proved statement that other proofs can use by name.</dd>
+<dt id="g-literal">literal</dt><dd>An atom or its negation, such as <code>p0</code> or <code>(not p0)</code>.</dd>
+<dt id="g-logic">logic</dt><dd>A named class of SMT-LIB formulas. QF means quantifier-free. IDL is integer difference logic, UF is <a href="#g-uninterpreted-function">uninterpreted functions</a>, AX is arrays, LRA is linear real arithmetic, and AUFLIA combines arrays, uninterpreted functions, and linear integer arithmetic.</dd>
+<dt id="g-mutant">mutant</dt><dd>A deliberately damaged copy of a correct text. A good checker must reject it.</dd>
+<dt id="g-outlined-lemma">outlined lemma</dt><dd>A proof step moved out of the main theorem into a lemma of its own, so Lean checks it separately.</dd>
+<dt id="g-projection">projection</dt><dd>Taking one part out of a pair or structure. From a proof of "A and B", <code>.1</code> gives a proof of A.</dd>
+<dt id="g-refutation">refutation</dt><dd>A proof that a set of assertions leads to False.</dd>
+<dt id="g-resolution">resolution</dt><dd>The rule that combines two clauses on a literal and its negation. From <code>(or a b)</code> and <code>(not a)</code> it gives <code>b</code>.</dd>
+<dt id="g-sort">sort</dt><dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-structure">structure</dt><dd>A Lean type that bundles named fields. Unlike a definition, it is not replaced by its contents during type checking.</dd>
+<dt id="g-theorem">theorem</dt><dd>A statement together with a proof that the checker accepts.</dd>
+<dt id="g-theory-lemma">theory lemma</dt><dd>A clause that holds because of a theory such as arithmetic, not by Boolean reasoning alone.</dd>
+<dt id="g-type-mismatch">type mismatch</dt><dd>Lean's error when a proof proves a different statement than the one required.</dd>
+<dt id="g-uninterpreted-function">uninterpreted function</dt><dd>A function symbol with no fixed meaning. Only equal arguments are known to give equal results.</dd>
+<dt id="g-unit-clause">unit clause</dt><dd>A clause with exactly one literal, such as <code>p0</code>.</dd>
+</dl>
+
+<footer>Generated by the Lean certificate improvement loop on 2026-11-17 (UTC).</footer>
+
+</body>
+</html>
