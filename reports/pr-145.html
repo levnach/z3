@@ -56,9 +56,10 @@ footer { margin: 3rem 0 2rem; padding-top: 0.8rem; border-top: 1px solid var(--b
 <h1>Prove the clause of a lemma step literal by literal</h1>
 <ul class="meta">
 <li>Pull request: <a href="https://github.com/levnach/z3/pull/145">levnach/z3 #145</a></li>
-<li>State: <span class="state">OPEN</span>. It is not merged.</li>
-<li>Change commit: <a href="https://github.com/levnach/z3/commit/20371f0a5cd201bad00f2137f254563764d7c549"><code>20371f0a5</code></a></li>
-<li>Date: 2026-11-17T16:15:26Z</li>
+<li>State: <span class="ok">MERGED</span></li>
+<li>Merge commit: <a href="https://github.com/levnach/z3/commit/336498c4cef6b836502f8c8da80ce637d978951d"><code>336498c4c</code></a></li>
+<li>Merge date: 2026-11-17T16:35:12Z</li>
+<li>Date: 2026-11-17T16:35:12Z</li>
 <li>Loop iteration: 144</li>
 </ul>
 </header>
@@ -84,7 +85,6 @@ In the benchmark sample, their lines were about 15% of all generated Lean text.
 A very wide step used up Lean's <a href="#g-heartbeat">heartbeats</a>, and its certificate was rejected.
 The change covers long refutations with <a href="#g-linear-arithmetic">linear arithmetic</a> or
 <a href="#g-uf">uninterpreted functions</a>.
-<a href="#g-propositional">Propositional</a> refutations are untouched.
 The work serves milestone 3 of the plan, equality and linear arithmetic, by reducing cost.
 </p>
 
@@ -99,7 +99,7 @@ The new proof walks down the row once and opens each locker as it passes.
 chain that handles each literal once, so its text grows linearly.</li>
 <li><strong>Reconstructor.</strong> One helper <a href="#g-theorem">theorem</a>, <code>classical_or_intro</code>, is
 written once per file and proved in Lean, so the chain needs no new axiom.</li>
-<li><strong>Reconstructor.</strong> Propositional refutations and refutations of at most 500
+<li><strong>Reconstructor.</strong> <a href="#g-propositional">Propositional</a> refutations and refutations of at most 500
 <a href="#g-proof-step">proof steps</a> keep the old form, so propositional certificates still use no axiom.</li>
 <li><strong>Tests.</strong> New tests pin a chain's exact text, show that Lean rejects seven wrong chains, and verify
 the 1,539-literal step.</li>
@@ -114,7 +114,7 @@ the 1,539-literal step.</li>
 <tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Wide negated distinct tests, the new slow test</td><td class="num">41</td><td class="num">5</td></tr>
 <tr><td><code>doc/lean-proof-plan.md</code></td><td>New section with the design and the measurements</td><td class="num">152</td><td class="num">0</td></tr>
 <tr><td><code>examples/python/README</code></td><td>The paragraph on lemma steps</td><td class="num">17</td><td class="num">1</td></tr>
-<tr><th>Total</th><th>6 files, 6 commits</th><th class="num">429</th><th class="num">14</th></tr>
+<tr><th>Total</th><th>6 files, 6 commits merged as one</th><th class="num">429</th><th class="num">14</th></tr>
 </tbody>
 </table>
 </div>
@@ -122,7 +122,7 @@ the 1,539-literal step.</li>
 <h2>Worked example</h2>
 <p>
 The input is the one of the pull request's new slow test, written with several commands per line.
-It declares 56 constants of <a href="#g-sort">sort</a> Int and fixes each to a different number.
+It declares 56 <a href="#g-constant">constants</a> of <a href="#g-sort">sort</a> Int and fixes each to a different number.
 Its first <a href="#g-assertion">assertion</a> says they are not all <a href="#g-distinct">distinct</a>.
 Z3's refutation has one lemma step whose clause lists 1,539 equalities between two constants.
 </p>
@@ -204,11 +204,11 @@ private theorem classical_or_intro {p q r : Prop} (g : r -&gt; q) (f : Not p -&g
 <p>The final theorem states that the 57 assertions together imply False.</p>
 <div class="tablewrap">
 <table>
-<thead><tr><th>This example, run for this report while the local gate was also running</th><th>Before</th><th>After</th></tr></thead>
+<thead><tr><th>This example, run again for this report on the merge commit</th><th>Before</th><th>After</th></tr></thead>
 <tbody>
 <tr><td>Lean text</td><td>3,000,265 bytes</td><td>2,553,163 bytes</td></tr>
 <tr><td>Line of the wide lemma step</td><td>320,994 characters</td><td>51,674 characters</td></tr>
-<tr><td>Lean's verdict</td><td><span class="bad">rejected</span> after 15.6 s</td><td><span class="ok">accepted</span> in 21.8 s</td></tr>
+<tr><td>Lean's verdict</td><td><span class="bad">rejected</span> after 14.3 s</td><td><span class="ok">accepted</span> in 21.1 s</td></tr>
 </tbody>
 </table>
 </div>
@@ -239,7 +239,7 @@ Of the changed texts checked again in Lean, all verify except one that already f
 </div>
 <div class="tablewrap">
 <table>
-<thead><tr><th>Sample file, checked with both reconstructors on the same day</th><th>Lean text before → after</th><th>Lean time before → after</th></tr></thead>
+<thead><tr><th>Sample file with its <a href="#g-logic">logic</a>, checked with both reconstructors on the same day</th><th>Lean text before → after</th><th>Lean time before → after</th></tr></thead>
 <tbody>
 <tr><td>QF_IDL <code>vlsat3_c27</code></td><td>141.38 → 109.93 MB</td><td>534.1 → 353.6 s</td></tr>
 <tr><td>QF_AUFLIA <code>swap_t1_pp_sf_ai_00010_008</code></td><td>35.69 → 32.99 MB</td><td>332.2 → 318.1 s</td></tr>
@@ -258,8 +258,8 @@ Of the changed texts checked again in Lean, all verify except one that already f
 </tbody>
 </table>
 </div>
-<p>The fork runs no GitHub workflows, so this pull request has no CI checks. The loop's local gate decides the merge.</p>
-<p>The local gate ran on the loop machine against the Release build, and every step passed.</p>
+<p>The fork runs no GitHub workflows, so this pull request had no CI checks. The loop's local gate decided the merge.</p>
+<p>It ran on the loop machine against the Release build, and every step passed.</p>
 <div class="tablewrap">
 <table>
 <thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
@@ -288,8 +288,8 @@ A false comment could send a maintainer on a pointless rewrite, so it was correc
 <li><strong>Nit, fixed.</strong> The documentation gave one cost per literal.
 The reviewer found a second kind of literal that costs more, which skews size estimates by a quarter.
 The documents now give both costs.</li>
-<li><strong>Suggestions, taken.</strong> Two tests of chains over clauses given as definitions were added.
-The integrator checked four more large texts in Lean and ran the slow tests not yet run.</li>
+<li><strong>Suggestions, taken.</strong> The integrator added two tests of chains over clauses given as definitions.
+It also checked four more large texts in Lean and ran every slow test.</li>
 </ul>
 <div class="tablewrap">
 <table>
@@ -310,7 +310,8 @@ Their siblings verify.</li>
 <li>A lemma step over about 4,000 literals would be rejected for memory.
 The widest one in the sample has 154 literals.
 Where the memory goes was not traced.</li>
-<li>The chain relies on the order in which Lean works out the helper's argument types.
+<li>The chain relies on the order in which Lean's <a href="#g-elaboration">elaboration</a> fixes the helper's
+argument types.
 A future Lean version could reject such certificates, but it could not accept a wrong one.</li>
 <li>One sample file that already failed is now checked as a single file, so its failure takes longer to report.</li>
 </ul>
@@ -335,12 +336,16 @@ texts.</li>
 <dd>A file that records a solver's proof so that another program can check it.</dd>
 <dt id="g-clause">clause</dt>
 <dd>A <a href="#g-disjunction">disjunction</a> of literals. Example: <code>(or (= x0 x1) (not (= x0 x2)))</code>.</dd>
+<dt id="g-constant">constant</dt>
+<dd>A symbol that names one unknown value of a given sort. Example: <code>(declare-const x0 Int)</code>.</dd>
 <dt id="g-demorgan">De Morgan rewrite</dt>
 <dd>Replacing "not (A and B)" by "(not A) or (not B)", or the same with "and" and "or" exchanged.</dd>
 <dt id="g-disjunction">disjunction</dt>
 <dd>An "or" of formulas. It is true when at least one of them is true.</dd>
 <dt id="g-distinct">distinct</dt>
 <dd>The SMT-LIB formula saying that no two of the listed terms are equal. Example: <code>(distinct x0 x1 x2)</code>.</dd>
+<dt id="g-elaboration">elaboration</dt>
+<dd>The stage in which Lean fills in the types and arguments that a proof text leaves out, before the kernel checks the result.</dd>
 <dt id="g-heartbeat">heartbeat</dt>
 <dd>Lean's unit for counting its own work. A declaration that needs more than the limit, 200,000 by default, is rejected.</dd>
 <dt id="g-hypothesis">hypothesis</dt>
@@ -357,6 +362,8 @@ Example: from "A and B give false" it concludes "(not A) or (not B)".</dd>
 <dd>Formulas over integers or reals that only add terms and multiply them by constants. Example: <code>(&lt;= (+ x (* 2 y)) 5)</code>.</dd>
 <dt id="g-literal">literal</dt>
 <dd>An atomic formula or its negation. Example: <code>(= x0 x1)</code> and <code>(not (= x0 x1))</code>.</dd>
+<dt id="g-logic">logic</dt>
+<dd>In SMT-LIB, a named fragment of formulas that an input declares. Example: <code>QF_LIA</code> is quantifier-free linear integer arithmetic.</dd>
 <dt id="g-negation">negation</dt>
 <dd>The "not" of a formula. It is true exactly when the formula is false.</dd>
 <dt id="g-premise">premise</dt>
