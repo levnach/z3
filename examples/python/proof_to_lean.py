@@ -10875,10 +10875,19 @@ def _cases_lemma(premise, count, discharges):
     of the literal at position k is `(fun _literal => _not_clause (Or.inr
     (.. (Or.inl _literal))))`, k injections: for the whole step 4 bytes
     times the square of the clause's width up to _AND_ELIM_STRIDE literals,
-    and about 200 bytes a literal above, against 33 here. Such lines were
-    38.8 of the 141.4 MB of Lean of QF_IDL vlsat3_c27 (7,539 clauses of up
-    to 110 literals; 7.4 MB as chains) and 13 to 21% of the QF_UF gensys
-    texts of 31.7 to 194.8 MB.
+    and about 200 bytes a literal above. Here a literal costs about 33
+    bytes when its hypothesis is its negation and 29 more when it negates
+    its hypothesis (the proof by contradiction): 42.5 over the chains of
+    the smtlib-sample. Such lines were 38.8 of the 141.4 MB of Lean of
+    QF_IDL vlsat3_c27 (7,539 clauses of up to 110 literals; 7.4 MB as
+    chains) and 13 to 21% of the QF_UF gensys texts of 31.7 to 194.8 MB.
+
+    Nothing bounds or splits a chain, and Lean's time and memory on one
+    grow faster than its width: alone in a file, 2 s at 0.7 GB over 800
+    literals, 12 s at 1.6 GB over 1,600, 57 s at 4.9 GB over 3,200, and
+    over 4,800 the kernel stops at the 8 GB cap of check_lean.sh after 130
+    s (a rejection). The widest clause of a `lemma` step in the sample has
+    154 literals.
     """
     needed = {position for position, _ in discharges}
     binders = " ".join("_n%d" % position if position in needed else "_" for position in range(count))
@@ -11050,8 +11059,10 @@ def _step_blocks(graph, terms, dependencies, excluded):
 
 _CLASSICAL_CONTRADICTION = "classical_by_contradiction"
 # Decidable.byContradiction at the witness Classical.propDecidable, which the
-# classical lemmas bound by a let before: the same axiom (Classical.choice),
-# where Classical.byContradiction would add propext and Quot.sound.
+# classical lemmas bound by a let before: the same axioms, those of the
+# witness (propext, Classical.choice, Quot.sound, which `#print axioms`
+# reports for Classical.propDecidable itself, and for Classical.em and
+# Classical.byContradiction alike).
 _CLASSICAL_CONTRADICTION_LEMMA = [
     "",
     "private theorem %s {p : Prop} (h : Not p -> False) : p :=" % _CLASSICAL_CONTRADICTION,

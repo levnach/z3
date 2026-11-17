@@ -1605,7 +1605,8 @@ class TestIntegerValidation(unittest.TestCase):
         # with its own Or.inr chain (a 2.7 MB line), then from tails of the
         # negated clause, an Or.inr per literal since the tail (295 kB for
         # the three lemmas); they are chains of classical_or_intro now
-        # (_cases_lemma), 33 bytes a literal. Wide lemmas are outlined apart.
+        # (_cases_lemma), 33 bytes a literal here, where every hypothesis is
+        # the negation of its literal. Wide lemmas are outlined apart.
         source = pinned_negated_distinct_source(40)
         certificate = proof_certificate.export_clause_log_certificate(source)
         graph = proof_to_lean._validate_graph(source, certificate)

@@ -1793,8 +1793,12 @@ hypothesis is bound as `_`. One helper theorem,
 turns the function's first binder into the clause's first literal and
 leaves the rest to g, the chain of the remaining literals, which ends in
 `classical_by_contradiction` for the last. The chain names no formula
-(each follows from the clause the step states), is 33 bytes a literal, and
-nests no binder. Nesting one was tried first (`classical_or_intro (fun _n0
+(each follows from the clause the step states) and nests no binder. A
+literal costs about 33 bytes when its hypothesis is its negation and 29
+more when it negates its hypothesis (the proof by contradiction): over the
+158,787 chains of the sample, 42.5 bytes a literal (32.6 on `vlsat3_c27`,
+37.2 on `gensys_icl1079`, 58.7 on `swap_t1_pp_sf_ai_00010_008`). Nesting a
+binder was tried first (`classical_or_intro (fun _n0
 => classical_or_intro (fun _n1 => ...))`, each literal's refutation bound
 under the ones before): the two lemmas over 779 and 512 literals of a
 negated 40-term distinct took Lean 22 s more that way (27.8 s for the file
@@ -1851,13 +1855,26 @@ steps, the widest over all pairs but one):
 | Lean, before | not checked | verifies in 5.6 s at 1.23 GB | FAILS after 12.9 s at 1.96 GB: the step over 1,539 literals out of the default 200,000 heartbeats | FAILS after 52.8 s at 2.49 GB: the two widest steps and the De Morgan rewrite of the distinct out of heartbeats |
 | Lean, after | not checked | verifies in 5.2 s at 1.38 GB | verifies in 19.8 s at 2.88 GB | FAILS after 110.1 s at 5.75 GB: the rewrite alone |
 
-The chain's text is linear in the clause; Lean's time on it is not, above
-a few hundred literals. A file of one chain, every second hypothesis
-discharged by a literal that negates it, takes 0.5, 0.6, 0.8, 2.2, and
-11.6 s at 100, 200, 400, 800, and 1,600 literals, and 0.6 to 0.8 s with
-the chain left out. The widest clause of a `lemma` step in the sample has
-154 literals (QF_IDL `PO4-10-PO4`); where the time of 1,600 goes was not
-traced.
+The chain's text is linear in the clause; Lean's time and memory on it are
+not, above a few hundred literals, and nothing bounds or splits a chain. A
+file of one chain, every second hypothesis discharged by a literal that
+negates it (0.6 to 0.8 s with the chain left out):
+
+| literals | 100 | 200 | 400 | 800 | 1,600 | 3,200 | 4,800 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Lean | 0.5 s | 0.6 s | 0.8 s | 2.0 s at 0.72 GB | 12.0 s at 1.56 GB | 56.9 s at 4.89 GB | FAILS after 130.4 s: `(kernel) excessive memory consumption` at the 8 GB cap |
+
+Above 800 literals a doubling costs about five times the time and three
+times the memory, so one `lemma` step over about 4,000 literals or more is
+rejected for memory inside one declaration, after two minutes. That is not
+a regression in what verifies: through the negated clause a step ran out
+of heartbeats between 780 and 1,539 literals, after seconds (the 80-term
+distinct fails with both exporters, after 110 s at 5.75 GB now against 53
+s at 2.49 GB). The widest clause of a `lemma` step in the sample has 154
+literals (QF_IDL `PO4-10-PO4`). Where the time and the memory go was not
+traced, beyond that the memory is the kernel's; a chain in pieces of 32
+literals, each over the tail of the clause, would bound both, and is not
+done.
 
 Tests: `test_proof_to_lean.py`
 (`test_a_lemma_step_is_one_chain_linear_in_its_clause`: the layout, the

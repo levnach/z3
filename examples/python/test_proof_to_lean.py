@@ -1027,12 +1027,21 @@ class TestProofToLean(unittest.TestCase):
         self.assertLess(sizes[1], 2.1 * sizes[0])
         self.assertLess(sizes[2], 2.1 * sizes[1])
         self.assertLess(sizes[4], 2.1 * sizes[3])
-        self.assertLess(sizes[4], 34 * 1024)  # about 32 bytes a literal
+        self.assertLess(sizes[4], 34 * 1024)  # a literal whose hypothesis is its negation: about 32 bytes
+        # A literal that negates its hypothesis costs the proof by
+        # contradiction besides, 29 bytes more.
+        negated = chain(3, 1024, [(position, True) for position in reversed(range(1024))])
+        self.assertEqual(negated.count("(classical_by_contradiction _n"), 1024)
+        self.assertEqual(len(negated), sizes[4] + 29 * 1024)
+        # The helper is by cases on the witness of classical_by_contradiction,
+        # so a chain depends on the axioms of that witness (propext,
+        # Classical.choice, Quot.sound), which Lean reports in test_proof_to_lean_uf's
+        # test_lemma_step_chains_prove_their_clause_and_nothing_else.
         helper = "\n".join(proof_to_lean._CLASSICAL_DISJUNCT_LEMMA)
         self.assertIn("private theorem classical_or_intro {p q r : Prop} (g : r -> q) (f : Not p -> r) : p \\/ q :=",
                       helper)
         self.assertIn("(Classical.propDecidable p)", helper)
-        self.assertNotIn("Classical.em", helper)  # which would add propext and Quot.sound
+        self.assertIn("(Classical.propDecidable p)", "\n".join(proof_to_lean._CLASSICAL_CONTRADICTION_LEMMA))
 
     def test_tactics_of_a_fact_fail_when_they_do_not_prove_it(self):
         # A fact's tactics are an argument `(by ...)`, which Lean runs with

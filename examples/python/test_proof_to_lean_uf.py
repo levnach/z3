@@ -2511,14 +2511,25 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
         # step is accepted for the clause of its literals (a literal that discharges nothing, a
         # hypothesis discharged by the literal that negates it, a literal discharging two
         # hypotheses, a clause of one literal) and depends on the standard axioms only, those of
-        # Classical.propDecidable; Lean rejects it when a refutation goes to another hypothesis, when a hypothesis is taken
-        # for the negation of its literal or the other way round, when the clause has a literal
-        # more or less than the chain, and for another clause.
+        # Classical.propDecidable; Lean rejects it when a refutation goes to another hypothesis,
+        # when a hypothesis is taken for the negation of its literal or the other way round, when
+        # the clause has a literal more or less than the chain, and for another clause. Two of
+        # the accepted clauses are definitions over definitions, as every exported formula is
+        # (`formula_N _atoms`): the chain names no formula, so its literals, a hypothesis that
+        # negates one, and the disjunction that is the last literal of the second clause are
+        # there only once Lean unfolds them.
         helpers = proof_to_lean._CLASSICAL_CONTRADICTION_LEMMA + proof_to_lean._CLASSICAL_DISJUNCT_LEMMA
         a, b, c, d = ("(_atoms %d)" % index for index in range(4))
         premise = "Not %s -> %s -> Not %s -> False" % (a, b, d)
         clause = "%s \\/ (Not %s \\/ (%s \\/ %s))" % (a, b, c, d)
         good = [(0, False), (1, True), (3, False)]
+        bodies = ["_atoms 0", "_atoms 1", "_atoms 2", "Not (formula_0 _atoms)", "Not (formula_1 _atoms)",
+                  "Not (formula_2 _atoms)", "(formula_0 _atoms) \\/ ((formula_4 _atoms) \\/ (formula_2 _atoms))",
+                  "(formula_1 _atoms) \\/ (formula_2 _atoms)", "Not (formula_7 _atoms)",
+                  "(formula_0 _atoms) \\/ (formula_7 _atoms)"]
+        definitions = [""] + ["def formula_%d (_atoms : Nat -> Prop) : Prop := %s" % (index, body)
+                              for index, body in enumerate(bodies)]
+        f = ["(formula_%d _atoms)" % index for index in range(10)]
 
         def theorem(name, premise, clause, count, discharges):
             return ["", "theorem %s (_atoms : Nat -> Prop) (_step_1 : %s) : %s :=" % (name, premise, clause),
@@ -2531,6 +2542,8 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
             ("unit", "Not %s -> False" % a, a, 1, [(0, False)]),
             ("negated_unit", "%s -> False" % b, "Not %s" % b, 1, [(0, True)]),
             ("last_unused", "Not %s -> False" % a, "%s \\/ %s" % (a, c), 2, [(0, False)]),
+            ("defined", "%s -> %s -> %s -> False" % (f[3], f[1], f[5]), f[6], 3, [(0, False), (1, True), (2, False)]),
+            ("defined_last_or", "%s -> %s -> False" % (f[8], f[3]), f[9], 2, [(1, False), (0, False)]),
         ]
         rejected = [
             ("exchanged", premise, clause, 4, [(3, False), (1, True), (0, False)]),
@@ -2542,7 +2555,7 @@ class TestUninterpretedLeanIntegration(unittest.TestCase):
             ("other_literal", premise, "%s \\/ (Not %s \\/ (%s \\/ %s))" % (a, b, d, c), 4, good),
         ]
         with tempfile.TemporaryDirectory() as directory:
-            lines = list(helpers)
+            lines = helpers + definitions
             for case in accepted:
                 lines += theorem(*case) + ["#print axioms %s" % case[0]]
             path = Path(directory) / "accepted.lean"
