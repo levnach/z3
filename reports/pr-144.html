@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #144: Prove the facts of a cnf lemma apart from one another</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+  --panel: #f6f8fa; --link: #0969da; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+    --panel: #161b22; --link: #4493f8; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.55; max-width: 54rem; margin: 2rem auto; padding: 0 1.1rem;
+}
+h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 .6rem; }
+h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.02rem; margin: 1.4rem 0 .4rem; }
+a { color: var(--link); }
+p, li { margin: .5rem 0; }
+header .meta { color: var(--muted); font-size: .95rem; margin: .2rem 0; }
+.badge {
+  display: inline-block; padding: .1rem .6rem; border-radius: 1rem; font-size: .85rem;
+  font-weight: 600; border: 1px solid var(--ok); color: var(--ok);
+}
+.note { border-left: 4px solid var(--warn); background: var(--panel); padding: .6rem .9rem; margin: 1rem 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; }
+:not(pre) > code { background: var(--panel); padding: .08rem .3rem; border-radius: 4px; }
+pre {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: .8rem 1rem; overflow-x: auto; line-height: 1.4; margin: .7rem 0;
+}
+pre code { font-size: .8rem; white-space: pre; }
+.tablewrap { overflow-x: auto; margin: .8rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { border: 1px solid var(--line); padding: .35rem .6rem; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+td.num { text-align: right; white-space: nowrap; }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.sev { font-weight: 600; }
+dl { margin: .6rem 0; }
+dt { font-weight: 600; margin-top: .7rem; }
+dd { margin: .15rem 0 0 1.2rem; }
+footer { margin: 2.5rem 0 1rem; padding-top: .8rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove the facts of a cnf lemma apart from one another</h1>
+<p class="meta">
+  <a href="https://github.com/levnach/z3/pull/144">Pull request #144</a> on levnach/z3, into <code>master</code>
+  &middot; <span class="badge">OPEN</span>
+  &middot; 2026-11-17T11:43:52Z &middot; loop iteration 143
+</p>
+<p class="meta">
+  This pull request is open. It is <strong>not merged</strong>. Change commit:
+  <a href="https://github.com/levnach/z3/commit/7115d6e6e77b56a4c58533d100744ede2da0d80e"><code>7115d6e6e</code></a>.
+</p>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+To prove a <a href="#g-cnf-lemma">cnf lemma</a> in Lean, the reconstructor first states helper facts:
+<a href="#g-bridge">bridges</a> and <a href="#g-theory-clause">theory clauses</a>.
+Each fact used to be a step of its own, and its <a href="#g-tactic">tactic</a> read every earlier fact as a
+<a href="#g-hypothesis">hypothesis</a>.
+With hundreds of facts the work grew with the square of their number, and the lemma ran out of
+<a href="#g-heartbeat">heartbeats</a>.
+This PR states all the facts as the <a href="#g-binder">binders</a> of one function and passes their proofs as its arguments.
+Each proof is now checked alone.
+The statements, the tactics, and the <a href="#g-refutation">refutation</a> are unchanged.
+A <a href="#g-lra">linear real arithmetic</a> <a href="#g-benchmark">benchmark</a> whose
+<a href="#g-certificate">certificate</a> puts 694 facts in one lemma is certified again.
+</p>
+
+<h2>Background</h2>
+<p>
+Before this PR the pipeline already proved these lemmas, as long as they stayed small.
+The benchmark verified on 2026-11-13.
+Then its certificate changed, and its one cnf lemma grew from 311 facts to 694.
+Lean stopped the lemma at its heartbeat limit, although the 694 proofs and the refutation take under a second when checked apart.
+The PR serves milestone 3 of the plan, equality and linear arithmetic.
+It is scale work: a supported fragment now survives larger inputs.
+</p>
+
+<h2>What changed</h2>
+<p>
+An analogy: a grader marks 694 answers.
+Before, the grader re-read every earlier answer before marking the next one.
+Now each answer is marked on its own sheet.
+</p>
+<ul>
+  <li><strong>Exporter, layout.</strong> A cnf lemma with hundreds of facts now checks in time that grows with the number of facts, not with its square.</li>
+  <li><strong>Exporter, guard.</strong> A fact that Lean cannot prove still fails the lemma's first attempt, so the fallback (a second proof of the same lemma) is tried.</li>
+  <li><strong>Tests.</strong> New tests generate inputs with 400 and 1,600 bridged pairs and tamper with facts, expecting a fallback or a rejection.</li>
+  <li><strong>Benchmark data.</strong> The 15-node startup benchmark is now test data, checked by a slow-tier test.</li>
+</ul>
+<p>No C++ or Lean source changed, and no heartbeat, memory, or time limit moved.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>File</th><th>Added</th><th>Removed</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td class="num">80</td><td class="num">20</td><td>Exporter: the new layout and the guard</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_arith.py</code></td><td class="num">193</td><td class="num">4</td><td>Generator, five new tests, two rewritten pins</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td class="num">47</td><td class="num">0</td><td>Two layout tests that need no Lean</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflia.py</code></td><td class="num">12</td><td class="num">4</td><td>Pin of the old layout rewritten</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_sign_split.py</code></td><td class="num">6</td><td class="num">2</td><td>Pin of the old layout rewritten</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td class="num">4</td><td class="num">3</td><td>Pin of the old layout rewritten</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td class="num">4</td><td class="num">2</td><td>Pin of the old layout rewritten</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uflra.py</code></td><td class="num">2</td><td class="num">1</td><td>Pin of the old layout rewritten</td></tr>
+<tr><td><code>examples/python/data/QF_LRA_tta_startup_simple_startup_15nodes.smt2</code></td><td class="num">190</td><td class="num">0</td><td>The benchmark, as test data</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td class="num">173</td><td class="num">1</td><td>New section with measurements</td></tr>
+<tr><td><code>examples/python/README</code></td><td class="num">11</td><td class="num">3</td><td>Paragraph on cnf lemmas</td></tr>
+<tr><th>Total, 11 files</th><th class="num">722</th><th class="num">40</th><th></th></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Worked example</h2>
+<p>
+This PR fixes scale, so no ten-line input changes its verdict.
+The example is the PR's test generator, <code>bridged_comparisons</code>, run with 800 pairs, the smallest size the PR measured as failing before.
+Its 1,606 lines repeat one shape and are shown with <code>...</code> where lines were cut.
+All output comes from real runs made for this report.
+</p>
+
+<h3>(a) The input</h3>
+<pre><code>(set-logic QF_LRA)
+(declare-const b Bool)
+(declare-const x Real)
+(declare-const y0 Real)
+(declare-const y1 Real)
+...
+(declare-const y799 Real)
+(assert (and (not b) (or b (&lt;= 1.0 x)) (&lt; x 1.0)
+  (or (&lt;= 1.0 y0) (&lt; y0 1.0))
+  (or (&lt;= 1.0 y1) (&lt; y1 1.0))
+  ...
+  (or (&lt;= 1.0 y799) (&lt; y799 1.0))
+))
+(check-sat)</code></pre>
+<p>
+The file declares one <a href="#g-boolean">Boolean</a> constant and 801 constants of <a href="#g-sort">sort</a> Real.
+In its one <a href="#g-assertion">assertion</a>, the three <a href="#g-conjunct">conjuncts</a> over <code>b</code> and <code>x</code> contradict one another, and the other 800 are not needed.
+</p>
+
+<h3>(b) Before</h3>
+<p>
+The base code (commit <code>770e9dd76</code>) exported the same certificate, byte for byte.
+Lean rejected the text reconstructed from it:
+</p>
+<pre><code>old_example.lean:4661:145: error: (deterministic) timeout at `simp`, maximum number of heartbeats (1000000) has been reached
+...
+old_example.lean:5478:145: error: (deterministic) timeout at `simp`, maximum number of heartbeats (1000000) has been reached
+...
+Lean checking failed; no proof was published.</code></pre>
+<p>
+The run took 46 seconds.
+Each of the two cnf lemmas ran out of heartbeats at its 585th fact.
+The old text stated the facts one after another:
+</p>
+<pre><code>  first
+    | (have _f1 : (Iff (formula_4 _atoms _vars) (Not (formula_6 _atoms _vars))) := by unfold formula_6 formula_4 term_3 term_2; grind (splits := 64)
+       have _f2 : (Iff (formula_8 _atoms _vars) (Not (formula_9 _atoms _vars))) := by unfold formula_9 formula_8 term_7 term_2; grind (splits := 64)
+       ...
+       have _f585 : (Iff (formula_2340 _atoms _vars) (Not (formula_2341 _atoms _vars))) := by unfold formula_2341 formula_2340 term_2339 term_2; grind ...
+       ...</code></pre>
+
+<h3>(c) After</h3>
+<p>Lean accepted the new text: <code>scripts/check_lean.sh</code> printed <code>Lean checks passed.</code> after about eight seconds.</p>
+<pre><code>def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
+def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
+def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_2 _atoms _vars) &lt;= (term_3 _atoms _vars))
+...
+def formula_6 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_3 _atoms _vars) &lt; (term_2 _atoms _vars))
+...
+def formula_3207 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (And (formula_1 _atoms _vars) (And (formula_5 _atoms _vars) (And (formula_6 _at ...
+...
+def formula_3210 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (formula_3207 _atoms _vars))
+...</code></pre>
+<p>The declarations name the input's pieces: <code>formula_4</code> is <code>1 &lt;= x</code>, <code>formula_6</code> is <code>x &lt; 1</code>, and <code>formula_3207</code> is the whole assertion.</p>
+<pre><code>set_option maxHeartbeats 1000000 in
+private theorem th_lemma_3214 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    : (formula_3210 _atoms _vars) := by
+  first
+    | (refine (fun
+            (_f1 : (Iff (formula_4 _atoms _vars) (Not (formula_6 _atoms _vars))))
+            (_f2 : (Iff (formula_8 _atoms _vars) (Not (formula_9 _atoms _vars))))
+            ...
+            (_f801 : (Iff (formula_3204 _atoms _vars) (Not (formula_3205 _atoms _vars))))
+            =&gt; (?_ : (formula_3210 _atoms _vars)))
+          (by first | ((unfold formula_6 formula_4 term_3 term_2; grind (splits := 64)); done) | fail)
+          (by first | ((unfold formula_9 formula_8 term_7 term_2; grind (splits := 64)); done) | fail)
+          ...
+          (by first | ((unfold formula_3205 formula_3204 term_3203 term_2; grind (splits := 64)); done) | fail)
+       refine Classical.byContradiction ?_
+       refine (fun (_f802 : (Not (Not (formula_3207 _atoms _vars)))) =&gt; ?_)
+       have _f803 : (formula_3207 _atoms _vars) := (Classical.byContradiction (fun _g =&gt; _f802 _g))
+       have _f804 := _f803.1
+       have _f805 := _f803.2.1
+       have _f806 := _f803.2.2.1
+       have _f1607 : (Not (Not (formula_6 _atoms _vars))) := (fun _g =&gt; _g _f806)
+       have _f1608 : (Not (formula_4 _atoms _vars)) := (fun _g =&gt; _f1607 (Iff.mp _f1 _g))
+       have _f1609 := (Or.elim _f805 (fun _g =&gt; _g) (fun _g =&gt; absurd _g _f1608))
+       exact (False.elim (_f804 _f1609)))
+    | (unfold formula_3210 formula_3207 formula_3207_c1 formula_3207_c2 formula_3207_c3 formula_3207_c4 formula_3207_c5 formula_3207_c6 formula_3207_c ...
+       grind (splits := 64))</code></pre>
+<p>
+This is the new layout: the 801 bridges are the binders of one function, and the 801 guarded lines after the arrow are their proofs.
+The mark <code>?_</code> leaves the lemma's <a href="#g-goal">goal</a> to the refutation.
+The refutation uses only <code>_f1</code>, which says that <code>1 &lt;= x</code> holds exactly when <code>x &lt; 1</code> does not.
+The last alternative is the fallback.
+</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
+    (_h0 : (formula_3207 _atoms _vars))
+    : False :=
+  let _step_3208 : (formula_3207 _atoms _vars) :=
+    _h0
+  let _step_3209 : (formula_1 _atoms _vars) :=
+    _step_3208.1
+  let _step_3212 : (formula_3211 _atoms _vars) :=
+    (th_lemma_3212 _atoms _vars)
+  let _step_3213 :=
+    (_step_3212.neg_resolve_left _step_3208)
+  let _step_3214 : (formula_3210 _atoms _vars) :=
+    (th_lemma_3214 _atoms _vars)
+  let _step_3216 : (formula_3215 _atoms _vars) :=
+    (False.elim (_step_3214 _step_3208))
+  let _step_3217 : (formula_3215 _atoms _vars) :=
+    (False.elim _step_3216)
+  _step_3217</code></pre>
+<p>The final theorem takes the assertion as a hypothesis and derives <code>False</code>, using the two cnf lemmas.</p>
+
+<h2>How it was verified</h2>
+<p>
+The whole reconstruction test suite passed, more than 700 tests, and so did its slow tier.
+Every sample file whose Lean text changed was checked again in Lean, and all verify.
+The benchmark fails with the base exporter and verifies with the new one, which the reviewer reproduced.
+</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Check (run on 2026-11-17, as recorded in the PR)</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td><span class="ok">OK</span>: 716 tests, 20 skipped (the slow tier)</td></tr>
+<tr><td>Slow tier of the same tests</td><td><span class="ok">OK</span>: 20 tests, the two new ones in 18.7 s and 29.5 s</td></tr>
+<tr><td>Certificate exporter tests</td><td><span class="ok">OK</span>: 128 tests</td></tr>
+<tr><td>Lean project check</td><td><span class="ok">passed</span></td></tr>
+<tr><td>Proof script tests of z3test</td><td><span class="ok">OK</span>: 48 tests</td></tr>
+<tr><td>Two regression matrix cells with Lean</td><td><span class="ok">lean-verified</span>: 6 of 6 and 8 of 8</td></tr>
+<tr><td>152 exporting sample files, old and new exporter on the same certificate</td><td>116 texts identical byte for byte. 36 differ only in how the facts are stated (8,772 facts in 499 lemmas)</td></tr>
+<tr><td>The 36 changed texts, checked in Lean</td><td><span class="ok">all 36 verify</span></td></tr>
+<tr><td>Benchmark <code>simple_startup_15nodes</code>, 694 facts in one lemma</td><td>Before: <span class="bad">fails</span> after 51.5 s. After: <span class="ok">verifies</span> in 19.4 s</td></tr>
+<tr><td>Benchmark <code>simple_startup_11nodes</code>, 446 facts in one lemma</td><td>Verifies in both. Before: 24.9 s. After: 10.9 s</td></tr>
+<tr><td>Not run</td><td><code>scripts/tests</code>, <code>test-z3</code>, and the SMT2 regressions (no C++ or script change)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Lean times for the generated family, by number of pairs:</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Pairs</th><th>100</th><th>200</th><th>400</th><th>800</th><th>1,600</th></tr></thead>
+<tbody>
+<tr><td>Before</td><td>2.3 s</td><td>5.9 s</td><td>19.6 s</td><td><span class="bad">fails</span> after 41.6 s</td><td>not checked</td></tr>
+<tr><td>After</td><td>1.4 s</td><td>2.1 s</td><td>3.8 s</td><td>7.1 s</td><td>14.0 s</td></tr>
+</tbody>
+</table>
+</div>
+<p>
+The fork runs no GitHub workflows, so this PR has no CI checks.
+The loop's local gate decides the merge.
+The gate's result had not been recorded when this report was written.
+</p>
+
+<h2>Review</h2>
+<p>Verdict: approve. The reviewer found no blocker and no major issue.</p>
+<ul>
+  <li>
+    <span class="sev">Minor, fixed.</span>
+    The reviewer wrote small Lean files with a fact that cannot be proved.
+    In the old layout the lemma then moved on to its fallback.
+    In the new layout, when the tactic failed under a bullet or the proof stopped early, Lean's <a href="#g-recovery">error recovery</a> logged the error and admitted the fact.
+    The fallback was never tried, so a certificate the old layout verified was rejected.
+    A wrong proof was never accepted, and today's proofs do not reach the case.
+    The fix is the guard: a fact's tactics are written as <code>first | ((tactics); done) | fail</code>, and a new Lean test covers both shapes.
+  </li>
+  <li>
+    <span class="sev">Nit, documented.</span>
+    The exporter drops a first attempt above a fixed length, and a fact is now 43 characters longer.
+    A lemma near that bound could lose its attempt. No sample lemma did, and the shift is now written down.
+  </li>
+  <li><span class="sev">Two nits, fixed.</span> A code comment still called a fact a <code>have</code>, and the plan document understated the text growth, now given as 36 bytes per fact.</li>
+</ul>
+
+<h2>Risks and open questions</h2>
+<ul>
+  <li>A fact is no longer proved with earlier facts in view. A proof that needed one would now send its lemma to the fallback. None does in the sample or the test suite.</li>
+  <li>One fast test pins a heartbeat limit. A Lean toolchain change that shifts heartbeat counts could fail it with nothing wrong in the exporter.</li>
+  <li>The layout was measured up to 1,601 facts in one lemma. Tens of thousands were not tried.</li>
+  <li>Three large files were 1 to 3% slower after the change. That was not looked into.</li>
+  <li>Unknown: which change, between 2026-11-13 and 2026-11-16, took the benchmark's bridges from 245 to 665.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+  <li>The fallback proof still states its own helper facts one after another, 3,338 of them in one sample file. They are the first candidate for the same layout and guard.</li>
+  <li>A refutation names few of the facts its lemma states: 32 of 694 in the benchmark. Stating only those would shorten the lemmas.</li>
+  <li>A variant of the generated family, with all comparisons in one <a href="#g-clause">clause</a>, fails at 400 <a href="#g-literal">literals</a> with both exporters.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+  <dt id="g-assertion">assertion</dt>
+  <dd>A formula the input states as true, written <code>(assert ...)</code> in SMT-LIB.</dd>
+  <dt id="g-benchmark">benchmark</dt>
+  <dd>A standard input file used to test and compare solvers. Here: a file of the SMT-LIB collection.</dd>
+  <dt id="g-binder">binder</dt>
+  <dd>The named parameter of a function, with its type. In <code>fun (h : P) =&gt; ...</code> the binder is <code>h : P</code>, and an argument for it must be a proof of <code>P</code>.</dd>
+  <dt id="g-boolean">Boolean</dt>
+  <dd>A value that is either true or false. Its sort is written <code>Bool</code>.</dd>
+  <dt id="g-bridge">bridge</dt>
+  <dd>In this project, a fact saying that two comparisons describe one constraint. Example: <code>1 &lt;= x</code> holds exactly when <code>x &lt; 1</code> does not.</dd>
+  <dt id="g-certificate">certificate</dt>
+  <dd>The record of proof steps the solver writes out, so that another program can check the result.</dd>
+  <dt id="g-clause">clause</dt>
+  <dd>A disjunction of literals, such as <code>b or 1 &lt;= x</code>.</dd>
+  <dt id="g-cnf-lemma">cnf lemma</dt>
+  <dd>A certificate step claiming that a clause follows from an assertion by its Boolean structure alone, as when the assertion is put into <a href="#g-cnf">conjunctive normal form</a>. The reconstructor must prove that claim in Lean.</dd>
+  <dt id="g-conjunct">conjunct</dt>
+  <dd>One of the formulas joined by <code>and</code> in a conjunction.</dd>
+  <dt id="g-cnf">conjunctive normal form (CNF)</dt>
+  <dd>A formula written as a conjunction of clauses.</dd>
+  <dt id="g-recovery">error recovery</dt>
+  <dd>Lean's habit of logging an error in one part of a proof and continuing, so that it can report several errors at once. The file is still rejected.</dd>
+  <dt id="g-goal">goal</dt>
+  <dd>The statement a proof still has to establish at a given point.</dd>
+  <dt id="g-heartbeat">heartbeat</dt>
+  <dd>Lean's unit for counting the work spent on one declaration. A declaration that passes its heartbeat limit is stopped with a timeout error.</dd>
+  <dt id="g-hypothesis">hypothesis</dt>
+  <dd>A fact that is assumed or already proved, and available while proving the goal.</dd>
+  <dt id="g-lra">linear real arithmetic</dt>
+  <dd>The theory of sums and comparisons of real-valued variables with constant coefficients. Its quantifier-free SMT-LIB logic is named QF_LRA.</dd>
+  <dt id="g-literal">literal</dt>
+  <dd>An atomic formula or its negation, such as <code>x &lt; 1</code> or <code>not b</code>.</dd>
+  <dt id="g-refutation">refutation</dt>
+  <dd>A proof that a set of formulas is contradictory, ending in <code>False</code>.</dd>
+  <dt id="g-sort">sort</dt>
+  <dd>The type of a value, such as Int, Real, or Bool.</dd>
+  <dt id="g-tactic">tactic</dt>
+  <dd>A Lean command that builds part of a proof automatically. Example: <code>grind</code> searches for a proof from the hypotheses in view.</dd>
+  <dt id="g-theory-clause">theory clause</dt>
+  <dd>A clause that is true by the rules of a theory alone, here arithmetic. Example: <code>not (x &lt; 1) or not (2 &lt;= x)</code>.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-17.
+</footer>
+
+</body>
+</html>
