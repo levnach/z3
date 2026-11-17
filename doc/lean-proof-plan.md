@@ -1831,10 +1831,14 @@ The 55 changed texts of at most 25 MB were all checked after the change:
 to 2026-11-17) sum to 1,562 s, and QF_AUFLIA `dlx-regfile` fails in its cnf
 lemma as before (7.52 MB where it was 8.54, so it is one file now and not
 a chain: the failure is reported after 73 s at 3.04 GB). Of the 18 changed
-texts above 25 MB the three in the table were checked; the other 15 (ten
-`gensys_*` files, three swap files, the two qlock files) are 7 to 16%
-shorter and were not checked again. The sample stands as before: 152 of
-175 files export, 145 verify, 1 fails, 6 were not checked.
+texts above 25 MB six were checked: the three in the table and, after the
+change only, QF_IDL `qlock-4-10-8` (38.8 MB, 145.2 s as 39 modules; 159.0
+s on 2026-11-17 before it), QF_UF `gensys_brn023` (29.4 MB, 104.0 s; 127.8
+s on 2026-11-14), and `gensys_icl388` (40.6 MB, 148.6 s; 175.5 s on
+2026-11-14). The other 12 (eight `gensys_*` files, three swap files,
+`qlock-4-10-9`) are 8 to 16% shorter and were not checked again. The
+sample stands as before: 152 of 175 files export, 145 verify, 1 fails, 6
+were not checked.
 
 Generated: `(not (distinct x0 ... xn-1))` with every `xi` pinned, whose
 proof refutes each pair (`pinned_negated_distinct_source`; three `lemma`
