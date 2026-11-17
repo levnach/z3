@@ -1817,9 +1817,11 @@ after: QF_AUFLIA `dlx-regfile` (its cnf lemma, as recorded), and QF_LRA
 (`th_lemma_17023`) out of its 1,000,000 heartbeats at `whnf`: its text is
 4.85 MB today and was 5.20 MB when it verified on 2026-11-13, so the
 certificate changed in between; recorded in BACKLOG, not looked at here.
-The 17 changed texts above 25 MB (QF_UF `gensys_*`, the QF_AUFLIA swap
-files, the two qlock files; 73 to 142 assertions or one) were not checked
-again.
+Of the 17 changed texts above 25 MB (QF_UF `gensys_*`, the QF_AUFLIA swap
+files, the two qlock files; 73 to 142 assertions or one), QF_UF
+`gensys_icl1079` (verifies as 32 modules in 110.4 s at 0.95 GB; 121.9 s on
+2026-11-14) and QF_IDL `qlock-4-10-8` (as 42 modules in 159.0 s at 1.01 GB;
+157.5 s) were checked; the other 15 were not checked again.
 
 Generated family `shared_units_among_assertions(unused)`
 (`test_proof_to_lean_wide.py`): a chain of 150 clauses in which every unit
