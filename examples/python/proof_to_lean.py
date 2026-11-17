@@ -9219,8 +9219,8 @@ def _leaf_bridges(graph, leaves, synthetic=None):
     denoting one constraint (or complementary ones); generalized apart they
     are unrelated and propagation stops at them. Each bridge is the
     structure ("iff", leaf, other) or ("iff", leaf, ("not", other)), to be
-    stated as a `have` the theory tactic proves (the sides' definitions
-    unfolded) and given to the prover as a fact. Returns (structure,
+    stated as a fact the theory tactic proves (the sides' definitions
+    unfolded, _stated_facts) and given to the prover. Returns (structure,
     definition names) pairs.
 
     A synthetic pair leaf (a, b) of a distinct (_distinct_pair_leaves, by
