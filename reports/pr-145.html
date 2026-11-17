@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #145: Prove the clause of a lemma step literal by literal</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #1b1f24; --muted: #57606a; --border: #d0d7de;
+  --panel: #f6f8fa; --accent: #0969da; --ok: #1a7f37; --bad: #b3261e; --note: #7d4e00;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #30363d;
+    --panel: #161b22; --accent: #4493f8; --ok: #3fb950; --bad: #ff7b72; --note: #d29922;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.6; max-width: 52rem; margin: 2rem auto; padding: 0 1rem;
+}
+h1 { font-size: 1.7rem; line-height: 1.25; margin-bottom: 0.4rem; }
+h2 { font-size: 1.25rem; margin-top: 2.2rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1.02rem; margin-top: 1.4rem; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em;
+  background: var(--panel); padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.8rem; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.meta { list-style: none; padding: 0.8rem 1rem; margin: 1rem 0; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 6px; }
+.meta li { margin: 0.15rem 0; }
+.state { font-weight: 600; color: var(--note); }
+.ok { color: var(--ok); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+.note { color: var(--muted); font-size: 0.92rem; }
+.tablewrap { overflow-x: auto; margin: 1rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+th { background: var(--panel); }
+td.num, th.num { text-align: right; white-space: nowrap; }
+dl dt { font-weight: 600; margin-top: 0.7rem; }
+dl dd { margin: 0.1rem 0 0 1.2rem; }
+footer { margin: 3rem 0 2rem; padding-top: 0.8rem; border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Prove the clause of a lemma step literal by literal</h1>
+<ul class="meta">
+<li>Pull request: <a href="https://github.com/levnach/z3/pull/145">levnach/z3 #145</a></li>
+<li>State: <span class="state">OPEN</span>. It is not merged.</li>
+<li>Change commit: <a href="https://github.com/levnach/z3/commit/20371f0a5cd201bad00f2137f254563764d7c549"><code>20371f0a5</code></a></li>
+<li>Date: 2026-11-17T16:15:26Z</li>
+<li>Loop iteration: 144</li>
+</ul>
+</header>
+
+<h2>In one paragraph</h2>
+<p>
+This pull request changes the Lean text that the reconstructor writes for a
+<a href="#g-lemma-step">lemma step</a>.
+The old text was a <a href="#g-contradiction">proof by contradiction</a> whose size grew with the square of the
+number of <a href="#g-literal">literals</a> in the step's <a href="#g-clause">clause</a>.
+The new text proves the clause one literal at a time, so its size <a href="#g-growth">grows linearly</a>.
+The <a href="#g-certificate">certificates</a> of large <a href="#g-refutation">refutations</a> become shorter,
+and Lean checks them faster.
+A generated lemma step over 1,539 literals, which Lean used to reject, now verifies.
+No <a href="#g-axiom">axiom</a> is added.
+The Lean <a href="#g-kernel">kernel</a> still checks every step against the clause it states.
+</p>
+
+<h2>Background</h2>
+<p>
+The pipeline already certified refutations with lemma steps, but at a high cost.
+In the benchmark sample, their lines were about 15% of all generated Lean text.
+A very wide step used up Lean's <a href="#g-heartbeat">heartbeats</a>, and its certificate was rejected.
+The change covers long refutations with <a href="#g-linear-arithmetic">linear arithmetic</a> or
+<a href="#g-uf">uninterpreted functions</a>.
+<a href="#g-propositional">Propositional</a> refutations are untouched.
+The work serves milestone 3 of the plan, equality and linear arithmetic, by reducing cost.
+</p>
+
+<h2>What changed</h2>
+<p>
+Picture a row of lockers, one per literal.
+The old proof walked from the door to each locker separately.
+The new proof walks down the row once and opens each locker as it passes.
+</p>
+<ul>
+<li><strong>Reconstructor.</strong> A lemma step in a long arithmetic or uninterpreted-function refutation is now one
+chain that handles each literal once, so its text grows linearly.</li>
+<li><strong>Reconstructor.</strong> One helper <a href="#g-theorem">theorem</a>, <code>classical_or_intro</code>, is
+written once per file and proved in Lean, so the chain needs no new axiom.</li>
+<li><strong>Reconstructor.</strong> Propositional refutations and refutations of at most 500
+<a href="#g-proof-step">proof steps</a> keep the old form, so propositional certificates still use no axiom.</li>
+<li><strong>Tests.</strong> New tests pin a chain's exact text, show that Lean rejects seven wrong chains, and verify
+the 1,539-literal step.</li>
+</ul>
+<div class="tablewrap">
+<table>
+<thead><tr><th>File</th><th>What it holds</th><th class="num">Added</th><th class="num">Removed</th></tr></thead>
+<tbody>
+<tr><td><code>examples/python/proof_to_lean.py</code></td><td>The reconstructor: the chain and the helper theorem</td><td class="num">83</td><td class="num">6</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean.py</code></td><td>Text-only test of the chain's layout and length</td><td class="num">47</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_uf.py</code></td><td>Chains accepted and rejected by Lean, size bounds</td><td class="num">89</td><td class="num">2</td></tr>
+<tr><td><code>examples/python/test_proof_to_lean_lia.py</code></td><td>Wide negated distinct tests, the new slow test</td><td class="num">41</td><td class="num">5</td></tr>
+<tr><td><code>doc/lean-proof-plan.md</code></td><td>New section with the design and the measurements</td><td class="num">152</td><td class="num">0</td></tr>
+<tr><td><code>examples/python/README</code></td><td>The paragraph on lemma steps</td><td class="num">17</td><td class="num">1</td></tr>
+<tr><th>Total</th><th>6 files, 6 commits</th><th class="num">429</th><th class="num">14</th></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Worked example</h2>
+<p>
+The input is the one of the pull request's new slow test, written with several commands per line.
+It declares 56 constants of <a href="#g-sort">sort</a> Int and fixes each to a different number.
+Its first <a href="#g-assertion">assertion</a> says they are not all <a href="#g-distinct">distinct</a>.
+Z3's refutation has one lemma step whose clause lists 1,539 equalities between two constants.
+</p>
+
+<h3>(a) The input</h3>
+<pre class="wrap"><code>(set-logic QF_LIA)
+(declare-const x0 Int) (declare-const x1 Int) (declare-const x2 Int) (declare-const x3 Int) (declare-const x4 Int) (declare-const x5 Int) (declare-const x6 Int) (declare-const x7 Int) (declare-const x8 Int) (declare-const x9 Int) (declare-const x10 Int) (declare-const x11 Int) (declare-const x12 Int) (declare-const x13 Int)
+(declare-const x14 Int) (declare-const x15 Int) (declare-const x16 Int) (declare-const x17 Int) (declare-const x18 Int) (declare-const x19 Int) (declare-const x20 Int) (declare-const x21 Int) (declare-const x22 Int) (declare-const x23 Int) (declare-const x24 Int) (declare-const x25 Int) (declare-const x26 Int) (declare-const x27 Int)
+(declare-const x28 Int) (declare-const x29 Int) (declare-const x30 Int) (declare-const x31 Int) (declare-const x32 Int) (declare-const x33 Int) (declare-const x34 Int) (declare-const x35 Int) (declare-const x36 Int) (declare-const x37 Int) (declare-const x38 Int) (declare-const x39 Int) (declare-const x40 Int) (declare-const x41 Int)
+(declare-const x42 Int) (declare-const x43 Int) (declare-const x44 Int) (declare-const x45 Int) (declare-const x46 Int) (declare-const x47 Int) (declare-const x48 Int) (declare-const x49 Int) (declare-const x50 Int) (declare-const x51 Int) (declare-const x52 Int) (declare-const x53 Int) (declare-const x54 Int) (declare-const x55 Int)
+(assert (not (distinct x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 x32 x33 x34 x35 x36 x37 x38 x39 x40 x41 x42 x43 x44 x45 x46 x47 x48 x49 x50 x51 x52 x53 x54 x55)))
+(assert (= x0 0)) (assert (= x1 1)) (assert (= x2 2)) (assert (= x3 3)) (assert (= x4 4)) (assert (= x5 5)) (assert (= x6 6)) (assert (= x7 7)) (assert (= x8 8)) (assert (= x9 9)) (assert (= x10 10)) (assert (= x11 11)) (assert (= x12 12)) (assert (= x13 13))
+(assert (= x14 14)) (assert (= x15 15)) (assert (= x16 16)) (assert (= x17 17)) (assert (= x18 18)) (assert (= x19 19)) (assert (= x20 20)) (assert (= x21 21)) (assert (= x22 22)) (assert (= x23 23)) (assert (= x24 24)) (assert (= x25 25)) (assert (= x26 26)) (assert (= x27 27))
+(assert (= x28 28)) (assert (= x29 29)) (assert (= x30 30)) (assert (= x31 31)) (assert (= x32 32)) (assert (= x33 33)) (assert (= x34 34)) (assert (= x35 35)) (assert (= x36 36)) (assert (= x37 37)) (assert (= x38 38)) (assert (= x39 39)) (assert (= x40 40)) (assert (= x41 41))
+(assert (= x42 42)) (assert (= x43 43)) (assert (= x44 44)) (assert (= x45 45)) (assert (= x46 46)) (assert (= x47 47)) (assert (= x48 48)) (assert (= x49 49)) (assert (= x50 50)) (assert (= x51 51)) (assert (= x52 52)) (assert (= x53 53)) (assert (= x54 54)) (assert (= x55 55))
+(check-sat)</code></pre>
+
+<h3>(b) Before</h3>
+<p>
+The reconstructor of the base commit wrote that step as one line of 320,994 characters.
+Lean ran out of heartbeats on it, and the pipeline published nothing.
+Its output follows, without directory names.
+</p>
+<pre><code>Checking published.lean
+published.lean:16298:0: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached
+...
+published.lean:23720:16: error: (kernel) unknown constant &#x27;_private._stdin.0.Z3Proofs.NativeCertificate.pb3b5d482184455442b9380989becb5c421472afbedea4b83c89afa6559580adc.proof_step_4820&#x27;
+Lean checking failed; no proof was published.</code></pre>
+<p>The second error only follows from the first: a later theorem uses the rejected step.</p>
+<pre><code>private theorem proof_step_4820 {_atoms : Nat -&gt; Prop} {_vars : Nat -&gt; Int}
+    (_inputs : Inputs _atoms _vars)
+    : (formula_4819 _atoms _vars) :=
+  let _step_4818 := proof_step_4818 _inputs
+  (classical_by_contradiction (fun _not_clause =&gt; let _not_tail32 := (mt (@Or.inr _ _) (mt (@Or.inr _ _) (mt (@Or.inr _ _) ...
+    ... (fun _literal =&gt; _not_tail1504 (Or.inr (Or.inr (Or.inr ...
+    ... (fun _literal =&gt; _not_tail1536 (Or.inr (Or.inl _literal))) (fun _literal =&gt; _not_tail1536 (Or.inr (Or.inr _literal))))))</code></pre>
+<p>This is the rejected step: each <a href="#g-hypothesis">hypothesis</a> is reached through one <code>Or.inr</code>
+per literal before it.</p>
+
+<h3>(c) After</h3>
+<p>
+The same input and the same certificate now give the Lean file quoted below.
+<span class="ok">Lean accepted the file</span>: the check printed <code>Lean checks passed.</code>
+</p>
+<pre><code>-- Variable 0: &quot;x0&quot;
+-- Variable 1: &quot;x1&quot;
+...
+def term_0 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 0
+def term_1 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Int := _vars 1
+...
+def formula_179 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars) = (term_1 _atoms _vars))
+def formula_180 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := ((term_0 _atoms _vars) = (term_2 _atoms _vars))
+...
+def formula_4819 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int) : Prop := (Or (formula_179 _atoms _vars) (Or (formula_180 _atoms _vars) ...</code></pre>
+<p>Each constant is an entry of <code>_vars</code>, and each equality is a named formula.
+The last definition, <code>formula_4819</code>, is the wide clause.</p>
+<pre><code>private theorem classical_by_contradiction {p : Prop} (h : Not p -&gt; False) : p :=
+  @Decidable.byContradiction p (Classical.propDecidable p) h
+
+private theorem classical_or_intro {p q r : Prop} (g : r -&gt; q) (f : Not p -&gt; r) : p \/ q :=
+  @Decidable.byCases p (p \/ q) (Classical.propDecidable p) (fun _p =&gt; Or.inl _p) (fun _n =&gt; Or.inr (g (f _n)))</code></pre>
+<p>The second theorem is the new helper: it puts one literal <code>p</code> in front of the rest of a clause.</p>
+<pre><code>private theorem proof_step_4820 {_atoms : Nat -&gt; Prop} {_vars : Nat -&gt; Int}
+    (_inputs : Inputs _atoms _vars)
+    : (formula_4819 _atoms _vars) :=
+  let _step_4818 := proof_step_4818 _inputs
+  (classical_or_intro (classical_or_intro (classical_or_intro ...
+    ... (classical_or_intro classical_by_contradiction)))...
+    (fun _n0 _n1 _n2 ... _n1538 =&gt; (_step_4818 _n81 _n0 _n1 _n2 ... _n1538)))</code></pre>
+<p>The wide step now has one helper per literal but the last, and one function that passes every refutation to the
+<a href="#g-premise">premise</a>.</p>
+<pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Int)
+    (_h0 : (formula_57 _atoms _vars))
+    (_h1 : (formula_59 _atoms _vars))
+    ...
+    (_h56 : (formula_169 _atoms _vars))
+    : False :=
+  @proof_step_12840 _atoms _vars (Inputs.mk ...</code></pre>
+<p>The final theorem states that the 57 assertions together imply False.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>This example, run for this report while the local gate was also running</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>Lean text</td><td>3,000,265 bytes</td><td>2,553,163 bytes</td></tr>
+<tr><td>Line of the wide lemma step</td><td>320,994 characters</td><td>51,674 characters</td></tr>
+<tr><td>Lean's verdict</td><td><span class="bad">rejected</span> after 15.6 s</td><td><span class="ok">accepted</span> in 21.8 s</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>How it was verified</h2>
+<p>
+Every reconstruction test passed on a clean tree, including the slow ones.
+Rebuilt with both reconstructors, the sample certificates differ only in the lemma-step lines and the helper theorem.
+Of the changed texts checked again in Lean, all verify except one that already failed.
+</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Check, run by the integrator unless noted</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Reconstruction test suite</td><td><span class="ok">OK</span>: 719 tests, 21 slow ones skipped</td></tr>
+<tr><td>Slow tests, the 21 skipped above</td><td><span class="ok">OK</span>: 21 tests</td></tr>
+<tr><td>Certificate exporter tests</td><td><span class="ok">OK</span>: 128 tests</td></tr>
+<tr><td>Lean project check, <code>scripts/check_lean.sh</code></td><td><span class="ok">Lean checks passed</span></td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">OK</span>: 48 tests</td></tr>
+<tr><td>Regression matrix, propositional inputs and linear real arithmetic inputs</td><td><span class="ok">6 of 6</span> and <span class="ok">8 of 8</span> verified in Lean</td></tr>
+<tr><td>Sample certificates rebuilt with both reconstructors, by the implementer</td><td>152 texts: 79 identical, 73 changed only in lemma-step lines and the helper</td></tr>
+<tr><td>Changed sample texts checked again in Lean</td><td>66 of 73: 65 verify, 1 fails as before, 7 not checked</td></tr>
+<tr><td>All sample Lean text</td><td>2,149 MB → 1,930 MB</td></tr>
+<tr><td>Lemma-step lines in the sample</td><td>316.6 MB → 97.1 MB</td></tr>
+<tr><td>Not run</td><td><code>scripts/tests</code>, <code>test-z3</code>, the SMT2 regressions: no C++ or script change</td></tr>
+</tbody>
+</table>
+</div>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Sample file, checked with both reconstructors on the same day</th><th>Lean text before → after</th><th>Lean time before → after</th></tr></thead>
+<tbody>
+<tr><td>QF_IDL <code>vlsat3_c27</code></td><td>141.38 → 109.93 MB</td><td>534.1 → 353.6 s</td></tr>
+<tr><td>QF_AUFLIA <code>swap_t1_pp_sf_ai_00010_008</code></td><td>35.69 → 32.99 MB</td><td>332.2 → 318.1 s</td></tr>
+<tr><td>QF_UF <code>gensys_icl1079</code></td><td>31.73 → 28.48 MB</td><td>111.3 → 94.7 s</td></tr>
+<tr><td>QF_UFLIA <code>xs-11-18-3-3-4-1</code></td><td>6.99 → 6.38 MB</td><td>27.8 → 26.0 s</td></tr>
+</tbody>
+</table>
+</div>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Terms in the generated distinct</th><th>Pairs</th><th>Lean before</th><th>Lean after</th></tr></thead>
+<tbody>
+<tr><td class="num">40</td><td class="num">780</td><td>verifies in 5.6 s</td><td>verifies in 5.2 s</td></tr>
+<tr><td class="num">56</td><td class="num">1,540</td><td><span class="bad">fails</span> after 12.9 s, out of heartbeats</td><td><span class="ok">verifies</span> in 19.8 s</td></tr>
+<tr><td class="num">80</td><td class="num">3,160</td><td><span class="bad">fails</span> after 52.8 s</td><td><span class="bad">fails</span> after 110.1 s, in another step, the <a href="#g-demorgan">De Morgan rewrite</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>The fork runs no GitHub workflows, so this pull request has no CI checks. The loop's local gate decides the merge.</p>
+<p>The local gate ran on the loop machine against the Release build, and every step passed.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td>Lean script tests</td><td><span class="ok">pass</span></td><td class="num">1s</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span></td><td class="num">26s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span></td><td class="num">1055s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span></td><td class="num">17s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td><span class="ok">pass</span></td><td class="num">5s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td><span class="ok">pass</span></td><td class="num">7s</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Review</h2>
+<p>The reviewer approved the change, with no blocker and no major finding.</p>
+<ul>
+<li><strong>Minor, documented.</strong> The reviewer put one chain alone in a file and made it wider and wider.
+Lean's time and memory grew much faster than the width, but the documentation recorded time only.
+A very wide step would be rejected for memory, because nothing splits a chain.
+The integrator measured again and added the table below to the plan document.
+The old form failed on narrower steps, so nothing regressed.</li>
+<li><strong>Nit, fixed.</strong> A test comment said the helper avoids two of Lean's standard axioms.
+The reviewer had Lean print the axioms and saw the same three for every variant.
+A false comment could send a maintainer on a pointless rewrite, so it was corrected.</li>
+<li><strong>Nit, fixed.</strong> The documentation gave one cost per literal.
+The reviewer found a second kind of literal that costs more, which skews size estimates by a quarter.
+The documents now give both costs.</li>
+<li><strong>Suggestions, taken.</strong> Two tests of chains over clauses given as definitions were added.
+The integrator checked four more large texts in Lean and ran the slow tests not yet run.</li>
+</ul>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Literals in one chain, alone in a file</th><th>Lean time</th><th>Lean memory</th></tr></thead>
+<tbody>
+<tr><td class="num">800</td><td>2.0 s</td><td>0.72 GB</td></tr>
+<tr><td class="num">1,600</td><td>12.0 s</td><td>1.56 GB</td></tr>
+<tr><td class="num">3,200</td><td>56.9 s</td><td>4.89 GB</td></tr>
+<tr><td class="num">4,800</td><td><span class="bad">fails</span> after 130.4 s</td><td>over the 8 GB cap</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Risks and open questions</h2>
+<ul>
+<li>Seven changed sample texts, each above 80 MB, were not checked in Lean after the change.
+Their siblings verify.</li>
+<li>A lemma step over about 4,000 literals would be rejected for memory.
+The widest one in the sample has 154 literals.
+Where the memory goes was not traced.</li>
+<li>The chain relies on the order in which Lean works out the helper's argument types.
+A future Lean version could reject such certificates, but it could not accept a wrong one.</li>
+<li>One sample file that already failed is now checked as a single file, so its failure takes longer to report.</li>
+</ul>
+
+<h2>What comes next</h2>
+<ul>
+<li>Split a chain into pieces of 32 literals, and test it at a few thousand literals.</li>
+<li>Give propositional and short refutations the same chain.</li>
+<li>Fix the De Morgan rewrite of a negated distinct over 80 <a href="#g-term">terms</a>, which fails with both
+reconstructors.</li>
+<li>Shrink <a href="#g-unit-resolution">unit resolutions</a> and restated hypotheses, which now dominate the largest
+texts.</li>
+</ul>
+
+<h2>Glossary</h2>
+<dl>
+<dt id="g-assertion">assertion</dt>
+<dd>A formula that the input requires to hold. Example: <code>(assert (= x0 0))</code>.</dd>
+<dt id="g-axiom">axiom</dt>
+<dd>A statement that Lean accepts without proof. These certificates use at most Lean's three standard axioms.</dd>
+<dt id="g-certificate">certificate</dt>
+<dd>A file that records a solver's proof so that another program can check it.</dd>
+<dt id="g-clause">clause</dt>
+<dd>A <a href="#g-disjunction">disjunction</a> of literals. Example: <code>(or (= x0 x1) (not (= x0 x2)))</code>.</dd>
+<dt id="g-demorgan">De Morgan rewrite</dt>
+<dd>Replacing "not (A and B)" by "(not A) or (not B)", or the same with "and" and "or" exchanged.</dd>
+<dt id="g-disjunction">disjunction</dt>
+<dd>An "or" of formulas. It is true when at least one of them is true.</dd>
+<dt id="g-distinct">distinct</dt>
+<dd>The SMT-LIB formula saying that no two of the listed terms are equal. Example: <code>(distinct x0 x1 x2)</code>.</dd>
+<dt id="g-heartbeat">heartbeat</dt>
+<dd>Lean's unit for counting its own work. A declaration that needs more than the limit, 200,000 by default, is rejected.</dd>
+<dt id="g-hypothesis">hypothesis</dt>
+<dd>A formula assumed for part of a proof. A later step must discharge it, which means remove the assumption.</dd>
+<dt id="g-kernel">kernel</dt>
+<dd>The small core of Lean that makes the final check of every proof.</dd>
+<dt id="g-lemma-step">lemma step</dt>
+<dd>A proof step of Z3. Given a derivation of false from some hypotheses, it concludes the clause of their
+<a href="#g-negation">negations</a>.
+Example: from "A and B give false" it concludes "(not A) or (not B)".</dd>
+<dt id="g-growth">linear and quadratic growth</dt>
+<dd>A size grows linearly when doubling the input doubles it. It grows quadratically, with the square, when doubling the input makes it four times larger.</dd>
+<dt id="g-linear-arithmetic">linear arithmetic</dt>
+<dd>Formulas over integers or reals that only add terms and multiply them by constants. Example: <code>(&lt;= (+ x (* 2 y)) 5)</code>.</dd>
+<dt id="g-literal">literal</dt>
+<dd>An atomic formula or its negation. Example: <code>(= x0 x1)</code> and <code>(not (= x0 x1))</code>.</dd>
+<dt id="g-negation">negation</dt>
+<dd>The "not" of a formula. It is true exactly when the formula is false.</dd>
+<dt id="g-premise">premise</dt>
+<dd>An earlier result that a proof step uses.</dd>
+<dt id="g-contradiction">proof by contradiction</dt>
+<dd>Proving a statement by assuming its negation and deriving false.</dd>
+<dt id="g-proof-step">proof step</dt>
+<dd>One inference in a proof. It derives a new formula from earlier ones by a named rule.</dd>
+<dt id="g-propositional">propositional</dt>
+<dd>Built only from Boolean variables and the connectives "and", "or", "not", and "implies".</dd>
+<dt id="g-refutation">refutation</dt>
+<dd>A proof that derives false from the assertions, which shows that they cannot all hold.</dd>
+<dt id="g-sort">sort</dt>
+<dd>The type of a value, such as Int, Real, or Bool.</dd>
+<dt id="g-term">term</dt>
+<dd>An expression that denotes a value. Example: <code>x0</code> and <code>(+ x0 1)</code>.</dd>
+<dt id="g-theorem">theorem</dt>
+<dd>In Lean, a named statement together with a proof that Lean has checked.</dd>
+<dt id="g-uf">uninterpreted function</dt>
+<dd>A function symbol with no fixed meaning. All that is known is that equal arguments give equal results.</dd>
+<dt id="g-unit-resolution">unit resolution</dt>
+<dd>A proof step that removes from a clause the literals already known to be false.</dd>
+</dl>
+
+<footer>
+Generated by the Lean certificate improvement loop on 2026-11-17.
+</footer>
+</body>
+</html>
