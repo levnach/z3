@@ -8,12 +8,12 @@
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
-  --panel: #f6f8fa; --link: #0969da; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
+  --panel: #f6f8fa; --link: #0969da; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700; --merged: #8250df;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
-    --panel: #161b22; --link: #4493f8; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+    --panel: #161b22; --link: #4493f8; --ok: #3fb950; --bad: #f85149; --warn: #d29922; --merged: #ab7df8;
   }
 }
 * { box-sizing: border-box; }
@@ -30,7 +30,7 @@ p, li { margin: .5rem 0; }
 header .meta { color: var(--muted); font-size: .95rem; margin: .2rem 0; }
 .badge {
   display: inline-block; padding: .1rem .6rem; border-radius: 1rem; font-size: .85rem;
-  font-weight: 600; border: 1px solid var(--ok); color: var(--ok);
+  font-weight: 600; border: 1px solid var(--merged); color: var(--merged);
 }
 .note { border-left: 4px solid var(--warn); background: var(--panel); padding: .6rem .9rem; margin: 1rem 0; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; }
@@ -60,12 +60,12 @@ footer { margin: 2.5rem 0 1rem; padding-top: .8rem; border-top: 1px solid var(--
 <h1>Prove the facts of a cnf lemma apart from one another</h1>
 <p class="meta">
   <a href="https://github.com/levnach/z3/pull/144">Pull request #144</a> on levnach/z3, into <code>master</code>
-  &middot; <span class="badge">OPEN</span>
-  &middot; 2026-11-17T11:43:52Z &middot; loop iteration 143
+  &middot; <span class="badge">MERGED</span>
+  &middot; 2026-11-17T12:05:20Z &middot; loop iteration 143
 </p>
 <p class="meta">
-  This pull request is open. It is <strong>not merged</strong>. Change commit:
-  <a href="https://github.com/levnach/z3/commit/7115d6e6e77b56a4c58533d100744ede2da0d80e"><code>7115d6e6e</code></a>.
+  Merged on 2026-11-17T12:05:20Z as commit
+  <a href="https://github.com/levnach/z3/commit/03f517a12d6c489ce36737428a9f3291cc6cebf6"><code>03f517a12</code></a>.
 </p>
 </header>
 
@@ -77,7 +77,7 @@ Each fact used to be a step of its own, and its <a href="#g-tactic">tactic</a> r
 <a href="#g-hypothesis">hypothesis</a>.
 With hundreds of facts the work grew with the square of their number, and the lemma ran out of
 <a href="#g-heartbeat">heartbeats</a>.
-This PR states all the facts as the <a href="#g-binder">binders</a> of one function and passes their proofs as its arguments.
+This PR states all the facts as the <a href="#g-binder">binders</a> of one function, with their proofs as its arguments.
 Each proof is now checked alone.
 The statements, the tactics, and the <a href="#g-refutation">refutation</a> are unchanged.
 A <a href="#g-lra">linear real arithmetic</a> <a href="#g-benchmark">benchmark</a> whose
@@ -89,9 +89,8 @@ A <a href="#g-lra">linear real arithmetic</a> <a href="#g-benchmark">benchmark</
 Before this PR the pipeline already proved these lemmas, as long as they stayed small.
 The benchmark verified on 2026-11-13.
 Then its certificate changed, and its one cnf lemma grew from 311 facts to 694.
-Lean stopped the lemma at its heartbeat limit, although the 694 proofs and the refutation take under a second when checked apart.
-The PR serves milestone 3 of the plan, equality and linear arithmetic.
-It is scale work: a supported fragment now survives larger inputs.
+Lean stopped the lemma at its heartbeat limit, although the proofs take under a second when checked apart.
+The PR serves milestone 3 of the plan, equality and linear arithmetic, as scale work.
 </p>
 
 <h2>What changed</h2>
@@ -101,12 +100,12 @@ Before, the grader re-read every earlier answer before marking the next one.
 Now each answer is marked on its own sheet.
 </p>
 <ul>
-  <li><strong>Exporter, layout.</strong> A cnf lemma with hundreds of facts now checks in time that grows with the number of facts, not with its square.</li>
+  <li><strong>Exporter, layout.</strong> The checking time of a cnf lemma now grows with the number of its facts, not with the square.</li>
   <li><strong>Exporter, guard.</strong> A fact that Lean cannot prove still fails the lemma's first attempt, so the fallback (a second proof of the same lemma) is tried.</li>
-  <li><strong>Tests.</strong> New tests generate inputs with 400 and 1,600 bridged pairs and tamper with facts, expecting a fallback or a rejection.</li>
-  <li><strong>Benchmark data.</strong> The 15-node startup benchmark is now test data, checked by a slow-tier test.</li>
+  <li><strong>Tests.</strong> New tests generate lemmas with hundreds of facts and tamper with facts, expecting a fallback or a rejection.</li>
+  <li><strong>Benchmark data.</strong> The 15-node startup benchmark is now test data for a slow-tier test.</li>
 </ul>
-<p>No C++ or Lean source changed, and no heartbeat, memory, or time limit moved.</p>
+<p>No C++ or Lean source changed, and no limit moved.</p>
 <div class="tablewrap">
 <table>
 <thead><tr><th>File</th><th>Added</th><th>Removed</th><th>Role</th></tr></thead>
@@ -131,8 +130,8 @@ Now each answer is marked on its own sheet.
 <p>
 This PR fixes scale, so no ten-line input changes its verdict.
 The example is the PR's test generator, <code>bridged_comparisons</code>, run with 800 pairs, the smallest size the PR measured as failing before.
-Its 1,606 lines repeat one shape and are shown with <code>...</code> where lines were cut.
-All output comes from real runs made for this report.
+Its 1,606 lines repeat one shape.
+All output comes from real runs on the merged commit.
 </p>
 
 <h3>(a) The input</h3>
@@ -152,21 +151,21 @@ All output comes from real runs made for this report.
 (check-sat)</code></pre>
 <p>
 The file declares one <a href="#g-boolean">Boolean</a> constant and 801 constants of <a href="#g-sort">sort</a> Real.
-In its one <a href="#g-assertion">assertion</a>, the three <a href="#g-conjunct">conjuncts</a> over <code>b</code> and <code>x</code> contradict one another, and the other 800 are not needed.
+In its one <a href="#g-assertion">assertion</a>, the first three <a href="#g-conjunct">conjuncts</a> contradict one another. The other 800 are not needed.
 </p>
 
 <h3>(b) Before</h3>
 <p>
-The base code (commit <code>770e9dd76</code>) exported the same certificate, byte for byte.
+The base code exported the same certificate, byte for byte.
 Lean rejected the text reconstructed from it:
 </p>
-<pre><code>old_example.lean:4661:145: error: (deterministic) timeout at `simp`, maximum number of heartbeats (1000000) has been reached
+<pre><code>old_example.lean:4661:145: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached
 ...
-old_example.lean:5478:145: error: (deterministic) timeout at `simp`, maximum number of heartbeats (1000000) has been reached
+old_example.lean:5478:145: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (1000000) has been reached
 ...
 Lean checking failed; no proof was published.</code></pre>
 <p>
-The run took 46 seconds.
+The run took 40 seconds.
 Each of the two cnf lemmas ran out of heartbeats at its 585th fact.
 The old text stated the facts one after another:
 </p>
@@ -178,7 +177,7 @@ The old text stated the facts one after another:
        ...</code></pre>
 
 <h3>(c) After</h3>
-<p>Lean accepted the new text: <code>scripts/check_lean.sh</code> printed <code>Lean checks passed.</code> after about eight seconds.</p>
+<p>Lean accepted the new text: <code>scripts/check_lean.sh</code> printed <code>Lean checks passed.</code> after about seven seconds.</p>
 <pre><code>def term_2 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := ((1 : Rat))
 def term_3 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Rat := _vars 0
 def formula_4 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := ((term_2 _atoms _vars) &lt;= (term_3 _atoms _vars))
@@ -189,7 +188,7 @@ def formula_3207 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (An
 ...
 def formula_3210 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat) : Prop := (Not (formula_3207 _atoms _vars))
 ...</code></pre>
-<p>The declarations name the input's pieces: <code>formula_4</code> is <code>1 &lt;= x</code>, <code>formula_6</code> is <code>x &lt; 1</code>, and <code>formula_3207</code> is the whole assertion.</p>
+<p>The declarations name the input's pieces: <code>formula_4</code> is <code>1 &lt;= x</code>, and <code>formula_3207</code> is the whole assertion.</p>
 <pre><code>set_option maxHeartbeats 1000000 in
 private theorem th_lemma_3214 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     : (formula_3210 _atoms _vars) := by
@@ -217,9 +216,9 @@ private theorem th_lemma_3214 (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
     | (unfold formula_3210 formula_3207 formula_3207_c1 formula_3207_c2 formula_3207_c3 formula_3207_c4 formula_3207_c5 formula_3207_c6 formula_3207_c ...
        grind (splits := 64))</code></pre>
 <p>
-This is the new layout: the 801 bridges are the binders of one function, and the 801 guarded lines after the arrow are their proofs.
+This is the new layout: the 801 bridges are the binders of one function, and the guarded lines after the arrow are their proofs.
 The mark <code>?_</code> leaves the lemma's <a href="#g-goal">goal</a> to the refutation.
-The refutation uses only <code>_f1</code>, which says that <code>1 &lt;= x</code> holds exactly when <code>x &lt; 1</code> does not.
+The refutation uses only <code>_f1</code>: <code>1 &lt;= x</code> holds exactly when <code>x &lt; 1</code> does not.
 The last alternative is the fallback.
 </p>
 <pre><code>theorem unsat (_atoms : Nat -&gt; Prop) (_vars : Nat -&gt; Rat)
@@ -244,7 +243,25 @@ The last alternative is the fallback.
 
 <h2>How it was verified</h2>
 <p>
-The whole reconstruction test suite passed, more than 700 tests, and so did its slow tier.
+The fork runs no GitHub workflows, so this PR has no CI checks.
+The loop's local gate decided the merge, and every step of it passed.
+</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Local gate step</th><th>Result</th><th>Detail</th><th>Time</th></tr></thead>
+<tbody>
+<tr><td>Lean script tests</td><td><span class="ok">pass</span></td><td>25 tests</td><td class="num">1 s</td></tr>
+<tr><td>Python example tests: certificate exporter</td><td><span class="ok">pass</span></td><td>128 tests</td><td class="num">27 s</td></tr>
+<tr><td>Python example tests: Lean reconstruction</td><td><span class="ok">pass</span></td><td>716 tests, 20 skipped (the slow tier)</td><td class="num">1,219 s</td></tr>
+<tr><td>z3test proof script tests</td><td><span class="ok">pass</span></td><td>48 tests</td><td class="num">21 s</td></tr>
+<tr><td>Lean-certified Boolean matrix (legacy proof object)</td><td><span class="ok">pass</span></td><td>6 of 6 lean-verified</td><td class="num">6 s</td></tr>
+<tr><td>Lean-certified QF_LRA matrix (clause log)</td><td><span class="ok">pass</span></td><td>8 of 8 lean-verified</td><td class="num">8 s</td></tr>
+<tr><th>Gate result</th><th><span class="ok">pass</span></th><th></th><th></th></tr>
+</tbody>
+</table>
+</div>
+<p>
+Before the gate, the PR recorded its own checks.
 Every sample file whose Lean text changed was checked again in Lean, and all verify.
 The benchmark fails with the base exporter and verifies with the new one, which the reviewer reproduced.
 </p>
@@ -252,17 +269,14 @@ The benchmark fails with the base exporter and verifies with the new one, which 
 <table>
 <thead><tr><th>Check (run on 2026-11-17, as recorded in the PR)</th><th>Result</th></tr></thead>
 <tbody>
-<tr><td>Reconstruction tests, <code>test_proof_to_lean*.py</code></td><td><span class="ok">OK</span>: 716 tests, 20 skipped (the slow tier)</td></tr>
-<tr><td>Slow tier of the same tests</td><td><span class="ok">OK</span>: 20 tests, the two new ones in 18.7 s and 29.5 s</td></tr>
-<tr><td>Certificate exporter tests</td><td><span class="ok">OK</span>: 128 tests</td></tr>
+<tr><td>The gate's last five steps, run earlier on the PR branch</td><td><span class="ok">OK</span>: the same counts as in the gate table</td></tr>
+<tr><td>Slow tier of the reconstruction tests</td><td><span class="ok">OK</span>: 20 tests, the two new ones in 18.7 s and 29.5 s</td></tr>
 <tr><td>Lean project check</td><td><span class="ok">passed</span></td></tr>
-<tr><td>Proof script tests of z3test</td><td><span class="ok">OK</span>: 48 tests</td></tr>
-<tr><td>Two regression matrix cells with Lean</td><td><span class="ok">lean-verified</span>: 6 of 6 and 8 of 8</td></tr>
 <tr><td>152 exporting sample files, old and new exporter on the same certificate</td><td>116 texts identical byte for byte. 36 differ only in how the facts are stated (8,772 facts in 499 lemmas)</td></tr>
 <tr><td>The 36 changed texts, checked in Lean</td><td><span class="ok">all 36 verify</span></td></tr>
 <tr><td>Benchmark <code>simple_startup_15nodes</code>, 694 facts in one lemma</td><td>Before: <span class="bad">fails</span> after 51.5 s. After: <span class="ok">verifies</span> in 19.4 s</td></tr>
 <tr><td>Benchmark <code>simple_startup_11nodes</code>, 446 facts in one lemma</td><td>Verifies in both. Before: 24.9 s. After: 10.9 s</td></tr>
-<tr><td>Not run</td><td><code>scripts/tests</code>, <code>test-z3</code>, and the SMT2 regressions (no C++ or script change)</td></tr>
+<tr><td>Not run</td><td><code>test-z3</code> and the SMT2 regressions (no C++ change). The Lean script tests were run by the gate only</td></tr>
 </tbody>
 </table>
 </div>
@@ -277,9 +291,7 @@ The benchmark fails with the base exporter and verifies with the new one, which 
 </table>
 </div>
 <p>
-The fork runs no GitHub workflows, so this PR has no CI checks.
-The loop's local gate decides the merge.
-The gate's result had not been recorded when this report was written.
+Upstream CI runs only when the batch carrying this change goes upstream. Its result is not known here.
 </p>
 
 <h2>Review</h2>
@@ -290,30 +302,30 @@ The gate's result had not been recorded when this report was written.
     The reviewer wrote small Lean files with a fact that cannot be proved.
     In the old layout the lemma then moved on to its fallback.
     In the new layout, when the tactic failed under a bullet or the proof stopped early, Lean's <a href="#g-recovery">error recovery</a> logged the error and admitted the fact.
-    The fallback was never tried, so a certificate the old layout verified was rejected.
-    A wrong proof was never accepted, and today's proofs do not reach the case.
-    The fix is the guard: a fact's tactics are written as <code>first | ((tactics); done) | fail</code>, and a new Lean test covers both shapes.
+    The fallback was never tried, so Lean rejected a certificate the old layout verified.
+    No wrong proof was accepted, and today's proofs do not reach the case.
+    The fix is the guard, <code>first | ((tactics); done) | fail</code>, with a new Lean test.
   </li>
   <li>
     <span class="sev">Nit, documented.</span>
     The exporter drops a first attempt above a fixed length, and a fact is now 43 characters longer.
-    A lemma near that bound could lose its attempt. No sample lemma did, and the shift is now written down.
+    A lemma near that bound could lose its attempt. No sample lemma did.
   </li>
-  <li><span class="sev">Two nits, fixed.</span> A code comment still called a fact a <code>have</code>, and the plan document understated the text growth, now given as 36 bytes per fact.</li>
+  <li><span class="sev">Two nits, fixed.</span> A code comment used the old name for a fact, and the plan document understated the text growth.</li>
 </ul>
 
 <h2>Risks and open questions</h2>
 <ul>
-  <li>A fact is no longer proved with earlier facts in view. A proof that needed one would now send its lemma to the fallback. None does in the sample or the test suite.</li>
-  <li>One fast test pins a heartbeat limit. A Lean toolchain change that shifts heartbeat counts could fail it with nothing wrong in the exporter.</li>
+  <li>A fact is no longer proved with earlier facts in view. A proof that needed one would send its lemma to the fallback. None does in the sample or the tests.</li>
+  <li>One fast test pins a heartbeat limit. A Lean toolchain change that shifts heartbeat counts could fail it.</li>
   <li>The layout was measured up to 1,601 facts in one lemma. Tens of thousands were not tried.</li>
   <li>Three large files were 1 to 3% slower after the change. That was not looked into.</li>
-  <li>Unknown: which change, between 2026-11-13 and 2026-11-16, took the benchmark's bridges from 245 to 665.</li>
+  <li>Unknown: which change took the benchmark's bridges from 245 to 665.</li>
 </ul>
 
 <h2>What comes next</h2>
 <ul>
-  <li>The fallback proof still states its own helper facts one after another, 3,338 of them in one sample file. They are the first candidate for the same layout and guard.</li>
+  <li>The fallback proof still states its own helper facts one after another. They are the first candidate for the same layout and guard.</li>
   <li>A refutation names few of the facts its lemma states: 32 of 694 in the benchmark. Stating only those would shorten the lemmas.</li>
   <li>A variant of the generated family, with all comparisons in one <a href="#g-clause">clause</a>, fails at 400 <a href="#g-literal">literals</a> with both exporters.</li>
 </ul>
