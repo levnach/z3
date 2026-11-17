@@ -7860,9 +7860,9 @@ class _PropositionalProver:
         leaves, and the unnamed gates (the two branches of an ite) are
         never linked: a search reads through them. Nor is an and/or whose
         parents are all gates of its own kind (`inner`, named or not): its
-        class is flattened into each parent's, so no structure outside
-        them is tied to it, and a search reads through it too, down to
-        the operands of the parent's class. Linked, every prefix of a
+        class is flattened into each parent's, so what is outside them
+        meets it through its operands, and a search reads through it too,
+        down to the operands of the parent's class. Linked, every prefix of a
         conjunction nested n deep had a canonical gate as wide as itself
         and a link as long: 15 million characters for 400 levels, and the
         chain of 395 that is the one assertion of QF_IDL qlock-4-10-8
