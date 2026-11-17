@@ -1817,7 +1817,7 @@ texts above 8 MB as chains of 1 MB modules; "before" is the exporter of
 fork master 336498c4c on the same certificate).
 
 The generated family above, n bounds kept (Z3's clause log; the cut is in
-front, so the step is the clause's tail, 39 bytes):
+front, so the step is the clause's tail, a line of 43 to 57 bytes):
 
 | bounds kept | 200 | 400 | 800 | 1,600 |
 | --- | --- | --- | --- | --- |
